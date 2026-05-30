@@ -1,0 +1,9 @@
+RewriteEngine On
+
+RewriteRule ^(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md)$ - [F,L]
+
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+RewriteRule ^(.*)$ index.php [L,QSA]
