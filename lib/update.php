@@ -14,7 +14,7 @@ function update_web_user() {
 }
 
 function update_protected_paths() {
-    return ['config.php', 'config.example.php', '.git', 'backups', 'docs', 'README.md', 'install.sh'];
+    return ['config.php', 'config.example.php', '.git', 'backups', '.backups', 'docs', 'README.md', 'install.sh'];
 }
 
 function update_path_ok($rel) {
@@ -227,9 +227,9 @@ function update_apply(&$log, &$err = null) {
     if ($cmp === null) return false;
 
     $root = update_root();
-    $bdir = $root . '/backups';
-    if (!is_dir($bdir) && !@mkdir($bdir, 0775, true)) { $err = 'Не удалось создать каталог backups/'; return false; }
-    if (!is_writable($bdir)) { $err = 'Каталог backups/ недоступен на запись'; return false; }
+    $bdir = $root . '/.backups';
+    if (!is_dir($bdir) && !@mkdir($bdir, 0775, true)) { $err = 'Не удалось создать каталог .backups/'; return false; }
+    if (!is_writable($bdir)) { $err = 'Каталог .backups/ недоступен на запись'; return false; }
     if (!is_writable($root)) { $err = 'Корень установки недоступен на запись'; return false; }
 
     $writes = [];
@@ -323,7 +323,7 @@ function update_rollback(&$log, &$err = null) {
     $name = trim((string) setting('update_last_backup', ''));
     if ($name === '' || strpos($name, '/') !== false || strpos($name, '..') !== false) { $err = 'Нет корректного последнего бэкапа.'; return false; }
     $root = update_root();
-    $bdir = $root . '/backups/' . $name;
+    $bdir = $root . '/.backups/' . $name;
     if (!is_dir($bdir)) { $err = 'Бэкап не найден: ' . $name; return false; }
     $manifest = json_decode((string) @file_get_contents($bdir . '/.manifest.json'), true);
     if (!is_array($manifest)) $manifest = [];

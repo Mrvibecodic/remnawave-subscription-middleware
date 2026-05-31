@@ -33,7 +33,7 @@ $u_stbadge   = function ($s) {
             <p class="muted" style="margin-top:0;line-height:1.7">Чтобы кнопка «Обновить» могла записать новые файлы из GitHub, веб-серверу (пользователь <code><?= h($u_user) ?></code>) нужно право записи в каталог установки. Один раз выполните на сервере под root:</p>
             <div class="up-logbox">cd <?= h(update_root()) ?>
 sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
-            <p class="muted" style="line-height:1.7"><b>Что делает:</b> назначает владельцем всех файлов и папок установки пользователя веб-сервера (<code><?= h($u_user) ?></code>), чтобы PHP при обновлении мог перезаписывать файлы и складывать бэкап в <code>backups/</code>.</p>
+            <p class="muted" style="line-height:1.7"><b>Что делает:</b> назначает владельцем всех файлов и папок установки пользователя веб-сервера (<code><?= h($u_user) ?></code>), чтобы PHP при обновлении мог перезаписывать файлы и складывать бэкап в <code>.backups/</code>.</p>
             <p class="muted" style="line-height:1.7"><b>Насколько безопасно:</b> права действуют <u>только внутри этого каталога</u> — за его пределы (на систему, другие сайты) доступ не распространяется. Это штатный режим для самообновляющихся приложений (как WordPress). Единственный риск: при взломе самого сайта злоумышленник сможет переписать код в этой папке — поэтому держите доступ к админке и серверу закрытым. <code>config.php</code> и база наружу не отдаются (закрыты конфигом веб-сервера).</p>
             <button type="button" class="btn" onclick="collToggle(this)">✓ Я сделал — свернуть</button>
         </div>
@@ -83,8 +83,8 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
-        <div class="warn" style="margin-top:.8rem">Обновление перезапишет перечисленные файлы версиями из репозитория. Любые локальные правки в коде этих файлов будут потеряны (кастомизацию держите в config.php и настройках). Перед записью делается бэкап в <code>backups/</code> — есть откат.</div>
-        <form method="post" style="margin-top:.9rem" onsubmit="var f=this;uiConfirm('Применить обновление? Изменённые файлы будут перезаписаны (бэкап в backups/).',function(){f.submit();},'Обновить',false);return false;">
+        <div class="warn" style="margin-top:.8rem">Обновление перезапишет перечисленные файлы версиями из репозитория. Любые локальные правки в коде этих файлов будут потеряны (кастомизацию держите в config.php и настройках). Перед записью делается бэкап в <code>.backups/</code> — есть откат.</div>
+        <form method="post" style="margin-top:.9rem" onsubmit="var f=this;uiConfirm('Применить обновление? Изменённые файлы будут перезаписаны (бэкап в .backups/).',function(){f.submit();},'Обновить',false);return false;">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_apply">
             <button type="submit">⬇️ Обновить до <code><?= h(substr($u_latest, 0, 7)) ?></code></button>
@@ -121,8 +121,8 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
             <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
-            <p class="muted" style="margin-top:0;line-height:1.7">Версия фиксируется как SHA коммита (<code>installed_commit</code>). Сравнение с веткой идёт через GitHub API (<code>compare</code>), скачиваются только изменённые файлы. Защищены и не трогаются: <code>config.php</code>, <code>config.example.php</code>, <code>.git</code>, <code>backups/</code>.</p>
-            <p class="muted" style="line-height:1.7">Сначала все файлы скачиваются во временную папку и только потом применяются — при ошибке сети обновление не применится. Перед записью текущие версии копируются в <code>backups/</code>.</p>
+            <p class="muted" style="margin-top:0;line-height:1.7">Версия фиксируется как SHA коммита (<code>installed_commit</code>). Сравнение с веткой идёт через GitHub API (<code>compare</code>), скачиваются только изменённые файлы. Защищены и не трогаются: <code>config.php</code>, <code>config.example.php</code>, <code>.git</code>, <code>.backups/</code>.</p>
+            <p class="muted" style="line-height:1.7">Сначала все файлы скачиваются во временную папку и только потом применяются — при ошибке сети обновление не применится. Перед записью текущие версии копируются в <code>.backups/</code>.</p>
             <p class="muted" style="line-height:1.7">Доступ к GitHub с сервера может резаться (DPI) — тогда будет ошибка сети, попробуйте позже. Без токена лимит GitHub — 60 запросов в час на IP, поэтому авто-проверка идёт раз в сутки.</p>
             <p class="muted" style="line-height:1.7">Если обновление требует изменений в БД — это указывается в описании коммита; код миграций применяется идемпотентно при загрузке (как перенос старых заголовков в правила).</p>
         </div>
