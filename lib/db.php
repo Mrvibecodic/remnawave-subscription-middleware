@@ -232,18 +232,17 @@ function db() {
 }
 
 function setting($key, $default = null) {
-    static $cache = null;
-    if ($cache === null) {
-        $cache = [];
+    if (!isset($GLOBALS['submw_settings_cache'])) {
+        $GLOBALS['submw_settings_cache'] = [];
         if ($p = db()) {
             try {
                 foreach ($p->query('SELECT k, v FROM settings') as $row) {
-                    $cache[$row['k']] = $row['v'];
+                    $GLOBALS['submw_settings_cache'][$row['k']] = $row['v'];
                 }
             } catch (Throwable $e) { error_log('submw settings read: ' . $e->getMessage()); }
         }
     }
-    return array_key_exists($key, $cache) ? $cache[$key] : $default;
+    return array_key_exists($key, $GLOBALS['submw_settings_cache']) ? $GLOBALS['submw_settings_cache'][$key] : $default;
 }
 
 function set_setting($key, $value) {
@@ -253,7 +252,9 @@ function set_setting($key, $value) {
     } else {
         $stmt = $p->prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, updated_at = CURRENT_TIMESTAMP');
     }
-    return $stmt->execute([$key, $value]);
+    $ok = $stmt->execute([$key, (string) $value]);
+    if ($ok && isset($GLOBALS['submw_settings_cache'])) $GLOBALS['submw_settings_cache'][$key] = (string) $value;
+    return $ok;
 }
 
 function sql_epoch($col) {

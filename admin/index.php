@@ -279,6 +279,23 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'save_rules' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        rules_save_from_json($_POST['response_rules_json'] ?? '[]');
+        echo json_encode(['ok' => true]);
+        exit();
+    }
+
+    if ($a === 'test_rule' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $ov = ['user-agent' => (string) ($_POST['ua'] ?? '')];
+        $os = strtolower(trim((string) ($_POST['os'] ?? '')));
+        if ($os !== '') $ov['x-device-os'] = $os;
+        $res = rules_test($ov);
+        echo json_encode(['ok' => true, 'matched' => $res['matched'], 'headers' => $res['headers']], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'unknown ajax']);
     exit();
@@ -360,6 +377,41 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         header('Location: index.php?tab=fwdlog'); exit();
     }
 
+    if ($action === 'save_response_rules') {
+        rules_save_from_json($_POST['response_rules_json'] ?? '[]');
+        flash('Правила ответа сохранены');
+        header('Location: index.php?tab=rules'); exit();
+    }
+
+    if ($action === 'update_check') {
+        $e = '';
+        update_refresh($e);
+        flash($e === '' ? 'Проверка обновлений выполнена' : ('Ошибка проверки: ' . $e));
+        header('Location: index.php?tab=update'); exit();
+    }
+
+    if ($action === 'update_set_current') {
+        $e = '';
+        flash(update_set_current($e) ? 'Текущая версия отмечена базовым коммитом' : ('Ошибка: ' . $e));
+        header('Location: index.php?tab=update'); exit();
+    }
+
+    if ($action === 'update_apply') {
+        $e = ''; $log = [];
+        $ok = update_apply($log, $e);
+        set_setting('update_last_log', json_encode($log, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        flash($ok ? ('Обновление применено, файлов: ' . count($log)) : ('Обновление не выполнено: ' . $e));
+        header('Location: index.php?tab=update'); exit();
+    }
+
+    if ($action === 'update_rollback') {
+        $e = ''; $log = [];
+        $ok = update_rollback($log, $e);
+        set_setting('update_last_log', json_encode($log, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        flash($ok ? ('Откат выполнен, файлов: ' . count($log)) : ('Откат не выполнен: ' . $e));
+        header('Location: index.php?tab=update'); exit();
+    }
+
     if ($action === 'save_app_headers') {
         $arr = json_decode((string) ($_POST['app_headers_json'] ?? '[]'), true);
         $clean = [];
@@ -427,6 +479,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 
 $tab   = $_GET['tab'] ?? 'users';
 if ($tab === 'settings') $tab = 'connection';
+if ($tab === 'headers') $tab = 'rules';
+rules_migrate_legacy();
+update_autocheck();
 $token = csrf_token();
 $flash = take_flash();
 $pdo   = db();
@@ -498,7 +553,7 @@ if ($tab === 'subst' && remnawave_url() !== '' && remnawave_token() !== '') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'migrate' => 'Миграция БД'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'update' => 'Обновление', 'migrate' => 'Миграция БД'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -529,8 +584,8 @@ window.phSupportName=function(id){var el=document.getElementById(id);if(!el)retu
 window.phRow=function(name,support){return '<div class="srow'+(support?' support':'')+'"><span class="dot"></span><span class="nm">'+phEsc(name)+(support?'<span class="ph-badge">рабочий</span>':'')+'</span><span class="pg">'+(support?'42 ms':'—')+'</span></div>';};
 window.phRender=function(o){var rows=[];(o.list||[]).forEach(function(lid){phLines(lid).forEach(function(n){rows.push(phRow(n,false));});});if(o.support){var en=o.supportChk?document.getElementById(o.supportChk):null;if(!en||en.checked){var sn=phSupportName(o.support);if(sn)rows.push(phRow(sn,true));}}var t=o.title?((document.getElementById(o.title).value||'').trim()||'(как у origin)'):(o.titleText||'');var te=document.getElementById(o.titleEl);if(te)te.textContent=t;var se=document.getElementById(o.subEl);if(se)se.textContent=o.sub||'';var le=document.getElementById(o.listEl);if(le)le.innerHTML=rows.length?rows.join(''):'<div class="ph-empty">пусто — добавьте строки слева</div>';};
 </script>
-<link rel="stylesheet" href="assets/fonts.css?v=<?= @filemtime(__DIR__ . '/assets/fonts.css') ?: 1 ?>">
-<link rel="stylesheet" href="assets/admin.css?v=<?= @filemtime(__DIR__ . '/assets/admin.css') ?: 1 ?>">
+<link rel="stylesheet" href="assets/fonts.css?v=<?= substr(@md5_file(__DIR__ . '/assets/fonts.css') ?: '0', 0, 10) ?>">
+<link rel="stylesheet" href="assets/admin.css?v=<?= substr(@md5_file(__DIR__ . '/assets/admin.css') ?: '0', 0, 10) ?>">
 </head><body>
 <?php
 $nav = [
@@ -540,6 +595,7 @@ $nav = [
     'webhooks'  => ['Вебхуки', '<path d="M18 8a3 3 0 1 0-2.6-4.5"/><circle cx="6" cy="16" r="3"/><circle cx="18" cy="18" r="3"/><path d="M12 11l-3.6 6"/><path d="M12 7v4l3.6 6"/>'],
     'subst'     => ['Грейс-сквад', '<path d="M4 4h16v6H4z"/><path d="M4 14h16v6H4z"/><path d="M8 17h8"/>'],
     'headers'   => ['Заголовки', '<polyline points="7 8 3 12 7 16"/><polyline points="17 8 21 12 17 16"/><line x1="13.5" y1="4" x2="10.5" y2="20"/>'],
+    'rules'     => ['Правила ответа', '<path d="M4 6h10"/><path d="M4 12h7"/><path d="M4 18h10"/><circle cx="18" cy="8" r="2"/><circle cx="16" cy="16" r="2"/>'],
     'hwid'      => ['HWID', '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="18" x2="15" y2="18"/><path d="M9 6h6M9 9h6"/>'],
     'overrides' => ['Оверрайды', '<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9.5 12l1.8 1.8L15 9.8"/>'],
     'reqlog'    => ['Лог запросов', '<line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'],
@@ -547,6 +603,7 @@ $nav = [
     'whlog_other' => ['Прочие события', '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>'],
     'fwdlog'    => ['Лог пересылки', '<path d="M4 12h12"/><path d="M12 6l6 6-6 6"/><path d="M20 4v16"/>'],
     'grace_users' => ['Грейс-юзеры', '<circle cx="9" cy="7" r="3"/><path d="M3 21v-1a5 5 0 0 1 5-5h2"/><path d="M16 11l2 2 4-4"/>'],
+    'update'    => ['Обновление', '<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>'],
     'migrate'   => ['Миграция БД', '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.6 3.6 3 8 3s8-1.4 8-3V5"/><path d="M4 12c0 1.6 3.6 3 8 3s8-1.4 8-3"/>'],
 ];
 ?>
@@ -554,13 +611,14 @@ $nav = [
 $nav_groups = [
     'Обзор'      => ['users'],
     'Настройки'  => ['branding', 'connection', 'webhooks'],
-    'Управление' => ['subst', 'headers', 'hwid', 'overrides'],
+    'Управление' => ['subst', 'rules', 'hwid', 'overrides'],
     'Логи'       => ['reqlog', 'whlog', 'whlog_other', 'fwdlog', 'grace_users'],
-    'Обслуживание' => ['migrate'],
+    'Обслуживание' => ['update', 'migrate'],
 ];
-function nav_link($key, $it, $active) {
+function nav_link($key, $it, $active, $badge = false) {
     $svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
-    return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '">' . $svg . '<span>' . h($it[0]) . '</span></a>';
+    $dot = $badge ? '<span class="nav-dot" title="Доступно обновление"></span>' : '';
+    return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '">' . $svg . '<span>' . h($it[0]) . '</span>' . $dot . '</a>';
 }
 ?>
 <div class="rw-app">
@@ -570,12 +628,16 @@ function nav_link($key, $it, $active) {
             <?php foreach ($nav_groups as $glabel => $keys): ?>
                 <div class="navgroup"><?= h($glabel) ?></div>
                 <?php foreach ($keys as $key): ?>
-                    <?= nav_link($key, $nav[$key], $tab === $key) ?>
+                    <?= nav_link($key, $nav[$key], $tab === $key, $key === 'update' && update_available()) ?>
                 <?php endforeach; ?>
             <?php endforeach; ?>
         </nav>
         <div class="rw-foot">
             <div class="origin">origin: <?= h(target_domain()) ?><br>зеркало: <?= h($mirror) ?></div>
+            <div class="rw-ver">
+                <span class="rw-ver-l">версия: <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code><?php if (update_available()): ?> <a class="nav-dot rw-ver-dot" href="?tab=update" title="Доступно обновление"></a><?php endif; ?></span>
+                <form method="post" class="rw-ver-check"><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="update_check"><button type="submit" title="Проверить обновления на GitHub">⟳ проверить</button></form>
+            </div>
             <div class="theme-seg" role="group" aria-label="Тема оформления">
                 <button type="button" data-theme-set="light" onclick="setTheme('light')" aria-label="Светлая тема" title="Светлая"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Свет</span></button>
                 <button type="button" data-theme-set="system" onclick="setTheme('system')" aria-label="Системная тема" title="Как в системе"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>Авто</span></button>
@@ -613,6 +675,9 @@ function nav_link($key, $it, $active) {
 <?php elseif ($tab === 'headers'): ?>
     <?php include __DIR__ . '/inc/tab_headers.php'; ?>
 
+<?php elseif ($tab === 'rules'): ?>
+    <?php include __DIR__ . '/inc/tab_rules.php'; ?>
+
 <?php elseif ($tab === 'hwid'): ?>
     <?php include __DIR__ . '/inc/tab_hwid.php'; ?>
 
@@ -632,6 +697,9 @@ function nav_link($key, $it, $active) {
     <?php include __DIR__ . '/inc/tab_grace_users.php'; ?>
 <?php elseif ($tab === 'migrate'): ?>
     <?php include __DIR__ . '/inc/tab_migrate.php'; ?>
+
+<?php elseif ($tab === 'update'): ?>
+    <?php include __DIR__ . '/inc/tab_update.php'; ?>
 <?php endif; ?>
     </div>
     </main>

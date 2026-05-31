@@ -42,6 +42,14 @@
     .rw-nav a svg{width:18px;height:18px;flex:0 0 auto;opacity:.9}
     .rw-nav a:hover{background:var(--hover);color:var(--text)}
     .rw-nav a.active{background:var(--accent-light);color:var(--accent-text)}
+    .rw-nav a .nav-dot{margin-left:auto;width:9px;height:9px;border-radius:50%;background:#f5b50a;flex:0 0 auto;box-shadow:0 0 0 0 rgba(245,181,10,.6);animation:navpulse 1.8s ease-out infinite}
+    @keyframes navpulse{0%{box-shadow:0 0 0 0 rgba(245,181,10,.55)}70%{box-shadow:0 0 0 7px rgba(245,181,10,0)}100%{box-shadow:0 0 0 0 rgba(245,181,10,0)}}
+    .rw-ver{font-size:.72rem;color:var(--muted);display:flex;flex-direction:column;gap:.4rem;padding:.1rem .2rem .2rem}
+    .rw-ver code{font-family:monospace;font-size:.95em;color:var(--text-strong)}
+    .rw-ver-dot{display:inline-block;width:8px;height:8px;margin-left:.25rem;vertical-align:middle}
+    .rw-ver-check{margin:0}
+    .rw-ver-check button{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:.28rem .55rem;font-size:.72rem;cursor:pointer}
+    .rw-ver-check button:hover{border-color:var(--accent);color:var(--text)}
     .rw-foot{padding:.85rem 1rem;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:.65rem}
     .rw-foot .origin{font-size:.72rem;color:var(--muted);line-height:1.55;word-break:break-all}
     .theme-seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}

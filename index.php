@@ -214,7 +214,7 @@ if ($do_substitute) {
         if (isset($grabbed_headers[$h])) header($h . ': ' . $grabbed_headers[$h]);
     }
 
-    emit_app_headers();
+    emit_response_headers();
     echo build_override_body($decision, $format);
     if (!$skip_log) log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts, $current_hwid);
     exit();
@@ -225,7 +225,7 @@ http_response_code($http_code ?: 200);
 foreach ($grabbed_headers as $name => $value) {
     if (!in_array($name, $unsafe, true)) header($name . ': ' . $value);
 }
-emit_app_headers();
+emit_response_headers();
 echo $response;
 if (!$skip_log) {
     $log_decision = grace_is_active($short_uuid) ? 'grace' : 'normal';
