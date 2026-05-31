@@ -636,7 +636,6 @@ function nav_link($key, $it, $active, $badge = false) {
             <div class="origin">origin: <?= h(target_domain()) ?><br>зеркало: <?= h($mirror) ?></div>
             <div class="rw-ver">
                 <span class="rw-ver-l">версия: <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code><?php if (update_available()): ?> <a class="nav-dot rw-ver-dot" href="?tab=update" title="Доступно обновление"></a><?php endif; ?></span>
-                <form method="post" class="rw-ver-check"><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="update_check"><button type="submit" title="Проверить обновления на GitHub">⟳ проверить</button></form>
             </div>
             <div class="theme-seg" role="group" aria-label="Тема оформления">
                 <button type="button" data-theme-set="light" onclick="setTheme('light')" aria-label="Светлая тема" title="Светлая"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Свет</span></button>
@@ -652,7 +651,7 @@ function nav_link($key, $it, $active, $badge = false) {
                 <h1 class="pagetitle"><?= h($tab_title) ?></h1>
             </div>
             <div class="rw-hcontrols">
-                <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5l3.09 6.26 6.91 1-5 4.87 1.18 6.87L12 16.9l-6.18 3.25L7 13.63l-5-4.87 6.91-1z"/></svg><span id="ghStarCount">★</span></a>
+                <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
                 <a class="hbtn" href="?logout=1" title="Выйти" aria-label="Выйти"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>
@@ -795,7 +794,7 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
     try{document.cookie='tzoff='+(-new Date().getTimezoneOffset())+';path=/;max-age=31536000;samesite=Lax';}catch(e){}
     ok.addEventListener('click',function(){var f=cb; uiDlgClose(); if(f)f();});
     document.addEventListener('keydown',function(e){if(e.key==='Escape')uiDlgClose();});
-    (function(){var el=document.getElementById('ghStarCount');if(!el)return;try{var c=JSON.parse(localStorage.getItem('gh_stars')||'null');if(c&&Date.now()-c.t<21600000){el.textContent='\u2605 '+c.n;return;}}catch(e){}fetch('https://api.github.com/repos/Mrvibecodic/remnawave-subscription-middleware').then(function(r){return r.json();}).then(function(d){if(d&&typeof d.stargazers_count==='number'){el.textContent='\u2605 '+d.stargazers_count;try{localStorage.setItem('gh_stars',JSON.stringify({n:d.stargazers_count,t:Date.now()}));}catch(e){}}}).catch(function(){});})();
+    (function(){var el=document.getElementById('ghStarCount');if(!el)return;try{var c=JSON.parse(localStorage.getItem('gh_stars')||'null');if(c&&Date.now()-c.t<21600000){el.textContent=c.n;return;}}catch(e){}fetch('https://api.github.com/repos/Mrvibecodic/remnawave-subscription-middleware').then(function(r){return r.json();}).then(function(d){if(d&&typeof d.stargazers_count==='number'){el.textContent=d.stargazers_count;try{localStorage.setItem('gh_stars',JSON.stringify({n:d.stargazers_count,t:Date.now()}));}catch(e){}}}).catch(function(){});})();
 })();
 </script>
 </body></html>

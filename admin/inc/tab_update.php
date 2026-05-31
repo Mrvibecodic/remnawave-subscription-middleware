@@ -3,6 +3,7 @@ $u_state     = update_state();
 $u_installed = update_installed_commit();
 $u_avail     = update_available();
 $u_backup    = trim((string) setting('update_last_backup', ''));
+$u_isgit     = update_local_git_commit() !== '';
 $u_log       = json_decode((string) setting('update_last_log', '[]'), true);
 if (!is_array($u_log)) $u_log = [];
 $u_checked   = (int) ($u_state['checked_at'] ?? 0);
@@ -66,10 +67,13 @@ $u_stbadge   = function ($s) {
             </div>
         <?php endif; ?>
         <div class="warn" style="margin-top:.8rem">Обновление перезапишет перечисленные файлы версиями из репозитория. Любые локальные правки в коде этих файлов будут потеряны (кастомизацию держите в config.php и настройках). Перед записью делается бэкап в <code>backups/</code> — есть откат.</div>
+        <?php if ($u_isgit): ?>
+            <div class="info" style="margin-top:.9rem">Установка склонирована из git — обновляйтесь штатно: <code>git pull</code> на сервере (см. README). Версия подхватится из <code>.git</code> автоматически. Кнопка ниже перезапишет файлы напрямую (используйте, только если git недоступен).</div>
+        <?php endif; ?>
         <form method="post" style="margin-top:.9rem" onsubmit="return uiConfirmForm(this,'Применить обновление? Изменённые файлы будут перезаписаны (бэкап сохранится в backups/).')">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_apply">
-            <button type="submit">⬇️ Обновить до <code><?= h(substr($u_latest, 0, 7)) ?></code></button>
+            <button type="submit" class="<?= $u_isgit ? 'btn ghost' : '' ?>">⬇️ Обновить до <code><?= h(substr($u_latest, 0, 7)) ?></code></button>
         </form>
     </div>
     <?php elseif ($u_installed !== '' && $u_latest !== ''): ?>

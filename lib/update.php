@@ -60,7 +60,45 @@ function update_latest_commit(&$err = null) {
     ];
 }
 
-function update_installed_commit() { return trim((string) setting('installed_commit', '')); }
+function update_local_git_commit() {
+    $gitdir = update_root() . '/.git';
+    if (is_file($gitdir)) {
+        $c = trim((string) @file_get_contents($gitdir));
+        if (strpos($c, 'gitdir:') === 0) $gitdir = trim(substr($c, 7));
+    }
+    if (!is_dir($gitdir)) return '';
+    $head = trim((string) @file_get_contents($gitdir . '/HEAD'));
+    if ($head === '') return '';
+    if (strpos($head, 'ref:') === 0) {
+        $ref = trim(substr($head, 4));
+        $rp = $gitdir . '/' . $ref;
+        if (is_file($rp)) {
+            $sha = trim((string) @file_get_contents($rp));
+            if (preg_match('/^[0-9a-f]{40}$/', $sha)) return $sha;
+        }
+        $pr = $gitdir . '/packed-refs';
+        if (is_file($pr)) {
+            foreach (@file($pr) ?: [] as $line) {
+                $line = trim($line);
+                if ($line === '' || $line[0] === '#' || $line[0] === '^') continue;
+                $p = preg_split('/\s+/', $line);
+                if (count($p) === 2 && $p[1] === $ref && preg_match('/^[0-9a-f]{40}$/', $p[0])) return $p[0];
+            }
+        }
+        return '';
+    }
+    return preg_match('/^[0-9a-f]{40}$/', $head) ? $head : '';
+}
+
+function update_installed_commit() {
+    $stored = trim((string) setting('installed_commit', ''));
+    $git = update_local_git_commit();
+    if ($git !== '') {
+        if ($git !== $stored) set_setting('installed_commit', $git);
+        return $git;
+    }
+    return $stored;
+}
 
 function update_compare($base, $head, &$err = null) {
     $j = update_api('/compare/' . rawurlencode($base) . '...' . rawurlencode($head), $err);

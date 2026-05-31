@@ -65,6 +65,10 @@
     .hbtn{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:600;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:8px;padding:.4rem .7rem;cursor:pointer}
     .hbtn:hover{color:var(--text);border-color:var(--accent)}
     .hbtn svg{width:15px;height:15px}
+    .hbtn{line-height:1}
+    .hbtn svg.hbtn-star{width:20px;height:20px;display:block;flex:0 0 auto}
+    #ghStarCount{display:inline-flex;align-items:center;height:20px;color:#f5b50a;font-weight:700;line-height:1;-webkit-text-stroke:.4px #1a1a1a;text-shadow:0 0 1px rgba(26,26,26,.6)}
+    #ghStarCount:empty{display:none}
     .rw-meta{font-size:.76rem;color:var(--muted)}
     .rw-meta b{color:var(--text);font-weight:600}
     .rw-content{padding:1.4rem 1.6rem;min-width:0}
