@@ -70,7 +70,7 @@ $u_stbadge   = function ($s) {
         <?php if ($u_isgit): ?>
             <div class="info" style="margin-top:.9rem">Установка склонирована из git — обновляйтесь штатно: <code>git pull</code> на сервере (см. README). Версия подхватится из <code>.git</code> автоматически. Кнопка ниже перезапишет файлы напрямую (используйте, только если git недоступен).</div>
         <?php endif; ?>
-        <form method="post" style="margin-top:.9rem" onsubmit="return uiConfirmForm(this,'Применить обновление? Изменённые файлы будут перезаписаны (бэкап сохранится в backups/).')">
+        <form method="post" style="margin-top:.9rem" onsubmit="var f=this;uiConfirm('Применить обновление? Изменённые файлы будут перезаписаны (бэкап в backups/).',function(){f.submit();},'Обновить',false);return false;">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_apply">
             <button type="submit" class="<?= $u_isgit ? 'btn ghost' : '' ?>">⬇️ Обновить до <code><?= h(substr($u_latest, 0, 7)) ?></code></button>
@@ -91,7 +91,7 @@ $u_stbadge   = function ($s) {
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Откат</h2>
         <p class="muted" style="margin-top:0">Последний бэкап: <code><?= h($u_backup) ?></code>. Откат вернёт файлы к состоянию до последнего обновления.</p>
-        <form method="post" onsubmit="return uiConfirmForm(this,'Откатить последнее обновление из бэкапа?')">
+        <form method="post" onsubmit="var f=this;uiConfirm('Откатить последнее обновление из бэкапа?',function(){f.submit();},'Откатить',false);return false;">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_rollback">
             <button type="submit" class="btn ghost">↩️ Откатить последнее обновление</button>

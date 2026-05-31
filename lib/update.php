@@ -238,6 +238,26 @@ function update_apply(&$log, &$err = null) {
     }
     if (!$writes && !$deletes) { $err = 'Нет файлов для применения (всё защищено или пусто).'; return false; }
 
+    $unwritable = [];
+    foreach ($writes as $rel) {
+        $dst = $root . '/' . $rel;
+        if (is_file($dst)) {
+            if (!is_writable($dst)) $unwritable[] = $rel;
+        } else {
+            $d = dirname($dst);
+            while (!is_dir($d) && strlen($d) > strlen($root)) $d = dirname($d);
+            if (!is_writable($d)) $unwritable[] = $rel;
+        }
+    }
+    foreach ($deletes as $rel) {
+        $dst = $root . '/' . $rel;
+        if (is_file($dst) && !is_writable(dirname($dst))) $unwritable[] = $rel;
+    }
+    if ($unwritable) {
+        $err = 'Нет прав на запись (' . count($unwritable) . '): ' . implode(', ', array_slice($unwritable, 0, 4)) . (count($unwritable) > 4 ? ' …' : '') . '. Дайте веб-серверу права на каталог установки или обновитесь через git pull (см. README).';
+        return false;
+    }
+
     $tmp = $bdir . '/.tmp-' . substr($latest['sha'], 0, 12);
     update_rmrf($tmp);
     if (!@mkdir($tmp, 0775, true)) { $err = 'Не удалось создать временный каталог'; return false; }
@@ -266,10 +286,18 @@ function update_apply(&$log, &$err = null) {
         }
     }
 
+    $manifest = ['base' => $installed, 'target' => $latest['sha'], 'added' => array_values(array_unique($added)), 'restored' => array_values(array_unique($restored)), 'ts' => time()];
+    @file_put_contents($backup . '/.manifest.json', json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    set_setting('update_last_backup', basename($backup));
+
     foreach ($writes as $rel) {
         $dst = $root . '/' . $rel;
-        if (!is_dir(dirname($dst)) && !@mkdir(dirname($dst), 0775, true)) { $err = 'Не создать каталог для ' . $rel . ' (откатите из backups)'; update_rmrf($tmp); return false; }
-        if (!@copy($tmp . '/' . $rel, $dst)) { $err = 'Не записать ' . $rel . ' (откатите из backups)'; update_rmrf($tmp); return false; }
+        if ((!is_dir(dirname($dst)) && !@mkdir(dirname($dst), 0775, true)) || !@copy($tmp . '/' . $rel, $dst)) {
+            $rb = []; update_rollback($rb, $e3);
+            update_rmrf($tmp);
+            $err = 'Сбой записи ' . $rel . ' — изменения откачены из бэкапа.';
+            return false;
+        }
         $log[] = (in_array($rel, $added, true) ? 'добавлен: ' : 'обновлён: ') . $rel;
     }
     foreach ($deletes as $rel) {
@@ -278,11 +306,7 @@ function update_apply(&$log, &$err = null) {
     }
     update_rmrf($tmp);
 
-    $manifest = ['base' => $installed, 'target' => $latest['sha'], 'added' => array_values(array_unique($added)), 'restored' => array_values(array_unique($restored)), 'ts' => time()];
-    @file_put_contents($backup . '/.manifest.json', json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-
     set_setting('installed_commit', $latest['sha']);
-    set_setting('update_last_backup', basename($backup));
     update_refresh($e);
     return true;
 }
