@@ -101,12 +101,10 @@ function update_local_git_commit() {
 
 function update_installed_commit() {
     $stored = trim((string) setting('installed_commit', ''));
+    if ($stored !== '') return $stored;
     $git = update_local_git_commit();
-    if ($git !== '') {
-        if ($git !== $stored) set_setting('installed_commit', $git);
-        return $git;
-    }
-    return $stored;
+    if ($git !== '') { set_setting('installed_commit', $git); return $git; }
+    return '';
 }
 
 function update_compare($base, $head, &$err = null) {

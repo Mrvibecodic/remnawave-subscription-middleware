@@ -24,6 +24,21 @@ $u_stbadge   = function ($s) {
         Обновление прослойки с GitHub по коммитам: тянутся только изменённые файлы из <b><?= h(update_repo()) ?></b> (ветка <b><?= h(update_branch()) ?></b>). Git на сервере не нужен — только доступ к GitHub. Проверка идёт автоматически раз в сутки; пункт меню «Обновление» подсвечивается, когда появились новые коммиты.
     </div>
 
+    <section class="coll" data-coll="update_perms">
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>🔑 Шаг 1 — права на запись (нужно для кнопки «Обновить»)</span>
+            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="coll-body">
+            <?php if ($u_writable): ?><div class="info" style="margin-top:0">✓ Права на запись уже есть — шаг выполнен, можно сворачивать.</div><?php endif; ?>
+            <p class="muted" style="margin-top:0;line-height:1.7">Чтобы кнопка «Обновить» могла записать новые файлы из GitHub, веб-серверу (пользователь <code><?= h($u_user) ?></code>) нужно право записи в каталог установки. Один раз выполните на сервере под root:</p>
+            <div class="up-logbox">cd <?= h(update_root()) ?>
+sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
+            <p class="muted" style="line-height:1.7"><b>Что делает:</b> назначает владельцем всех файлов и папок установки пользователя веб-сервера (<code><?= h($u_user) ?></code>), чтобы PHP при обновлении мог перезаписывать файлы и складывать бэкап в <code>backups/</code>.</p>
+            <p class="muted" style="line-height:1.7"><b>Насколько безопасно:</b> права действуют <u>только внутри этого каталога</u> — за его пределы (на систему, другие сайты) доступ не распространяется. Это штатный режим для самообновляющихся приложений (как WordPress). Единственный риск: при взломе самого сайта злоумышленник сможет переписать код в этой папке — поэтому держите доступ к админке и серверу закрытым. <code>config.php</code> и база наружу не отдаются (закрыты конфигом веб-сервера).</p>
+            <button type="button" class="btn" onclick="collToggle(this)">✓ Я сделал — свернуть</button>
+        </div>
+    </section>
+
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Текущая версия</h2>
         <?php if ($u_installed === ''): ?>
@@ -69,20 +84,18 @@ $u_stbadge   = function ($s) {
             </div>
         <?php endif; ?>
         <div class="warn" style="margin-top:.8rem">Обновление перезапишет перечисленные файлы версиями из репозитория. Любые локальные правки в коде этих файлов будут потеряны (кастомизацию держите в config.php и настройках). Перед записью делается бэкап в <code>backups/</code> — есть откат.</div>
-        <?php if ($u_isgit): ?>
-            <div class="info" style="margin-top:.9rem">Установка склонирована из git — обновляйтесь штатно: <code>git pull</code> на сервере (см. README). Версия подхватится из <code>.git</code> автоматически. Кнопка ниже перезапишет файлы напрямую (используйте, только если git недоступен).</div>
-        <?php endif; ?>
         <form method="post" style="margin-top:.9rem" onsubmit="var f=this;uiConfirm('Применить обновление? Изменённые файлы будут перезаписаны (бэкап в backups/).',function(){f.submit();},'Обновить',false);return false;">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_apply">
-            <button type="submit" class="<?= $u_isgit ? 'btn ghost' : '' ?>">⬇️ Обновить до <code><?= h(substr($u_latest, 0, 7)) ?></code></button>
+            <button type="submit">⬇️ Обновить до <code><?= h(substr($u_latest, 0, 7)) ?></code></button>
         </form>
-        <?php if (!$u_isgit): ?>
         <form method="post" style="margin-top:.5rem">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_set_current">
             <button type="submit" class="btn ghost">✓ Я уже обновил файлы вручную — отметить текущую версию</button>
         </form>
+        <?php if ($u_isgit): ?>
+            <p class="muted" style="margin-top:.6rem;font-size:.82rem">Эта установка под git. Кнопка «Обновить» скачивает файлы из GitHub напрямую (после неё <code>.git</code> станет «грязным» — для последующего <code>git pull</code> сделайте сначала <code>git reset --hard origin/<?= h(update_branch()) ?></code>). Либо обновляйтесь только через <code>git pull</code> и жмите «отметить текущую версию».</p>
         <?php endif; ?>
     </div>
     <?php elseif ($u_installed !== '' && $u_latest !== ''): ?>
@@ -107,25 +120,6 @@ $u_stbadge   = function ($s) {
         </form>
     </div>
     <?php endif; ?>
-
-    <section class="coll collapsed" data-coll="update_perms">
-        <button type="button" class="coll-head" onclick="collToggle(this)"><span>🔑 Права на запись и автообновление</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-        </button>
-        <div class="coll-body">
-            <p class="muted" style="margin-top:0;line-height:1.7">Каталог установки: <code><?= h(update_root()) ?></code> · веб-пользователь: <code><?= h($u_user) ?></code> · запись сейчас: <b><?= $u_writable ? 'есть' : 'нет' ?></b>.</p>
-            <p class="muted" style="line-height:1.7"><b>Вариант 1 — автообновление через cron (рекомендуется, безопасно).</b> Веб-серверу права на код не нужны — обновляет владелец файлов. Добавьте задачу от владельца каталога (например, ежедневно в 4:00):</p>
-            <div class="up-logbox">0 4 * * * cd <?= h(update_root()) ?> &amp;&amp; git pull --quiet origin main</div>
-            <p class="muted" style="line-height:1.7">Обновления применяются сами, вкладка показывает статус, версия берётся из <code>.git</code>. (Если включён opcache с фиксированным кэшем — добавьте перезагрузку php-fpm.)</p>
-            <p class="muted" style="line-height:1.7"><b>Вариант 2 — кнопка «Обновить» в админке.</b> Нужно дать веб-пользователю право писать <u>только</u> в каталог установки (за его пределы доступ не выйдет). Сменить владельца:</p>
-            <div class="up-logbox">sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
-            <p class="muted" style="line-height:1.7">Или мягче, через ACL, не меняя владельца:</p>
-            <div class="up-logbox">sudo setfacl -R  -m u:<?= h($u_user) ?>:rwX <?= h(update_root()) ?>
-sudo setfacl -dR -m u:<?= h($u_user) ?>:rwX <?= h(update_root()) ?></div>
-            <p class="muted" style="line-height:1.7"><b>Обновили файлы вручную?</b> Нажмите «отметить текущую версию» (кнопка выше) — статус «доступно обновление» сбросится. Для git-установки достаточно <code>git pull</code> — версия подхватится сама.</p>
-            <p class="muted" style="line-height:1.7">Создавать «временного» системного пользователя из админки и потом его удалять — нельзя: это требует root, а давать веб-приложению root небезопасно. Безопасный путь «без участия пользователя» — это cron из Варианта 1.</p>
-        </div>
-    </section>
 
     <section class="coll collapsed" data-coll="update_help">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>❓ Как это работает и на что обратить внимание</span>

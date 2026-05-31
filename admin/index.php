@@ -385,8 +385,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 
     if ($action === 'update_check') {
         $e = '';
-        update_refresh($e);
-        flash($e === '' ? 'Проверка обновлений выполнена' : ('Ошибка проверки: ' . $e));
+        $r = update_refresh($e);
+        flash($r !== null ? 'Проверка обновлений выполнена' : ('Ошибка проверки: ' . ($e !== '' ? $e : 'нет связи с GitHub')));
         header('Location: index.php?tab=update'); exit();
     }
 
