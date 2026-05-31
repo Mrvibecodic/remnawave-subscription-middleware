@@ -89,13 +89,8 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
             <input type="hidden" name="action" value="update_apply">
             <button type="submit">⬇️ Обновить до <code><?= h(substr($u_latest, 0, 7)) ?></code></button>
         </form>
-        <form method="post" style="margin-top:.5rem">
-            <input type="hidden" name="csrf" value="<?= h($token) ?>">
-            <input type="hidden" name="action" value="update_set_current">
-            <button type="submit" class="btn ghost">✓ Я уже обновил файлы вручную — отметить текущую версию</button>
-        </form>
         <?php if ($u_isgit): ?>
-            <p class="muted" style="margin-top:.6rem;font-size:.82rem">Эта установка под git. Кнопка «Обновить» скачивает файлы из GitHub напрямую (после неё <code>.git</code> станет «грязным» — для последующего <code>git pull</code> сделайте сначала <code>git reset --hard origin/<?= h(update_branch()) ?></code>). Либо обновляйтесь только через <code>git pull</code> и жмите «отметить текущую версию».</p>
+            <p class="muted" style="margin-top:.6rem;font-size:.82rem">Эта установка под git. Кнопка «Обновить» скачивает файлы из GitHub напрямую (после неё <code>.git</code> станет «грязным» — для последующего <code>git pull</code> сделайте сначала <code>git reset --hard origin/<?= h(update_branch()) ?></code>). Либо обновляйтесь через <code>git pull</code> на сервере.</p>
         <?php endif; ?>
     </div>
     <?php elseif ($u_installed !== '' && $u_latest !== ''): ?>

@@ -14,7 +14,7 @@ function update_web_user() {
 }
 
 function update_protected_paths() {
-    return ['config.php', 'config.example.php', '.git', 'backups', 'docs'];
+    return ['config.php', 'config.example.php', '.git', 'backups', 'docs', 'README.md'];
 }
 
 function update_path_ok($rel) {
