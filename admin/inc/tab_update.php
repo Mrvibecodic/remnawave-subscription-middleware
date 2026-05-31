@@ -78,8 +78,8 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         <?php if ($u_files): ?>
             <div class="up-block">
                 <div class="up-hl">Изменённые файлы (<?= count($u_files) ?>)</div>
-                <?php foreach ($u_files as $f): ?>
-                    <div class="up-file"><?= $u_stbadge((string) ($f['status'] ?? '')) ?> <code><?= h((string) ($f['filename'] ?? '')) ?></code><?php if (($f['previous'] ?? '') !== ''): ?> <span class="muted">← <?= h((string) $f['previous']) ?></span><?php endif; ?></div>
+                <?php foreach ($u_files as $f): $fn = (string) ($f['filename'] ?? ''); $prot = ($fn !== '' && !update_path_ok($fn)); ?>
+                    <div class="up-file"<?= $prot ? ' style="opacity:.45"' : '' ?>><?= $u_stbadge((string) ($f['status'] ?? '')) ?> <code><?= h($fn) ?></code><?php if (($f['previous'] ?? '') !== ''): ?> <span class="muted">← <?= h((string) $f['previous']) ?></span><?php endif; ?><?php if ($prot): ?> <span class="up-st" style="background:var(--line);color:var(--muted)">не обновляется</span><?php endif; ?></div>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
