@@ -1,5 +1,7 @@
 # Remnawave Subscription Middleware
 
+![Превью админки — вкладка «Пользователи»](docs/preview.jpg)
+
 💬 **Чат проекта:** https://t.me/+GTkYbwX3alg0ZGEy
 
 > [!CAUTION]
