@@ -4,6 +4,15 @@ function update_repo() { return 'Mrvibecodic/remnawave-subscription-middleware';
 function update_branch() { return 'main'; }
 function update_root() { return dirname(__DIR__); }
 
+function update_web_user() {
+    if (function_exists('posix_geteuid') && function_exists('posix_getpwuid')) {
+        $u = @posix_getpwuid(posix_geteuid());
+        if (is_array($u) && !empty($u['name'])) return $u['name'];
+    }
+    $u = getenv('USER') ?: getenv('USERNAME');
+    return ($u !== false && $u !== '') ? $u : 'www-data';
+}
+
 function update_protected_paths() {
     return ['config.php', 'config.example.php', '.git', 'backups'];
 }

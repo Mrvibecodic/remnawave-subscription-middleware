@@ -4,6 +4,8 @@ $u_installed = update_installed_commit();
 $u_avail     = update_available();
 $u_backup    = trim((string) setting('update_last_backup', ''));
 $u_isgit     = update_local_git_commit() !== '';
+$u_user      = update_web_user();
+$u_writable  = is_writable(update_root());
 $u_log       = json_decode((string) setting('update_last_log', '[]'), true);
 if (!is_array($u_log)) $u_log = [];
 $u_checked   = (int) ($u_state['checked_at'] ?? 0);
@@ -75,6 +77,13 @@ $u_stbadge   = function ($s) {
             <input type="hidden" name="action" value="update_apply">
             <button type="submit" class="<?= $u_isgit ? 'btn ghost' : '' ?>">⬇️ Обновить до <code><?= h(substr($u_latest, 0, 7)) ?></code></button>
         </form>
+        <?php if (!$u_isgit): ?>
+        <form method="post" style="margin-top:.5rem">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="update_set_current">
+            <button type="submit" class="btn ghost">✓ Я уже обновил файлы вручную — отметить текущую версию</button>
+        </form>
+        <?php endif; ?>
     </div>
     <?php elseif ($u_installed !== '' && $u_latest !== ''): ?>
     <div class="card"><p style="margin:0">✅ Установлена последняя версия — обновлять нечего.</p></div>
@@ -98,6 +107,25 @@ $u_stbadge   = function ($s) {
         </form>
     </div>
     <?php endif; ?>
+
+    <section class="coll collapsed" data-coll="update_perms">
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>🔑 Права на запись и автообновление</span>
+            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="coll-body">
+            <p class="muted" style="margin-top:0;line-height:1.7">Каталог установки: <code><?= h(update_root()) ?></code> · веб-пользователь: <code><?= h($u_user) ?></code> · запись сейчас: <b><?= $u_writable ? 'есть' : 'нет' ?></b>.</p>
+            <p class="muted" style="line-height:1.7"><b>Вариант 1 — автообновление через cron (рекомендуется, безопасно).</b> Веб-серверу права на код не нужны — обновляет владелец файлов. Добавьте задачу от владельца каталога (например, ежедневно в 4:00):</p>
+            <div class="up-logbox">0 4 * * * cd <?= h(update_root()) ?> &amp;&amp; git pull --quiet origin main</div>
+            <p class="muted" style="line-height:1.7">Обновления применяются сами, вкладка показывает статус, версия берётся из <code>.git</code>. (Если включён opcache с фиксированным кэшем — добавьте перезагрузку php-fpm.)</p>
+            <p class="muted" style="line-height:1.7"><b>Вариант 2 — кнопка «Обновить» в админке.</b> Нужно дать веб-пользователю право писать <u>только</u> в каталог установки (за его пределы доступ не выйдет). Сменить владельца:</p>
+            <div class="up-logbox">sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
+            <p class="muted" style="line-height:1.7">Или мягче, через ACL, не меняя владельца:</p>
+            <div class="up-logbox">sudo setfacl -R  -m u:<?= h($u_user) ?>:rwX <?= h(update_root()) ?>
+sudo setfacl -dR -m u:<?= h($u_user) ?>:rwX <?= h(update_root()) ?></div>
+            <p class="muted" style="line-height:1.7"><b>Обновили файлы вручную?</b> Нажмите «отметить текущую версию» (кнопка выше) — статус «доступно обновление» сбросится. Для git-установки достаточно <code>git pull</code> — версия подхватится сама.</p>
+            <p class="muted" style="line-height:1.7">Создавать «временного» системного пользователя из админки и потом его удалять — нельзя: это требует root, а давать веб-приложению root небезопасно. Безопасный путь «без участия пользователя» — это cron из Варианта 1.</p>
+        </div>
+    </section>
 
     <section class="coll collapsed" data-coll="update_help">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>❓ Как это работает и на что обратить внимание</span>
