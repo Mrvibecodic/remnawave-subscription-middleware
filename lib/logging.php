@@ -9,6 +9,18 @@ function ensure_reqlog_hwid() {
         try { $p->exec('ALTER TABLE request_log ADD COLUMN hwid TEXT NULL'); } catch (Throwable $e) {}
         set_setting('reqlog_hwid_col', '1');
     }
+    if (setting('reqlog_isapp_col', '') !== '1') {
+        try { $p->exec('ALTER TABLE request_log ADD COLUMN is_app INTEGER NOT NULL DEFAULT 1'); } catch (Throwable $e) {}
+        set_setting('reqlog_isapp_col', '1');
+    }
+}
+
+function is_browser_ua($ua) {
+    $ua = strtolower((string) $ua);
+    if ($ua === '') return false;
+    if (preg_match('~v2ray|nekobox|nekoray|sing-box|sing_box|hiddify|streisand|shadowrocket|stash|clash|mihomo|\bmeta\b|flclash|clashx|verge|happ|ktor|okhttp|go-http|v2box|foxray|karing|\bloon\b|surge|quantumult|throne|exclave|husi|matsuri|wireguard|outline|sfa|sfi|sft~', $ua)) return false;
+    return (strpos($ua, 'mozilla') !== false || strpos($ua, 'applewebkit') !== false || strpos($ua, 'gecko') !== false)
+        && preg_match('~chrome|chromium|safari|firefox|\bedg|\bopr\b|trident|gecko/~', $ua);
 }
 
 function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null, $hwid = '') {
@@ -16,8 +28,8 @@ function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null,
     ensure_reqlog_hwid();
     try {
         $stmt = $p->prepare(
-            'INSERT INTO request_log (ip, short_uuid, path, user_agent, decision, expire_ts, hwid)
-             VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO request_log (ip, short_uuid, path, user_agent, decision, expire_ts, hwid, is_app)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $ip,
@@ -27,6 +39,7 @@ function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null,
             $decision,
             $expire_ts,
             $hwid !== '' ? mb_substr((string) $hwid, 0, 191) : null,
+            is_browser_ua($ua) ? 0 : 1,
         ]);
         if (random_int(1, 200) === 1) {
             $keep = request_log_retention();
@@ -57,7 +70,7 @@ function reqlog_today_stats() {
     $dayStart = $nowLocal - ($nowLocal % 86400) - $tzoff;
     $out['label'] = gmdate('d.m.Y', $nowLocal);
     try {
-        $st = $p->prepare("SELECT COUNT(DISTINCT short_uuid) FROM request_log WHERE short_uuid IS NOT NULL AND " . sql_epoch('ts') . " >= ?");
+        $st = $p->prepare("SELECT COUNT(DISTINCT short_uuid) FROM request_log WHERE short_uuid IS NOT NULL AND is_app = 1 AND " . sql_epoch('ts') . " >= ?");
         $st->execute([$dayStart]); $out['today_users'] = (int) $st->fetchColumn();
         $st = $p->prepare("SELECT COUNT(DISTINCT hwid) FROM request_log WHERE hwid IS NOT NULL AND hwid <> '' AND " . sql_epoch('ts') . " >= ?");
         $st->execute([$dayStart]); $out['today_devices'] = (int) $st->fetchColumn();
