@@ -41,6 +41,13 @@ function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null,
     }
 }
 
+function reqlog_is_real($grabbed_headers, $decision, $short_ov) {
+    if (is_array($grabbed_headers) && isset($grabbed_headers['subscription-userinfo'])) return true;
+    if (in_array($decision, ['blocked', 'expired', 'grace'], true)) return true;
+    if (!empty($short_ov)) return true;
+    return false;
+}
+
 function reqlog_today_stats() {
     $out = ['today_users' => 0, 'today_devices' => 0, 'total_devices' => 0, 'label' => date('d.m.Y')];
     if (!($p = db())) return $out;

@@ -279,6 +279,18 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'sysinfo') {
+        echo json_encode([
+            'ok'     => true,
+            'load'   => metrics_load_summary(),
+            'series' => metrics_minute_series(60),
+            'peaks'  => metrics_recent_peaks(200),
+            'sys'    => ['load' => metrics_system_info()['load'], 'mem_peak' => memory_get_peak_usage(true)],
+            'db'     => ['size' => metrics_db_info()['size']],
+        ], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'save_rules' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         rules_save_from_json($_POST['response_rules_json'] ?? '[]');
@@ -453,6 +465,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         header('Location: index.php?tab=reqlog'); exit();
     }
 
+    if ($action === 'clear_peaks') {
+        ensure_metrics_tables();
+        if ($pdo = db()) { try { $pdo->exec('DELETE FROM metrics_peak'); } catch (Throwable $e) {} flash('Лог пиков нагрузки очищен'); }
+        header('Location: index.php?tab=sysinfo'); exit();
+    }
+
+    if ($action === 'save_metrics_cfg') {
+        $f = (float) str_replace(',', '.', (string) ($_POST['metrics_peak_factor'] ?? '3'));
+        set_setting('metrics_peak_factor', (string) ($f >= 1.5 ? $f : 3));
+        set_setting('metrics_peak_floor', (string) max(5, (int) ($_POST['metrics_peak_floor'] ?? 30)));
+        flash('Пороги детектора пиков сохранены');
+        header('Location: index.php?tab=sysinfo'); exit();
+    }
+
     if ($action === 'migrate_db') {
         $to  = $_POST['to'] ?? '';
         $cur = db_driver();
@@ -544,6 +570,16 @@ if ($tab === 'reqlog') {
     }
 }
 
+$sys_info = []; $sys_db = []; $sys_load = []; $sys_series = []; $sys_peaks = [];
+if ($tab === 'sysinfo') {
+    ensure_metrics_tables();
+    $sys_info   = metrics_system_info();
+    $sys_db     = metrics_db_info();
+    $sys_load   = metrics_load_summary();
+    $sys_series = metrics_minute_series(60);
+    $sys_peaks  = metrics_recent_peaks(200);
+}
+
 $grace_list = [];
 if ($db_ok && $tab === 'grace_users') {
     ensure_grace_table();
@@ -558,7 +594,7 @@ if ($tab === 'subst' && remnawave_url() !== '' && remnawave_token() !== '') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'update' => 'Обновление', 'migrate' => 'Миграция БД'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -668,6 +704,7 @@ $nav = [
     'whlog_other' => ['Прочие события', '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>'],
     'fwdlog'    => ['Лог пересылки', '<path d="M4 12h12"/><path d="M12 6l6 6-6 6"/><path d="M20 4v16"/>'],
     'grace_users' => ['Грейс-юзеры', '<circle cx="9" cy="7" r="3"/><path d="M3 21v-1a5 5 0 0 1 5-5h2"/><path d="M16 11l2 2 4-4"/>'],
+    'sysinfo'   => ['О системе', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'],
     'update'    => ['Обновление', '<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>'],
     'migrate'   => ['Миграция БД', '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.6 3.6 3 8 3s8-1.4 8-3V5"/><path d="M4 12c0 1.6 3.6 3 8 3s8-1.4 8-3"/>'],
 ];
@@ -678,7 +715,7 @@ $nav_groups = [
     'Настройки'  => ['branding', 'connection', 'webhooks'],
     'Управление' => ['subst', 'rules', 'hwid', 'overrides'],
     'Логи'       => ['reqlog', 'whlog', 'whlog_other', 'fwdlog', 'grace_users'],
-    'Обслуживание' => ['update', 'migrate'],
+    'Обслуживание' => ['sysinfo', 'migrate'],
 ];
 function nav_link($key, $it, $active, $badge = false) {
     $svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
@@ -698,10 +735,6 @@ function nav_link($key, $it, $active, $badge = false) {
             <?php endforeach; ?>
         </nav>
         <div class="rw-foot">
-            <div class="origin">origin: <?= h(target_domain()) ?><br>зеркало: <?= h($mirror) ?></div>
-            <div class="rw-ver">
-                <span class="rw-ver-l">версия: <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code><?php if (update_available()): ?> <a class="nav-dot rw-ver-dot" href="?tab=update" title="Доступно обновление"></a><?php endif; ?></span>
-            </div>
             <div class="theme-seg" role="group" aria-label="Тема оформления">
                 <button type="button" data-theme-set="light" onclick="setTheme('light')" aria-label="Светлая тема" title="Светлая"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Свет</span></button>
                 <button type="button" data-theme-set="system" onclick="setTheme('system')" aria-label="Системная тема" title="Как в системе"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>Авто</span></button>
@@ -717,6 +750,7 @@ function nav_link($key, $it, $active, $badge = false) {
             </div>
             <div class="rw-hcontrols">
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
+                <a class="hbtn hbtn-ver" href="?tab=update" title="<?= update_available() ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code><?php if (update_available()): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
                 <a class="hbtn" href="?logout=1" title="Выйти" aria-label="Выйти"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>
@@ -762,6 +796,8 @@ function nav_link($key, $it, $active, $badge = false) {
 <?php elseif ($tab === 'migrate'): ?>
     <?php include __DIR__ . '/inc/tab_migrate.php'; ?>
 
+<?php elseif ($tab === 'sysinfo'): ?>
+    <?php include __DIR__ . '/inc/tab_sysinfo.php'; ?>
 <?php elseif ($tab === 'update'): ?>
     <?php include __DIR__ . '/inc/tab_update.php'; ?>
 <?php endif; ?>

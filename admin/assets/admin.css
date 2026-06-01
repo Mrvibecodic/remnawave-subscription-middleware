@@ -67,6 +67,9 @@
     .hbtn svg{width:15px;height:15px}
     .hbtn{line-height:1}
     .hbtn svg.hbtn-star{width:20px;height:20px;display:block;flex:0 0 auto}
+    .hbtn-ver{position:relative}
+    .hbtn-ver code{font-family:monospace;font-size:.95em;color:var(--text-strong)}
+    .hbtn-dot{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:#f5b50a;box-shadow:0 0 0 0 rgba(245,181,10,.6);animation:navpulse 1.8s ease-out infinite}
     #ghStarCount{display:inline-flex;align-items:center;height:20px;color:#f5b50a;font-weight:700;line-height:1;-webkit-text-stroke:.4px #1a1a1a;text-shadow:0 0 1px rgba(26,26,26,.6)}
     #ghStarCount:empty{display:none}
     .rw-meta{font-size:.76rem;color:var(--muted)}
