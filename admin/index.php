@@ -5,6 +5,8 @@ error_reporting(E_ALL);
 
 require __DIR__ . '/../lib.php';
 
+header('X-Robots-Tag: noindex, nofollow');
+
 function h($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); }
 
 if (!is_installed()) {

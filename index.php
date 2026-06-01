@@ -13,12 +13,14 @@ $path        = isset($parsed_url['path']) ? ltrim($parsed_url['path'], '/') : ''
 $query       = isset($parsed_url['query']) ? $parsed_url['query'] : '';
 
 if (empty($path) || $path === 'index.php') {
+    header('X-Robots-Tag: noindex, nofollow');
 ?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
     <title>Личный кабинет — Вход</title>
     <style>
         :root{--accent:#4f46e5;--accent-h:#4338ca;--bg1:#eef2f7;--bg2:#dbe4f3;--card:#fff;--text:#1f2937;--muted:#6b7280;--line:#e5e7eb;--err:#ef4444}
