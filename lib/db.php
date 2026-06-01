@@ -59,6 +59,7 @@ function install_seed_values() {
     return [
         'blocked_remarks'       => '["🚫 Устройство заблокировано","Обратитесь в поддержку","@your_support"]',
         'trust_header_expire'   => '1',
+        'tls_verify'            => '1',
         'proxy_timeout'         => '30',
         'request_log_retention' => '50000',
         'forward_enabled'       => '0',

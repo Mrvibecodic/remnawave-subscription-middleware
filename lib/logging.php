@@ -87,6 +87,11 @@ function log_webhook($event, $short_uuid, $username, $status, $sig_ok, $action) 
              VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$event, $short_uuid, $username, $status, $sig_ok ? 1 : 0, $action]);
+        if (random_int(1, 100) === 1) {
+            $p->exec("DELETE FROM webhook_log WHERE id < (
+                SELECT id FROM (SELECT id FROM webhook_log ORDER BY id DESC LIMIT 1 OFFSET 20000) t
+            )");
+        }
     } catch (Throwable $e) {
         error_log('submw log_webhook: ' . $e->getMessage());
     }

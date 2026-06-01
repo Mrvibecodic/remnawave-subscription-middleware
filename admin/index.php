@@ -6,6 +6,7 @@ error_reporting(E_ALL);
 require __DIR__ . '/../lib.php';
 
 header('X-Robots-Tag: noindex, nofollow');
+header('X-Frame-Options: DENY');
 
 function h($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); }
 
@@ -187,15 +188,23 @@ if (!is_auth()) {
     $err = '';
     $just_installed = isset($_GET['installed']);
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-        $u = $_POST['user'] ?? '';
-        $p = $_POST['pass'] ?? '';
-        if (hash_equals((string) $C['admin_user'], (string) $u) && password_verify($p, $C['admin_pass_hash'])) {
-            session_regenerate_id(true);
-            $_SESSION['auth'] = true;
-            header('Location: index.php'); exit();
+        $lip = login_remote_ip();
+        if (login_is_locked($lip)) {
+            $err = 'Слишком много попыток входа. Подождите 15 минут и попробуйте снова.';
+            usleep(500000);
+        } else {
+            $u = $_POST['user'] ?? '';
+            $p = $_POST['pass'] ?? '';
+            if (hash_equals((string) $C['admin_user'], (string) $u) && password_verify($p, $C['admin_pass_hash'])) {
+                login_clear($lip);
+                session_regenerate_id(true);
+                $_SESSION['auth'] = true;
+                header('Location: index.php'); exit();
+            }
+            login_record_fail($lip);
+            $err = 'Неверный логин или пароль';
+            usleep(500000);
         }
-        $err = 'Неверный логин или пароль';
-        usleep(500000);
     }
     ?>
     <!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
@@ -348,6 +357,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         if (($_POST['remnawave_api_key'] ?? '') !== '') set_setting('remnawave_api_key', trim($_POST['remnawave_api_key']));
         if (($_POST['webhook_secret'] ?? '') !== '')   set_setting('webhook_secret', trim($_POST['webhook_secret']));
         set_setting('trust_header_expire', isset($_POST['trust_header_expire']) ? '1' : '0');
+        set_setting('tls_verify', isset($_POST['tls_verify']) ? '1' : '0');
         set_setting('proxy_timeout', (string) max(5, (int) ($_POST['proxy_timeout'] ?? 30)));
         flash('Настройки подключения сохранены');
         header('Location: index.php?tab=connection'); exit();

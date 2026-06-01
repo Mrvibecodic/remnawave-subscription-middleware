@@ -127,6 +127,7 @@ chmod 600 "${DEST}/data/install.json"
 CONF="/etc/nginx/conf.d/${DOMAIN}.conf"
 write_https_vhost() {
   cat > "$CONF" <<NG
+limit_req_zone \$binary_remote_addr zone=submw_login:10m rate=12r/m;
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -165,7 +166,7 @@ server {
 
     location = /webhook.php { fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name; include fastcgi_params; fastcgi_pass unix:${PHP_SOCK}; }
 
-    location /admin/ { try_files \$uri \$uri/ /admin/index.php\$is_args\$args; }
+    location /admin/ { limit_req zone=submw_login burst=10 nodelay; try_files \$uri \$uri/ /admin/index.php\$is_args\$args; }
 
     location ~* \.(css|js|mjs|svg|png|jpe?g|gif|webp|ico|woff2?|ttf|map)\$ { try_files \$uri /index.php\$is_args\$args; expires 30d; access_log off; }
 

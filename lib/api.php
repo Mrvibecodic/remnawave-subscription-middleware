@@ -19,8 +19,8 @@ function remnawave_api_get($path) {
         CURLOPT_URL            => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 20,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
+        CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
         CURLOPT_HTTPHEADER     => $headers,
     ]);
     $body = curl_exec($ch);
@@ -66,8 +66,8 @@ function remnawave_api_request($method, $path, $body = null) {
         CURLOPT_URL            => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 20,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
+        CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
         CURLOPT_CUSTOMREQUEST  => strtoupper($method),
     ];
     if ($body !== null) {

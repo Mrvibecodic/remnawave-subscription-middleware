@@ -22,6 +22,8 @@ function proxy_timeout() { return (int) (setting('proxy_timeout', '30') ?: 30); 
 
 function trust_header_expire() { return setting('trust_header_expire', '1') === '1'; }
 
+function api_tls_verify() { return setting('tls_verify', '1') === '1'; }
+
 function expired_grace_days() { return max(0, (int) (setting('expired_grace_days', '7'))); }
 
 function expired_grace_passed($expire_ts, $created_at_str = null, $now = null) {

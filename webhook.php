@@ -25,7 +25,7 @@ $expected = hash_hmac('sha256', $raw, $secret);
 $sig_ok   = $secret !== '' && is_string($sig) && hash_equals($expected, $sig);
 
 if (!$sig_ok) {
-    log_webhook(null, null, null, null, false, 'bad_signature');
+    error_log('submw webhook: bad signature from ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
     http_response_code(401);
     echo 'Invalid signature';
     exit();
