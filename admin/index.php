@@ -71,7 +71,7 @@ if (!is_installed()) {
                     'admin_pass_hash'     => password_hash($ap, PASSWORD_DEFAULT),
                     'admin_cookie_secret' => bin2hex(random_bytes(24)),
                 ];
-                $php = "<?php\n// Сгенерировано инсталлятором. Можно править вручную при необходимости.\nreturn "
+                $php = "<?php\nreturn "
                      . var_export($conf, true) . ";\n";
                 if (@file_put_contents(config_path(), $php) !== false) {
                     @chmod(config_path(), 0640);
@@ -275,7 +275,7 @@ if (isset($_GET['ajax']) && is_auth()) {
                 }
             } catch (Throwable $e) {}
         }
-        echo json_encode(['ok' => true, 'rows' => $rows], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => true, 'rows' => $rows, 'stats' => reqlog_today_stats()], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -494,6 +494,15 @@ foreach ($overrides as $o) if ($o['match_type'] === 'shortuuid') $ov_index[$o['m
 
 $users = []; $users_err = '';
 if ($tab === 'users') $users = remnawave_all_users($users_err);
+$grace_shorts = [];
+if ($tab === 'users' && $db_ok) {
+    ensure_grace_table();
+    try {
+        $st = $pdo->prepare('SELECT short_uuid FROM grace_users WHERE grace_until > ?');
+        $st->execute([time()]);
+        foreach ($st as $g) $grace_shorts[(string) $g['short_uuid']] = true;
+    } catch (Throwable $e) {}
+}
 
 $panel_headers = []; $panel_headers_err = '';
 if ($tab === 'headers') $panel_headers = remnawave_panel_headers($panel_headers_err);
@@ -527,15 +536,11 @@ if ($tab === 'reqlog') {
         }
     }
     if ($db_ok) {
-        $tzoff    = isset($_COOKIE['tzoff']) ? max(-720, min(840, (int) $_COOKIE['tzoff'])) * 60 : (int) date('Z');
-        $nowLocal = time() + $tzoff;
-        $dayStart = $nowLocal - ($nowLocal % 86400) - $tzoff;
-        $rl_today_label = gmdate('d.m.Y', $nowLocal);
-        try {
-            $st = $pdo->prepare("SELECT COUNT(DISTINCT short_uuid) FROM request_log WHERE short_uuid IS NOT NULL AND " . sql_epoch('ts') . " >= ?"); $st->execute([$dayStart]); $rl_today_users = (int) $st->fetchColumn();
-            $st = $pdo->prepare("SELECT COUNT(DISTINCT hwid) FROM request_log WHERE hwid IS NOT NULL AND hwid <> '' AND " . sql_epoch('ts') . " >= ?"); $st->execute([$dayStart]); $rl_today_devices = (int) $st->fetchColumn();
-            $rl_total_devices = (int) $pdo->query("SELECT COUNT(DISTINCT hwid) FROM request_log WHERE hwid IS NOT NULL AND hwid <> ''")->fetchColumn();
-        } catch (Throwable $e) {}
+        $rl_stats = reqlog_today_stats();
+        $rl_today_users   = $rl_stats['today_users'];
+        $rl_today_devices = $rl_stats['today_devices'];
+        $rl_total_devices = $rl_stats['total_devices'];
+        $rl_today_label   = $rl_stats['label'];
     }
 }
 
@@ -583,6 +588,66 @@ window.phLines=function(id){var el=document.getElementById(id);if(!el)return [];
 window.phSupportName=function(id){var el=document.getElementById(id);if(!el)return '';var v=el.value.trim();if(!v)return '';var h=v.indexOf('#');if(h<0)return 'Тех. поддержка';var f=v.substring(h+1);try{f=decodeURIComponent(f);}catch(e){}return f||'Тех. поддержка';};
 window.phRow=function(name,support){return '<div class="srow'+(support?' support':'')+'"><span class="dot"></span><span class="nm">'+phEsc(name)+(support?'<span class="ph-badge">рабочий</span>':'')+'</span><span class="pg">'+(support?'42 ms':'—')+'</span></div>';};
 window.phRender=function(o){var rows=[];(o.list||[]).forEach(function(lid){phLines(lid).forEach(function(n){rows.push(phRow(n,false));});});if(o.support){var en=o.supportChk?document.getElementById(o.supportChk):null;if(!en||en.checked){var sn=phSupportName(o.support);if(sn)rows.push(phRow(sn,true));}}var t=o.title?((document.getElementById(o.title).value||'').trim()||'(как у origin)'):(o.titleText||'');var te=document.getElementById(o.titleEl);if(te)te.textContent=t;var se=document.getElementById(o.subEl);if(se)se.textContent=o.sub||'';var le=document.getElementById(o.listEl);if(le)le.innerHTML=rows.length?rows.join(''):'<div class="ph-empty">пусто — добавьте строки слева</div>';};
+window.LogPager=function(opts){
+    var sizes = opts.sizes || [10,25,50,0];
+    var body  = document.getElementById(opts.bodyId);
+    var top   = document.getElementById(opts.topId);
+    var bot   = opts.botId ? document.getElementById(opts.botId) : null;
+    if(!body || !top) return null;
+    var size, page = 1;
+    try { size = parseInt(localStorage.getItem(opts.storeKey),10); } catch(e){}
+    if(isNaN(size) || sizes.indexOf(size)<0) size = 25;
+    function dataRows(){
+        return Array.prototype.filter.call(body.children, function(tr){
+            return !tr.querySelector('td[colspan]');
+        });
+    }
+    function label(s){ return s===0 ? 'Все' : String(s); }
+    function buildSelect(){
+        var sel = '<label class="pgr-size">На странице: <select>';
+        sizes.forEach(function(s){ sel += '<option value="'+s+'"'+(s===size?' selected':'')+'>'+label(s)+'</option>'; });
+        return sel + '</select></label>';
+    }
+    function render(){
+        var rows = dataRows(), total = rows.length;
+        var per = size===0 ? (total||1) : size;
+        var pages = Math.max(1, Math.ceil(total/per));
+        if(page>pages) page = pages;
+        var start = (page-1)*per, end = start+per;
+        rows.forEach(function(tr,i){ tr.style.display = (i>=start && i<end) ? '' : 'none'; });
+        var nav = '';
+        if(total>per){
+            nav = '<div class="pgr-nav">'
+                + '<button type="button" class="pgr-b" data-go="prev"'+(page<=1?' disabled':'')+'>◀</button>'
+                + '<span class="pgr-st">'+((total?start+1:0))+'–'+Math.min(end,total)+' из '+total+' · стр. '+page+'/'+pages+'</span>'
+                + '<button type="button" class="pgr-b" data-go="next"'+(page>=pages?' disabled':'')+'>▶</button>'
+                + '</div>';
+        } else {
+            nav = '<div class="pgr-nav"><span class="pgr-st">Всего: '+total+'</span></div>';
+        }
+        top.innerHTML = buildSelect() + nav;
+        if(bot) bot.innerHTML = total>per ? nav : '';
+        function wire(host){
+            if(!host) return;
+            var s = host.querySelector('select');
+            if(s) s.addEventListener('change', function(){
+                size = parseInt(this.value,10); page = 1;
+                try{ localStorage.setItem(opts.storeKey, String(size)); }catch(e){}
+                render();
+            });
+            host.querySelectorAll('.pgr-b').forEach(function(b){
+                b.addEventListener('click', function(){
+                    if(this.dataset.go==='prev' && page>1) page--;
+                    if(this.dataset.go==='next') page++;
+                    render();
+                });
+            });
+        }
+        wire(top); wire(bot);
+    }
+    render();
+    return { refresh: function(resetPage){ if(resetPage) page=1; render(); } };
+};
 </script>
 <link rel="stylesheet" href="assets/fonts.css?v=<?= substr(@md5_file(__DIR__ . '/assets/fonts.css') ?: '0', 0, 10) ?>">
 <link rel="stylesheet" href="assets/admin.css?v=<?= substr(@md5_file(__DIR__ . '/assets/admin.css') ?: '0', 0, 10) ?>">

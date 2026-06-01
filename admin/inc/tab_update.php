@@ -53,7 +53,7 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
             <?php if ($u_latest !== ''): ?>
                 <p style="margin:.2rem 0"><span class="muted">Последний в ветке:</span> <code class="up-sha"><?= h(substr($u_latest, 0, 12)) ?></code><?php if (($u_state['latest_date'] ?? '') !== ''): ?> · <span class="muted"><?= h(substr((string) $u_state['latest_date'], 0, 10)) ?></span><?php endif; ?></p>
             <?php endif; ?>
-            <p class="muted" style="margin:.2rem 0;font-size:.82rem">Последняя проверка: <?= h($u_ts($u_checked)) ?></p>
+            <p class="muted" style="margin:.2rem 0;font-size:.82rem">Последняя проверка: <span class="up-localtime" data-ts="<?= (int) $u_checked ?>"><?= h($u_ts($u_checked)) ?></span></p>
         <?php endif; ?>
         <?php if ($u_err !== ''): ?><div class="warn" style="margin-top:.6rem">Последняя ошибка: <?= h($u_err) ?></div><?php endif; ?>
 
@@ -141,3 +141,6 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         .up-ren{background:rgba(59,130,246,.18);color:#3b82f6}
         .up-logbox{font-family:monospace;font-size:.82rem;line-height:1.6;max-height:320px;overflow:auto;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;word-break:break-word}
     </style>
+    <script>
+    (function(){function p(n){return (n<10?'0':'')+n;}document.querySelectorAll('.up-localtime[data-ts]').forEach(function(el){var ep=parseInt(el.getAttribute('data-ts'),10);if(!ep)return;var d=new Date(ep*1000);if(isNaN(d.getTime()))return;el.textContent=p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());});})();
+    </script>

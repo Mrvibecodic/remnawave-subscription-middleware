@@ -50,10 +50,11 @@
                     $src = 'panel';
                 }
                 $src_label = $src === 'mw' ? 'Прослойка' : 'Панель';
+                $in_grace = ($su !== '' && isset($grace_shorts[$su]));
             ?>
             <tr>
                 <td><?= h($un) ?></td>
-                <td><span class="tag <?= h($st) ?>"><?= h($st) ?></span></td>
+                <td><span class="tag <?= h($st) ?>"><?= h($st) ?><?php if ($in_grace): ?> <span style="opacity:.6">(грейс)</span><?php endif; ?></span></td>
                 <td class="muted"><?= h($exp) ?></td>
                 <td><?= $ovr ? '<span class="tag '.h($ovr).'">'.h($ovr).'</span>' : '<span class="muted">—</span>' ?></td>
                 <td><span class="tag src-<?= h($src) ?>"><?= h($src_label) ?></span></td>

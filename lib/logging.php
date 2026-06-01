@@ -41,6 +41,24 @@ function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null,
     }
 }
 
+function reqlog_today_stats() {
+    $out = ['today_users' => 0, 'today_devices' => 0, 'total_devices' => 0, 'label' => date('d.m.Y')];
+    if (!($p = db())) return $out;
+    ensure_reqlog_hwid();
+    $tzoff    = isset($_COOKIE['tzoff']) ? max(-720, min(840, (int) $_COOKIE['tzoff'])) * 60 : (int) date('Z');
+    $nowLocal = time() + $tzoff;
+    $dayStart = $nowLocal - ($nowLocal % 86400) - $tzoff;
+    $out['label'] = gmdate('d.m.Y', $nowLocal);
+    try {
+        $st = $p->prepare("SELECT COUNT(DISTINCT short_uuid) FROM request_log WHERE short_uuid IS NOT NULL AND " . sql_epoch('ts') . " >= ?");
+        $st->execute([$dayStart]); $out['today_users'] = (int) $st->fetchColumn();
+        $st = $p->prepare("SELECT COUNT(DISTINCT hwid) FROM request_log WHERE hwid IS NOT NULL AND hwid <> '' AND " . sql_epoch('ts') . " >= ?");
+        $st->execute([$dayStart]); $out['today_devices'] = (int) $st->fetchColumn();
+        $out['total_devices'] = (int) $p->query("SELECT COUNT(DISTINCT hwid) FROM request_log WHERE hwid IS NOT NULL AND hwid <> ''")->fetchColumn();
+    } catch (Throwable $e) {}
+    return $out;
+}
+
 function log_webhook($event, $short_uuid, $username, $status, $sig_ok, $action) {
     if (!($p = db())) return;
     try {
