@@ -10,7 +10,7 @@
             <tbody id="whBody">
             <?php foreach ($whlog as $r): ?>
             <tr>
-                <td class="muted"><?= h($r['ts']) ?></td>
+                <td class="muted wh-time" data-ts="<?= (int) ($r['ts_epoch'] ?? 0) ?>"><?= h($r['ts']) ?></td>
                 <td><?= h($r['event']) ?></td>
                 <td><?= $r['sig_ok'] ? '<span class="tag normal">ok</span>' : '<span class="tag error">bad</span>' ?></td>
                 <td><span class="tag <?= h($r['action']) ?>"><?= h($r['action']) ?></span></td>
@@ -26,6 +26,10 @@
         </table>
         <div id="wh_pgrBot" class="pgr-bot"></div>
         <script>
-        (function(){ if(window.LogPager) LogPager({bodyId:'whBody', topId:'wh_pgrTop', botId:'wh_pgrBot', colspan:<?= $wh_full ? 7 : 4 ?>, storeKey:'pg_whlog_<?= $wh_full ? 'user' : 'other' ?>'}); })();
+        (function(){
+            function whLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);if(isNaN(d.getTime()))return '';function p(n){return(n<10?'0':'')+n;}return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
+            document.querySelectorAll('.wh-time[data-ts]').forEach(function(td){var v=whLocal(td.getAttribute('data-ts'));if(v)td.textContent=v;});
+            if(window.LogPager) LogPager({bodyId:'whBody', topId:'wh_pgrTop', botId:'wh_pgrBot', colspan:<?= $wh_full ? 7 : 4 ?>, storeKey:'pg_whlog_<?= $wh_full ? 'user' : 'other' ?>'});
+        })();
         </script>
     </div>

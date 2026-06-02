@@ -137,7 +137,7 @@ $si_floor  = metrics_peak_floor();
                 var avg=document.getElementById('si_avg'); if(avg) avg.innerHTML=(L.avg_ms||0)+'<span style="font-size:.8rem"> мс</span>';
                 var mxc=document.getElementById('si_max'); if(mxc) mxc.innerHTML=(L.max_ms_60||0)+'<span style="font-size:.8rem"> мс</span>';
                 siChart(d.series); siPeaks(d.peaks);
-                if(d.sys){ if(d.sys.load&&d.sys.load.length){ siSet('si_load', d.sys.load.map(function(x){return Number(x).toFixed(2);}).join(' · ')); } siSet('si_mem', siFmtBytes(d.sys.mem_peak)); }
+                if(d.sys){ if(d.sys.load&&d.sys.load.length){ siSet('si_load', d.sys.load.map(function(x){return Number(x).toFixed(2);}).join(' · ')+(d.sys.cores?(' (ядер: '+d.sys.cores+')'):'')); } siSet('si_mem', siFmtBytes(d.sys.mem_peak)); }
                 if(d.db) siSet('si_dbsize', siFmtBytes(d.db.size));
             }
             if(a) a.textContent='· обновлено в '+new Date().toLocaleTimeString();

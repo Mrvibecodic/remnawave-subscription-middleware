@@ -20,6 +20,55 @@
         </form>
     </div>
 
+    <?php $lp = landing_preset(); ?>
+    <div class="card">
+        <h2 style="margin-top:0;font-size:1rem">Дизайн страницы-приманки</h2>
+        <p class="muted">Как выглядит публичная корневая страница зеркала — фальшивый вход в личный кабинет, который видят посторонние и сканеры. Выберите один из вариантов.<?= chat_enabled() ? ' Сейчас на ней также показывается виджет чата поддержки.' : ' Виджет чата появится на ней, если включить чат в разделе «Чат поддержки».' ?></p>
+        <style>
+            .lpick{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.8rem;margin:.6rem 0}
+            .lpick label{display:block;border:2px solid var(--line);border-radius:12px;padding:.7rem;cursor:pointer;background:var(--bg2);transition:border-color .15s}
+            .lpick label.sel{border-color:var(--accent)}
+            .lpick input{display:none}
+            .lpick .pv{height:96px;border-radius:8px;overflow:hidden;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;background:#eef2f7}
+            .lpick .nm{font-size:.82rem;font-weight:600;color:var(--text-strong);margin-top:.5rem;text-align:center}
+            .pv-card{width:62px;height:74px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 6px 14px rgba(31,41,55,.12);display:flex;flex-direction:column;align-items:center;gap:5px;padding:9px 8px}
+            .pv-dot{width:18px;height:18px;border-radius:6px;background:linear-gradient(160deg,#4f46e5,#7c73f0)}
+            .pv-l{width:100%;height:7px;border-radius:3px;background:#e5e7eb}
+            .pv-b{width:100%;height:9px;border-radius:3px;background:#4f46e5;margin-top:auto}
+            .pv2{display:flex;width:84px;height:74px;border-radius:8px;overflow:hidden;box-shadow:0 6px 14px rgba(31,41,55,.12)}
+            .pv2 .s{width:42%;background:linear-gradient(150deg,#4f46e5,#7c3aed)}
+            .pv2 .m{flex:1;background:#fff;display:flex;flex-direction:column;gap:5px;padding:9px 8px}
+            .pv3{background:#0b1020;background-image:radial-gradient(60px 40px at 20% 0,rgba(99,102,241,.6),transparent)}
+            .pv3 .pv-card{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18)}
+            .pv3 .pv-l{background:rgba(255,255,255,.18)}
+            .pv3 .pv-dot{background:linear-gradient(160deg,#6366f1,#22d3ee)}
+            .pv3 .pv-b{background:linear-gradient(120deg,#6366f1,#22d3ee)}
+            .pv4{background:#f8fafc}
+            .pv4 .pv-dot{background:#0f766e;border-radius:50%}
+            .pv4 .pv-b{background:#0f766e}
+        </style>
+        <form method="post">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="save_landing">
+            <div class="lpick">
+                <label class="<?= $lp===1?'sel':'' ?>"><input type="radio" name="landing_preset" value="1" <?= $lp===1?'checked':'' ?>>
+                    <div class="pv"><div class="pv-card"><div class="pv-dot"></div><div class="pv-l"></div><div class="pv-l"></div><div class="pv-b"></div></div></div>
+                    <div class="nm">Классическая карточка</div></label>
+                <label class="<?= $lp===2?'sel':'' ?>"><input type="radio" name="landing_preset" value="2" <?= $lp===2?'checked':'' ?>>
+                    <div class="pv"><div class="pv2"><div class="s"></div><div class="m"><div class="pv-l"></div><div class="pv-l"></div><div class="pv-b"></div></div></div></div>
+                    <div class="nm">Сплит-экран</div></label>
+                <label class="<?= $lp===3?'sel':'' ?>"><input type="radio" name="landing_preset" value="3" <?= $lp===3?'checked':'' ?>>
+                    <div class="pv pv3"><div class="pv-card"><div class="pv-dot"></div><div class="pv-l"></div><div class="pv-l"></div><div class="pv-b"></div></div></div>
+                    <div class="nm">Тёмная (стекло)</div></label>
+                <label class="<?= $lp===4?'sel':'' ?>"><input type="radio" name="landing_preset" value="4" <?= $lp===4?'checked':'' ?>>
+                    <div class="pv pv4"><div class="pv-card"><div class="pv-dot"></div><div class="pv-l"></div><div class="pv-l"></div><div class="pv-b"></div></div></div>
+                    <div class="nm">Минимализм</div></label>
+            </div>
+            <div style="margin-top:.6rem"><button type="submit">💾 Сохранить дизайн</button></div>
+        </form>
+        <script>document.querySelectorAll('.lpick label').forEach(function(l){l.addEventListener('click',function(){document.querySelectorAll('.lpick label').forEach(function(x){x.classList.remove('sel');});l.classList.add('sel');});});</script>
+    </div>
+
     <section class="coll collapsed" data-coll="next_connection">
         <button type="button" class="coll-head" onclick="collToggle(this)">Дальше: Подключение →
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>

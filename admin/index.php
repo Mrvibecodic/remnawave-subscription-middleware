@@ -167,7 +167,10 @@ if (!is_installed()) {
 $C = cfg();
 
 session_name('submw_admin');
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax', 'secure' => (($_SERVER['HTTPS'] ?? '') === 'on')]);
+$sess_ttl = 86400;
+@ini_set('session.gc_maxlifetime', (string) $sess_ttl);
+@ini_set('session.cookie_lifetime', (string) $sess_ttl);
+session_set_cookie_params(['lifetime' => $sess_ttl, 'httponly' => true, 'samesite' => 'Lax', 'secure' => (($_SERVER['HTTPS'] ?? '') === 'on')]);
 session_start();
 
 function csrf_token() {
@@ -296,7 +299,7 @@ if (isset($_GET['ajax']) && is_auth()) {
             'load'   => metrics_load_summary(),
             'series' => metrics_minute_series(60),
             'peaks'  => metrics_recent_peaks(200),
-            'sys'    => ['load' => metrics_system_info()['load'], 'mem_peak' => memory_get_peak_usage(true)],
+            'sys'    => ['load' => metrics_system_info()['load'], 'cores' => metrics_system_info()['cores'], 'mem_peak' => memory_get_peak_usage(true)],
             'db'     => ['size' => metrics_db_info()['size']],
         ], JSON_UNESCAPED_UNICODE);
         exit();
@@ -316,6 +319,64 @@ if (isset($_GET['ajax']) && is_auth()) {
         if ($os !== '') $ov['x-device-os'] = $os;
         $res = rules_test($ov);
         echo json_encode(['ok' => true, 'matched' => $res['matched'], 'headers' => $res['headers']], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'chat_check' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $tok = trim($_POST['token'] ?? '');
+        echo json_encode(chat_tg_check($tok !== '' ? $tok : null), JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'chat_setwh' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        [$ok, $res, $err] = chat_tg_set_webhook(chat_tg_webhook_url());
+        echo json_encode(['ok' => $ok, 'error' => $err, 'url' => chat_tg_webhook_url()], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'chat_delwh' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        [$ok, $res, $err] = chat_tg_delete_webhook();
+        echo json_encode(['ok' => $ok, 'error' => $err], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'chat_whinfo' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        echo json_encode(chat_tg_webhook_info(), JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'chat_sessions') {
+        echo json_encode(['ok' => true, 'sessions' => chat_sessions_list(100), 'unread' => chat_unread_total()], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'chat_msgs') {
+        $sid   = (int) ($_GET['sid'] ?? 0);
+        $after = (int) ($_GET['after'] ?? 0);
+        if ($after === 0) chat_mark_read($sid);
+        echo json_encode(['ok' => true, 'messages' => chat_messages_since($sid, $after, 300)], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'chat_reply' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $sid  = (int) ($_POST['sid'] ?? 0);
+        $body = trim($_POST['body'] ?? '');
+        $sess = chat_session_by_id($sid);
+        if (!$sess || $body === '') { echo json_encode(['ok' => false, 'error' => 'bad request']); exit(); }
+        $id = chat_add_message($sid, 'agent', 'admin', $body);
+        echo json_encode(['ok' => (bool) $id, 'id' => $id], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'chat_delete' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $sid = (int) ($_POST['sid'] ?? 0);
+        echo json_encode(['ok' => $sid > 0 && chat_session_delete($sid)], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -513,6 +574,40 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         }
         header('Location: index.php?tab=migrate'); exit();
     }
+
+    if ($action === 'save_chat_cfg') {
+        set_setting('chat_enabled', isset($_POST['chat_enabled']) ? '1' : '0');
+        set_setting('chat_agent_name', trim($_POST['chat_agent_name'] ?? ''));
+        set_setting('chat_agent_photo', trim($_POST['chat_agent_photo'] ?? ''));
+        set_setting('chat_greeting', trim($_POST['chat_greeting'] ?? ''));
+        $preset = (int) ($_POST['chat_widget_preset'] ?? 1);
+        set_setting('chat_widget_preset', (string) (($preset >= 1 && $preset <= 3) ? $preset : 1));
+        set_setting('chat_widget_position', ($_POST['chat_widget_position'] ?? 'right') === 'left' ? 'left' : 'right');
+        $color = trim($_POST['chat_widget_color'] ?? '');
+        set_setting('chat_widget_color', preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? $color : '#4f46e5');
+        set_setting('chat_widget_text', trim($_POST['chat_widget_text'] ?? ''));
+        set_setting('chat_poll_interval', (string) max(2, min(30, (int) ($_POST['chat_poll_interval'] ?? 4))));
+        set_setting('chat_tg_enabled', isset($_POST['chat_tg_enabled']) ? '1' : '0');
+        if (($_POST['chat_tg_bot_token'] ?? '') !== '') set_setting('chat_tg_bot_token', trim($_POST['chat_tg_bot_token']));
+        set_setting('chat_tg_chat_id', trim($_POST['chat_tg_chat_id'] ?? ''));
+        set_setting('chat_webhook_enabled', isset($_POST['chat_webhook_enabled']) ? '1' : '0');
+        set_setting('chat_webhook_url', trim($_POST['chat_webhook_url'] ?? ''));
+        if (($_POST['chat_webhook_secret'] ?? '') !== '') set_setting('chat_webhook_secret', trim($_POST['chat_webhook_secret']));
+        $msg = 'Настройки чата сохранены';
+        if (chat_tg_enabled() && chat_tg_token() !== '') {
+            [$wok, $wres, $werr] = chat_tg_set_webhook(chat_tg_webhook_url());
+            $msg .= $wok ? ' · вебхук бота установлен' : (' · вебхук НЕ установлен: ' . $werr);
+        }
+        flash($msg);
+        header('Location: index.php?tab=chat'); exit();
+    }
+
+    if ($action === 'save_landing') {
+        $lp = (int) ($_POST['landing_preset'] ?? 1);
+        set_setting('landing_preset', (string) (($lp >= 1 && $lp <= 4) ? $lp : 1));
+        flash('Дизайн страницы-приманки сохранён');
+        header('Location: index.php?tab=branding'); exit();
+    }
 }
 
 $tab   = $_GET['tab'] ?? 'users';
@@ -549,13 +644,15 @@ $reqlog = [];
 if ($db_ok && $tab === 'reqlog') { ensure_reqlog_hwid(); foreach ($pdo->query('SELECT *, ' . sql_epoch('ts') . ' AS ts_epoch FROM request_log ORDER BY id DESC LIMIT 300') as $r) $reqlog[] = $r; }
 $whlog = [];
 $wh_user_cond = "(event LIKE 'user.%' OR short_uuid IS NOT NULL OR username IS NOT NULL)";
-if ($db_ok && $tab === 'whlog') foreach ($pdo->query("SELECT * FROM webhook_log WHERE $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
-if ($db_ok && $tab === 'whlog_other') foreach ($pdo->query("SELECT * FROM webhook_log WHERE NOT $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
+if ($db_ok && $tab === 'whlog') foreach ($pdo->query("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
+if ($db_ok && $tab === 'whlog_other') foreach ($pdo->query("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE NOT $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
 $fwdlog = [];
 if ($db_ok && $tab === 'fwdlog') {
     ensure_forward_log();
     try { foreach ($pdo->query('SELECT * FROM forward_log ORDER BY id DESC LIMIT 300') as $r) $fwdlog[] = $r; } catch (Throwable $e) {}
 }
+$chat_sessions = [];
+if ($db_ok && $tab === 'chat') { $chat_sessions = chat_sessions_list(100); }
 
 $short2name = [];
 $hwid2info  = [];
@@ -606,7 +703,7 @@ if ($tab === 'subst' && remnawave_url() !== '' && remnawave_token() !== '') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -719,6 +816,7 @@ $nav = [
     'sysinfo'   => ['О системе', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'],
     'update'    => ['Обновление', '<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>'],
     'migrate'   => ['Миграция БД', '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.6 3.6 3 8 3s8-1.4 8-3V5"/><path d="M4 12c0 1.6 3.6 3 8 3s8-1.4 8-3"/>'],
+    'chat'      => ['Чат поддержки', '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>'],
 ];
 ?>
 <?php
@@ -727,6 +825,7 @@ $nav_groups = [
     'Настройки'  => ['branding', 'connection', 'webhooks'],
     'Управление' => ['subst', 'rules', 'hwid', 'overrides'],
     'Логи'       => ['reqlog', 'whlog', 'whlog_other', 'fwdlog', 'grace_users'],
+    'Поддержка'  => ['chat'],
     'Обслуживание' => ['sysinfo', 'migrate'],
 ];
 function nav_link($key, $it, $active, $badge = false) {
@@ -812,6 +911,8 @@ function nav_link($key, $it, $active, $badge = false) {
     <?php include __DIR__ . '/inc/tab_sysinfo.php'; ?>
 <?php elseif ($tab === 'update'): ?>
     <?php include __DIR__ . '/inc/tab_update.php'; ?>
+<?php elseif ($tab === 'chat'): ?>
+    <?php include __DIR__ . '/inc/tab_chat.php'; ?>
 <?php endif; ?>
     </div>
     </main>

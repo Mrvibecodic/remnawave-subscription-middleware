@@ -20,7 +20,9 @@ INSERT INTO settings (k, v) VALUES
     ('app_headers',           '[]'),
     ('service_name',          ''),
     ('service_logo_url',      ''),
-    ('brand_cache',           '{}')
+    ('brand_cache',           '{}'),
+    ('landing_preset',        '1'),
+    ('chat_enabled',          '0')
 ON CONFLICT(k) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS overrides (
@@ -86,3 +88,30 @@ CREATE TABLE IF NOT EXISTS grace_users (
     grace_until INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT NOT NULL,
+    name TEXT NULL,
+    ip TEXT NULL,
+    user_agent TEXT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_msg_at TEXT NULL,
+    unread_agent INTEGER NOT NULL DEFAULT 0,
+    tg_msg_id INTEGER NULL,
+    UNIQUE(token)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_last ON chat_sessions(last_msg_at);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    sender TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'site',
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES chat_sessions (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_chat_msg_session ON chat_messages(session_id, id);

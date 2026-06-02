@@ -70,6 +70,8 @@ function install_seed_values() {
         'service_name'          => '',
         'service_logo_url'      => '',
         'brand_cache'           => '{}',
+        'landing_preset'        => '1',
+        'chat_enabled'          => '0',
     ];
 }
 
@@ -110,6 +112,24 @@ function install_statements_sqlite() {
             orig_hwid_limit INTEGER NULL, grace_until INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )",
+        "CREATE TABLE IF NOT EXISTS chat_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT NOT NULL, name TEXT NULL, ip TEXT NULL, user_agent TEXT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_msg_at TEXT NULL, unread_agent INTEGER NOT NULL DEFAULT 0,
+            tg_msg_id INTEGER NULL, UNIQUE(token)
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_chat_last ON chat_sessions(last_msg_at)",
+        "CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL,
+            sender TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'site',
+            body TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES chat_sessions (id) ON DELETE CASCADE
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_chat_msg_session ON chat_messages(session_id, id)",
         seed_sql('sqlite'),
     ];
 }
@@ -147,6 +167,25 @@ function install_statements_mysql() {
             orig_traffic_strategy VARCHAR(32) NOT NULL DEFAULT 'NO_RESET', orig_expire VARCHAR(40) NULL,
             orig_hwid_limit INT NULL, grace_until INT NOT NULL DEFAULT 0,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (short_uuid)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS chat_sessions (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            token CHAR(32) NOT NULL, name VARCHAR(120) NULL, ip VARCHAR(45) NULL, user_agent VARCHAR(255) NULL,
+            status ENUM('open','closed') NOT NULL DEFAULT 'open',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_msg_at TIMESTAMP NULL, unread_agent INT UNSIGNED NOT NULL DEFAULT 0,
+            tg_msg_id BIGINT NULL,
+            PRIMARY KEY (id), UNIQUE KEY uniq_token (token), KEY idx_chat_last (last_msg_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS chat_messages (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            session_id BIGINT UNSIGNED NOT NULL,
+            sender ENUM('visitor','agent','system') NOT NULL,
+            source ENUM('site','telegram','webhook','admin','system') NOT NULL DEFAULT 'site',
+            body TEXT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id), KEY idx_chat_msg_session (session_id, id),
+            CONSTRAINT fk_chat_msg_session FOREIGN KEY (session_id) REFERENCES chat_sessions (id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         seed_sql('mysql'),
     ];

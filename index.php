@@ -14,75 +14,7 @@ $query       = isset($parsed_url['query']) ? $parsed_url['query'] : '';
 
 if (empty($path) || $path === 'index.php') {
     header('X-Robots-Tag: noindex, nofollow');
-?>
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow">
-    <title>Личный кабинет — Вход</title>
-    <style>
-        :root{--accent:#4f46e5;--accent-h:#4338ca;--bg1:#eef2f7;--bg2:#dbe4f3;--card:#fff;--text:#1f2937;--muted:#6b7280;--line:#e5e7eb;--err:#ef4444}
-        *{box-sizing:border-box}
-        body{font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.2rem;background:radial-gradient(1100px 560px at 50% -10%,var(--bg2),var(--bg1));color:var(--text)}
-        .card{background:var(--card);width:100%;max-width:400px;border:1px solid var(--line);border-radius:18px;padding:2.2rem 2rem;box-shadow:0 20px 50px rgba(31,41,55,.10)}
-        .brand{display:flex;flex-direction:column;align-items:center;gap:.55rem;margin-bottom:1.6rem}
-        .brand .ic{width:52px;height:52px;border-radius:14px;background:linear-gradient(160deg,var(--accent),#7c73f0);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 8px 18px rgba(79,70,229,.35)}
-        .brand h1{font-size:1.18rem;margin:0;font-weight:700;letter-spacing:-.2px}
-        .brand p{margin:0;font-size:.8rem;color:var(--muted)}
-        .tabs{display:flex;gap:.3rem;background:var(--bg1);border-radius:11px;padding:.28rem;margin-bottom:1.4rem}
-        .tab{flex:1;text-align:center;padding:.55rem;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--muted);transition:all .15s}
-        .tab.active{background:var(--card);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.08)}
-        label{display:block;font-size:.8rem;font-weight:600;margin:0 0 .4rem}
-        .fg{margin-bottom:1.1rem}
-        input{width:100%;padding:.75rem .85rem;border:1px solid var(--line);border-radius:10px;font-size:.95rem;background:#fbfcfe;transition:border-color .15s,box-shadow .15s}
-        input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
-        .hint{font-size:.72rem;color:var(--muted);margin-top:.3rem}
-        .btn{width:100%;padding:.85rem;background:var(--accent);color:#fff;border:0;border-radius:10px;font-size:.95rem;font-weight:600;cursor:pointer;transition:background .15s}
-        .btn:hover{background:var(--accent-h)}
-        .btn:disabled{background:#9ca3af;cursor:not-allowed}
-        .err{color:var(--err);font-size:.82rem;margin-top:.9rem;text-align:center;min-height:1.1rem;display:none}
-        .note{background:#f3f4ff;border:1px solid #e0e3ff;border-radius:10px;padding:.9rem 1rem;font-size:.86rem;color:#4338ca;line-height:1.5}
-        .sub{text-align:center;font-size:.84rem;color:var(--muted);margin-top:.8rem}
-        .hidden{display:none}
-    </style>
-</head>
-<body>
-<div class="card">
-    <div class="brand">
-        <span class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9.5 12l1.8 1.8L15 9.8"/></svg></span>
-        <h1>Личный кабинет</h1>
-        <p>Вход в аккаунт</p>
-    </div>
-    <div class="tabs">
-        <div class="tab active" onclick="switchTab('login')">Вход</div>
-        <div class="tab" onclick="switchTab('register')">Регистрация</div>
-    </div>
-    <div id="login-content">
-        <form id="loginForm" onsubmit="handleLogin(event)">
-            <div class="fg"><label for="email">Email</label><input type="email" id="email" required placeholder="name@example.com"></div>
-            <div class="fg"><label for="password">Пароль</label><input type="password" id="password" required placeholder="••••••••••••••"><div class="hint">Минимум 14 символов</div></div>
-            <button type="submit" class="btn" id="loginBtn">Войти</button>
-            <div id="loginError" class="err"></div>
-        </form>
-    </div>
-    <div id="register-content" class="hidden">
-        <div class="note"><strong>Регистрация по приглашению</strong><br>Сейчас регистрация новых пользователей закрыта. Доступ предоставляется по инвайт-коду.</div>
-        <div class="sub">Если у вас есть инвайт-код, обратитесь к администратору.</div>
-    </div>
-</div>
-<script>
-    function switchTab(t){var l=document.getElementById('login-content'),r=document.getElementById('register-content'),b=document.querySelectorAll('.tab'),e=document.getElementById('loginError');e.style.display='none';if(t==='login'){l.classList.remove('hidden');r.classList.add('hidden');b[0].classList.add('active');b[1].classList.remove('active');}else{l.classList.add('hidden');r.classList.remove('hidden');b[0].classList.remove('active');b[1].classList.add('active');}}
-    function handleLogin(e){e.preventDefault();var m=document.getElementById('email').value,p=document.getElementById('password').value,b=document.getElementById('loginBtn');
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m)){s('Введите корректный Email адрес');return;}
-    if(p.length<14){s('Пароль должен содержать минимум 14 символов');return;}
-    b.disabled=true;b.textContent='Проверка…';document.getElementById('loginError').style.display='none';setTimeout(function(){b.disabled=false;b.textContent='Войти';s('Пользователь не найден или пароль неверен');},800+Math.random()*1000);}
-    function s(m){var e=document.getElementById('loginError');e.textContent=m;e.style.display='block';document.querySelector('.card').animate([{transform:'translateX(0)'},{transform:'translateX(-5px)'},{transform:'translateX(5px)'},{transform:'translateX(0)'}],{duration:300});}
-</script>
-</body>
-</html>
-<?php
+    landing_render();
     exit();
 }
 

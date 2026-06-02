@@ -247,8 +247,11 @@ function metrics_system_info() {
     $load = function_exists('sys_getloadavg') ? @sys_getloadavg() : null;
     $cores = 0;
     if (is_readable('/proc/cpuinfo')) {
-        $cores = substr_count((string) @file_get_contents('/proc/cpuinfo'), "\nprocessor");
-        if ($cores < 1) $cores = max(1, preg_match_all('/^processor/m', (string) @file_get_contents('/proc/cpuinfo')));
+        $cores = (int) preg_match_all('/^processor\s*:/mi', (string) @file_get_contents('/proc/cpuinfo'));
+    }
+    if ($cores < 1) {
+        $nproc = @shell_exec('nproc 2>/dev/null');
+        if ($nproc !== null && (int) $nproc > 0) $cores = (int) $nproc;
     }
     return [
         'php_version' => PHP_VERSION,
