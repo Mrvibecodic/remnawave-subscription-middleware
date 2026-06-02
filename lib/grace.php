@@ -77,12 +77,14 @@ function grace_on_expired($short, $username = null) {
         $squads = json_decode((string) $existing['orig_squads'], true);
         if (!is_array($squads)) $squads = [];
         $e = '';
-        remnawave_update_user((string) $existing['user_uuid'], [
+        $restore = [
             'activeInternalSquads'  => $squads,
             'trafficLimitBytes'     => (int) $existing['orig_traffic_bytes'],
             'trafficLimitStrategy'  => (string) $existing['orig_traffic_strategy'],
             'hwidDeviceLimit'       => ($existing['orig_hwid_limit'] === null ? null : (int) $existing['orig_hwid_limit']),
-        ], $e);
+        ];
+        if (!empty($existing['orig_expire'])) $restore['expireAt'] = (string) $existing['orig_expire'];
+        remnawave_update_user((string) $existing['user_uuid'], $restore, $e);
         grace_delete($short);
         if ($e !== '') error_log('submw grace end: ' . $e);
         return 'grace_ended';

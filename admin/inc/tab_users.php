@@ -19,8 +19,8 @@
                 <th class="srt" onclick="sortUsers(0)">Пользователь<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(1)">Статус<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(2)">Истекает<span class="sar"></span></th>
-                <th class="srt" onclick="sortUsers(3)">Подмена<span class="sar"></span></th>
-                <th class="srt" onclick="sortUsers(4)" title="Что реально отдаётся в приложение: «Прослойка» — наши ремарки; «Панель» — дефолтный конфиг origin">Конфиг<span class="sar"></span></th>
+                <th class="srt" onclick="sortUsers(3)" title="Причина: активный оверрайд прослойки для этой подписки — expired (истёк) или blocked (заблокирован по HWID). «—» — оверрайда нет. У грейс-сквад юзеров оверрайд снимается.">Подмена<span class="sar"></span></th>
+                <th class="srt" onclick="sortUsers(4)" title="Результат: что реально отдаётся в приложение. «Прослойка» — наш подменный конфиг с ремарками (истёк/заблокирован), пока идёт окно expired_grace_days. «Панель» — реальный конфиг origin.">Конфиг<span class="sar"></span></th>
                 <th>Устройства</th>
                 <th>Ссылка подписки (через зеркало)</th>
             </tr>
