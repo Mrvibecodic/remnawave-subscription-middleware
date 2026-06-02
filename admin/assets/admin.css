@@ -70,7 +70,7 @@
     .hbtn-ver{position:relative}
     .hbtn-ver code{font-family:monospace;font-size:.95em;color:var(--text-strong)}
     .hbtn-dot{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:#f5b50a;box-shadow:0 0 0 0 rgba(245,181,10,.6);animation:navpulse 1.8s ease-out infinite}
-    #ghStarCount{display:inline-flex;align-items:center;height:20px;color:#f5b50a;font-weight:700;line-height:1;-webkit-text-stroke:.4px #1a1a1a;text-shadow:0 0 1px rgba(26,26,26,.6)}
+    #ghStarCount{display:inline-flex;align-items:center;height:20px;color:var(--text-strong);font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
     #ghStarCount:empty{display:none}
     .rw-meta{font-size:.76rem;color:var(--muted)}
     .rw-meta b{color:var(--text);font-weight:600}

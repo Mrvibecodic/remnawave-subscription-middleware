@@ -19,7 +19,7 @@
             <label>Имя БД</label><input type="text" name="m_name" placeholder="submw">
             <label>Пользователь</label><input type="text" name="m_user" placeholder="submw">
             <label>Пароль</label><input type="password" name="m_pass">
-            <div style="margin-top:1.1rem"><button type="submit">🛢 Мигрировать на MySQL</button></div>
+            <div style="margin-top:1.1rem"><button type="submit">🐬 Мигрировать на MySQL</button></div>
         </form>
     </div>
 
