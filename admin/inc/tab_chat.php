@@ -190,16 +190,18 @@ $c_color  = chat_widget_color();
     }
     function cbDelete(){
         if(!cbCur)return;
-        if(!confirm('Удалить чат? Он исчезнет и у клиента на сайте.'))return;
-        var fd=new URLSearchParams();fd.set('csrf',CB_CSRF);fd.set('sid',cbCur);
-        fetch('?ajax=chat_delete',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()})
-            .then(function(r){return r.json();}).then(function(){
-                cbCur=0;cbLast=0;cbSeen={};
-                document.getElementById('cbMsgs').innerHTML='<div class="cb-empty">Выберите диалог слева</div>';
-                document.getElementById('cbReplyBox').style.display='none';
-                document.getElementById('cbHead').style.display='none';
-                cbLoadSessions();
-            });
+        var sid=cbCur;
+        uiConfirm('Удалить чат? Он исчезнет и у клиента на сайте.',function(){
+            var fd=new URLSearchParams();fd.set('csrf',CB_CSRF);fd.set('sid',sid);
+            fetch('?ajax=chat_delete',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()})
+                .then(function(r){return r.json();}).then(function(){
+                    cbCur=0;cbLast=0;cbSeen={};
+                    document.getElementById('cbMsgs').innerHTML='<div class="cb-empty">Выберите диалог слева</div>';
+                    document.getElementById('cbReplyBox').style.display='none';
+                    document.getElementById('cbHead').style.display='none';
+                    cbLoadSessions();
+                });
+        },'Удалить',true);
     }
     function cbPollMsgs(){
         if(!cbCur||cbBusy)return; cbBusy=true;
@@ -246,5 +248,4 @@ $c_color  = chat_widget_color();
     }
     document.getElementById('cbReply').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cbSend();}});
     cbRenderList(CB_SESS);
-    cbPoll=setInterval(function(){if(!document.hidden){cbPollMsgs();cbLoadSessions();}},5000);
-    </script>
+    cbPoll=setInt
