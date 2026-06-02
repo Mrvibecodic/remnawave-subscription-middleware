@@ -129,4 +129,40 @@ $si_floor  = metrics_peak_floor();
             var hpx=p.hits>0?Math.max(3,Math.round(p.hits/mx*108)):2;
             var spx=p.hits>0?Math.round(hpx*sub/p.hits):0;
             var bpx=hpx-spx;
-            return '<div
+            return '<div class="si-bar2'+(p.hits===0?' zero':'')+'" style="height:'+hpx+'px" title="'+siLocal(p.ts)+' · подписка '+sub+' · краулеры '+(p.hits-sub)+' · всего '+p.hits+' · '+p.ms+' мс"><div class="seg-bot" style="height:'+bpx+'px"></div><div class="seg-sub" style="height:'+spx+'px"></div></div>';
+        }).join('');
+    }
+    function siPeaks(rows){
+        var b=document.getElementById('si_peaks'); if(!b) return;
+        if(!rows||!rows.length){ b.innerHTML='<tr><td colspan="5" class="muted">Пиков не зафиксировано</td></tr>'; return; }
+        b.innerHTML=rows.map(function(p){
+            return '<tr><td class="muted">'+siLocal(p.minute_ts,true)+'</td>'+
+                   '<td><span class="tag error">'+p.hits+'</span></td>'+
+                   '<td class="muted">'+p.baseline+'</td>'+
+                   '<td class="muted">'+p.dur_ms_max+' мс</td>'+
+                   '<td class="muted">'+siFmtBytes(p.mem_max)+'</td></tr>';
+        }).join('');
+    }
+    function siSet(id,v){var e=document.getElementById(id); if(e) e.textContent=v;}
+    function siBreak(id,total,sub){var e=document.getElementById(id); if(!e) return; total=total||0; sub=Math.min(total,sub||0); e.innerHTML='<span class="si-dot sub"></span><span class="vsub">'+sub+'</span> <span class="si-dot bot"></span>'+(total-sub);}
+    function siRefresh(){
+        var a=document.getElementById('siAuto'); if(a) a.textContent='· обновление…';
+        fetch('?ajax=sysinfo').then(function(r){return r.json();}).then(function(d){
+            if(d.ok){
+                var L=d.load||{};
+                siSet('si_m1',L.m1); siSet('si_m5',L.m5); siSet('si_m60',L.m60); siSet('si_today',L.today);
+                siBreak('si_m1b',L.m1,L.m1_sub); siBreak('si_m5b',L.m5,L.m5_sub); siBreak('si_m60b',L.m60,L.m60_sub); siBreak('si_todayb',L.today,L.today_sub);
+                siSet('si_rpm',(L.rpm_60||0).toFixed(1));
+                var avg=document.getElementById('si_avg'); if(avg) avg.innerHTML=(L.avg_ms||0)+'<span style="font-size:.8rem"> мс</span>';
+                var mxc=document.getElementById('si_max'); if(mxc) mxc.innerHTML=(L.max_ms_60||0)+'<span style="font-size:.8rem"> мс</span>';
+                siChart(d.series); siPeaks(d.peaks);
+                if(d.sys){ if(d.sys.load&&d.sys.load.length){ siSet('si_load', d.sys.load.map(function(x){return Number(x).toFixed(2);}).join(' · ')+(d.sys.cores?(' (ядер: '+d.sys.cores+')'):'')); } siSet('si_mem', siFmtBytes(d.sys.mem_peak)); }
+                if(d.db) siSet('si_dbsize', siFmtBytes(d.db.size));
+            }
+            if(a) a.textContent='· обновлено в '+new Date().toLocaleTimeString();
+        }).catch(function(){ if(a) a.textContent='· ошибка обновления'; });
+    }
+    document.querySelectorAll('.si-pk-ts[data-ts]').forEach(function(td){var v=siLocal(td.getAttribute('data-ts'),true);if(v)td.textContent=v;});
+    setInterval(function(){ if(!document.hidden) siRefresh(); }, 15000);
+    document.addEventListener('visibilitychange',function(){ if(!document.hidden) siRefresh(); });
+    </script>

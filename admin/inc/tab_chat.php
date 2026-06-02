@@ -248,4 +248,5 @@ $c_color  = chat_widget_color();
     }
     document.getElementById('cbReply').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cbSend();}});
     cbRenderList(CB_SESS);
-    cbPoll=setInt
+    cbPoll=setInterval(function(){if(!document.hidden){cbPollMsgs();cbLoadSessions();}},5000);
+    </script>
