@@ -22,7 +22,7 @@ register_shutdown_function(function () {
     if (!function_exists('fastcgi_finish_request') || !function_exists('metrics_tick')) return;
     $t0 = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true);
     @fastcgi_finish_request();
-    metrics_tick((microtime(true) - $t0) * 1000, memory_get_peak_usage(true));
+    metrics_tick((microtime(true) - $t0) * 1000, memory_get_peak_usage(true), !empty($GLOBALS['submw_real_sub']));
 });
 
 $skip_log =
@@ -158,7 +158,10 @@ if ($do_substitute) {
 
     emit_response_headers();
     echo build_override_body($decision, $format);
-    if (!$skip_log && reqlog_is_real($grabbed_headers, $decision, $short_ov)) log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts, $current_hwid);
+    if (!$skip_log && reqlog_is_real($grabbed_headers, $decision, $short_ov)) {
+        $GLOBALS['submw_real_sub'] = true;
+        log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts, $current_hwid);
+    }
     exit();
 }
 
@@ -172,6 +175,7 @@ echo $response;
 if (!$skip_log) {
     $log_decision = grace_is_active($short_uuid) ? 'grace' : 'normal';
     if (reqlog_is_real($grabbed_headers, $log_decision, $short_ov)) {
+        $GLOBALS['submw_real_sub'] = true;
         log_request($ip, $short_uuid, $path, $ua, $log_decision, $expire_ts, $current_hwid);
     }
 }

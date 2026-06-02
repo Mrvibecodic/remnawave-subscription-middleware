@@ -5,6 +5,7 @@ function ddl_metrics_minute($drv) {
         return "CREATE TABLE IF NOT EXISTS metrics_minute (
             minute_ts BIGINT UNSIGNED NOT NULL,
             hits BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            hits_sub BIGINT UNSIGNED NOT NULL DEFAULT 0,
             dur_ms_sum BIGINT UNSIGNED NOT NULL DEFAULT 0,
             dur_ms_max INT UNSIGNED NOT NULL DEFAULT 0,
             mem_max BIGINT UNSIGNED NOT NULL DEFAULT 0,
@@ -14,6 +15,7 @@ function ddl_metrics_minute($drv) {
     return "CREATE TABLE IF NOT EXISTS metrics_minute (
         minute_ts INTEGER NOT NULL PRIMARY KEY,
         hits INTEGER NOT NULL DEFAULT 0,
+        hits_sub INTEGER NOT NULL DEFAULT 0,
         dur_ms_sum INTEGER NOT NULL DEFAULT 0,
         dur_ms_max INTEGER NOT NULL DEFAULT 0,
         mem_max INTEGER NOT NULL DEFAULT 0
@@ -46,18 +48,23 @@ function ensure_metrics_tables() {
     static $done = false;
     if ($done) return true;
     if (!($p = db())) return false;
-    if (setting('metrics_tables', '') === '2') { $done = true; return true; }
-    try {
-        $drv = db_driver();
-        $p->exec(ddl_metrics_minute($drv));
-        $p->exec(ddl_metrics_peak($drv));
-        set_setting('metrics_tables', '2');
-        $done = true;
-        return true;
-    } catch (Throwable $e) {
-        error_log('submw ensure_metrics_tables: ' . $e->getMessage());
-        return false;
+    if (setting('metrics_tables', '') !== '2') {
+        try {
+            $drv = db_driver();
+            $p->exec(ddl_metrics_minute($drv));
+            $p->exec(ddl_metrics_peak($drv));
+            set_setting('metrics_tables', '2');
+        } catch (Throwable $e) {
+            error_log('submw ensure_metrics_tables: ' . $e->getMessage());
+            return false;
+        }
     }
+    if (setting('metrics_subcol', '') !== '1') {
+        try { $p->exec('ALTER TABLE metrics_minute ADD COLUMN hits_sub ' . (db_driver() === 'mysql' ? 'BIGINT UNSIGNED' : 'INTEGER') . ' NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+        set_setting('metrics_subcol', '1');
+    }
+    $done = true;
+    return true;
 }
 
 function metrics_peak_factor() {
@@ -70,29 +77,32 @@ function metrics_peak_floor() {
     return $v >= 5 ? $v : 30;
 }
 
-function metrics_tick($dur_ms, $mem_bytes) {
+function metrics_tick($dur_ms, $mem_bytes, $is_sub = false) {
     if (!ensure_metrics_tables()) return;
     if (!($p = db())) return;
     $minute = time() - (time() % 60);
     $dur    = (int) max(0, round($dur_ms));
     $mem    = (int) max(0, $mem_bytes);
+    $sub    = $is_sub ? 1 : 0;
     try {
         if (db_driver() === 'mysql') {
-            $sql = 'INSERT INTO metrics_minute (minute_ts, hits, dur_ms_sum, dur_ms_max, mem_max)
-                    VALUES (?, 1, ?, ?, ?)
+            $sql = 'INSERT INTO metrics_minute (minute_ts, hits, hits_sub, dur_ms_sum, dur_ms_max, mem_max)
+                    VALUES (?, 1, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE hits = hits + 1,
+                        hits_sub = hits_sub + VALUES(hits_sub),
                         dur_ms_sum = dur_ms_sum + VALUES(dur_ms_sum),
                         dur_ms_max = GREATEST(dur_ms_max, VALUES(dur_ms_max)),
                         mem_max = GREATEST(mem_max, VALUES(mem_max))';
         } else {
-            $sql = 'INSERT INTO metrics_minute (minute_ts, hits, dur_ms_sum, dur_ms_max, mem_max)
-                    VALUES (?, 1, ?, ?, ?)
+            $sql = 'INSERT INTO metrics_minute (minute_ts, hits, hits_sub, dur_ms_sum, dur_ms_max, mem_max)
+                    VALUES (?, 1, ?, ?, ?, ?)
                     ON CONFLICT(minute_ts) DO UPDATE SET hits = hits + 1,
+                        hits_sub = hits_sub + excluded.hits_sub,
                         dur_ms_sum = dur_ms_sum + excluded.dur_ms_sum,
                         dur_ms_max = MAX(dur_ms_max, excluded.dur_ms_max),
                         mem_max = MAX(mem_max, excluded.mem_max)';
         }
-        $p->prepare($sql)->execute([$minute, $dur, $dur, $mem]);
+        $p->prepare($sql)->execute([$minute, $sub, $dur, $dur, $mem]);
         metrics_detect_peak($p, $minute);
         if (random_int(1, 400) === 1) metrics_prune($p);
     } catch (Throwable $e) {
@@ -148,9 +158,18 @@ function metrics_window_hits($p, $seconds) {
     } catch (Throwable $e) { return 0; }
 }
 
+function metrics_window_sub($p, $seconds) {
+    try {
+        $st = $p->prepare('SELECT COALESCE(SUM(hits_sub),0) FROM metrics_minute WHERE minute_ts >= ?');
+        $st->execute([time() - $seconds]);
+        return (int) $st->fetchColumn();
+    } catch (Throwable $e) { return 0; }
+}
+
 function metrics_load_summary() {
     $out = [
         'm1' => 0, 'm5' => 0, 'm60' => 0, 'h24' => 0, 'today' => 0,
+        'm1_sub' => 0, 'm5_sub' => 0, 'm60_sub' => 0, 'h24_sub' => 0, 'today_sub' => 0,
         'avg_ms' => 0, 'max_ms_60' => 0, 'mem_max_60' => 0, 'rpm_60' => 0.0,
     ];
     if (!($p = db())) return $out;
@@ -160,12 +179,16 @@ function metrics_load_summary() {
     $out['m5']  = metrics_window_hits($p, 300);
     $out['m60'] = metrics_window_hits($p, 3600);
     $out['h24'] = metrics_window_hits($p, 86400);
+    $out['m1_sub']  = metrics_window_sub($p, 60);
+    $out['m5_sub']  = metrics_window_sub($p, 300);
+    $out['m60_sub'] = metrics_window_sub($p, 3600);
+    $out['h24_sub'] = metrics_window_sub($p, 86400);
     $tzoff    = isset($_COOKIE['tzoff']) ? max(-720, min(840, (int) $_COOKIE['tzoff'])) * 60 : (int) date('Z');
     $nowLocal = $now + $tzoff;
     $dayStart = $nowLocal - ($nowLocal % 86400) - $tzoff;
     try {
-        $st = $p->prepare('SELECT COALESCE(SUM(hits),0) FROM metrics_minute WHERE minute_ts >= ?');
-        $st->execute([$dayStart]); $out['today'] = (int) $st->fetchColumn();
+        $st = $p->prepare('SELECT COALESCE(SUM(hits),0) h, COALESCE(SUM(hits_sub),0) s FROM metrics_minute WHERE minute_ts >= ?');
+        $st->execute([$dayStart]); $row = $st->fetch(); $out['today'] = (int) ($row['h'] ?? 0); $out['today_sub'] = (int) ($row['s'] ?? 0);
 
         $st = $p->prepare('SELECT COALESCE(SUM(dur_ms_sum),0) s, COALESCE(SUM(hits),0) h, COALESCE(MAX(dur_ms_max),0) mx, COALESCE(MAX(mem_max),0) mm FROM metrics_minute WHERE minute_ts >= ?');
         $st->execute([$now - 3600]);
@@ -187,7 +210,7 @@ function metrics_minute_series($minutes = 60) {
     $start = ($now - ($now % 60)) - ($minutes - 1) * 60;
     $map = [];
     try {
-        $st = $p->prepare('SELECT minute_ts, hits, dur_ms_max FROM metrics_minute WHERE minute_ts >= ? ORDER BY minute_ts ASC');
+        $st = $p->prepare('SELECT minute_ts, hits, hits_sub, dur_ms_max FROM metrics_minute WHERE minute_ts >= ? ORDER BY minute_ts ASC');
         $st->execute([$start]);
         foreach ($st as $row) $map[(int) $row['minute_ts']] = $row;
     } catch (Throwable $e) {}
@@ -195,6 +218,7 @@ function metrics_minute_series($minutes = 60) {
         $series[] = [
             'ts'   => $t,
             'hits' => isset($map[$t]) ? (int) $map[$t]['hits'] : 0,
+            'sub'  => isset($map[$t]) ? (int) $map[$t]['hits_sub'] : 0,
             'ms'   => isset($map[$t]) ? (int) $map[$t]['dur_ms_max'] : 0,
         ];
     }

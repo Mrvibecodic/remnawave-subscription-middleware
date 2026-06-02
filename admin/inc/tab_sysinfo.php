@@ -19,6 +19,16 @@ $si_floor  = metrics_peak_floor();
         .si-bar.zero{background:var(--line);opacity:.5}
         .si-bar.peak{background:var(--err)}
         .si-chart-x{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:.3rem}
+        .si-leg{display:flex;flex-wrap:wrap;gap:1.1rem;align-items:center;font-size:.8rem;color:var(--muted);margin:.1rem 0 .9rem}
+        .si-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:.35rem;vertical-align:middle}
+        .si-dot.sub{background:var(--accent)}
+        .si-dot.bot{background:var(--line);border:1px solid var(--muted)}
+        .si-card .sb{font-size:.72rem;margin-top:.3rem;color:var(--muted)}
+        .si-card .sb .vsub{color:var(--accent-text);font-weight:600}
+        .si-bar2{flex:1 1 0;min-width:2px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:2px 2px 0 0;overflow:hidden}
+        .si-bar2.zero{background:var(--line);opacity:.5}
+        .si-bar2 .seg-bot{background:var(--line);opacity:.7}
+        .si-bar2 .seg-sub{background:var(--accent);opacity:.9}
     </style>
     <div class="si-grid">
         <div class="card">
@@ -48,19 +58,23 @@ $si_floor  = metrics_peak_floor();
                 <button type="button" class="btn ghost" onclick="siRefresh()">🔄 Обновить</button>
             </div>
         </div>
-        <p class="muted">Считается каждый запрос к прослойке (включая краулеров и сканеры) — это реальная нагрузка на PHP и БД. Время ответа учитывает поход к панели.</p>
+        <p class="muted">Считается каждый запрос к прослойке. <span style="color:var(--accent-text)">Обновления подписки</span> (реальные клиенты с заголовком подписки) показаны отдельно от <b>краулеров и сканеров</b> — прочего фонового трафика. Время ответа учитывает поход к панели.</p>
+        <div class="si-leg">
+            <span><span class="si-dot sub"></span>Обновления подписки</span>
+            <span><span class="si-dot bot"></span>Краулеры / сканеры</span>
+        </div>
         <div class="si-stat">
-            <div class="si-card"><div class="n" id="si_m1"><?= (int) $sys_load['m1'] ?></div><div class="l">за 1 мин</div></div>
-            <div class="si-card"><div class="n" id="si_m5"><?= (int) $sys_load['m5'] ?></div><div class="l">за 5 мин</div></div>
-            <div class="si-card"><div class="n" id="si_m60"><?= (int) $sys_load['m60'] ?></div><div class="l">за час</div></div>
-            <div class="si-card"><div class="n" id="si_today"><?= (int) $sys_load['today'] ?></div><div class="l">за сутки</div></div>
+            <div class="si-card"><div class="n" id="si_m1"><?= (int) $sys_load['m1'] ?></div><div class="l">за 1 мин</div><div class="sb" id="si_m1b"><span class="si-dot sub"></span><span class="vsub"><?= (int) $sys_load['m1_sub'] ?></span> <span class="si-dot bot"></span><?= (int) $sys_load['m1'] - (int) $sys_load['m1_sub'] ?></div></div>
+            <div class="si-card"><div class="n" id="si_m5"><?= (int) $sys_load['m5'] ?></div><div class="l">за 5 мин</div><div class="sb" id="si_m5b"><span class="si-dot sub"></span><span class="vsub"><?= (int) $sys_load['m5_sub'] ?></span> <span class="si-dot bot"></span><?= (int) $sys_load['m5'] - (int) $sys_load['m5_sub'] ?></div></div>
+            <div class="si-card"><div class="n" id="si_m60"><?= (int) $sys_load['m60'] ?></div><div class="l">за час</div><div class="sb" id="si_m60b"><span class="si-dot sub"></span><span class="vsub"><?= (int) $sys_load['m60_sub'] ?></span> <span class="si-dot bot"></span><?= (int) $sys_load['m60'] - (int) $sys_load['m60_sub'] ?></div></div>
+            <div class="si-card"><div class="n" id="si_today"><?= (int) $sys_load['today'] ?></div><div class="l">за сутки</div><div class="sb" id="si_todayb"><span class="si-dot sub"></span><span class="vsub"><?= (int) $sys_load['today_sub'] ?></span> <span class="si-dot bot"></span><?= (int) $sys_load['today'] - (int) $sys_load['today_sub'] ?></div></div>
             <div class="si-card"><div class="n" id="si_rpm"><?= h(number_format((float) $sys_load['rpm_60'], 1)) ?></div><div class="l">запр/мин (час)</div></div>
             <div class="si-card"><div class="n" id="si_avg"><?= (int) $sys_load['avg_ms'] ?><span style="font-size:.8rem"> мс</span></div><div class="l">средн. ответ (час)</div></div>
             <div class="si-card"><div class="n" id="si_max"><?= (int) $sys_load['max_ms_60'] ?><span style="font-size:.8rem"> мс</span></div><div class="l">макс. ответ (час)</div></div>
         </div>
         <div class="si-chart" id="si_chart">
-            <?php foreach ($sys_series as $pt): $hh = (int) $pt['hits']; $hpx = $hh > 0 ? max(3, (int) round($hh / $si_max * 108)) : 2; ?>
-            <div class="si-bar<?= $hh === 0 ? ' zero' : '' ?>" style="height:<?= $hpx ?>px" title="<?= h(date('H:i', (int) $pt['ts'])) ?> · <?= $hh ?> запр · <?= (int) $pt['ms'] ?> мс"></div>
+            <?php foreach ($sys_series as $pt): $hh = (int) $pt['hits']; $hs = min($hh, (int) $pt['sub']); $hpx = $hh > 0 ? max(3, (int) round($hh / $si_max * 108)) : 2; $spx = $hh > 0 ? (int) round($hpx * $hs / $hh) : 0; $bpx = $hpx - $spx; ?>
+            <div class="si-bar2<?= $hh === 0 ? ' zero' : '' ?>" style="height:<?= $hpx ?>px" title="<?= h(date('H:i', (int) $pt['ts'])) ?> · подписка <?= $hs ?> · краулеры <?= $hh - $hs ?> · всего <?= $hh ?> · <?= (int) $pt['ms'] ?> мс"><div class="seg-bot" style="height:<?= $bpx ?>px"></div><div class="seg-sub" style="height:<?= $spx ?>px"></div></div>
             <?php endforeach; ?>
         </div>
         <div class="si-chart-x"><span>−60 мин</span><span>сейчас</span></div>
@@ -111,39 +125,8 @@ $si_floor  = metrics_peak_floor();
         var box=document.getElementById('si_chart'); if(!box||!series) return;
         var mx=1; series.forEach(function(p){ if(p.hits>mx) mx=p.hits; });
         box.innerHTML=series.map(function(p){
+            var sub=Math.min(p.hits,p.sub||0);
             var hpx=p.hits>0?Math.max(3,Math.round(p.hits/mx*108)):2;
-            return '<div class="si-bar'+(p.hits===0?' zero':'')+'" style="height:'+hpx+'px" title="'+siLocal(p.ts)+' · '+p.hits+' запр · '+p.ms+' мс"></div>';
-        }).join('');
-    }
-    function siPeaks(rows){
-        var b=document.getElementById('si_peaks'); if(!b) return;
-        if(!rows||!rows.length){ b.innerHTML='<tr><td colspan="5" class="muted">Пиков не зафиксировано</td></tr>'; return; }
-        b.innerHTML=rows.map(function(p){
-            return '<tr><td class="muted">'+siLocal(p.minute_ts,true)+'</td>'+
-                   '<td><span class="tag error">'+p.hits+'</span></td>'+
-                   '<td class="muted">'+p.baseline+'</td>'+
-                   '<td class="muted">'+p.dur_ms_max+' мс</td>'+
-                   '<td class="muted">'+siFmtBytes(p.mem_max)+'</td></tr>';
-        }).join('');
-    }
-    function siSet(id,v){var e=document.getElementById(id); if(e) e.textContent=v;}
-    function siRefresh(){
-        var a=document.getElementById('siAuto'); if(a) a.textContent='· обновление…';
-        fetch('?ajax=sysinfo').then(function(r){return r.json();}).then(function(d){
-            if(d.ok){
-                var L=d.load||{};
-                siSet('si_m1',L.m1); siSet('si_m5',L.m5); siSet('si_m60',L.m60); siSet('si_today',L.today);
-                siSet('si_rpm',(L.rpm_60||0).toFixed(1));
-                var avg=document.getElementById('si_avg'); if(avg) avg.innerHTML=(L.avg_ms||0)+'<span style="font-size:.8rem"> мс</span>';
-                var mxc=document.getElementById('si_max'); if(mxc) mxc.innerHTML=(L.max_ms_60||0)+'<span style="font-size:.8rem"> мс</span>';
-                siChart(d.series); siPeaks(d.peaks);
-                if(d.sys){ if(d.sys.load&&d.sys.load.length){ siSet('si_load', d.sys.load.map(function(x){return Number(x).toFixed(2);}).join(' · ')+(d.sys.cores?(' (ядер: '+d.sys.cores+')'):'')); } siSet('si_mem', siFmtBytes(d.sys.mem_peak)); }
-                if(d.db) siSet('si_dbsize', siFmtBytes(d.db.size));
-            }
-            if(a) a.textContent='· обновлено в '+new Date().toLocaleTimeString();
-        }).catch(function(){ if(a) a.textContent='· ошибка обновления'; });
-    }
-    document.querySelectorAll('.si-pk-ts[data-ts]').forEach(function(td){var v=siLocal(td.getAttribute('data-ts'),true);if(v)td.textContent=v;});
-    setInterval(function(){ if(!document.hidden) siRefresh(); }, 15000);
-    document.addEventListener('visibilitychange',function(){ if(!document.hidden) siRefresh(); });
-    </script>
+            var spx=p.hits>0?Math.round(hpx*sub/p.hits):0;
+            var bpx=hpx-spx;
+            return '<div
