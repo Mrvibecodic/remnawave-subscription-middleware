@@ -63,32 +63,37 @@ $token   = $_COOKIE[$cookie_name] ?? '';
 $session = $token !== '' ? chat_session_by_token($token) : null;
 
 if ($api === 'open') {
-    if (!$session) {
-        $session = chat_session_create(client_ip(), $_SERVER['HTTP_USER_AGENT'] ?? '');
-        if (!$session) chat_json(['ok' => false, 'error' => 'cannot create'], 500);
-        chat_set_cookie($cookie_name, $session['token']);
-    } else {
+    if ($session) {
         chat_session_touch($session['id']);
-    }
-    $existing = chat_messages_since($session['id'], 0, 200);
-    if (!$existing && chat_greeting() !== '') {
-        chat_add_message($session['id'], 'agent', 'system', chat_greeting());
-        $existing = chat_messages_since($session['id'], 0, 200);
+        chat_json([
+            'ok'       => true,
+            'exists'   => true,
+            'token'    => $session['token'],
+            'agent'    => ['name' => chat_agent_name(), 'photo' => chat_agent_photo()],
+            'poll'     => chat_poll_interval(),
+            'messages' => chat_messages_since($session['id'], 0, 200),
+        ]);
     }
     chat_json([
         'ok'       => true,
-        'token'    => $session['token'],
+        'exists'   => false,
         'agent'    => ['name' => chat_agent_name(), 'photo' => chat_agent_photo()],
         'poll'     => chat_poll_interval(),
-        'messages' => $existing,
+        'greeting' => chat_greeting(),
+        'messages' => [],
     ]);
 }
 
 if ($api === 'send') {
     if ($method !== 'POST') chat_json(['ok' => false, 'error' => 'method'], 405);
-    if (!$session) chat_json(['ok' => false, 'error' => 'no session'], 400);
     $body = trim((string) ($_POST['body'] ?? ''));
     if ($body === '') chat_json(['ok' => false, 'error' => 'empty'], 400);
+    if (!$session) {
+        $session = chat_session_create(client_ip(), $_SERVER['HTTP_USER_AGENT'] ?? '');
+        if (!$session) chat_json(['ok' => false, 'error' => 'cannot create'], 500);
+        chat_set_cookie($cookie_name, $session['token']);
+        if (chat_greeting() !== '') chat_add_message($session['id'], 'agent', 'system', chat_greeting());
+    }
     $id = chat_add_message($session['id'], 'visitor', 'site', $body);
     if (!$id) chat_json(['ok' => false, 'error' => 'store failed'], 500);
     try { chat_dispatch_visitor_message($session, $body); }

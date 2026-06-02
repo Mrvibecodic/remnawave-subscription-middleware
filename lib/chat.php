@@ -590,7 +590,7 @@ function chat_widget_render() {
 (function(){
     var CFG = <?= $json ?>;
     var API = '/chat.php';
-    var lastId = 0, opened = false, polling = null, started = false, poll_busy = false;
+    var lastId = 0, opened = false, polling = null, started = false, poll_busy = false, hasSession = false;
     var wrap=document.getElementById('swcWrap'), panel=document.getElementById('swcPanel'),
         body=document.getElementById('swcBody'), inp=document.getElementById('swcIn'),
         sendBtn=document.getElementById('swcSend'), badge=document.getElementById('swcBadge'),
@@ -612,18 +612,29 @@ function chat_widget_render() {
     }
     function setBadge(n){unread=n;if(n>0){badge.style.display='flex';badge.textContent=n>9?'9+':n;}else{badge.style.display='none';}}
     function api(q,opt){return fetch(API+q,Object.assign({credentials:'same-origin'},opt||{})).then(function(r){return r.json();});}
+    function showGreeting(){
+        if(!CFG.greeting) return;
+        body.innerHTML='';
+        var el=document.createElement('div'); el.className='swc-msg swc-a'; el.textContent=CFG.greeting; body.appendChild(el);
+    }
+    function startPolling(){ if(!polling) polling=setInterval(poll,(CFG.poll||4)*1000); }
     function start(){
         if(started)return Promise.resolve(); started=true;
         return api('?api=open',{method:'POST'}).then(function(d){
             if(!d||!d.ok)return;
-            lastId=0; body.innerHTML=''; seen={};
-            (d.messages||[]).forEach(add);
             if(d.poll) CFG.poll=d.poll;
+            if(d.exists){
+                hasSession=true; lastId=0; body.innerHTML=''; seen={};
+                (d.messages||[]).forEach(add);
+                startPolling();
+            } else {
+                hasSession=false; showGreeting();
+            }
         });
     }
-    function resetChat(){ started=false; lastId=0; seen={}; body.innerHTML=''; setBadge(0); start(); }
+    function resetChat(){ started=false; hasSession=false; lastId=0; seen={}; body.innerHTML=''; setBadge(0); start(); }
     function poll(){
-        if(poll_busy)return; poll_busy=true;
+        if(poll_busy||!hasSession)return; poll_busy=true;
         api('?api=poll&after='+lastId).then(function(d){
             poll_busy=false;
             if(!d)return;
@@ -638,21 +649,26 @@ function chat_widget_render() {
     function open(){
         opened=true; wrap.classList.add('swc-open'); setBadge(0);
         start().then(function(){inp.focus();});
-        if(!polling) polling=setInterval(poll,(CFG.poll||4)*1000);
     }
     function close(){opened=false; wrap.classList.remove('swc-open');}
     function send(){
         var t=inp.value.trim(); if(!t)return;
         inp.value=''; sendBtn.disabled=true;
+        var firstMsg=!hasSession;
         api('?api=send',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'body='+encodeURIComponent(t)})
-            .then(function(d){sendBtn.disabled=false;poll();})
+            .then(function(d){
+                sendBtn.disabled=false;
+                if(!d||!d.ok)return;
+                hasSession=true; startPolling();
+                if(firstMsg){ started=false; seen={}; lastId=0; body.innerHTML=''; start(); }
+                else { poll(); }
+            })
             .catch(function(){sendBtn.disabled=false;});
     }
     document.getElementById('swcLaunch').addEventListener('click',open);
     document.getElementById('swcClose').addEventListener('click',close);
     sendBtn.addEventListener('click',send);
     inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
-    start().then(function(){if(!polling)polling=setInterval(poll,(CFG.poll||4)*1000);});
 })();
 </script>
     <?php
