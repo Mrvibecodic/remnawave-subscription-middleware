@@ -13,6 +13,10 @@ function ensure_reqlog_hwid() {
         try { $p->exec('ALTER TABLE request_log ADD COLUMN is_app INTEGER NOT NULL DEFAULT 1'); } catch (Throwable $e) {}
         set_setting('reqlog_isapp_col', '1');
     }
+    if (setting('reqlog_browser_purge', '') !== '2') {
+        try { $p->exec("DELETE FROM request_log WHERE decision = 'browser' OR user_agent LIKE 'Mozilla/%'"); } catch (Throwable $e) {}
+        set_setting('reqlog_browser_purge', '2');
+    }
 }
 
 function is_browser_ua($ua) {
@@ -70,7 +74,7 @@ function reqlog_today_stats() {
     $dayStart = $nowLocal - ($nowLocal % 86400) - $tzoff;
     $out['label'] = gmdate('d.m.Y', $nowLocal);
     try {
-        $st = $p->prepare("SELECT COUNT(DISTINCT short_uuid) FROM request_log WHERE short_uuid IS NOT NULL AND is_app = 1 AND " . sql_epoch('ts') . " >= ?");
+        $st = $p->prepare("SELECT COUNT(DISTINCT short_uuid) FROM request_log WHERE short_uuid IS NOT NULL AND is_app = 1 AND decision <> 'browser' AND " . sql_epoch('ts') . " >= ?");
         $st->execute([$dayStart]); $out['today_users'] = (int) $st->fetchColumn();
         $st = $p->prepare("SELECT COUNT(DISTINCT hwid) FROM request_log WHERE hwid IS NOT NULL AND hwid <> '' AND " . sql_epoch('ts') . " >= ?");
         $st->execute([$dayStart]); $out['today_devices'] = (int) $st->fetchColumn();

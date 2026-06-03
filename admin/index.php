@@ -284,7 +284,7 @@ if (isset($_GET['ajax']) && is_auth()) {
         ensure_reqlog_hwid();
         if ($pdo = db()) {
             try {
-                foreach ($pdo->query('SELECT ts, ip, short_uuid, user_agent, decision, expire_ts, hwid, ' . sql_epoch('ts') . ' AS ts_epoch FROM request_log ORDER BY id DESC LIMIT 300') as $r) {
+                foreach ($pdo->query('SELECT ts, ip, short_uuid, user_agent, decision, expire_ts, hwid, ' . sql_epoch('ts') . ' AS ts_epoch FROM request_log WHERE decision <> \'browser\' ORDER BY id DESC LIMIT 300') as $r) {
                     $rows[] = $r;
                 }
             } catch (Throwable $e) {}
@@ -628,7 +628,15 @@ foreach ($overrides as $o) if ($o['match_type'] === 'shortuuid') $ov_index[$o['m
 $blocked_hwid_users = [];
 foreach ($overrides as $o) if (($o['match_type'] ?? '') === 'hwid' && ($o['reason'] ?? '') === 'blocked') { $bn = mb_strtolower(trim((string) ($o['username'] ?? ''))); if ($bn !== '') $blocked_hwid_users[$bn] = true; }
 $ov_expire = [];
-if ($tab === 'overrides') { $ov_e = ''; foreach (remnawave_all_users($ov_e) as $u) { if (!empty($u['shortUuid'])) $ov_expire[(string) $u['shortUuid']] = (string) ($u['expireAt'] ?? ''); } }
+if ($tab === 'overrides' && $overrides && remnawave_url() !== '' && remnawave_token() !== '') {
+    $ov_e = '';
+    foreach (remnawave_all_users($ov_e) as $u) {
+        if (!empty($u['shortUuid']) && !empty($u['expireAt'])) {
+            $ov_ts = strtotime((string) $u['expireAt']);
+            if ($ov_ts !== false) $ov_expire[(string) $u['shortUuid']] = $ov_ts;
+        }
+    }
+}
 
 $users = []; $users_err = '';
 if ($tab === 'users') $users = remnawave_all_users($users_err);
@@ -646,7 +654,7 @@ $panel_headers = []; $panel_headers_err = '';
 if ($tab === 'headers') $panel_headers = remnawave_panel_headers($panel_headers_err);
 
 $reqlog = [];
-if ($db_ok && $tab === 'reqlog') { ensure_reqlog_hwid(); foreach ($pdo->query('SELECT *, ' . sql_epoch('ts') . ' AS ts_epoch FROM request_log ORDER BY id DESC LIMIT 300') as $r) $reqlog[] = $r; }
+if ($db_ok && $tab === 'reqlog') { ensure_reqlog_hwid(); foreach ($pdo->query('SELECT *, ' . sql_epoch('ts') . ' AS ts_epoch FROM request_log WHERE decision <> \'browser\' ORDER BY id DESC LIMIT 300') as $r) $reqlog[] = $r; }
 $whlog = [];
 $wh_user_cond = "(event LIKE 'user.%' OR short_uuid IS NOT NULL OR username IS NOT NULL)";
 if ($db_ok && $tab === 'whlog') foreach ($pdo->query("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
