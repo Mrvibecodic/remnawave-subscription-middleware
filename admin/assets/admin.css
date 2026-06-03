@@ -43,6 +43,13 @@
     .rw-nav a:hover{background:var(--hover);color:var(--text)}
     .rw-nav a.active{background:var(--accent-light);color:var(--accent-text)}
     .rw-nav a .nav-dot{margin-left:auto;width:9px;height:9px;border-radius:50%;background:#f5b50a;flex:0 0 auto;box-shadow:0 0 0 0 rgba(245,181,10,.6);animation:navpulse 1.8s ease-out infinite}
+    .navacc-h{display:flex;align-items:center;justify-content:space-between;gap:.5rem;width:100%;background:transparent;border:0;cursor:pointer;text-align:left;font-family:inherit;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;padding:.9rem .7rem .35rem;opacity:.85}
+    .navacc-h:hover,.navacc-h:focus{background:transparent;outline:none}
+    .navacc-chev{width:12px;height:12px;flex:0 0 auto;transition:transform .15s,opacity .15s;opacity:.5}
+    .navacc-h:hover .navacc-chev{opacity:1}
+    .navacc.closed .navacc-chev{transform:rotate(-90deg)}
+    .navacc.closed .navacc-b{display:none}
+    .navacc-b{display:flex;flex-direction:column;gap:.1rem}
     @keyframes navpulse{0%{box-shadow:0 0 0 0 rgba(245,181,10,.55)}70%{box-shadow:0 0 0 7px rgba(245,181,10,0)}100%{box-shadow:0 0 0 0 rgba(245,181,10,0)}}
     .rw-ver{font-size:.72rem;color:var(--muted);display:flex;flex-direction:column;gap:.4rem;padding:.1rem .2rem .2rem}
     .rw-ver code{font-family:monospace;font-size:.95em;color:var(--text-strong)}

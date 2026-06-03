@@ -69,11 +69,3 @@
         <script>document.querySelectorAll('.lpick label').forEach(function(l){l.addEventListener('click',function(){document.querySelectorAll('.lpick label').forEach(function(x){x.classList.remove('sel');});l.classList.add('sel');});});</script>
     </div>
 
-    <section class="coll collapsed" data-coll="next_connection">
-        <button type="button" class="coll-head" onclick="collToggle(this)">Дальше: Подключение →
-            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="coll-body">
-            <div class="info">В разделе <a href="?tab=connection" style="color:var(--accent-text)">Подключение</a> задаются: origin-домен подписки и домен зеркала, URL и API-токен панели, cookie eGames-защиты, секрет вебхука и таймаут проксирования.</div>
-        </div>
-    </section>

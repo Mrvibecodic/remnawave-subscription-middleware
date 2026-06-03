@@ -802,7 +802,7 @@ $nav = [
     'users'     => ['Пользователи', '<circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.85"/>'],
     'branding'  => ['Брендинг', '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5h5a1.75 1.75 0 0 1 0 3.5H9a1.75 1.75 0 0 0 0 3.5h5.5"/>'],
     'connection'=> ['Подключение', '<path d="M9 7H6a3 3 0 0 0 0 6h3"/><path d="M15 7h3a3 3 0 0 1 0 6h-3"/><line x1="8" y1="10" x2="16" y2="10"/>'],
-    'webhooks'  => ['Вебхуки', '<path d="M18 8a3 3 0 1 0-2.6-4.5"/><circle cx="6" cy="16" r="3"/><circle cx="18" cy="18" r="3"/><path d="M12 11l-3.6 6"/><path d="M12 7v4l3.6 6"/>'],
+    'webhooks'  => ['Настройки', '<path d="M18 8a3 3 0 1 0-2.6-4.5"/><circle cx="6" cy="16" r="3"/><circle cx="18" cy="18" r="3"/><path d="M12 11l-3.6 6"/><path d="M12 7v4l3.6 6"/>'],
     'subst'     => ['Грейс-сквад', '<path d="M4 4h16v6H4z"/><path d="M4 14h16v6H4z"/><path d="M8 17h8"/>'],
     'headers'   => ['Заголовки', '<polyline points="7 8 3 12 7 16"/><polyline points="17 8 21 12 17 16"/><line x1="13.5" y1="4" x2="10.5" y2="20"/>'],
     'rules'     => ['Правила ответа', '<path d="M4 6h10"/><path d="M4 12h7"/><path d="M4 18h10"/><circle cx="18" cy="8" r="2"/><circle cx="16" cy="16" r="2"/>'],
@@ -820,13 +820,13 @@ $nav = [
 ];
 ?>
 <?php
-$nav_groups = [
-    'Обзор'      => ['users'],
-    'Настройки'  => ['branding', 'connection', 'webhooks'],
-    'Управление' => ['subst', 'rules', 'hwid', 'overrides'],
-    'Логи'       => ['reqlog', 'whlog', 'whlog_other', 'fwdlog', 'grace_users'],
-    'Поддержка'  => ['chat'],
-    'Обслуживание' => ['sysinfo', 'migrate'],
+$nav_sections = [
+    ['l' => 'Главное',          'coll' => false, 'k' => 'main',   'items' => ['users', 'chat', 'reqlog']],
+    ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
+    ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => ['webhooks', 'fwdlog', 'whlog', 'whlog_other']],
+    ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
+    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides']],
+    ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => ['sysinfo', 'update', 'migrate']],
 ];
 function nav_link($key, $it, $active, $badge = false) {
     $svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
@@ -838,11 +838,25 @@ function nav_link($key, $it, $active, $badge = false) {
     <aside class="rw-side">
         <div class="rw-brand"><?php if ($brand_icon !== ''): ?><img src="<?= h($brand_icon) ?>" alt=""><?php elseif ($brand_emoji !== ''): ?><span class="rw-emoji"><?= $brand_emoji ?></span><?php else: ?><img src="<?= $default_logo ?>" alt=""><?php endif; ?><b><?= h($brand['name']) ?></b></div>
         <nav class="rw-nav">
-            <?php foreach ($nav_groups as $glabel => $keys): ?>
-                <div class="navgroup"><?= h($glabel) ?></div>
-                <?php foreach ($keys as $key): ?>
-                    <?= nav_link($key, $nav[$key], $tab === $key, $key === 'update' && update_available()) ?>
-                <?php endforeach; ?>
+            <?php foreach ($nav_sections as $sec): $active_in = in_array($tab, $sec['items'], true); ?>
+                <?php if (empty($sec['coll'])): ?>
+                    <div class="navgroup"><?= h($sec['l']) ?></div>
+                    <?php foreach ($sec['items'] as $key): ?>
+                        <?= nav_link($key, $nav[$key], $tab === $key, $key === 'update' && update_available()) ?>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="navacc<?= $active_in ? '' : ' closed' ?>" data-acc="<?= h($sec['k']) ?>">
+                        <button type="button" class="navacc-h" onclick="navAcc(this)">
+                            <span><?= h($sec['l']) ?></span>
+                            <svg class="navacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="navacc-b">
+                            <?php foreach ($sec['items'] as $key): ?>
+                                <?= nav_link($key, $nav[$key], $tab === $key, $key === 'update' && update_available()) ?>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
             <?php endforeach; ?>
         </nav>
         <div class="rw-foot">
@@ -1005,6 +1019,11 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
     var fm=document.getElementById('flashMsg'); if(fm && fm.getAttribute('data-msg')) uiToast(fm.getAttribute('data-msg'));
     window.collToggle=function(b){var s=b.closest('.coll');if(!s)return;s.classList.toggle('collapsed');if(!/^next_/.test(s.dataset.coll||'')){try{localStorage.setItem('coll_'+s.dataset.coll,s.classList.contains('collapsed')?'1':'0');}catch(e){}}};
     document.querySelectorAll('.coll').forEach(function(s){if(/^next_/.test(s.dataset.coll||''))return;try{var v=localStorage.getItem('coll_'+s.dataset.coll);if(v==='1')s.classList.add('collapsed');else if(v==='0')s.classList.remove('collapsed');}catch(e){}});
+    window.navAcc=function(b){var s=b.closest('.navacc');if(!s)return;s.classList.toggle('closed');try{localStorage.setItem('nav_'+s.dataset.acc,s.classList.contains('closed')?'1':'0');}catch(e){}};
+    document.querySelectorAll('.navacc').forEach(function(s){
+        if(s.querySelector('a.active')){s.classList.remove('closed');return;}
+        try{var v=localStorage.getItem('nav_'+s.dataset.acc);if(v==='0')s.classList.remove('closed');else if(v==='1')s.classList.add('closed');}catch(e){}
+    });
     document.addEventListener('click',function(e){var app=document.querySelector('.rw-app');if(app&&app.classList.contains('nav-open')&&!e.target.closest('.rw-side')&&!e.target.closest('.navtoggle'))app.classList.remove('nav-open');});
     try{document.cookie='tzoff='+(-new Date().getTimezoneOffset())+';path=/;max-age=31536000;samesite=Lax';}catch(e){}
     ok.addEventListener('click',function(){var f=cb; uiDlgClose(); if(f)f();});
