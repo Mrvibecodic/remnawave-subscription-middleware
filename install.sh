@@ -47,7 +47,17 @@ PKGS="php-fpm php-cli php-sqlite3 php-mysql php-curl php-mbstring php-xml git op
 [ "$CERT_MODE" = "2" ] && PKGS="$PKGS python3-certbot-dns-cloudflare"
 apt-get install -y $PKGS >/dev/null
 
-echo "-> Установка актуального nginx из официального репозитория nginx.org (старый удаляется)..."
+echo "-> Установка актуального nginx из официального репозитория nginx.org..."
+if dpkg -l 2>/dev/null | grep -qE '^ii[[:space:]]+nginx' || command -v nginx >/dev/null 2>&1; then
+    echo "!! ВНИМАНИЕ: на сервере уже установлен nginx."
+    echo "   Установщик удалит текущие пакеты nginx (remove + purge nginx-common) и поставит сборку с nginx.org."
+    echo "   purge затронет системный конфиг в /etc/nginx (сайты в conf.d, nginx.conf и т.п.) — сделайте бэкап, если nginx обслуживает другие сайты."
+    ANS="$(ask 'Удалить предустановленный nginx и продолжить?' 'N')"
+    case "$ANS" in
+        [yY]|[yY][eE][sS]) echo "   -> удаляю предустановленный nginx..." ;;
+        *) echo "Отменено: nginx не тронут, установка прервана."; exit 1 ;;
+    esac
+fi
 apt-get remove -y nginx nginx-common nginx-core nginx-full >/dev/null 2>&1 || true
 apt-get purge  -y nginx nginx-common >/dev/null 2>&1 || true
 OS_ID="$(. /etc/os-release; echo "${ID:-ubuntu}")"
