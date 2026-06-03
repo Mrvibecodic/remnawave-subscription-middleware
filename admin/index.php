@@ -168,9 +168,22 @@ $C = cfg();
 
 session_name('submw_admin');
 $sess_ttl = 86400;
+$sess_dir = dirname(__DIR__) . '/data/sessions';
+if (!is_dir($sess_dir)) { @mkdir($sess_dir, 0700, true); @file_put_contents($sess_dir . '/.htaccess', "Require all denied\nDeny from all\n"); }
+if (is_dir($sess_dir) && is_writable($sess_dir)) {
+    @ini_set('session.save_path', $sess_dir);
+    @ini_set('session.gc_probability', '1');
+    @ini_set('session.gc_divisor', '100');
+}
 @ini_set('session.gc_maxlifetime', (string) $sess_ttl);
 @ini_set('session.cookie_lifetime', (string) $sess_ttl);
-session_set_cookie_params(['lifetime' => $sess_ttl, 'httponly' => true, 'samesite' => 'Lax', 'secure' => (($_SERVER['HTTPS'] ?? '') === 'on')]);
+session_set_cookie_params([
+    'lifetime' => $sess_ttl,
+    'path'     => '/',
+    'httponly' => true,
+    'samesite' => 'Lax',
+    'secure'   => ((($_SERVER['HTTPS'] ?? '') === 'on') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')),
+]);
 session_start();
 
 function csrf_token() {
