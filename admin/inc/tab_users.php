@@ -1,7 +1,10 @@
     <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
             <h2 style="margin:0;font-size:1rem">Пользователи панели (<?= count($users) ?>)</h2>
-            <input type="text" id="flt" placeholder="фильтр по имени / статусу / shortUuid" style="max-width:340px" oninput="filterRows()">
+            <div style="display:flex;align-items:center;gap:.5rem">
+                <input type="text" id="flt" placeholder="фильтр по имени / статусу / shortUuid" style="max-width:340px" oninput="filterRows()">
+                <button type="button" class="qh" onclick="help('userflags')" aria-label="Справка по колонкам «Подмена» и «Конфиг»">?</button>
+            </div>
         </div>
         <p class="muted">Ссылки подписки показаны уже с адресом зеркала <code><?= h($mirror) ?></code> — их и раздавайте.</p>
         <?php if ($users_err): ?>
@@ -19,8 +22,8 @@
                 <th class="srt" onclick="sortUsers(0)">Пользователь<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(1)">Статус<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(2)">Истекает<span class="sar"></span></th>
-                <th class="srt" onclick="sortUsers(3)" title="Причина: активный оверрайд прослойки для этой подписки — expired (истёк) или blocked (заблокирован по HWID). «—» — оверрайда нет. У грейс-сквад юзеров оверрайд снимается.">Подмена<span class="sar"></span></th>
-                <th class="srt" onclick="sortUsers(4)" title="Результат: что реально отдаётся в приложение. «Прослойка» — наш подменный конфиг с ремарками (истёк/заблокирован), пока идёт окно expired_grace_days. «Панель» — реальный конфиг origin.">Конфиг<span class="sar"></span></th>
+                <th class="srt" onclick="sortUsers(3)">Подмена<span class="sar"></span></th>
+                <th class="srt" onclick="sortUsers(4)">Конфиг<span class="sar"></span></th>
                 <th>Устройства</th>
                 <th>Ссылка подписки (через зеркало)</th>
             </tr>

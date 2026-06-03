@@ -135,3 +135,11 @@ function remnawave_update_user($uuid, array $fields, &$error = '') {
     if (!$ok) { $error = $e ?: ('HTTP ' . $code . ' ' . json_encode($data, JSON_UNESCAPED_UNICODE)); return false; }
     return true;
 }
+
+function remnawave_reset_traffic($uuid, &$error = '') {
+    $error = '';
+    if ($uuid === '') { $error = 'Пустой UUID'; return false; }
+    [$ok, $code, $data, $e] = remnawave_api_request('POST', '/api/users/' . rawurlencode($uuid) . '/actions/reset-traffic');
+    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return false; }
+    return true;
+}

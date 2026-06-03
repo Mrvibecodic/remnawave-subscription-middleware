@@ -103,6 +103,12 @@ function grace_on_expired($short, $username = null) {
 
     grace_save($short, $uuid, $username, $squads, $bytes, $strategy, $orig_expire, $hwid_orig, $grace_until);
 
+    if (grace_traffic_bytes() > 0) {
+        $re = '';
+        remnawave_reset_traffic($uuid, $re);
+        if ($re !== '') error_log('submw grace reset-traffic: ' . $re);
+    }
+
     $patch = [
         'status'                => 'ACTIVE',
         'activeInternalSquads'  => [grace_squad_uuid()],
