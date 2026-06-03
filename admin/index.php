@@ -590,6 +590,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('chat_tg_enabled', isset($_POST['chat_tg_enabled']) ? '1' : '0');
         if (($_POST['chat_tg_bot_token'] ?? '') !== '') set_setting('chat_tg_bot_token', trim($_POST['chat_tg_bot_token']));
         set_setting('chat_tg_chat_id', trim($_POST['chat_tg_chat_id'] ?? ''));
+        set_setting('chat_tg_api_base', rtrim(trim($_POST['chat_tg_api_base'] ?? ''), '/'));
         set_setting('chat_webhook_enabled', isset($_POST['chat_webhook_enabled']) ? '1' : '0');
         set_setting('chat_webhook_url', trim($_POST['chat_webhook_url'] ?? ''));
         if (($_POST['chat_webhook_secret'] ?? '') !== '') set_setting('chat_webhook_secret', trim($_POST['chat_webhook_secret']));

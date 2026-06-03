@@ -72,6 +72,7 @@ function install_seed_values() {
         'brand_cache'           => '{}',
         'landing_preset'        => '1',
         'chat_enabled'          => '0',
+        'chat_tg_api_base'      => '',
     ];
 }
 

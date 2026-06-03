@@ -112,6 +112,9 @@ $c_color  = chat_widget_color();
                 <div><label>Токен бота</label><input type="password" name="chat_tg_bot_token" value="" placeholder="<?= chat_tg_token()?'•••••• задан':'123456:ABC…' ?>"></div>
                 <div><label>Chat ID оператора / группы</label><input type="text" name="chat_tg_chat_id" value="<?= h(chat_tg_chat_id()) ?>" placeholder="123456789 или -100…"></div>
             </div>
+            <div class="row">
+                <div><label>Базовый URL Telegram API <span class="hint">пусто = api.telegram.org; укажите свой reverse-proxy, если Telegram заблокирован на сервере зеркала</span></label><input type="text" name="chat_tg_api_base" value="<?= h(trim((string) setting('chat_tg_api_base',''))) ?>" placeholder="https://api.telegram.org (по умолчанию)"></div>
+            </div>
             <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin:.2rem 0 .2rem">
                 <button type="button" class="btn ghost" onclick="cbTgCheck()">🔌 Проверить доступ TG</button>
                 <button type="button" class="btn ghost" onclick="cbSetWh()">📡 Установить вебхук бота</button>

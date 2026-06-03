@@ -16,6 +16,14 @@ function chat_poll_interval() { return max(2, min(30, (int) setting('chat_poll_i
 function chat_tg_enabled() { return setting('chat_tg_enabled', '0') === '1'; }
 function chat_tg_token() { return trim((string) setting('chat_tg_bot_token', '')); }
 function chat_tg_chat_id() { return trim((string) setting('chat_tg_chat_id', '')); }
+function chat_tg_api_base() {
+    $v = rtrim(trim((string) setting('chat_tg_api_base', '')), '/');
+    return ($v !== '' && preg_match('~^https?://~i', $v)) ? $v : 'https://api.telegram.org';
+}
+function chat_tg_is_down() {
+    $ts = (int) setting('chat_tg_down_ts', '0');
+    return $ts > 0 && (time() - $ts) < 300;
+}
 function chat_tg_secret() {
     $v = trim((string) setting('chat_tg_secret', ''));
     if ($v === '') { $v = bin2hex(random_bytes(16)); set_setting('chat_tg_secret', $v); }
@@ -288,7 +296,7 @@ function chat_tg_push_live($session) {
 
 function chat_dispatch_visitor_message($session, $body) {
     $delivered = false;
-    if (chat_tg_enabled() && chat_tg_token() !== '' && chat_tg_chat_id() !== '') {
+    if (chat_tg_enabled() && chat_tg_token() !== '' && chat_tg_chat_id() !== '' && !chat_tg_is_down()) {
         $delivered = chat_tg_push_live($session) || $delivered;
     }
     if (chat_webhook_enabled() && chat_webhook_url() !== '') {
@@ -301,7 +309,7 @@ function chat_dispatch_visitor_message($session, $body) {
 function chat_tg_api($method, array $params, $token = null, $timeout = 10) {
     $token = $token ?? chat_tg_token();
     if ($token === '') return [false, null, 'no token'];
-    $url = 'https://api.telegram.org/bot' . $token . '/' . $method;
+    $url = chat_tg_api_base() . '/bot' . $token . '/' . $method;
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL            => $url,
@@ -309,15 +317,20 @@ function chat_tg_api($method, array $params, $token = null, $timeout = 10) {
         CURLOPT_POSTFIELDS     => http_build_query($params),
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => $timeout,
-        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_CONNECTTIMEOUT => 3,
         CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
         CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
     ]);
-    $resp = curl_exec($ch);
-    $err  = curl_error($ch);
-    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $resp  = curl_exec($ch);
+    $err   = curl_error($ch);
+    $errno = curl_errno($ch);
+    $code  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    if ($err !== '') return [false, null, $err];
+    if ($err !== '') {
+        if (in_array($errno, [5, 6, 7, 28, 35], true)) set_setting('chat_tg_down_ts', (string) time());
+        return [false, null, $err];
+    }
+    if ((int) setting('chat_tg_down_ts', '0') !== 0) set_setting('chat_tg_down_ts', '0');
     $data = json_decode((string) $resp, true);
     if (!is_array($data) || empty($data['ok'])) {
         $desc = is_array($data) ? ($data['description'] ?? ('HTTP ' . $code)) : ('HTTP ' . $code);
