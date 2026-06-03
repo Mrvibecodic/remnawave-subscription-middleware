@@ -54,6 +54,7 @@
                 }
                 $src_label = $src === 'mw' ? 'Прослойка' : 'Панель';
                 $in_grace = ($su !== '' && isset($grace_shorts[$su]));
+                $has_hwid_block = ($un !== '' && isset($blocked_hwid_users[mb_strtolower($un)]));
             ?>
             <tr>
                 <td><?= h($un) ?></td>
@@ -61,7 +62,7 @@
                 <td class="muted"><?= h($exp) ?></td>
                 <td><?= $ovr ? '<span class="tag '.h($ovr).'">'.h($ovr).'</span>' : '<span class="muted">—</span>' ?></td>
                 <td><span class="tag src-<?= h($src) ?>"><?= h($src_label) ?></span></td>
-                <td><?php if ($uuid !== ''): ?><button class="btn-sm hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>">HWID</button><?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                <td><?php if ($uuid !== ''): ?><button class="btn-sm hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>">HWID</button><?php if ($has_hwid_block): ?><span class="tip hw-warn" data-tip="Есть активный блок HWID">!</span><?php endif; ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td><input class="sublink" type="text" readonly value="<?= h($mirror_link) ?>" title="Нажмите, чтобы скопировать" onclick="subCopy(this)"></td>
             </tr>
             <?php endforeach; ?>
@@ -103,6 +104,7 @@
         .btn-block.on{border-color:var(--accent);color:var(--accent-text)}
         .btn-del{border-color:var(--red);color:#ff9b94}
         .btn-del:hover{border-color:var(--red);color:#ff9b94;background:var(--c-bad-bg)}
+        .hw-warn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:.72rem;font-weight:700;margin-left:.45rem;cursor:help;vertical-align:middle}
         .tip{position:relative;cursor:help}
         .tip:hover::after{content:attr(data-tip);position:absolute;left:50%;transform:translateX(-50%);bottom:135%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.45rem .7rem;font-size:.78rem;font-weight:500;white-space:nowrap;box-shadow:var(--shadow);z-index:10}
     </style>

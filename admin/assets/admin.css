@@ -58,7 +58,6 @@
     .rw-ver-check button{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:.28rem .55rem;font-size:.72rem;cursor:pointer}
     .rw-ver-check button:hover{border-color:var(--accent);color:var(--text)}
     .rw-foot{padding:.85rem 1rem;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:.65rem}
-    .rw-foot .origin{font-size:.72rem;color:var(--muted);line-height:1.55;word-break:break-all}
     .theme-seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
     .theme-seg button{flex:1;background:transparent;color:var(--muted);border:0;border-radius:0;padding:.4rem .2rem;font-size:.72rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.25rem}
     .theme-seg button.on{background:var(--accent-light);color:var(--accent-text)}
@@ -176,7 +175,7 @@
     .sq-item input{width:auto;margin:0;flex:0 0 auto}
     .sq-n{flex:1;font-weight:600;color:var(--text-strong);font-size:.9rem;word-break:break-word}
     @media(max-width:760px){.subprev{width:100%}.sq-grid{grid-template-columns:1fr}}
-    code{background:var(--bg2);padding:.1rem .4rem;border-radius:5px;word-break:break-all;font-size:.82em;border:1px solid var(--line)}
+    code{background:var(--bg2);padding:.1rem .4rem;border-radius:5px;overflow-wrap:break-word;word-break:normal;font-size:.82em;border:1px solid var(--line)}
     .sublink{width:100%;font-size:.78rem}
     pre{background:var(--bg2);padding:1rem;border-radius:8px;overflow:auto;font-size:.8rem;white-space:pre-wrap;border:1px solid var(--line)}
     .modal-overlay{display:none;position:fixed;inset:0;background:rgba(1,4,9,.55);backdrop-filter:blur(2px);z-index:100;align-items:flex-start;justify-content:center;padding:6vh 1rem}
@@ -204,7 +203,7 @@
         .rw-side{position:fixed;z-index:120;height:100vh;margin:0;border-radius:0;top:0;left:0;width:240px;transform:translateX(-100%);transition:transform .22s}
         .rw-app.nav-open .rw-side{transform:none}
         .rw-app.nav-open::after{content:"";position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:110}
-        .rw-side .rw-brand b,.rw-side .navgroup,.rw-side .rw-foot .origin,.rw-side .rw-nav a span,.rw-side .logout span,.rw-side .theme-seg button span{display:inline}
+        .rw-side .rw-brand b,.rw-side .navgroup,.rw-side .rw-nav a span,.rw-side .logout span,.rw-side .theme-seg button span{display:inline}
         .rw-side .rw-nav a,.rw-side .logout{justify-content:flex-start}
         .rw-main{width:100%}
         .rw-header{position:sticky;top:0;height:56px;padding:0 .8rem;gap:.6rem}

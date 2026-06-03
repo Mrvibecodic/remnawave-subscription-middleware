@@ -625,6 +625,10 @@ $overrides = [];
 if ($db_ok) foreach ($pdo->query('SELECT * FROM overrides ORDER BY updated_at DESC LIMIT 500') as $r) $overrides[] = $r;
 $ov_index = [];
 foreach ($overrides as $o) if ($o['match_type'] === 'shortuuid') $ov_index[$o['match_value']] = $o;
+$blocked_hwid_users = [];
+foreach ($overrides as $o) if (($o['match_type'] ?? '') === 'hwid' && ($o['reason'] ?? '') === 'blocked') { $bn = mb_strtolower(trim((string) ($o['username'] ?? ''))); if ($bn !== '') $blocked_hwid_users[$bn] = true; }
+$ov_expire = [];
+if ($tab === 'overrides') { $ov_e = ''; foreach (remnawave_all_users($ov_e) as $u) { if (!empty($u['shortUuid'])) $ov_expire[(string) $u['shortUuid']] = (string) ($u['expireAt'] ?? ''); } }
 
 $users = []; $users_err = '';
 if ($tab === 'users') $users = remnawave_all_users($users_err);
@@ -955,7 +959,7 @@ function nav_link($key, $it, $active, $badge = false) {
     .help-b p{margin:.5rem 0}
     .help-b ul{margin:.4rem 0;padding-left:1.15rem}
     .help-b li{margin:.25rem 0}
-    .help-b code{background:var(--bg2);padding:.1rem .35rem;border-radius:5px;border:1px solid var(--line);font-size:.85em;word-break:break-all}
+    .help-b code{background:var(--bg2);padding:.1rem .35rem;border-radius:5px;border:1px solid var(--line);font-size:.85em;overflow-wrap:break-word;word-break:normal}
 </style>
 <div id="uiToast" class="toast"></div>
 
