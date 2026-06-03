@@ -115,14 +115,16 @@ PHP-FPM + SQLite** (по умолчанию; опционально MySQL/MariaD
 установщик:
 
 ```bash
+sudo apt update && sudo apt install -y git
 sudo git clone https://github.com/Mrvibecodic/remnawave-subscription-middleware \
     /opt/remnawave-subscription-middleware
 cd /opt/remnawave-subscription-middleware
 sudo bash install.sh
 ```
 
-Папку создавать не нужно — `git clone` создаёт её сам; `sudo` обязателен, потому
-что запись в `/opt` доступна только root.
+На минимальных образах Ubuntu/Debian git не предустановлен — первая строка ставит
+его. Папку создавать не нужно — `git clone` создаёт её сам; `sudo` обязателен,
+потому что запись в `/opt` доступна только root.
 
 Установщик сам:
 
