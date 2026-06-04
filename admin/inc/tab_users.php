@@ -3,7 +3,7 @@
             <h2 style="margin:0;font-size:1rem">Пользователи панели (<?= count($users) ?>)</h2>
             <div style="display:flex;align-items:center;gap:.5rem">
                 <input type="text" id="flt" placeholder="фильтр по имени / статусу / shortUuid" style="max-width:340px" oninput="filterRows()">
-                <button type="button" class="qh" onclick="help('userflags')" aria-label="Справка по колонкам «Подмена» и «Конфиг»">?</button>
+                <button type="button" class="qh" onclick="help('userflags')" aria-label="Справка по колонкам «Статус» и «Конфиг»">?</button>
             </div>
         </div>
         <p class="muted">Ссылки подписки показаны уже с адресом зеркала <code><?= h($mirror) ?></code> — их и раздавайте.</p>
@@ -16,31 +16,33 @@
             #utbl th.srt{cursor:pointer;user-select:none;white-space:nowrap}
             #utbl th.srt:hover{color:var(--accent-text)}
             #utbl th.srt .sar{font-size:.7rem;opacity:.85;margin-left:.25rem}
+            .tag.grace{background:var(--c-info-bg);color:var(--c-info-fg)}
         </style>
         <table id="utbl">
             <tr>
                 <th class="srt" onclick="sortUsers(0)">Пользователь<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(1)">Статус<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(2)">Истекает<span class="sar"></span></th>
-                <th class="srt" onclick="sortUsers(3)">Подмена<span class="sar"></span></th>
-                <th class="srt" onclick="sortUsers(4)">Конфиг<span class="sar"></span></th>
+                <th class="srt" onclick="sortUsers(3)">Конфиг<span class="sar"></span></th>
                 <th>Устройства</th>
                 <th>Ссылка подписки (через зеркало)</th>
             </tr>
             <?php
             $now_ts = time();
+            $grace_sq = grace_squad_uuid();
             foreach ($users as $u):
                 $un  = $u['username'] ?? '';
                 $st  = $u['status'] ?? '';
                 $su  = $u['shortUuid'] ?? '';
                 $uuid = $u['uuid'] ?? '';
                 $lim  = (isset($u['hwidDeviceLimit']) && $u['hwidDeviceLimit'] !== null && $u['hwidDeviceLimit'] !== '') ? (string) $u['hwidDeviceLimit'] : '';
-                $exp = !empty($u['expireAt']) ? date('Y-m-d', strtotime((string)$u['expireAt'])) : '—';
+                $exp_ts = !empty($u['expireAt']) ? strtotime((string) $u['expireAt']) : null;
+                if ($exp_ts === false) $exp_ts = null;
+                $exp = $exp_ts !== null ? (date('Y-m-d', $exp_ts) . ' в ' . date('H:i', $exp_ts)) : '—';
                 $mirror_link = ($mirror !== '' && $su !== '') ? ('https://' . $mirror . '/' . $su) : '';
                 $ov  = $ov_index[$su] ?? null;
                 $ovr = $ov['reason'] ?? '';
 
-                $exp_ts      = !empty($u['expireAt']) ? strtotime((string) $u['expireAt']) : null;
                 $hdr_expired = ($exp_ts !== null && $exp_ts < $now_ts);
                 $hdr_valid   = ($exp_ts !== null && $exp_ts >= $now_ts);
                 $is_expired  = $hdr_expired || ($ovr === 'expired' && !$hdr_valid);
@@ -53,20 +55,19 @@
                     $src = 'panel';
                 }
                 $src_label = $src === 'mw' ? 'Прослойка' : 'Панель';
-                $in_grace = ($su !== '' && isset($grace_shorts[$su]));
+                $in_grace = ($grace_sq !== '' && in_array($grace_sq, grace_squads_from_user($u), true));
                 $has_hwid_block = ($un !== '' && isset($blocked_hwid_users[mb_strtolower($un)]));
             ?>
             <tr>
                 <td><?= h($un) ?></td>
-                <td><span class="tag <?= h($st) ?>"><?= h($st) ?><?php if ($in_grace): ?> <span style="opacity:.6">(грейс)</span><?php endif; ?></span></td>
-                <td class="muted"><?= h($exp) ?></td>
-                <td><?= $ovr ? '<span class="tag '.h($ovr).'">'.h($ovr).'</span>' : '<span class="muted">—</span>' ?></td>
+                <td><?php if ($in_grace): ?><span class="tag grace">ГРЕЙС</span><?php else: ?><span class="tag <?= h($st) ?>"><?= h($st) ?></span><?php endif; ?></td>
+                <td class="muted"<?= $exp_ts !== null ? ' data-ets="' . (int) $exp_ts . '"' : '' ?>><?= h($exp) ?></td>
                 <td><span class="tag src-<?= h($src) ?>"><?= h($src_label) ?></span></td>
                 <td><?php if ($uuid !== ''): ?><button class="btn-sm hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>">HWID</button><?php if ($has_hwid_block): ?><span class="tip hw-warn" data-tip="Есть активный блок HWID">!</span><?php endif; ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td><input class="sublink" type="text" readonly value="<?= h($mirror_link) ?>" title="Нажмите, чтобы скопировать" onclick="subCopy(this)"></td>
             </tr>
             <?php endforeach; ?>
-            <?php if (!$users && !$users_err): ?><tr><td colspan="7" class="muted">Пусто</td></tr><?php endif; ?>
+            <?php if (!$users && !$users_err): ?><tr><td colspan="6" class="muted">Пусто</td></tr><?php endif; ?>
         </table>
     </div>
 
@@ -225,4 +226,10 @@
         b.addEventListener('click',function(){hwOpen(b.dataset.uuid,b.dataset.name||'',b.dataset.limit||'');});
     });
     document.addEventListener('keydown',function(e){if(e.key==='Escape')hwClose();});
+    document.querySelectorAll('#utbl td[data-ets]').forEach(function(td){
+        var d=new Date(parseInt(td.dataset.ets,10)*1000);
+        if(isNaN(d.getTime())) return;
+        function p(n){return(n<10?'0':'')+n;}
+        td.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' в '+p(d.getHours())+':'+p(d.getMinutes());
+    });
     </script>

@@ -653,16 +653,6 @@ if ($tab === 'overrides' && $overrides && remnawave_url() !== '' && remnawave_to
 
 $users = []; $users_err = '';
 if ($tab === 'users') $users = remnawave_all_users($users_err);
-$grace_shorts = [];
-if ($tab === 'users' && $db_ok) {
-    ensure_grace_table();
-    try {
-        $st = $pdo->prepare('SELECT short_uuid FROM grace_users WHERE grace_until > ?');
-        $st->execute([time()]);
-        foreach ($st as $g) $grace_shorts[(string) $g['short_uuid']] = true;
-    } catch (Throwable $e) {}
-}
-
 $panel_headers = []; $panel_headers_err = '';
 if ($tab === 'headers') $panel_headers = remnawave_panel_headers($panel_headers_err);
 
@@ -1009,7 +999,7 @@ var HELP={
 'branding':{t:'Брендинг сервиса',h:'<p>Имя и логотип берутся автоматически из API панели Remnawave (Настройки кастомизации → <code>brandingSettings</code>: «Название бренда» и «Ссылка на логотип») и кешируются на диск и в БД — идут в название, лого и фавикон админки.</p><h4>Источник</h4><p>Публичный <code>/api/auth/status</code> (работает без прав токена), фолбэк — <code>/api/remnawave-settings</code>.</p><h4>Ручные поля</h4><p>Перебивают авто и независимы: можно задать только имя или только лого — второе останется из панели. Пусто = из API. Кнопка «Сохранить и обновить» заново запрашивает панель и перекачивает лого в кеш.</p>'},
 'webhook_env':{t:'Включение вебхука в .env',h:'<p>UI для вебхуков в панели нет — они включаются в файле <code>.env</code> панели.</p><h4>Что добавить</h4><p><code>WEBHOOK_ENABLED=true</code>, <code>WEBHOOK_URL</code> = адрес этой прослойки (можно несколько через запятую без пробелов), <code>WEBHOOK_SECRET_HEADER</code> = ваш секрет (один на все URL). Затем перезапустите панель.</p><h4>Важно</h4><p>Секрет должен совпадать с полем «Секрет вебхука» в разделе Подключение. После перезапуска события появятся в Логе вебхуков с подписью <b>ok</b>.</p>'},
 'forward':{t:'Раздвоение вебхука (тройник)',h:'<p>Сама панель умеет слать хук на <b>несколько</b> URL — через запятую (без пробелов) в <code>WEBHOOK_URL</code>. Но все они подписываются <b>одним</b> <code>WEBHOOK_SECRET_HEADER</code>.</p><h4>Зачем тогда тройник</h4><p>Он нужен, когда адресатам нужны <b>разные секреты</b> — прослойка переподписывает каждого <b>его</b> ключом в <code>X-Remnawave-Signature</code> (адресат примет пересылку как настоящий хук панели). Или когда пересылать надо <b>после</b> обработки прослойкой (грейс, блокировки и т.п.).</p><h4>Если хватает одного секрета</h4><p>Проще не использовать тройник, а перечислить URL-ы через запятую прямо в панели.</p>'},
-'userflags':{t:'Колонки «Подмена» и «Конфиг»',h:'<h4>Подмена</h4><p>Причина: активный оверрайд прослойки для этой подписки — <code>expired</code> (истёк) или <code>blocked</code> (заблокирован по HWID). «—» — оверрайда нет. У грейс-сквад юзеров оверрайд снимается.</p><h4>Конфиг</h4><p>Результат: что реально отдаётся в приложение. <b>Прослойка</b> — наш подменный конфиг с ремарками (истёк/заблокирован), пока идёт окно <code>expired_grace_days</code>. <b>Панель</b> — реальный конфиг origin.</p>'}
+'userflags':{t:'Колонки «Статус» и «Конфиг»',h:'<h4>Статус</h4><p>Статус пользователя из панели. Тег <code>ГРЕЙС</code> — пользователь прямо сейчас состоит в грейс-скваде: сверка по API с UUID сквада из вкладки «Грейс-сквад».</p><h4>Конфиг</h4><p>Результат: что реально отдаётся в приложение. <b>Прослойка</b> — наш подменный конфиг с ремарками (истёк/заблокирован), пока идёт окно <code>expired_grace_days</code>. <b>Панель</b> — реальный конфиг origin.</p>'}
 };
 function help(k){var d=HELP[k];if(!d)return;document.getElementById('helpTitle').textContent=d.t;document.getElementById('helpBody').innerHTML=d.h;document.getElementById('helpOv').classList.add('open');}
 function helpClose(){var o=document.getElementById('helpOv');if(o)o.classList.remove('open');}

@@ -62,8 +62,6 @@
     .theme-seg button{flex:1;background:transparent;color:var(--muted);border:0;border-radius:0;padding:.4rem .2rem;font-size:.72rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.25rem}
     .theme-seg button.on{background:var(--accent-light);color:var(--accent-text)}
     .theme-seg button svg{width:14px;height:14px}
-    .logout{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;color:var(--muted);font-size:.85rem;padding:.5rem .8rem;border:1px solid var(--line);border-radius:8px}
-    .logout:hover{color:var(--text);border-color:var(--accent)}
     .rw-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:auto}
     .rw-header{position:sticky;top:0;z-index:30;height:64px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0 1.6rem;background:var(--bg);border-bottom:1px solid var(--line)}
     .pagetitle{font-size:1.25rem;color:var(--text-strong);font-weight:700;margin:0;letter-spacing:-.01em}
@@ -203,8 +201,8 @@
         .rw-side{position:fixed;z-index:120;height:100vh;margin:0;border-radius:0;top:0;left:0;width:240px;transform:translateX(-100%);transition:transform .22s}
         .rw-app.nav-open .rw-side{transform:none}
         .rw-app.nav-open::after{content:"";position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:110}
-        .rw-side .rw-brand b,.rw-side .navgroup,.rw-side .rw-nav a span,.rw-side .logout span,.rw-side .theme-seg button span{display:inline}
-        .rw-side .rw-nav a,.rw-side .logout{justify-content:flex-start}
+        .rw-side .rw-brand b,.rw-side .navgroup,.rw-side .rw-nav a span,.rw-side .theme-seg button span{display:inline}
+        .rw-side .rw-nav a{justify-content:flex-start}
         .rw-main{width:100%}
         .rw-header{position:sticky;top:0;height:56px;padding:0 .8rem;gap:.6rem}
         .navtoggle{display:inline-flex}

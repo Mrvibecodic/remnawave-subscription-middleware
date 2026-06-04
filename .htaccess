@@ -2,6 +2,8 @@ RewriteEngine On
 
 RewriteRule ^(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md)$ - [F,L]
 
+RewriteRule ^(lib|data|docs|\.backups|\.git)(/|$) - [F,L]
+
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
