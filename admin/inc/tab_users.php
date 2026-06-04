@@ -55,7 +55,7 @@
                     $src = 'panel';
                 }
                 $src_label = $src === 'mw' ? 'Прослойка' : 'Панель';
-                $in_grace = ($grace_sq !== '' && in_array($grace_sq, grace_squads_from_user($u), true));
+                $in_grace = ($grace_sq !== '' && $st === 'ACTIVE' && in_array($grace_sq, grace_squads_from_user($u), true));
                 $has_hwid_block = ($un !== '' && isset($blocked_hwid_users[mb_strtolower($un)]));
             ?>
             <tr>

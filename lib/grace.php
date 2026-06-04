@@ -94,7 +94,7 @@ function grace_on_expired($short, $username = null) {
     $u = remnawave_get_user_by_short($short, $e);
     if (!is_array($u) || empty($u['uuid'])) { error_log('submw grace start get: ' . $e); return 'grace_err'; }
     $uuid        = (string) $u['uuid'];
-    $squads      = grace_squads_from_user($u);
+    $squads      = array_values(array_diff(grace_squads_from_user($u), [grace_squad_uuid()]));
     $bytes       = (int) ($u['trafficLimitBytes'] ?? 0);
     $strategy    = (string) ($u['trafficLimitStrategy'] ?? 'NO_RESET');
     $orig_expire = (string) ($u['expireAt'] ?? '');
