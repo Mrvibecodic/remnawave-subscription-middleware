@@ -24,6 +24,11 @@ register_shutdown_function(function () {
     @fastcgi_finish_request();
     metrics_tick((microtime(true) - $t0) * 1000, memory_get_peak_usage(true), !empty($GLOBALS['submw_real_sub']));
 });
+register_shutdown_function(function () {
+    if (!function_exists('grace_retry_pending') || !empty($GLOBALS['submw_skip_metric'])) return;
+    if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+    grace_retry_pending();
+});
 
 $skip_log =
     $path === ''
@@ -176,7 +181,7 @@ foreach ($grabbed_headers as $name => $value) {
 emit_response_headers();
 echo $response;
 if (!$skip_log) {
-    $log_decision = grace_is_active($short_uuid) ? 'grace' : 'normal';
+    $log_decision = grace_is_active($short_uuid) ? 'grace' : $decision;
     if (!$is_page && reqlog_is_real($grabbed_headers, $log_decision, $short_ov)) {
         $GLOBALS['submw_real_sub'] = true;
         log_request($ip, $short_uuid, $path, $ua, $log_decision, $expire_ts, $current_hwid);

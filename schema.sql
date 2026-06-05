@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS request_log (
     user_agent TEXT NULL,
     decision TEXT NOT NULL DEFAULT 'normal',
     expire_ts INTEGER NULL,
-    hwid TEXT NULL
+    hwid TEXT NULL,
+    is_app INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_rl_ts ON request_log(ts);
 CREATE INDEX IF NOT EXISTS idx_rl_short ON request_log(short_uuid);

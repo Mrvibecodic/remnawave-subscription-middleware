@@ -84,9 +84,9 @@ function grace_on_expired($short, $username = null) {
             'hwidDeviceLimit'       => ($existing['orig_hwid_limit'] === null ? null : (int) $existing['orig_hwid_limit']),
         ];
         if (!empty($existing['orig_expire'])) $restore['expireAt'] = (string) $existing['orig_expire'];
-        remnawave_update_user((string) $existing['user_uuid'], $restore, $e);
+        $ok = remnawave_update_user((string) $existing['user_uuid'], $restore, $e);
+        if (!$ok) { error_log('submw grace end: ' . $e); return 'grace_err'; }
         grace_delete($short);
-        if ($e !== '') error_log('submw grace end: ' . $e);
         return 'grace_ended';
     }
 
@@ -136,7 +136,7 @@ function grace_on_renew($short, $new_expire_str) {
     if (!is_array($squads)) $squads = [];
     $corrected = time() + ($new_ts - $grace_until);
     $e = '';
-    remnawave_update_user((string) $existing['user_uuid'], [
+    $ok = remnawave_update_user((string) $existing['user_uuid'], [
         'status'                => 'ACTIVE',
         'activeInternalSquads'  => $squads,
         'trafficLimitBytes'     => (int) $existing['orig_traffic_bytes'],
@@ -144,12 +144,27 @@ function grace_on_renew($short, $new_expire_str) {
         'hwidDeviceLimit'       => ($existing['orig_hwid_limit'] === null ? null : (int) $existing['orig_hwid_limit']),
         'expireAt'              => grace_iso($corrected),
     ], $e);
+    if (!$ok) { error_log('submw grace renew: ' . $e); return false; }
     grace_delete($short);
-    if ($e !== '') error_log('submw grace renew: ' . $e);
     return true;
 }
 
 function grace_cleanup($short) { grace_delete($short); }
+
+function grace_retry_pending($limit = 2) {
+    if (!grace_squad_active()) return;
+    ensure_grace_table();
+    if (!($p = db())) return;
+    try {
+        $st = $p->prepare('SELECT short_uuid, username FROM grace_users WHERE grace_until < ? ORDER BY grace_until ASC LIMIT ' . (int) $limit);
+        $st->execute([time() - 120]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) { return; }
+    foreach ($rows as $r) {
+        $g = grace_on_expired((string) $r['short_uuid'], $r['username'] ?? null);
+        if ($g === 'grace_ended') delete_override('shortuuid', (string) $r['short_uuid'], 'webhook');
+    }
+}
 
 function grace_is_active($short) {
     if ($short === '' || !grace_squad_active()) return false;

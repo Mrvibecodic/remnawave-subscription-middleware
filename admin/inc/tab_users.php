@@ -28,7 +28,6 @@
                 <th>Ссылка подписки (через зеркало)</th>
             </tr>
             <?php
-            $now_ts = time();
             $grace_sq = grace_squad_uuid();
             foreach ($users as $u):
                 $un  = $u['username'] ?? '';
@@ -43,19 +42,9 @@
                 $ov  = $ov_index[$su] ?? null;
                 $ovr = $ov['reason'] ?? '';
 
-                $hdr_expired = ($exp_ts !== null && $exp_ts < $now_ts);
-                $hdr_valid   = ($exp_ts !== null && $exp_ts >= $now_ts);
-                $is_expired  = $hdr_expired || ($ovr === 'expired' && !$hdr_valid);
-                if ($ovr === 'blocked') {
-                    $src = 'mw';
-                } elseif ($is_expired) {
-                    $ov_created = is_array($ov) ? ($ov['created_at'] ?? null) : null;
-                    $src = expired_grace_passed($exp_ts, $ov_created, $now_ts) ? 'panel' : 'mw';
-                } else {
-                    $src = 'panel';
-                }
-                $src_label = $src === 'mw' ? 'Прослойка' : 'Панель';
+                $src = $ovr === 'blocked' ? 'mw' : 'panel';
                 $in_grace = ($grace_sq !== '' && $st === 'ACTIVE' && in_array($grace_sq, grace_squads_from_user($u), true));
+                $src_label = $src === 'mw' ? 'Прослойка' : ($in_grace ? 'Панель + Грейс' : 'Панель');
                 $has_hwid_block = ($un !== '' && isset($blocked_hwid_users[mb_strtolower($un)]));
             ?>
             <tr>

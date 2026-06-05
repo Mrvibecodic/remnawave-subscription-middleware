@@ -98,3 +98,8 @@ try {
 } catch (Throwable $e) {
     error_log('submw forward_webhook: ' . $e->getMessage());
 }
+try {
+    grace_retry_pending();
+} catch (Throwable $e) {
+    error_log('submw grace retry: ' . $e->getMessage());
+}

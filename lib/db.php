@@ -93,7 +93,8 @@ function install_statements_sqlite() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             ip TEXT NULL, short_uuid TEXT NULL, path TEXT NULL, user_agent TEXT NULL,
-            decision TEXT NOT NULL DEFAULT 'normal', expire_ts INTEGER NULL, hwid TEXT NULL
+            decision TEXT NOT NULL DEFAULT 'normal', expire_ts INTEGER NULL, hwid TEXT NULL,
+            is_app INTEGER NOT NULL DEFAULT 1
         )",
         "CREATE INDEX IF NOT EXISTS idx_rl_ts ON request_log(ts)",
         "CREATE INDEX IF NOT EXISTS idx_rl_short ON request_log(short_uuid)",
@@ -152,6 +153,7 @@ function install_statements_mysql() {
             ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             ip VARCHAR(45) NULL, short_uuid VARCHAR(191) NULL, path VARCHAR(255) NULL, user_agent VARCHAR(255) NULL,
             decision VARCHAR(16) NOT NULL DEFAULT 'normal', expire_ts INT NULL, hwid VARCHAR(191) NULL,
+            is_app TINYINT(1) NOT NULL DEFAULT 1,
             PRIMARY KEY (id), KEY idx_rl_ts (ts), KEY idx_rl_short (short_uuid)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE IF NOT EXISTS webhook_log (
@@ -311,10 +313,13 @@ function db_migrate(array $from, array $to, &$err = '') {
     if (!$dst) { $err = 'приёмник недоступен: ' . $e2; return false; }
     try {
         foreach (install_statements($to['driver']) as $sql) $dst->exec($sql);
-        $tables = ['settings', 'overrides', 'request_log', 'webhook_log', 'forward_log', 'grace_users'];
+        $dst->exec(ddl_metrics_minute($to['driver']));
+        $dst->exec(ddl_metrics_peak($to['driver']));
+        $tables = ['settings', 'overrides', 'request_log', 'webhook_log', 'forward_log', 'grace_users', 'chat_sessions', 'chat_messages', 'metrics_minute', 'metrics_peak'];
         $verb = ($to['driver'] === 'mysql') ? 'REPLACE' : 'INSERT OR REPLACE';
         foreach ($tables as $t) {
-            $rows = $src->query("SELECT * FROM $t")->fetchAll(PDO::FETCH_ASSOC);
+            try { $rows = $src->query("SELECT * FROM $t")->fetchAll(PDO::FETCH_ASSOC); }
+            catch (Throwable $e) { continue; }
             if (!$rows) continue;
             $cols = array_keys($rows[0]);
             $collist = implode(',', $cols);
