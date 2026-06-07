@@ -54,7 +54,7 @@
             <p class="muted">Пока пусто.</p>
         <?php else: $sqcfg_edit = []; ?>
         <table class="logtbl">
-            <thead><tr><th>Сквад</th><th>Тип</th><th>Метка</th><th>Куда уходит</th><th>Статус</th><th></th></tr></thead>
+            <thead><tr><th>Сквад</th><th>Тип</th><th>Метка</th><th>Xray</th><th>sing-box</th><th>Mihomo</th><th>Статус</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($sqcfg_list as $c):
                 $pn = json_decode((string) ($c['parsed'] ?? ''), true);
@@ -68,7 +68,9 @@
                 <td><?= h($sqname) ?></td>
                 <td><span class="tag normal"><?= h($sumr) ?></span></td>
                 <td><?= $c['name'] !== null && $c['name'] !== '' ? h($c['name']) : '<span class="muted">—</span>' ?></td>
-                <td style="font-size:.76rem;line-height:1.55"><?php if ($ptype === 'amneziawg'): ?>Mihomo · clash<br>Throne · sing-box (wg://)<br><span class="muted">v2rayNG / Xray — нет</span><?php elseif ($ptype === 'wireguard'): ?>Mihomo · clash<br>v2rayNG / Xray · base64<br>Throne · sing-box (wg://)<?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                <td style="font-size:.78rem"><?php if ($ptype === 'wireguard'): ?>base64<?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                <td style="font-size:.78rem"><?php if (in_array($ptype, ['wireguard', 'amneziawg'], true)): ?>wg://<?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                <td style="font-size:.78rem"><?php if (in_array($ptype, ['wireguard', 'amneziawg'], true)): ?>clash<?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td>
                     <form method="post" style="margin:0;display:inline">
                         <input type="hidden" name="csrf" value="<?= h($token) ?>">
