@@ -20,10 +20,7 @@ $u_stbadge   = function ($s) {
     return '<span class="up-st up-' . $m[1] . '">' . h($m[0]) . '</span>';
 };
 $u_branch    = update_branch();
-$u_brerr     = '';
-$u_branches  = update_branches($u_brerr);
-if (!$u_branches) { $u_branches = array_values(array_filter(array_unique(['main', 'dev', $u_branch]))); }
-elseif (!in_array($u_branch, $u_branches, true)) { $u_branches[] = $u_branch; }
+$u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch])));
 ?>
     <div class="info">
         Обновление прослойки с GitHub по коммитам: тянутся только изменённые файлы из <b><?= h(update_repo()) ?></b> (ветка <b><?= h(update_branch()) ?></b>). Git на сервере не нужен — только доступ к GitHub. Проверка идёт автоматически раз в сутки; пункт меню «Обновление» подсвечивается, когда появились новые коммиты.
@@ -73,7 +70,6 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         <h2 style="margin-top:0;font-size:1rem">Ветка обновлений</h2>
         <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
         <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Обновления тянутся из выбранной ветки.</p>
-        <?php if ($u_brerr !== ''): ?><div class="warn" style="margin:.5rem 0">Список веток не получен (<?= h($u_brerr) ?>) — выбор из известных.</div><?php endif; ?>
         <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return uiConfirmForm(this,'Переключить ветку обновлений? После этого проверится последний коммит выбранной ветки.')">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_switch_branch">

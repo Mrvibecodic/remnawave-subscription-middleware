@@ -5,14 +5,6 @@ function update_branch() {
     $b = trim((string) setting('update_branch', 'main'));
     return ($b !== '' && preg_match('~^[A-Za-z0-9._/\-]{1,80}$~', $b)) ? $b : 'main';
 }
-function update_branches(&$err = null) {
-    $j = update_api('/branches?per_page=100', $err);
-    if ($j === null) return [];
-    $out = [];
-    foreach ((array) $j as $b) { if (!empty($b['name'])) $out[] = (string) $b['name']; }
-    sort($out);
-    return $out;
-}
 function update_set_branch($branch, &$err = null) {
     $branch = trim((string) $branch);
     if ($branch === '' || !preg_match('~^[A-Za-z0-9._/\-]{1,80}$~', $branch)) { $err = 'Недопустимое имя ветки'; return false; }
@@ -330,6 +322,12 @@ function update_apply(&$log, &$err = null) {
         if (is_file($dst)) { @unlink($dst); $log[] = 'удалён: ' . $rel; }
     }
     update_rmrf($tmp);
+
+    if (function_exists('opcache_invalidate')) {
+        foreach ($writes as $rel) { if (substr($rel, -4) === '.php') @opcache_invalidate($root . '/' . $rel, true); }
+    } elseif (function_exists('opcache_reset')) {
+        @opcache_reset();
+    }
 
     set_setting('installed_commit', $latest['sha']);
     update_refresh($e);
