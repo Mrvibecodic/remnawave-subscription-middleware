@@ -52,7 +52,7 @@
         <h2 style="margin-top:0;font-size:1rem">Добавленные конфиги (<?= count($sqcfg_list) ?>)</h2>
         <?php if (!$sqcfg_list): ?>
             <p class="muted">Пока пусто.</p>
-        <?php else: ?>
+        <?php else: $sqcfg_edit = []; ?>
         <table class="logtbl">
             <thead><tr><th>Сквад</th><th>Тип</th><th>Метка</th><th>Статус</th><th></th></tr></thead>
             <tbody>
@@ -65,6 +65,7 @@
                 $clabel = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : 'WireGuard';
                 $prev = in_array($ptype, ['wireguard', 'amneziawg'], true) ? awg_to_clash($pn, $clabel) : '';
                 $prevuri = ($ptype === 'wireguard') ? wg_to_uri($pn, $clabel) : '';
+                $sqcfg_edit[(int) $c['id']] = ['squad' => (string) $c['squad_uuid'], 'name' => (string) ($c['name'] ?? ''), 'raw' => (string) $c['raw']];
             ?>
             <tr>
                 <td><?= h($sqname) ?><div class="muted" style="font-size:.72rem"><code><?= h($c['squad_uuid']) ?></code></div></td>
@@ -79,7 +80,8 @@
                         <button type="submit" class="sqcfg-btn <?= $on ? '' : 'off' ?>"><?= $on ? '✅ Включён' : '⛔ Выключен' ?></button>
                     </form>
                 </td>
-                <td style="text-align:right">
+                <td style="text-align:right;white-space:nowrap">
+                    <button type="button" class="sqcfg-btn sqcfg-edit" data-id="<?= (int) $c['id'] ?>">✎ Изменить</button>
                     <form method="post" style="margin:0;display:inline" onsubmit="return uiConfirmForm(this,'Удалить этот конфиг?')">
                         <input type="hidden" name="csrf" value="<?= h($token) ?>">
                         <input type="hidden" name="action" value="del_squad_config">
@@ -88,33 +90,6 @@
                     </form>
                 </td>
             </tr>
-            <tr><td colspan="5" style="padding-top:0">
-                <details>
-                    <summary class="muted" style="cursor:pointer;font-size:.8rem">✎ Редактировать</summary>
-                    <form method="post" autocomplete="off" style="margin:.6rem 0 0">
-                        <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                        <input type="hidden" name="action" value="edit_squad_config">
-                        <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
-                        <div class="sqcfg-grid">
-                            <div>
-                                <label>Сквад</label>
-                                <select name="squad_uuid" class="sqcfg-sel" required>
-                                    <?php $cur_in_list = false; foreach ($sqcfg_squads as $s): if ($s['uuid'] === $c['squad_uuid']) $cur_in_list = true; ?>
-                                        <option value="<?= h($s['uuid']) ?>"<?= $s['uuid'] === $c['squad_uuid'] ? ' selected' : '' ?>><?= h($s['name']) ?> <?= $s['members'] ? '(' . (int) $s['members'] . ')' : '' ?></option>
-                                    <?php endforeach; ?>
-                                    <?php if (!$cur_in_list): ?><option value="<?= h($c['squad_uuid']) ?>" selected><?= h($c['squad_uuid']) ?></option><?php endif; ?>
-                                </select>
-                            </div>
-                            <div>
-                                <label>Метка</label>
-                                <input type="text" name="name" class="sqcfg-flag" value="<?= h((string) $c['name']) ?>" maxlength="191" required>
-                            </div>
-                        </div>
-                        <textarea name="raw" rows="10" spellcheck="false" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box;margin-top:.6rem"><?= h((string) $c['raw']) ?></textarea>
-                        <div style="margin-top:.6rem"><button type="submit" class="btn">Сохранить изменения</button></div>
-                    </form>
-                </details>
-            </td></tr>
             <?php if ($prev !== ''): ?>
             <tr><td colspan="5" style="padding-top:0">
                 <details>
@@ -134,6 +109,42 @@
         <?php endif; ?>
     </div>
 
+    <div id="sqEditModal" class="modal-overlay" onclick="if(event.target===this)sqEditClose()">
+        <div class="modal">
+            <div class="modal-head">
+                <div>Редактировать конфиг</div>
+                <button type="button" class="modal-x" onclick="sqEditClose()">×</button>
+            </div>
+            <div class="modal-body">
+                <form method="post" autocomplete="off">
+                    <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                    <input type="hidden" name="action" value="edit_squad_config">
+                    <input type="hidden" name="id" id="sqedit_id" value="">
+                    <div style="margin-bottom:.85rem">
+                        <label>Сквад</label>
+                        <select name="squad_uuid" id="sqedit_squad" class="sqcfg-sel" required style="width:100%;box-sizing:border-box">
+                            <?php foreach ($sqcfg_squads as $s): ?>
+                                <option value="<?= h($s['uuid']) ?>"><?= h($s['name']) ?> <?= $s['members'] ? '(' . (int) $s['members'] . ')' : '' ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div style="margin-bottom:.85rem">
+                        <label>Метка</label>
+                        <input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required style="width:100%;box-sizing:border-box">
+                    </div>
+                    <div style="margin-bottom:.85rem">
+                        <label>Конфиг (.conf)</label>
+                        <textarea name="raw" id="sqedit_raw" rows="11" spellcheck="false" required style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
+                    </div>
+                    <div style="display:flex;gap:.6rem">
+                        <button type="submit" class="btn">Сохранить изменения</button>
+                        <button type="button" class="sqcfg-btn" onclick="sqEditClose()">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <style>
         .sqcfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem 1rem;align-items:end}
         .sqcfg-grid select,.sqcfg-grid input{width:100%;box-sizing:border-box}
@@ -147,6 +158,8 @@
         .sqcfg-hint .warn-line{color:var(--c-warn-fg)}
         .sqcfg-btn{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.4rem .75rem;font-size:.82rem;font-weight:600;cursor:pointer}
         .sqcfg-btn.off{opacity:.65}
+        .sqcfg-edit{margin-right:.45rem}
+        #sqEditModal label{display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
         .card label{display:block;margin-bottom:.35rem;font-weight:600;font-size:.85rem}
     </style>
     <script>
@@ -195,5 +208,23 @@
             inp.value=flag(iso)+' '+v.trim();
         }
         document.querySelectorAll('.sqcfg-flag').forEach(function(i){ i.addEventListener('blur',function(){ apply(i); }); });
+    })();
+    window.SQCFG = <?= json_encode($sqcfg_edit ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    (function(){
+        var modal = document.getElementById('sqEditModal');
+        window.sqEditClose = function(){ if(modal) modal.classList.remove('open'); };
+        function openEdit(id){
+            var d = (window.SQCFG || {})[id]; if(!d || !modal) return;
+            document.getElementById('sqedit_id').value = id;
+            var sel = document.getElementById('sqedit_squad'), found = false;
+            for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value === d.squad){ found = true; break; } }
+            if(!found){ var o = document.createElement('option'); o.value = d.squad; o.textContent = d.squad; sel.appendChild(o); }
+            sel.value = d.squad;
+            document.getElementById('sqedit_name').value = d.name || '';
+            document.getElementById('sqedit_raw').value = d.raw || '';
+            modal.classList.add('open');
+        }
+        document.querySelectorAll('.sqcfg-edit').forEach(function(b){ b.addEventListener('click',function(){ openEdit(b.dataset.id); }); });
+        document.addEventListener('keydown',function(e){ if(e.key === 'Escape') sqEditClose(); });
     })();
     </script>
