@@ -92,6 +92,25 @@ function squadconf_toggle($id, $enabled) {
     catch (Throwable $e) { error_log('submw squadconf toggle: ' . $e->getMessage()); return false; }
 }
 
+function squadconf_update($id, $squad_uuid, $type, $name, $raw, $parsed) {
+    squadconf_ensure();
+    $id = (int) $id;
+    $squad_uuid = trim((string) $squad_uuid);
+    $raw = (string) $raw;
+    if (!($p = db()) || $id <= 0 || $squad_uuid === '' || trim($raw) === '') return false;
+    try {
+        $st = $p->prepare('UPDATE squad_configs SET squad_uuid = ?, type = ?, name = ?, raw = ?, parsed = ? WHERE id = ?');
+        return $st->execute([
+            $squad_uuid,
+            mb_substr((string) $type, 0, 32),
+            ($name !== '' ? mb_substr((string) $name, 0, 191) : null),
+            $raw,
+            ($parsed !== '' ? (string) $parsed : null),
+            $id,
+        ]);
+    } catch (Throwable $e) { error_log('submw squadconf update: ' . $e->getMessage()); return false; }
+}
+
 function awg_split_list($v) {
     $out = [];
     foreach (explode(',', (string) $v) as $part) {
