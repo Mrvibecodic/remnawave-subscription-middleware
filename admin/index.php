@@ -902,10 +902,10 @@ window.LogPager=function(opts){
 <?php
 $nav = [
     'users'     => ['Пользователи', '<circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.85"/>'],
-    'branding'  => ['Брендинг', '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5h5a1.75 1.75 0 0 1 0 3.5H9a1.75 1.75 0 0 0 0 3.5h5.5"/>'],
+    'branding'  => ['Брендинг', '<path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><circle cx="7.5" cy="7.5" r="1.5"/>'],
     'connection'=> ['Подключение', '<path d="M9 7H6a3 3 0 0 0 0 6h3"/><path d="M15 7h3a3 3 0 0 1 0 6h-3"/><line x1="8" y1="10" x2="16" y2="10"/>'],
     'webhooks'  => ['Настройки', '<path d="M18 8a3 3 0 1 0-2.6-4.5"/><circle cx="6" cy="16" r="3"/><circle cx="18" cy="18" r="3"/><path d="M12 11l-3.6 6"/><path d="M12 7v4l3.6 6"/>'],
-    'subst'     => ['Грейс-сквад', '<path d="M4 4h16v6H4z"/><path d="M4 14h16v6H4z"/><path d="M8 17h8"/>'],
+    'subst'     => ['Грейс-сквад', '<path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.17a2 2 0 0 0-.59-1.41L12 12l-4.41 4.42A2 2 0 0 0 7 17.83V22"/><path d="M7 2v4.17a2 2 0 0 0 .59 1.41L12 12l4.41-4.42A2 2 0 0 0 17 6.17V2"/>'],
     'headers'   => ['Заголовки', '<polyline points="7 8 3 12 7 16"/><polyline points="17 8 21 12 17 16"/><line x1="13.5" y1="4" x2="10.5" y2="20"/>'],
     'rules'     => ['Правила ответа', '<path d="M4 6h10"/><path d="M4 12h7"/><path d="M4 18h10"/><circle cx="18" cy="8" r="2"/><circle cx="16" cy="16" r="2"/>'],
     'hwid'      => ['HWID', '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="18" x2="15" y2="18"/><path d="M9 6h6M9 9h6"/>'],
@@ -915,7 +915,7 @@ $nav = [
     'whlog'       => ['Юзер-лог', '<path d="M13 2L3 14h7l-1 8 10-12h-7z"/>'],
     'whlog_other' => ['Прочие события', '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>'],
     'fwdlog'    => ['Лог пересылки', '<path d="M4 12h12"/><path d="M12 6l6 6-6 6"/><path d="M20 4v16"/>'],
-    'grace_users' => ['Грейс-юзеры', '<circle cx="9" cy="7" r="3"/><path d="M3 21v-1a5 5 0 0 1 5-5h2"/><path d="M16 11l2 2 4-4"/>'],
+    'grace_users' => ['Грейс-юзеры', '<circle cx="9" cy="7" r="3"/><path d="M3 21v-1a5 5 0 0 1 5-5h2.5"/><circle cx="17" cy="16" r="4"/><path d="M17 14.4V16l1.2 1"/>'],
     'sysinfo'   => ['О системе', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'],
     'update'    => ['Обновление', '<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>'],
     'migrate'   => ['Миграция БД', '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.6 3.6 3 8 3s8-1.4 8-3V5"/><path d="M4 12c0 1.6 3.6 3 8 3s8-1.4 8-3"/>'],
