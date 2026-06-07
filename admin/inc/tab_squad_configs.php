@@ -34,7 +34,7 @@
                     <input type="text" id="sqcfg_name" name="name" class="sqcfg-flag" placeholder="напр.: Нидерланды · Сервер 1" maxlength="191" required>
                 </div>
             </div>
-            <div class="muted" style="font-size:.8rem;margin-top:.45rem">WireGuard — base64 (v2rayNG) и Mihomo (clash). AmneziaWG — только Mihomo (clash); в base64 и xray не уйдёт. Введёшь страну в метке — флаг подставится автоматически (Нидерланды → 🇳🇱).</div>
+            <div class="muted" style="font-size:.8rem;margin-top:.45rem">WireGuard — base64 (v2rayNG), Mihomo (clash) и sing-box (Throne и др.). AmneziaWG — только Mihomo (clash); в base64/xray/sing-box не уйдёт. Введёшь страну в метке — флаг подставится автоматически (Нидерланды → 🇳🇱).</div>
 
             <div class="form-row" style="margin-top:1rem">
                 <label for="sqcfg_raw">4. Конфиг (.conf)</label>

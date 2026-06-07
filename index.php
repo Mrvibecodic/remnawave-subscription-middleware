@@ -176,26 +176,12 @@ if ($do_substitute) {
     exit();
 }
 
-if ($decision === 'normal' && $short_uuid !== '' && ($format === 'clash' || $format === 'base64') && squadconf_any()) {
-    try {
-        $u_squads = squadconf_user_squads($short_uuid);
-        if ($u_squads) {
-            $u_cfgs = squadconf_for_squads($u_squads);
-            if ($u_cfgs) {
-                if ($format === 'clash') {
-                    $response = squadconf_inject_clash($response, $u_cfgs);
-                } else {
-                    $trim = ltrim((string) $response);
-                    $is_json = ($trim !== '' && ($trim[0] === '[' || $trim[0] === '{'));
-                    if ($is_json && setting('squad_xray_json_inject', '0') === '1') {
-                        $response = squadconf_inject_xray_json($response, $u_cfgs);
-                    } elseif (!$is_json) {
-                        $response = squadconf_inject_base64($response, $u_cfgs);
-                    }
-                }
-            }
-        }
-    } catch (Throwable $e) { error_log('submw squadconf inject: ' . $e->getMessage()); }
+if ($decision === 'normal' && $short_uuid !== '' && squadconf_any()) {
+    $u_squads = squadconf_user_squads($short_uuid);
+    if ($u_squads) {
+        $u_cfgs = squadconf_for_squads($u_squads);
+        if ($u_cfgs) $response = squadconf_inject($response, $format, $u_cfgs);
+    }
 }
 
 $unsafe = ['host', 'connection', 'transfer-encoding', 'content-length', 'content-encoding'];
