@@ -1,7 +1,25 @@
 <?php
 
 function update_repo() { return 'Mrvibecodic/remnawave-subscription-middleware'; }
-function update_branch() { return 'main'; }
+function update_branch() {
+    $b = trim((string) setting('update_branch', 'main'));
+    return ($b !== '' && preg_match('~^[A-Za-z0-9._/\-]{1,80}$~', $b)) ? $b : 'main';
+}
+function update_branches(&$err = null) {
+    $j = update_api('/branches?per_page=100', $err);
+    if ($j === null) return [];
+    $out = [];
+    foreach ((array) $j as $b) { if (!empty($b['name'])) $out[] = (string) $b['name']; }
+    sort($out);
+    return $out;
+}
+function update_set_branch($branch, &$err = null) {
+    $branch = trim((string) $branch);
+    if ($branch === '' || !preg_match('~^[A-Za-z0-9._/\-]{1,80}$~', $branch)) { $err = 'Недопустимое имя ветки'; return false; }
+    set_setting('update_branch', $branch);
+    update_refresh($e2);
+    return true;
+}
 function update_root() { return dirname(__DIR__); }
 
 function update_web_user() {

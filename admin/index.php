@@ -505,6 +505,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         header('Location: index.php?tab=rules'); exit();
     }
 
+    if ($action === 'update_switch_branch') {
+        $br = trim($_POST['branch'] ?? '');
+        flash(update_set_branch($br, $e) ? ('Ветка обновлений переключена на ' . $br) : ('Ошибка: ' . $e));
+        header('Location: index.php?tab=update'); exit();
+    }
+
     if ($action === 'update_check') {
         $e = '';
         $r = update_refresh($e);

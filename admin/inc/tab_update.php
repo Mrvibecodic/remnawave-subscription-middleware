@@ -19,6 +19,11 @@ $u_stbadge   = function ($s) {
     $m = $map[$s] ?? [$s, 'mod'];
     return '<span class="up-st up-' . $m[1] . '">' . h($m[0]) . '</span>';
 };
+$u_branch    = update_branch();
+$u_brerr     = '';
+$u_branches  = update_branches($u_brerr);
+if (!$u_branches) { $u_branches = array_values(array_filter(array_unique(['main', 'dev', $u_branch]))); }
+elseif (!in_array($u_branch, $u_branches, true)) { $u_branches[] = $u_branch; }
 ?>
     <div class="info">
         Обновление прослойки с GitHub по коммитам: тянутся только изменённые файлы из <b><?= h(update_repo()) ?></b> (ветка <b><?= h(update_branch()) ?></b>). Git на сервере не нужен — только доступ к GitHub. Проверка идёт автоматически раз в сутки; пункт меню «Обновление» подсвечивается, когда появились новые коммиты.
@@ -62,6 +67,24 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
             <input type="hidden" name="action" value="update_check">
             <button type="submit" class="btn ghost">🔄 Проверить обновления</button>
         </form>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-top:0;font-size:1rem">Ветка обновлений</h2>
+        <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
+        <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Обновления тянутся из выбранной ветки.</p>
+        <?php if ($u_brerr !== ''): ?><div class="warn" style="margin:.5rem 0">Список веток не получен (<?= h($u_brerr) ?>) — выбор из известных.</div><?php endif; ?>
+        <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return uiConfirmForm(this,'Переключить ветку обновлений? После этого проверится последний коммит выбранной ветки.')">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="update_switch_branch">
+            <select name="branch" style="min-width:150px;padding:.4rem .6rem">
+                <?php foreach ($u_branches as $b): ?>
+                    <option value="<?= h($b) ?>"<?= $b === $u_branch ? ' selected' : '' ?>><?= h($b) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <button type="submit" class="btn">Переключить</button>
+        </form>
+        <p class="muted" style="margin:.5rem 0 0;font-size:.8rem">После переключения нажми «Проверить обновления», затем «Обновить» — прослойка перейдёт на последний коммит выбранной ветки.</p>
     </div>
 
     <?php if ($u_installed !== '' && $u_avail): ?>
