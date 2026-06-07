@@ -22,7 +22,7 @@
 
     <?php $lp = landing_preset(); ?>
     <div class="card">
-        <h2 style="margin-top:0;font-size:1rem">Дизайн страницы-приманки</h2>
+        <h2 style="margin-top:0;font-size:1rem">Дизайн страницы-заглушки</h2>
         <p class="muted">Как выглядит публичная корневая страница зеркала — фальшивый вход в личный кабинет, который видят посторонние и сканеры. Выберите один из вариантов.<?= chat_enabled() ? ' Сейчас на ней также показывается виджет чата поддержки.' : ' Виджет чата появится на ней, если включить чат в разделе «Чат поддержки».' ?></p>
         <style>
             .lpick{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.8rem;margin:.6rem 0}
@@ -67,5 +67,29 @@
             <div style="margin-top:.6rem"><button type="submit">💾 Сохранить дизайн</button></div>
         </form>
         <script>document.querySelectorAll('.lpick label').forEach(function(l){l.addEventListener('click',function(){document.querySelectorAll('.lpick label').forEach(function(x){x.classList.remove('sel');});l.classList.add('sel');});});</script>
+    </div>
+
+    <?php $fp_ack = setting('landing_fp_ack', '') === '1'; ?>
+    <div class="card">
+        <h2 style="margin-top:0;font-size:1rem">Отпечаток страницы-заглушки</h2>
+        <p class="muted">Чтобы вашу установку нельзя было найти автопоиском по общему шаблону (по схожим паттернам HTML), заглушка подмешивает в страницу уникальный отпечаток. Перегенерируйте его — и корневая страница станет уникальной именно для вашего сервера.</p>
+        <?php if (!$fp_ack): ?>
+        <div style="margin:.7rem 0;padding:.75rem .9rem;border:1px solid var(--red);border-radius:10px;background:var(--c-bad-bg);color:#ff9b94;font-size:.88rem;font-weight:600">⚠ Нажмите «Перегенерировать отпечаток» сразу после установки — пока этого нет, заглушка совпадает с шаблоном и вашу панель можно вычислить автопоиском.</div>
+        <?php endif; ?>
+        <p style="margin:.3rem 0"><span class="muted">Текущий отпечаток:</span> <code><?= h(substr(landing_fp(), 0, 12)) ?></code></p>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+            <form method="post" style="margin:0" onsubmit="return (function(f){uiConfirm('Перегенерировать отпечаток страницы-заглушки? Корневая страница станет уникальной для этого сервера.',function(){f.submit();},'Перегенерировать',false);return false;})(this)">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="landing_regen_fp">
+                <button type="submit" class="btn">🔁 Перегенерировать отпечаток</button>
+            </form>
+            <?php if (!$fp_ack): ?>
+            <form method="post" style="margin:0">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="landing_ack_fp">
+                <button type="submit" class="ghost">Я нажал — скрыть</button>
+            </form>
+            <?php endif; ?>
+        </div>
     </div>
 

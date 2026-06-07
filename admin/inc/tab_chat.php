@@ -63,13 +63,13 @@ $c_color  = chat_widget_color();
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="coll-body">
-        <p class="muted" style="margin-bottom:.6rem">Встроенный в страницу-приманку чат. Сообщения посетителей переотправляются в Telegram и/или на вебхук; отвечать можно отсюда, из Telegram (ответом на пересланное сообщение) или через вебхук.</p>
+        <p class="muted" style="margin-bottom:.6rem">Встроенный в страницу-заглушку чат. Сообщения посетителей переотправляются в Telegram и/или на вебхук; отвечать можно отсюда, из Telegram (ответом на пересланное сообщение) или через вебхук.</p>
         <form method="post">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_chat_cfg">
 
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Включить чат на сайте</div><div class="set-d">Показывать окно чата на странице-приманке.</div></div>
+                <div class="set-info"><div class="set-t">Включить чат на сайте</div><div class="set-d">Показывать окно чата на странице-заглушке.</div></div>
                 <label class="switch"><input type="checkbox" name="chat_enabled" <?= chat_enabled()?'checked':'' ?>><span class="sl"></span></label>
             </div>
 

@@ -41,7 +41,8 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         </div>
     </section>
 
-    <div class="card">
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:stretch;margin-bottom:1rem">
+    <div class="card" style="flex:1 1 300px;margin:0">
         <h2 style="margin-top:0;font-size:1rem">Текущая версия</h2>
         <?php if ($u_installed === ''): ?>
             <div class="warn">Базовый коммит не задан. Если вы только что обновили файлы вручную — нажмите «Отметить текущую версию», чтобы зафиксировать, с какого коммита установлена прослойка. После этого новые коммиты будут отслеживаться.</div>
@@ -66,7 +67,7 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         </form>
     </div>
 
-    <div class="card">
+    <div class="card" style="flex:1 1 300px;margin:0">
         <h2 style="margin-top:0;font-size:1rem">Ветка обновлений</h2>
         <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
         <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Обновления тянутся из выбранной ветки.</p>
@@ -81,6 +82,7 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
             <button type="submit" class="btn">Переключить</button>
         </form>
         <p class="muted" style="margin:.5rem 0 0;font-size:.8rem">После переключения нажми «Проверить обновления», затем «Обновить» — прослойка перейдёт на последний коммит выбранной ветки.</p>
+    </div>
     </div>
 
     <?php if ($u_installed !== '' && $u_avail): ?>

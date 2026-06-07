@@ -649,7 +649,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'save_landing') {
         $lp = (int) ($_POST['landing_preset'] ?? 1);
         set_setting('landing_preset', (string) (($lp >= 1 && $lp <= 4) ? $lp : 1));
-        flash('Дизайн страницы-приманки сохранён');
+        flash('Дизайн страницы-заглушки сохранён');
+        header('Location: index.php?tab=branding'); exit();
+    }
+
+    if ($action === 'landing_regen_fp') {
+        landing_fp_regenerate();
+        flash('Отпечаток страницы-заглушки перегенерирован — установка стала уникальной');
+        header('Location: index.php?tab=branding'); exit();
+    }
+
+    if ($action === 'landing_ack_fp') {
+        set_setting('landing_fp_ack', '1');
         header('Location: index.php?tab=branding'); exit();
     }
 

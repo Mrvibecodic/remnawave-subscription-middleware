@@ -23,6 +23,8 @@ INSERT INTO settings (k, v) VALUES
     ('service_logo_url',      ''),
     ('brand_cache',           '{}'),
     ('landing_preset',        '1'),
+    ('landing_fp',            ''),
+    ('landing_fp_ack',        ''),
     ('chat_enabled',          '0'),
     ('chat_tg_api_base',      ''),
     ('nolog_shortuuids',      '[]')
