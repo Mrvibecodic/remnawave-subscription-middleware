@@ -54,7 +54,7 @@
             <p class="muted">Пока пусто.</p>
         <?php else: $sqcfg_edit = []; ?>
         <table class="logtbl">
-            <thead><tr><th>Сквад</th><th>Тип</th><th>Метка</th><th>Статус</th><th></th></tr></thead>
+            <thead><tr><th>Сквад</th><th>Тип</th><th>Метка</th><th>Куда уходит</th><th>Статус</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($sqcfg_list as $c):
                 $pn = json_decode((string) ($c['parsed'] ?? ''), true);
@@ -62,15 +62,13 @@
                 $sqname = $sqcfg_names[$c['squad_uuid']] ?? $c['squad_uuid'];
                 $on = (int) $c['enabled'] === 1;
                 $ptype = is_array($pn) ? ($pn['type'] ?? '') : '';
-                $clabel = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : 'WireGuard';
-                $prev = in_array($ptype, ['wireguard', 'amneziawg'], true) ? awg_to_clash($pn, $clabel) : '';
-                $prevuri = ($ptype === 'wireguard') ? wg_to_uri($pn, $clabel) : '';
                 $sqcfg_edit[(int) $c['id']] = ['squad' => (string) $c['squad_uuid'], 'name' => (string) ($c['name'] ?? ''), 'raw' => (string) $c['raw']];
             ?>
             <tr>
-                <td><?= h($sqname) ?><div class="muted" style="font-size:.72rem"><code><?= h($c['squad_uuid']) ?></code></div></td>
+                <td><?= h($sqname) ?></td>
                 <td><span class="tag normal"><?= h($sumr) ?></span></td>
                 <td><?= $c['name'] !== null && $c['name'] !== '' ? h($c['name']) : '<span class="muted">—</span>' ?></td>
+                <td style="font-size:.76rem;line-height:1.55"><?php if ($ptype === 'amneziawg'): ?>Mihomo · clash<br>Throne · sing-box (wg://)<br><span class="muted">v2rayNG / Xray — нет</span><?php elseif ($ptype === 'wireguard'): ?>Mihomo · clash<br>v2rayNG / Xray · base64<br>Throne · sing-box (wg://)<?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td>
                     <form method="post" style="margin:0;display:inline">
                         <input type="hidden" name="csrf" value="<?= h($token) ?>">
@@ -90,19 +88,6 @@
                     </form>
                 </td>
             </tr>
-            <?php if ($prev !== ''): ?>
-            <tr><td colspan="5" style="padding-top:0">
-                <details>
-                    <summary class="muted" style="cursor:pointer;font-size:.8rem">Показать запись (что уйдёт в подписку)</summary>
-                    <div class="muted" style="font-size:.74rem;margin:.5rem 0 .2rem">clash / Mihomo:</div>
-                    <pre style="margin:0;padding:.7rem;background:var(--bg2);border:1px solid var(--line);border-radius:8px;overflow:auto;font-size:.76rem;white-space:pre"><?= h($prev) ?></pre>
-                    <?php if ($prevuri !== ''): ?>
-                    <div class="muted" style="font-size:.74rem;margin:.6rem 0 .2rem">base64 (wireguard://):</div>
-                    <pre style="margin:0;padding:.7rem;background:var(--bg2);border:1px solid var(--line);border-radius:8px;overflow:auto;font-size:.76rem;white-space:pre-wrap;word-break:break-all"><?= h($prevuri) ?></pre>
-                    <?php endif; ?>
-                </details>
-            </td></tr>
-            <?php endif; ?>
             <?php endforeach; ?>
             </tbody>
         </table>
