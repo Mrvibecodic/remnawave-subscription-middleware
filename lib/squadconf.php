@@ -341,6 +341,8 @@ function squadconf_inject_clash($body, array $configs) {
     return clash_insert_proxies($body, $blocks, $names);
 }
 
+function squadconf_wgkey($v) { return str_replace('=', '%3D', (string) $v); }
+
 function wg_to_uri_wg($parsed, $name) {
     if (!is_array($parsed) || !in_array($parsed['type'] ?? '', ['wireguard', 'amneziawg'], true)) return '';
     $if = $parsed['iface']; $pe = $parsed['peer'];
@@ -350,7 +352,7 @@ function wg_to_uri_wg($parsed, $name) {
     $host = trim($host, '[]');
     $pk = (string) ($if['PrivateKey'] ?? '');
     if ($pk === '' || $host === '' || $port === '' || empty($pe['PublicKey'])) return '';
-    $q = ['private_key=' . rawurlencode($pk)];
+    $q = ['private_key=' . squadconf_wgkey($pk)];
     $addr = str_replace(' ', '', (string) ($if['Address'] ?? ''));
     if ($addr !== '') $q[] = 'local_address=' . $addr;
     if (($parsed['type'] ?? '') === 'amneziawg') {
@@ -365,8 +367,8 @@ function wg_to_uri_wg($parsed, $name) {
             if (!empty($if[$src])) $q[] = $dst . '=' . rawurlencode((string) $if[$src]);
         }
     }
-    $q[] = 'public_key=' . rawurlencode((string) $pe['PublicKey']);
-    if (!empty($pe['PresharedKey'])) $q[] = 'pre_shared_key=' . rawurlencode((string) $pe['PresharedKey']);
+    $q[] = 'public_key=' . squadconf_wgkey((string) $pe['PublicKey']);
+    if (!empty($pe['PresharedKey'])) $q[] = 'pre_shared_key=' . squadconf_wgkey((string) $pe['PresharedKey']);
     if (!empty($if['MTU'])) $q[] = 'mtu=' . (int) $if['MTU'];
     if (!empty($pe['PersistentKeepalive'])) $q[] = 'persistent_keepalive_interval=' . (int) $pe['PersistentKeepalive'];
     return 'wg://' . $host . ':' . (int) $port . '?' . implode('&', $q) . '#' . rawurlencode($name);
@@ -375,7 +377,12 @@ function wg_to_uri_wg($parsed, $name) {
 function squadconf_inject_base64($body, array $configs) {
     $decoded = base64_decode(trim((string) $body), true);
     if ($decoded === false || $decoded === '') return $body;
-    $scheme = (strpos($decoded, 'wireguard://') !== false && strpos($decoded, 'wg://') === false) ? 'wireguard' : 'wg';
+    $ua = strtolower((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    if (strpos($ua, 'v2rayng') !== false || strpos($ua, 'v2rayn') !== false) {
+        $scheme = 'wireguard';
+    } else {
+        $scheme = (strpos($decoded, 'wireguard://') !== false && strpos($decoded, 'wg://') === false) ? 'wireguard' : 'wg';
+    }
     $uris = []; $names = [];
     foreach ($configs as $c) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
