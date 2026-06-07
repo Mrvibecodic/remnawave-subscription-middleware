@@ -24,6 +24,7 @@
                 <th class="srt" onclick="sortUsers(1)">Статус<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(2)">Истекает<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(3)">Конфиг<span class="sar"></span></th>
+                <th>Лог</th>
                 <th>Устройства</th>
                 <th>Ссылка подписки (через зеркало)</th>
             </tr>
@@ -52,11 +53,12 @@
                 <td><?php if ($in_grace): ?><span class="tag grace">ГРЕЙС</span><?php else: ?><span class="tag <?= h($st) ?>"><?= h($st) ?></span><?php endif; ?></td>
                 <td class="muted"<?= $exp_ts !== null ? ' data-ets="' . (int) $exp_ts . '"' : '' ?>><?= h($exp) ?></td>
                 <td><span class="tag src-<?= h($src) ?>"><?= h($src_label) ?></span></td>
+                <td><?php if ($su !== ''): $nl = isset($nolog_set[$su]); ?><button class="btn-sm nolog-btn<?= $nl ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>"><?= $nl ? '🙈 Скрыт' : '👁 В логе' ?></button><?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td><?php if ($uuid !== ''): ?><button class="btn-sm hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>">HWID</button><?php if ($has_hwid_block): ?><span class="tip hw-warn" data-tip="Есть активный блок HWID">!</span><?php endif; ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td><input class="sublink" type="text" readonly value="<?= h($mirror_link) ?>" title="Нажмите, чтобы скопировать" onclick="subCopy(this)"></td>
             </tr>
             <?php endforeach; ?>
-            <?php if (!$users && !$users_err): ?><tr><td colspan="6" class="muted">Пусто</td></tr><?php endif; ?>
+            <?php if (!$users && !$users_err): ?><tr><td colspan="7" class="muted">Пусто</td></tr><?php endif; ?>
         </table>
     </div>
 
@@ -92,6 +94,7 @@
         .hw-act{display:flex;gap:.5rem;flex:0 0 auto}
         .btn-block{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
         .btn-block.on{border-color:var(--accent);color:var(--accent-text)}
+        .nolog-btn.on{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
         .btn-del{border-color:var(--red);color:#ff9b94}
         .btn-del:hover{border-color:var(--red);color:#ff9b94;background:var(--c-bad-bg)}
         .hw-warn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:.72rem;font-weight:700;margin-left:.45rem;cursor:help;vertical-align:middle}
@@ -213,6 +216,21 @@
     }
     document.querySelectorAll('.hw-btn').forEach(function(b){
         b.addEventListener('click',function(){hwOpen(b.dataset.uuid,b.dataset.name||'',b.dataset.limit||'');});
+    });
+    function nologToggle(btn){
+        var su=btn.dataset.su||'', on=btn.classList.contains('on');
+        if(!su) return;
+        var f=new FormData(); f.append('csrf',HW_CSRF); f.append('short_uuid',su); f.append('nolog',on?'0':'1');
+        btn.disabled=true;
+        fetch('?ajax=toggle_nolog',{method:'POST',body:f}).then(function(r){return r.json();}).then(function(d){
+            btn.disabled=false;
+            if(!d.ok){ uiAlert('Ошибка: '+(d.error||'')); return; }
+            if(d.nolog){ btn.classList.add('on'); btn.innerHTML='🙈 Скрыт'; } else { btn.classList.remove('on'); btn.innerHTML='👁 В логе'; }
+            if(window.uiToast) uiToast(d.nolog?'Запросы пользователя скрыты из лога':'Логирование пользователя включено');
+        }).catch(function(){ btn.disabled=false; uiAlert('Сетевая ошибка'); });
+    }
+    document.querySelectorAll('.nolog-btn').forEach(function(b){
+        b.addEventListener('click',function(){nologToggle(b);});
     });
     document.addEventListener('keydown',function(e){if(e.key==='Escape')hwClose();});
     document.querySelectorAll('#utbl td[data-ets]').forEach(function(td){

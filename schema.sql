@@ -24,7 +24,8 @@ INSERT INTO settings (k, v) VALUES
     ('brand_cache',           '{}'),
     ('landing_preset',        '1'),
     ('chat_enabled',          '0'),
-    ('chat_tg_api_base',      '')
+    ('chat_tg_api_base',      ''),
+    ('nolog_shortuuids',      '[]')
 ON CONFLICT(k) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS overrides (

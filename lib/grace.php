@@ -68,33 +68,62 @@ function grace_squads_from_user($u) {
     return $out;
 }
 
+function grace_restore($existing) {
+    if (!is_array($existing) || empty($existing['user_uuid'])) return false;
+    $uuid   = (string) $existing['user_uuid'];
+    $short  = (string) ($existing['short_uuid'] ?? '');
+    $squads = json_decode((string) ($existing['orig_squads'] ?? ''), true);
+    if (!is_array($squads)) $squads = [];
+    $squads = array_values(array_filter($squads, fn($s) => is_string($s) && $s !== ''));
+    if (!$squads) { error_log('submw grace end: empty orig_squads for ' . $short); return false; }
+
+    $full = [
+        'activeInternalSquads'  => $squads,
+        'trafficLimitBytes'     => (int) $existing['orig_traffic_bytes'],
+        'trafficLimitStrategy'  => (string) $existing['orig_traffic_strategy'],
+        'hwidDeviceLimit'       => ($existing['orig_hwid_limit'] === null ? null : (int) $existing['orig_hwid_limit']),
+    ];
+    if (!empty($existing['orig_expire'])) $full['expireAt'] = (string) $existing['orig_expire'];
+
+    $e = '';
+    if (remnawave_update_user($uuid, $full, $e)) { grace_delete($short); return true; }
+    error_log('submw grace end: ' . $e . ' (short=' . $short . '), retrying squads-only');
+
+    $e2 = '';
+    if (remnawave_update_user($uuid, ['activeInternalSquads' => $squads], $e2)) {
+        error_log('submw grace end: squads-only restore ok for ' . $short);
+        grace_delete($short);
+        return true;
+    }
+    error_log('submw grace end: squads-only restore failed for ' . $short . ': ' . $e2);
+    return false;
+}
+
+function grace_restore_due($short) {
+    if ($short === '' || remnawave_url() === '' || remnawave_token() === '') return false;
+    $existing = grace_find($short);
+    if (!$existing || (int) $existing['grace_until'] > time()) return false;
+    return grace_restore($existing);
+}
+
 function grace_on_expired($short, $username = null) {
-    if (!grace_squad_active() || $short === '') return 'grace_off';
+    if ($short === '') return 'grace_off';
     $existing = grace_find($short);
 
     if ($existing) {
         if ((int) $existing['grace_until'] > time()) return 'grace_active';
-        $squads = json_decode((string) $existing['orig_squads'], true);
-        if (!is_array($squads)) $squads = [];
-        $e = '';
-        $restore = [
-            'activeInternalSquads'  => $squads,
-            'trafficLimitBytes'     => (int) $existing['orig_traffic_bytes'],
-            'trafficLimitStrategy'  => (string) $existing['orig_traffic_strategy'],
-            'hwidDeviceLimit'       => ($existing['orig_hwid_limit'] === null ? null : (int) $existing['orig_hwid_limit']),
-        ];
-        if (!empty($existing['orig_expire'])) $restore['expireAt'] = (string) $existing['orig_expire'];
-        $ok = remnawave_update_user((string) $existing['user_uuid'], $restore, $e);
-        if (!$ok) { error_log('submw grace end: ' . $e); return 'grace_err'; }
-        grace_delete($short);
-        return 'grace_ended';
+        return grace_restore($existing) ? 'grace_ended' : 'grace_err';
     }
+
+    if (!grace_squad_active()) return 'grace_off';
 
     $e = '';
     $u = remnawave_get_user_by_short($short, $e);
     if (!is_array($u) || empty($u['uuid'])) { error_log('submw grace start get: ' . $e); return 'grace_err'; }
     $uuid        = (string) $u['uuid'];
-    $squads      = array_values(array_diff(grace_squads_from_user($u), [grace_squad_uuid()]));
+    $squads      = grace_squads_from_user($u);
+    if (!$squads) { error_log('submw grace start: empty squads for ' . $short . ', skipping grace'); return 'grace_off'; }
+    if (count($squads) === 1 && $squads[0] === grace_squad_uuid()) { error_log('submw grace start: user already only in grace squad ' . $short . ', skipping grace'); return 'grace_off'; }
     $bytes       = (int) ($u['trafficLimitBytes'] ?? 0);
     $strategy    = (string) ($u['trafficLimitStrategy'] ?? 'NO_RESET');
     $orig_expire = (string) ($u['expireAt'] ?? '');
@@ -152,7 +181,7 @@ function grace_on_renew($short, $new_expire_str) {
 function grace_cleanup($short) { grace_delete($short); }
 
 function grace_retry_pending($limit = 2) {
-    if (!grace_squad_active()) return;
+    if (remnawave_url() === '' || remnawave_token() === '') return;
     ensure_grace_table();
     if (!($p = db())) return;
     try {

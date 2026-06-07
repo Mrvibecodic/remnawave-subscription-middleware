@@ -66,6 +66,7 @@ curl_setopt_array($ch, [
     CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
     CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
     CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+    CURLOPT_ENCODING       => '',
     CURLOPT_HTTPHEADER     => $request_headers,
     CURLOPT_HEADER         => false,
     CURLOPT_HEADERFUNCTION => function ($curl, $header) use (&$grabbed_headers) {
@@ -144,6 +145,8 @@ elseif ($expired)  $decision = 'expired';
 
 if ($short_uuid === '' && $segs) $short_uuid = $segs[0];
 
+if (!$skip_log && nolog_is_set($short_uuid)) $skip_log = true;
+
 $passthrough = ['profile-title', 'support-url', 'profile-update-interval',
                 'profile-web-page-url', 'subscription-userinfo', 'content-disposition',
                 'announce', 'announce-url'];
@@ -173,7 +176,29 @@ if ($do_substitute) {
     exit();
 }
 
-$unsafe = ['host', 'connection', 'transfer-encoding', 'content-length'];
+if ($decision === 'normal' && $short_uuid !== '' && ($format === 'clash' || $format === 'base64') && squadconf_any()) {
+    try {
+        $u_squads = squadconf_user_squads($short_uuid);
+        if ($u_squads) {
+            $u_cfgs = squadconf_for_squads($u_squads);
+            if ($u_cfgs) {
+                if ($format === 'clash') {
+                    $response = squadconf_inject_clash($response, $u_cfgs);
+                } else {
+                    $trim = ltrim((string) $response);
+                    $is_json = ($trim !== '' && ($trim[0] === '[' || $trim[0] === '{'));
+                    if ($is_json && setting('squad_xray_json_inject', '0') === '1') {
+                        $response = squadconf_inject_xray_json($response, $u_cfgs);
+                    } elseif (!$is_json) {
+                        $response = squadconf_inject_base64($response, $u_cfgs);
+                    }
+                }
+            }
+        }
+    } catch (Throwable $e) { error_log('submw squadconf inject: ' . $e->getMessage()); }
+}
+
+$unsafe = ['host', 'connection', 'transfer-encoding', 'content-length', 'content-encoding'];
 http_response_code($http_code ?: 200);
 foreach ($grabbed_headers as $name => $value) {
     if (!in_array($name, $unsafe, true)) header($name . ': ' . $value);
@@ -186,4 +211,8 @@ if (!$skip_log) {
         $GLOBALS['submw_real_sub'] = true;
         log_request($ip, $short_uuid, $path, $ua, $log_decision, $expire_ts, $current_hwid);
     }
+}
+
+if ($decision === 'expired' && $short_uuid !== '') {
+    try { grace_restore_due($short_uuid); } catch (Throwable $e) { error_log('submw grace restore-due: ' . $e->getMessage()); }
 }

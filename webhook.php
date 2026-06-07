@@ -52,6 +52,8 @@ if ($short_uuid === '' && !empty($data['subscriptionUrl'])) {
 
 $action = 'ignored';
 
+if ($short_uuid !== '') squadconf_cache_drop($short_uuid);
+
 if ($short_uuid !== '') {
     $expire_future = false;
     if (!empty($data['expireAt'])) {
@@ -61,17 +63,16 @@ if ($short_uuid !== '') {
     $is_active     = ($status === 'ACTIVE') || $expire_future;
     $is_inactive   = in_array($status, ['EXPIRED', 'DISABLED', 'LIMITED'], true);
 
-    $grace_on = grace_squad_active();
     if ($event === 'user.deleted') {
         delete_override('shortuuid', $short_uuid, 'webhook');
         grace_cleanup($short_uuid);
         $action = 'clear';
     } elseif ($is_active) {
-        $renewed = $grace_on ? grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? '')) : false;
+        $renewed = grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''));
         delete_override('shortuuid', $short_uuid, 'webhook');
         $action = $renewed ? 'grace_renewed' : 'reactivate';
     } elseif ($event === 'user.expired') {
-        $g = $grace_on ? grace_on_expired($short_uuid, $username) : 'grace_off';
+        $g = grace_on_expired($short_uuid, $username);
         if ($g === 'grace_started' || $g === 'grace_ended' || $g === 'grace_active') {
             delete_override('shortuuid', $short_uuid, 'webhook');
             $action = $g;

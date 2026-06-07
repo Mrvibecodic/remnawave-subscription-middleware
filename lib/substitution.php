@@ -3,7 +3,7 @@
 function detect_client_format() {
     $ua = strtolower($_SERVER['HTTP_USER_AGENT'] ?? '');
     $q  = strtolower($_SERVER['QUERY_STRING'] ?? '');
-    if (preg_match('/clash|mihomo|meta|stash|flclash|clashx|verge/', $ua) || strpos($q, 'clash') !== false) {
+    if (preg_match('/clash|mihomo|meta|stash|flclash|clashx|verge|koala/', $ua) || strpos($q, 'clash') !== false) {
         return 'clash';
     }
     return 'base64';

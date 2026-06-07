@@ -284,6 +284,30 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'toggle_nolog' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $su = trim($_POST['short_uuid'] ?? '');
+        if ($su === '') { echo json_encode(['ok' => false, 'error' => 'empty short_uuid']); exit(); }
+        $on = ($_POST['nolog'] ?? '1') === '1';
+        nolog_set($su, $on);
+        echo json_encode(['ok' => true, 'nolog' => $on]);
+        exit();
+    }
+
+    if ($a === 'parse_config' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $parsed = awg_parse_conf($_POST['raw'] ?? '');
+        echo json_encode([
+            'ok'       => $parsed['ok'],
+            'type'     => $parsed['type'],
+            'version'  => $parsed['version'],
+            'summary'  => awg_summary($parsed),
+            'clients'  => $parsed['clients'],
+            'warnings' => $parsed['warnings'],
+        ], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'test_forward' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $payload = json_encode(['event' => 'test.ping', 'data' => ['ts' => time(), 'source' => 'middleware']], JSON_UNESCAPED_UNICODE);
@@ -622,6 +646,37 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         flash('Дизайн страницы-приманки сохранён');
         header('Location: index.php?tab=branding'); exit();
     }
+
+    if ($action === 'save_squad_config') {
+        $squad = trim($_POST['squad_uuid'] ?? '');
+        $raw   = (string) ($_POST['raw'] ?? '');
+        $name  = trim($_POST['name'] ?? '');
+        if ($squad === '' || trim($raw) === '') {
+            flash('Укажите сквад и вставьте конфиг');
+        } else {
+            $parsed = awg_parse_conf($raw);
+            if (!$parsed['ok']) {
+                flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
+            } elseif ($parsed['type'] !== 'wireguard') {
+                flash('Поддерживается только обычный WireGuard (.conf без полей обфускации).');
+            } else {
+                squadconf_add($squad, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
+                flash('Конфиг добавлен (' . awg_summary($parsed) . ')');
+            }
+        }
+        header('Location: index.php?tab=squad_configs'); exit();
+    }
+
+    if ($action === 'del_squad_config') {
+        squadconf_delete((int) ($_POST['id'] ?? 0));
+        flash('Конфиг удалён');
+        header('Location: index.php?tab=squad_configs'); exit();
+    }
+
+    if ($action === 'toggle_squad_config') {
+        squadconf_toggle((int) ($_POST['id'] ?? 0), ($_POST['enabled'] ?? '0') === '1');
+        header('Location: index.php?tab=squad_configs'); exit();
+    }
 }
 
 $tab   = $_GET['tab'] ?? 'users';
@@ -652,7 +707,8 @@ if ($tab === 'overrides' && $overrides && remnawave_url() !== '' && remnawave_to
 }
 
 $users = []; $users_err = '';
-if ($tab === 'users') $users = remnawave_all_users($users_err);
+$nolog_set = [];
+if ($tab === 'users') { $users = remnawave_all_users($users_err); $nolog_set = nolog_shortuuids(); }
 $panel_headers = []; $panel_headers_err = '';
 if ($tab === 'headers') $panel_headers = remnawave_panel_headers($panel_headers_err);
 
@@ -716,10 +772,17 @@ $grace_squads  = []; $grace_squads_err = '';
 if ($tab === 'subst' && remnawave_url() !== '' && remnawave_token() !== '') {
     $grace_squads = remnawave_internal_squads($grace_squads_err);
 }
+
+$sqcfg_squads = []; $sqcfg_squads_err = ''; $sqcfg_list = []; $sqcfg_names = [];
+if ($tab === 'squad_configs') {
+    if (remnawave_url() !== '' && remnawave_token() !== '') $sqcfg_squads = remnawave_internal_squads($sqcfg_squads_err);
+    foreach ($sqcfg_squads as $s) $sqcfg_names[$s['uuid']] = $s['name'];
+    $sqcfg_list = squadconf_all();
+}
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги по скваду'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -824,6 +887,7 @@ $nav = [
     'rules'     => ['Правила ответа', '<path d="M4 6h10"/><path d="M4 12h7"/><path d="M4 18h10"/><circle cx="18" cy="8" r="2"/><circle cx="16" cy="16" r="2"/>'],
     'hwid'      => ['HWID', '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="18" x2="15" y2="18"/><path d="M9 6h6M9 9h6"/>'],
     'overrides' => ['Оверрайды', '<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9.5 12l1.8 1.8L15 9.8"/>'],
+    'squad_configs' => ['Доп. конфиги', '<path d="M4 5h16v4H4z"/><path d="M4 13h16v6H4z"/><path d="M7 16h4"/><circle cx="17" cy="16" r="1"/>'],
     'reqlog'    => ['Лог запросов', '<line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'],
     'whlog'       => ['Юзер-лог', '<path d="M13 2L3 14h7l-1 8 10-12h-7z"/>'],
     'whlog_other' => ['Прочие события', '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>'],
@@ -841,7 +905,7 @@ $nav_sections = [
     ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => ['webhooks', 'fwdlog', 'whlog', 'whlog_other']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
-    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides']],
+    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides', 'squad_configs']],
     ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => ['sysinfo', 'update', 'migrate']],
 ];
 function nav_link($key, $it, $active, $badge = false) {
@@ -922,6 +986,9 @@ function nav_link($key, $it, $active, $badge = false) {
 
 <?php elseif ($tab === 'overrides'): ?>
     <?php include __DIR__ . '/inc/tab_overrides.php'; ?>
+
+<?php elseif ($tab === 'squad_configs'): ?>
+    <?php include __DIR__ . '/inc/tab_squad_configs.php'; ?>
 
 <?php elseif ($tab === 'reqlog'): ?>
     <?php include __DIR__ . '/inc/tab_reqlog.php'; ?>

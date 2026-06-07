@@ -27,6 +27,37 @@ function is_browser_ua($ua) {
         && preg_match('~chrome|chromium|safari|firefox|\bedg|\bopr\b|trident|gecko/~', $ua);
 }
 
+function nolog_shortuuids() {
+    $arr = json_decode((string) setting('nolog_shortuuids', '[]'), true);
+    $out = [];
+    if (is_array($arr)) {
+        foreach ($arr as $s) {
+            $s = trim((string) $s);
+            if ($s !== '') $out[$s] = true;
+        }
+    }
+    return $out;
+}
+
+function nolog_is_set($short_uuid) {
+    $short_uuid = trim((string) $short_uuid);
+    if ($short_uuid === '') return false;
+    $set = nolog_shortuuids();
+    return isset($set[$short_uuid]);
+}
+
+function nolog_set($short_uuid, $on) {
+    $short_uuid = trim((string) $short_uuid);
+    if ($short_uuid === '') return false;
+    $set = nolog_shortuuids();
+    if ($on) {
+        $set[$short_uuid] = true;
+    } else {
+        unset($set[$short_uuid]);
+    }
+    return set_setting('nolog_shortuuids', json_encode(array_keys($set), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+}
+
 function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null, $hwid = '') {
     if (!($p = db())) return;
     ensure_reqlog_hwid();
