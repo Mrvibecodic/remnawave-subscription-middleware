@@ -70,7 +70,7 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         <h2 style="margin-top:0;font-size:1rem">Ветка обновлений</h2>
         <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
         <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Обновления тянутся из выбранной ветки.</p>
-        <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return uiConfirmForm(this,'Переключить ветку обновлений? После этого проверится последний коммит выбранной ветки.')">
+        <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return (function(f){uiConfirm('Переключить ветку обновлений? После этого проверится последний коммит выбранной ветки.',function(){f.submit();},'Переключить',false);return false;})(this)">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_switch_branch">
             <select name="branch" style="min-width:150px;padding:.4rem .6rem">
