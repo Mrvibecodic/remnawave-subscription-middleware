@@ -978,7 +978,7 @@ function nav_link($key, $it, $active, $badge = false) {
             </div>
             <div class="rw-hcontrols">
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
-                <a class="hbtn hbtn-ver" href="?tab=update" title="<?= update_available() ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code><?php if (update_available()): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
+                <a class="hbtn hbtn-ver" href="?tab=update" title="<?= update_available() ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if (update_available()): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
                 <a class="hbtn" href="?logout=1" title="Выйти" aria-label="Выйти"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>
