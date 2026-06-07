@@ -165,8 +165,8 @@ function awg_parse_conf($raw) {
     foreach (['PublicKey', 'Endpoint'] as $f) if (empty($res['peer'][$f])) { $res['warnings'][] = "В [Peer] нет обязательного поля $f."; $missing = true; }
 
     if ($res['type'] === 'amneziawg') {
-        $res['clients'] = ['Mihomo / Clash.Meta'];
-        $res['warnings'][] = 'AmneziaWG: работает только в Mihomo / Clash.Meta. В base64-клиентах (v2rayNG) и xray-json (Happ) — нет, туда конфиг не уйдёт.';
+        $res['clients'] = ['Mihomo / Clash.Meta', 'Throne (wg://)'];
+        $res['warnings'][] = 'AmneziaWG: работает в Mihomo (clash) и в клиентах с wg://-AmneziaWG (Throne и др.). В v2rayNG (wireguard://) и xray — нет.';
     } elseif ($res['type'] === 'wireguard') {
         $res['clients'] = ['Mihomo / Clash.Meta', 'base64-клиенты (v2rayNG и др.)', 'sing-box (Throne и др.)'];
     }
@@ -341,21 +341,56 @@ function squadconf_inject_clash($body, array $configs) {
     return clash_insert_proxies($body, $blocks, $names);
 }
 
+function wg_to_uri_wg($parsed, $name) {
+    if (!is_array($parsed) || !in_array($parsed['type'] ?? '', ['wireguard', 'amneziawg'], true)) return '';
+    $if = $parsed['iface']; $pe = $parsed['peer'];
+    $ep = (string) ($pe['Endpoint'] ?? '');
+    $host = $ep; $port = '';
+    if (($pos = strrpos($ep, ':')) !== false) { $host = substr($ep, 0, $pos); $port = substr($ep, $pos + 1); }
+    $host = trim($host, '[]');
+    $pk = (string) ($if['PrivateKey'] ?? '');
+    if ($pk === '' || $host === '' || $port === '' || empty($pe['PublicKey'])) return '';
+    $q = ['private_key=' . rawurlencode($pk)];
+    $addr = str_replace(' ', '', (string) ($if['Address'] ?? ''));
+    if ($addr !== '') $q[] = 'local_address=' . $addr;
+    if (($parsed['type'] ?? '') === 'amneziawg') {
+        $q[] = 'enable_amnezia=true';
+        foreach (['Jc' => 'jc', 'Jmin' => 'jmin', 'Jmax' => 'jmax', 'S1' => 's1', 'S2' => 's2', 'S3' => 's3', 'S4' => 's4'] as $src => $dst) {
+            if (isset($if[$src]) && $if[$src] !== '') $q[] = $dst . '=' . (int) $if[$src];
+        }
+        foreach (['H1' => 'h1', 'H2' => 'h2', 'H3' => 'h3', 'H4' => 'h4'] as $src => $dst) {
+            if (isset($if[$src]) && $if[$src] !== '') $q[] = $dst . '=' . $if[$src];
+        }
+        foreach (['I1' => 'i1', 'I2' => 'i2', 'I3' => 'i3', 'I4' => 'i4', 'I5' => 'i5'] as $src => $dst) {
+            if (!empty($if[$src])) $q[] = $dst . '=' . rawurlencode((string) $if[$src]);
+        }
+    }
+    $q[] = 'public_key=' . rawurlencode((string) $pe['PublicKey']);
+    if (!empty($pe['PresharedKey'])) $q[] = 'pre_shared_key=' . rawurlencode((string) $pe['PresharedKey']);
+    if (!empty($if['MTU'])) $q[] = 'mtu=' . (int) $if['MTU'];
+    if (!empty($pe['PersistentKeepalive'])) $q[] = 'persistent_keepalive_interval=' . (int) $pe['PersistentKeepalive'];
+    return 'wg://' . $host . ':' . (int) $port . '?' . implode('&', $q) . '#' . rawurlencode($name);
+}
+
 function squadconf_inject_base64($body, array $configs) {
+    $decoded = base64_decode(trim((string) $body), true);
+    if ($decoded === false || $decoded === '') return $body;
+    $scheme = (strpos($decoded, 'wg://') !== false) ? 'wg' : 'wireguard';
     $uris = []; $names = [];
     foreach ($configs as $c) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
-        if (!is_array($pn) || ($pn['type'] ?? '') !== 'wireguard') continue;
-        $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : 'WireGuard';
+        if (!is_array($pn)) continue;
+        $t = $pn['type'] ?? '';
+        if ($scheme === 'wg') { if (!in_array($t, ['wireguard', 'amneziawg'], true)) continue; }
+        elseif ($t !== 'wireguard') continue;
+        $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : (($t === 'amneziawg') ? 'AmneziaWG' : 'WireGuard');
         $base = $nm; $i = 1;
         while (in_array($nm, $names, true)) { $i++; $nm = $base . ' ' . $i; }
-        $u = wg_to_uri($pn, $nm);
+        $u = ($scheme === 'wg') ? wg_to_uri_wg($pn, $nm) : wg_to_uri($pn, $nm);
         if ($u === '') continue;
         $uris[] = $u; $names[] = $nm;
     }
     if (!$uris) return $body;
-    $decoded = base64_decode(trim((string) $body), true);
-    if ($decoded === false || $decoded === '') return $body;
     $sep = (strpos($decoded, "\r\n") !== false) ? "\r\n" : "\n";
     $decoded = rtrim($decoded, "\r\n") . $sep . implode($sep, $uris);
     return base64_encode($decoded);
