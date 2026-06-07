@@ -375,7 +375,7 @@ function wg_to_uri_wg($parsed, $name) {
 function squadconf_inject_base64($body, array $configs) {
     $decoded = base64_decode(trim((string) $body), true);
     if ($decoded === false || $decoded === '') return $body;
-    $scheme = (strpos($decoded, 'wg://') !== false) ? 'wg' : 'wireguard';
+    $scheme = (strpos($decoded, 'wireguard://') !== false && strpos($decoded, 'wg://') === false) ? 'wireguard' : 'wg';
     $uris = []; $names = [];
     foreach ($configs as $c) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
