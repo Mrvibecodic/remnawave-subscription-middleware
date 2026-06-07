@@ -1,6 +1,6 @@
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Доп. конфиги по внутреннему скваду</h2>
-        <p class="muted">Конфиги, привязанные к внутреннему скваду Remnawave, дописываются в подписку пользователям этого сквада. Доступны <b>только пока подписка активна</b>: при истечении / блокировке конфиг из подписки исчезает (остаются заглушки). Поддерживается WireGuard (clash + base64) и AmneziaWG (<b>только Mihomo/clash</b>) — вставьте клиентский <code>.conf</code>.</p>
+        <p class="muted">Конфиги, привязанные к внутреннему скваду Remnawave, дописываются в подписку пользователям этого сквада. Доступны <b>только пока подписка активна</b>: при истечении / блокировке конфиг из подписки исчезает (остаются заглушки).</p>
         <?php if ($sqcfg_squads_err !== ''): ?>
             <div class="warn">Список сквадов недоступен: <?= h($sqcfg_squads_err) ?>. Проверьте URL панели и токен во вкладке «Подключение».</div>
         <?php elseif (!$sqcfg_squads): ?>
@@ -22,23 +22,15 @@
                     </select>
                 </div>
                 <div>
-                    <label for="sqcfg_type">2. Тип конфига</label>
-                    <select id="sqcfg_type" name="type" class="sqcfg-sel" required>
-                        <option value="" selected>— выберите тип —</option>
-                        <option value="wireguard">WireGuard (WG)</option>
-                        <option value="amneziawg">AmneziaWG (AWG) — только Mihomo</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="sqcfg_name">3. Метка</label>
+                    <label for="sqcfg_name">2. Метка</label>
                     <input type="text" id="sqcfg_name" name="name" class="sqcfg-flag" placeholder="напр.: Нидерланды · Сервер 1" maxlength="191" required>
                 </div>
             </div>
-            <div class="muted" style="font-size:.8rem;margin-top:.45rem">WireGuard — base64 (v2rayNG, Throne) и Mihomo (clash). AmneziaWG — Mihomo (clash) и Throne (wg://); в v2rayNG/xray — нет. Введёшь страну в метке — флаг подставится автоматически (Нидерланды → 🇳🇱).</div>
+            <div class="muted" style="font-size:.8rem;margin-top:.45rem">Тип конфига и поддерживаемые клиенты определятся автоматически — покажу под полем после вставки. Введёшь страну в метке — флаг подставится автоматически (Нидерланды → 🇳🇱).</div>
 
             <div class="form-row" style="margin-top:1rem">
-                <label for="sqcfg_raw">4. Конфиг (.conf)</label>
-                <textarea id="sqcfg_raw" name="raw" rows="12" spellcheck="false" placeholder="[Interface]&#10;PrivateKey = ...&#10;Address = 10.8.1.2/32&#10;&#10;[Peer]&#10;PublicKey = ...&#10;Endpoint = host:port&#10;AllowedIPs = 0.0.0.0/0, ::/0" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
+                <label for="sqcfg_raw">3. Конфиг</label>
+                <textarea id="sqcfg_raw" name="raw" rows="12" spellcheck="false" placeholder="Вставьте содержимое конфига" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
             </div>
             <div id="sqcfg_hint" class="sqcfg-hint" style="display:none"></div>
             <div style="margin-top:1rem;display:flex;align-items:center;gap:.75rem">
