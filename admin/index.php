@@ -657,8 +657,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
             $parsed = awg_parse_conf($raw);
             if (!$parsed['ok']) {
                 flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
-            } elseif ($parsed['type'] !== 'wireguard') {
-                flash('Поддерживается только обычный WireGuard (.conf без полей обфускации).');
             } else {
                 squadconf_add($squad, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
                 flash('Конфиг добавлен (' . awg_summary($parsed) . ')');

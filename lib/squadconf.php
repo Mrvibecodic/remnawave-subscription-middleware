@@ -146,13 +146,13 @@ function awg_parse_conf($raw) {
     foreach (['PublicKey', 'Endpoint'] as $f) if (empty($res['peer'][$f])) { $res['warnings'][] = "В [Peer] нет обязательного поля $f."; $missing = true; }
 
     if ($res['type'] === 'amneziawg') {
-        $res['clients'] = [];
-        $res['warnings'][] = 'Это не обычный WireGuard (в конфиге есть поля обфускации). Поддерживается только обычный WireGuard: .conf без полей Jc/Jmin/Jmax/S1–S4/H1–H4/I1–I5.';
+        $res['clients'] = ['Mihomo / Clash.Meta'];
+        $res['warnings'][] = 'AmneziaWG: работает только в Mihomo / Clash.Meta. В base64-клиентах (v2rayNG) и xray-json (Happ) — нет, туда конфиг не уйдёт.';
     } elseif ($res['type'] === 'wireguard') {
         $res['clients'] = ['Mihomo / Clash.Meta', 'base64-клиенты (v2rayNG и др.)'];
     }
 
-    $res['ok'] = ($res['type'] === 'wireguard') && !$missing;
+    $res['ok'] = in_array($res['type'], ['wireguard', 'amneziawg'], true) && !$missing;
     return $res;
 }
 
@@ -161,20 +161,6 @@ function awg_summary($parsed) {
     if ($parsed['type'] === 'amneziawg') return 'AmneziaWG ' . ($parsed['version'] ?: '');
     if ($parsed['type'] === 'wireguard') return 'WireGuard';
     return 'неизвестный формат';
-}
-
-function awg_h_to_hex($v) {
-    $v = trim((string) $v);
-    if ($v === '') return '';
-    if (strpos($v, '-') !== false) {
-        $parts = array_map('trim', explode('-', $v, 2));
-        $a = awg_h_to_hex($parts[0]);
-        $b = awg_h_to_hex($parts[1]);
-        return ($a !== '' && $b !== '') ? ($a . '-' . $b) : '';
-    }
-    if (preg_match('/^0x[0-9a-fA-F]+$/', $v)) return $v;
-    if (ctype_digit($v)) return '0x' . dechex((int) $v);
-    return $v;
 }
 
 function awg_to_clash($parsed, $name) {
@@ -209,20 +195,17 @@ function awg_to_clash($parsed, $name) {
 
     $opt = [];
     foreach (['Jc' => 'jc', 'Jmin' => 'jmin', 'Jmax' => 'jmax', 'S1' => 's1', 'S2' => 's2', 'S3' => 's3', 'S4' => 's4'] as $src => $dst) {
-        if (isset($if[$src]) && $if[$src] !== '') $opt[$dst] = (int) $if[$src];
+        if (isset($if[$src]) && $if[$src] !== '') $opt[] = [$dst, (string) (int) $if[$src]];
     }
     foreach (['H1' => 'h1', 'H2' => 'h2', 'H3' => 'h3', 'H4' => 'h4'] as $src => $dst) {
-        if (isset($if[$src]) && $if[$src] !== '') { $hx = awg_h_to_hex($if[$src]); if ($hx !== '') $opt[$dst] = $hx; }
+        if (isset($if[$src]) && $if[$src] !== '') $opt[] = [$dst, (string) $if[$src]];
     }
     foreach (['I1' => 'i1', 'I2' => 'i2', 'I3' => 'i3', 'I4' => 'i4', 'I5' => 'i5'] as $src => $dst) {
-        if (!empty($if[$src])) $opt[$dst] = (string) $if[$src];
+        if (!empty($if[$src])) $opt[] = [$dst, yaml_q((string) $if[$src])];
     }
     if ($opt) {
         $L[] = '    amnezia-wg-option:';
-        foreach ($opt as $k => $v) {
-            if (is_int($v)) $L[] = '      ' . $k . ': ' . $v;
-            else $L[] = '      ' . $k . ': ' . yaml_q($v);
-        }
+        foreach ($opt as $kv) $L[] = '      ' . $kv[0] . ': ' . $kv[1];
     }
     return implode("\n", $L);
 }

@@ -1,6 +1,6 @@
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Доп. конфиги по внутреннему скваду</h2>
-        <p class="muted">Конфиги, привязанные к внутреннему скваду Remnawave, дописываются в подписку пользователям этого сквада. Доступны <b>только пока подписка активна</b>: при истечении / блокировке конфиг из подписки исчезает (остаются заглушки). Поддерживается WireGuard — вставьте клиентский <code>.conf</code>.</p>
+        <p class="muted">Конфиги, привязанные к внутреннему скваду Remnawave, дописываются в подписку пользователям этого сквада. Доступны <b>только пока подписка активна</b>: при истечении / блокировке конфиг из подписки исчезает (остаются заглушки). Поддерживается WireGuard (clash + base64) и AmneziaWG (<b>только Mihomo/clash</b>) — вставьте клиентский <code>.conf</code>.</p>
         <?php if ($sqcfg_squads_err !== ''): ?>
             <div class="warn">Список сквадов недоступен: <?= h($sqcfg_squads_err) ?>. Проверьте URL панели и токен во вкладке «Подключение».</div>
         <?php elseif (!$sqcfg_squads): ?>
@@ -26,6 +26,7 @@
                     <select id="sqcfg_type" name="type" class="sqcfg-sel" required>
                         <option value="" selected>— выберите тип —</option>
                         <option value="wireguard">WireGuard (WG)</option>
+                        <option value="amneziawg">AmneziaWG (AWG) — только Mihomo</option>
                     </select>
                 </div>
                 <div>
@@ -33,7 +34,7 @@
                     <input type="text" id="sqcfg_name" name="name" placeholder="напр.: WG · Сервер 1" maxlength="191">
                 </div>
             </div>
-            <div class="muted" style="font-size:.8rem;margin-top:.45rem">Поддерживается WireGuard. Работает в base64-клиентах (v2rayNG и т.п.) и в Mihomo (clash).</div>
+            <div class="muted" style="font-size:.8rem;margin-top:.45rem">WireGuard — base64 (v2rayNG) и Mihomo (clash). AmneziaWG — только Mihomo (clash); в base64 и xray не уйдёт.</div>
 
             <div class="form-row" style="margin-top:1rem">
                 <label for="sqcfg_raw">4. Конфиг (.conf)</label>
@@ -62,7 +63,7 @@
                 $on = (int) $c['enabled'] === 1;
                 $ptype = is_array($pn) ? ($pn['type'] ?? '') : '';
                 $clabel = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : 'WireGuard';
-                $prev = ($ptype === 'wireguard') ? awg_to_clash($pn, $clabel) : '';
+                $prev = in_array($ptype, ['wireguard', 'amneziawg'], true) ? awg_to_clash($pn, $clabel) : '';
                 $prevuri = ($ptype === 'wireguard') ? wg_to_uri($pn, $clabel) : '';
             ?>
             <tr>
