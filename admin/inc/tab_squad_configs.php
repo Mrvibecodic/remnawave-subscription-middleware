@@ -27,7 +27,7 @@
                     </div>
                     <div>
                         <label for="sqcfg_name">2. Метка</label>
-                        <input type="text" id="sqcfg_name" name="name" class="sqcfg-flag" placeholder="напр.: Нидерланды · Сервер 1" maxlength="191" required style="box-sizing:border-box">
+                        <input type="text" id="sqcfg_name" name="name" class="sqcfg-flag" placeholder="напр.: Нидерланды · Сервер 1" maxlength="191" required style="max-width:420px;box-sizing:border-box">
                         <div class="muted" style="font-size:.8rem;margin-top:.55rem;line-height:1.5">Тип и поддерживаемые клиенты определятся автоматически — покажу под полем конфига. Введёшь страну в метке — флаг подставится сам (Нидерланды → 🇳🇱).</div>
                     </div>
                 </div>
@@ -93,7 +93,7 @@
         <?php endif; ?>
     </div>
 
-    <div id="sqEditModal" class="modal-overlay" onclick="if(event.target===this)sqEditClose()">
+    <div id="sqEditModal" class="modal-overlay">
         <div class="modal">
             <div class="modal-head">
                 <div>Редактировать конфиг</div>
@@ -146,9 +146,7 @@
         .sqcfg-edit{margin-right:.45rem}
         #sqEditModal label{display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
         .card label{display:block;margin-bottom:.35rem;font-weight:600;font-size:.85rem}
-        .sqc-2col{display:grid;grid-template-columns:1.7fr 1fr;gap:1.2rem;align-items:start}
-        .sqc-2col .sq-grid,#sqEditModal .sq-grid{max-height:230px;overflow:auto;padding-right:.2rem}
-        @media(max-width:760px){.sqc-2col{grid-template-columns:1fr}}
+        .sqc-2col > div + div{margin-top:1rem}
         .sq-search{width:100%;margin:.1rem 0 .55rem;box-sizing:border-box}
         .sq-tag{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:.08rem .45rem;font-size:.74rem;margin:.1rem .25rem .1rem 0;white-space:nowrap}
     </style>
