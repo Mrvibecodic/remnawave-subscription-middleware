@@ -144,7 +144,7 @@
         .sqcfg-btn{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.4rem .75rem;font-size:.82rem;font-weight:600;cursor:pointer}
         .sqcfg-btn.off{opacity:.65}
         .sqcfg-edit{margin-right:.45rem}
-        #sqEditModal label{display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
+        #sqEditModal label:not(.sq-item){display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
         .card label{display:block;margin-bottom:.35rem;font-weight:600;font-size:.85rem}
         .sqc-2col > div + div{margin-top:1rem}
         .sq-search{width:100%;margin:.1rem 0 .55rem;box-sizing:border-box}
