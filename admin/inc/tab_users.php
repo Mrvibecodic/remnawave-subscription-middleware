@@ -3,7 +3,7 @@ $ico_dev    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 $ico_eye    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
 $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.2A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a13 13 0 0 1-2.2 3M6.6 6.6A13 13 0 0 0 2 11s3.5 7 10 7a9 9 0 0 0 4.5-1.2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
 ?>
-    <div class="card">
+    <div class="card utbl-card">
         <div class="utbl-head">
             <h2>Пользователи панели (<?= count($users) ?>)</h2>
             <?php if ($users): ?>
@@ -57,7 +57,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
                 $has_hwid_block = ($un !== '' && isset($blocked_hwid_users[mb_strtolower($un)]));
                 $nl = ($su !== '' && isset($nolog_set[$su]));
             ?>
-            <tr>
+            <tr data-su="<?= h($su) ?>">
                 <td class="u-name"><?= h($un) ?></td>
                 <td data-label="Статус"><?php if ($in_grace): ?><span class="tag grace"><span class="d"></span>ГРЕЙС</span><?php else: ?><span class="tag <?= h($st) ?>"><span class="d"></span><?= h($st) ?></span><?php endif; ?></td>
                 <td data-label="Истекает" class="muted"<?= $exp_ts !== null ? ' data-ets="' . (int) $exp_ts . '"' : '' ?>><?= h($exp) ?></td>
@@ -66,8 +66,8 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
                 <td data-label="Действия" class="u-actions">
                     <?php if ($uuid !== '' || $su !== ''): ?>
                     <div class="actcell">
-                        <?php if ($uuid !== ''): ?><button class="icobtn hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>" title="Устройства<?= $has_hwid_block ? ' · есть активный блок HWID' : '' ?>"><?= $ico_dev ?><?php if ($has_hwid_block): ?><span class="alert">!</span><?php endif; ?></button><?php endif; ?>
-                        <?php if ($su !== ''): ?><button class="icobtn nolog-btn<?= $nl ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>" title="<?= $nl ? 'Скрыт из лога — нажмите, чтобы вернуть' : 'В логе — нажмите, чтобы скрыть' ?>"><?= $nl ? $ico_eyeoff : $ico_eye ?></button><?php endif; ?>
+                        <?php if ($uuid !== ''): ?><button class="btn-sm hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>"><?= $ico_dev ?>HWID</button><?php if ($has_hwid_block): ?><span class="tip hw-warn" data-tip="Есть активный блок HWID">!</span><?php endif; ?><?php endif; ?>
+                        <?php if ($su !== ''): ?><button class="btn-sm nolog-btn<?= $nl ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>" title="<?= $nl ? 'Скрыт из лога — нажмите, чтобы вернуть' : 'В логе — нажмите, чтобы скрыть' ?>"><?= $nl ? $ico_eyeoff . 'Скрыт' : $ico_eye . 'В логе' ?></button><?php endif; ?>
                     </div>
                     <?php else: ?><span class="muted">—</span><?php endif; ?>
                 </td>
@@ -104,6 +104,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
     <style>
         .utbl-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
         .utbl-head h2{margin:0;font-size:1rem}
+        .utbl-card{margin-bottom:0}
         .utbl-tools{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
         .utbl-tools input#flt{width:280px;max-width:48vw}
         .dens{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -111,7 +112,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         .dens button.on{background:var(--accent-light);color:var(--accent-text)}
         .dens button:hover{color:var(--text)}
         .dens svg{width:15px;height:15px}
-        .utbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:.9rem;max-height:calc(100vh - 210px);scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+        .utbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:.9rem;max-height:calc(100vh - 230px);scrollbar-width:thin;scrollbar-color:var(--line) transparent}
         .utbl-wrap::-webkit-scrollbar{width:8px;height:8px}
         .utbl-wrap::-webkit-scrollbar-track{background:transparent}
         .utbl-wrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
@@ -131,12 +132,9 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         .tag.grace{background:var(--c-info-bg);color:var(--c-info-fg)}
         #utbl .sublink{font-family:monospace}
         #utbl .u-actions{white-space:nowrap}
-        .actcell{display:flex;gap:.35rem;align-items:center}
-        .icobtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;line-height:1;border:1px solid var(--line);border-radius:8px;color:var(--muted);background:transparent;cursor:pointer;position:relative;flex:0 0 auto}
-        .icobtn:hover{border-color:var(--accent);color:var(--accent-text)}
-        .icobtn svg{width:15px;height:15px}
-        .icobtn.on{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
-        .icobtn .alert{position:absolute;top:-5px;right:-5px;width:14px;height:14px;border-radius:50%;background:var(--red);color:#fff;font-size:.6rem;font-weight:700;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--card)}
+        .actcell{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+        .nolog-btn.on{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
+        .hw-warn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:.72rem;font-weight:700;cursor:help;flex:0 0 auto}
         .uempty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.6rem;padding:2.4rem 1rem;color:var(--muted)}
         .uempty .ic{width:46px;height:46px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
         .uempty .ic svg{width:22px;height:22px;opacity:.7}
@@ -158,6 +156,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         }
         .btn-sm{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.42rem .8rem;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap}
         .btn-sm:hover{border-color:var(--accent);color:var(--accent-text)}
+        .btn-sm svg{width:14px;height:14px;flex:0 0 auto}
         .hw-count{font-size:.9rem;color:var(--muted);margin-bottom:.75rem}
         .hw-item{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem .9rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);margin-bottom:.6rem}
         .hw-item:last-child{margin-bottom:0}
@@ -178,8 +177,8 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
     </style>
     <script>
     var HW_CSRF = <?= json_encode($token) ?>;
-    var NL_EYE = <?= json_encode($ico_eye) ?>;
-    var NL_EYEOFF = <?= json_encode($ico_eyeoff) ?>;
+    var NL_VIS = <?= json_encode($ico_eye) ?> + 'В логе';
+    var NL_HID = <?= json_encode($ico_eyeoff) ?> + 'Скрыт';
     <?php $bh=[]; foreach($overrides as $o){ if(($o['match_type']??'')==='hwid' && ($o['reason']??'')==='blocked') $bh[]=mb_strtolower($o['match_value']); } ?>
     var HW_BLOCKED = <?= json_encode($bh) ?>;
     var hwUuid='', hwLimit='', hwName='', hwDevices=[];
@@ -270,7 +269,8 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
     }
     function filterRows(){var q=document.getElementById('flt').value.toLowerCase();
         document.querySelectorAll('#utbl tbody tr').forEach(function(tr){
-            tr.style.display=tr.textContent.toLowerCase().indexOf(q)>-1?'':'none';});}
+            var hay=(tr.textContent+' '+(tr.dataset.su||'')).toLowerCase();
+            tr.style.display=hay.indexOf(q)>-1?'':'none';});}
     var uSort={col:-1,dir:1};
     function sortUsers(col){
         var tbl=document.getElementById('utbl'); if(!tbl||!tbl.tBodies.length) return;
@@ -309,12 +309,33 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         fetch('?ajax=toggle_nolog',{method:'POST',body:f}).then(function(r){return r.json();}).then(function(d){
             btn.disabled=false;
             if(!d.ok){ uiAlert('Ошибка: '+(d.error||'')); return; }
-            if(d.nolog){ btn.classList.add('on'); btn.innerHTML=NL_EYEOFF; btn.title='Скрыт из лога — нажмите, чтобы вернуть'; }
-            else { btn.classList.remove('on'); btn.innerHTML=NL_EYE; btn.title='В логе — нажмите, чтобы скрыть'; }
+            if(d.nolog){ btn.classList.add('on'); btn.innerHTML=NL_HID; btn.title='Скрыт из лога — нажмите, чтобы вернуть'; }
+            else { btn.classList.remove('on'); btn.innerHTML=NL_VIS; btn.title='В логе — нажмите, чтобы скрыть'; }
             if(window.uiToast) uiToast(d.nolog?'Запросы пользователя скрыты из лога':'Логирование пользователя включено');
         }).catch(function(){ btn.disabled=false; uiAlert('Сетевая ошибка'); });
     }
     document.querySelectorAll('.nolog-btn').forEach(function(b){
         b.addEventListener('click',function(){nologToggle(b);});
     });
-    document.addEventListener('keydown',function(e){if(e.key===
+    document.addEventListener('keydown',function(e){if(e.key==='Escape')hwClose();});
+    document.querySelectorAll('#utbl td[data-ets]').forEach(function(td){
+        var d=new Date(parseInt(td.dataset.ets,10)*1000);
+        if(isNaN(d.getTime())) return;
+        function p(n){return(n<10?'0':'')+n;}
+        td.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' в '+p(d.getHours())+':'+p(d.getMinutes());
+    });
+    function fitUtbl(){
+        var wrap=document.querySelector('.utbl-wrap'); if(!wrap) return;
+        if(window.innerWidth<=900){ wrap.style.maxHeight=''; return; }
+        wrap.style.maxHeight='none';
+        var r=wrap.getBoundingClientRect();
+        var card=wrap.closest('.card'), content=document.querySelector('.rw-content');
+        var below=6;
+        if(card){ var cs=getComputedStyle(card); below+=(card.getBoundingClientRect().bottom-r.bottom)+(parseFloat(cs.marginBottom)||0); }
+        if(content){ below+=parseFloat(getComputedStyle(content).paddingBottom)||0; }
+        var mh=window.innerHeight-r.top-below;
+        if(mh>160) wrap.style.maxHeight=Math.floor(mh)+'px';
+    }
+    window.addEventListener('resize',fitUtbl);
+    fitUtbl();
+    </script>
