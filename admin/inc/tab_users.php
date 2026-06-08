@@ -8,6 +8,13 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
             <h2>Пользователи панели (<?= count($users) ?>)</h2>
             <?php if ($users): ?>
             <div class="utbl-tools">
+                <label class="pgr-size">На странице:
+                    <select id="utblSize" onchange="UTBL.setSize(parseInt(this.value,10))">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                    </select>
+                </label>
                 <input type="text" id="flt" placeholder="фильтр по имени / статусу / shortUuid" oninput="filterRows()">
                 <div class="dens" title="Плотность строк">
                     <button type="button" class="on" onclick="utblDens(0,this)" aria-label="Комфортная плотность"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></button>
@@ -76,6 +83,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
             </tbody>
         </table>
         </div>
+        <div class="pgr-bot" id="utblPager"></div>
         <?php elseif (!$users_err): ?>
         <div class="uempty">
             <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span>
@@ -267,10 +275,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
             navigator.clipboard.writeText(el.value).then(done).catch(function(){ try{document.execCommand('copy');}catch(e){} done(); });
         } else { try{document.execCommand('copy');}catch(e){} done(); }
     }
-    function filterRows(){var q=document.getElementById('flt').value.toLowerCase();
-        document.querySelectorAll('#utbl tbody tr').forEach(function(tr){
-            var hay=(tr.textContent+' '+(tr.dataset.su||'')).toLowerCase();
-            tr.style.display=hay.indexOf(q)>-1?'':'none';});}
+    function filterRows(){ if(window.UTBL) UTBL.reset(); }
     var uSort={col:-1,dir:1};
     function sortUsers(col){
         var tbl=document.getElementById('utbl'); if(!tbl||!tbl.tBodies.length) return;
@@ -290,12 +295,14 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         var hdr=tbl.tHead?tbl.tHead.rows[0]:tbl.rows[0];
         for(var i=0;i<hdr.cells.length;i++){var s=hdr.cells[i].querySelector('.sar'); if(s) s.textContent='';}
         var ar=hdr.cells[col]?hdr.cells[col].querySelector('.sar'):null; if(ar) ar.textContent=dir>0?'▲':'▼';
+        if(window.UTBL) UTBL.render();
     }
     function utblDens(c,btn){
         var t=document.getElementById('utbl'); if(t) t.classList.toggle('compact',c===1);
         document.querySelectorAll('.dens button').forEach(function(x){x.classList.remove('on');});
         if(btn) btn.classList.add('on');
         try{localStorage.setItem('utbl_dens',c===1?'1':'0');}catch(e){}
+        if(typeof fitUtbl==='function') fitUtbl();
     }
     (function(){try{if(localStorage.getItem('utbl_dens')==='1'){var t=document.getElementById('utbl');if(t)t.classList.add('compact');var bs=document.querySelectorAll('.dens button');if(bs.length>1){bs.forEach(function(x){x.classList.remove('on');});bs[1].classList.add('on');}}}catch(e){}})();
     document.querySelectorAll('.hw-btn').forEach(function(b){
@@ -337,5 +344,39 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         if(mh>160) wrap.style.maxHeight=Math.floor(mh)+'px';
     }
     window.addEventListener('resize',fitUtbl);
-    fitUtbl();
+    var UTBL=(function(){
+        var sizes=[10,25,50], size=50, page=1;
+        try{var s=parseInt(localStorage.getItem('utbl_size'),10); if(sizes.indexOf(s)>-1) size=s;}catch(e){}
+        function allRows(){ var t=document.getElementById('utbl'); if(!t||!t.tBodies.length) return []; return Array.prototype.slice.call(t.tBodies[0].rows); }
+        function matched(){
+            var q=((document.getElementById('flt')||{}).value||'').toLowerCase();
+            return allRows().filter(function(tr){ return (tr.textContent+' '+(tr.dataset.su||'')).toLowerCase().indexOf(q)>-1; });
+        }
+        function render(){
+            var m=matched(), total=m.length, per=size, pages=Math.max(1,Math.ceil(total/per));
+            if(page>pages) page=pages; if(page<1) page=1;
+            var start=(page-1)*per, end=start+per;
+            allRows().forEach(function(tr){ tr.style.display='none'; });
+            m.forEach(function(tr,i){ tr.style.display=(i>=start&&i<end)?'':'none'; });
+            var bot=document.getElementById('utblPager');
+            if(bot){
+                if(total>per){
+                    bot.innerHTML='<div class="pgr-nav">'
+                        +'<button type="button" class="pgr-b" data-go="prev"'+(page<=1?' disabled':'')+'>◀</button>'
+                        +'<span class="pgr-st">'+(total?start+1:0)+'–'+Math.min(end,total)+' из '+total+' · стр. '+page+'/'+pages+'</span>'
+                        +'<button type="button" class="pgr-b" data-go="next"'+(page>=pages?' disabled':'')+'>▶</button>'
+                        +'</div>';
+                    bot.querySelectorAll('.pgr-b').forEach(function(b){ b.addEventListener('click',function(){ if(b.dataset.go==='prev'&&page>1)page--; if(b.dataset.go==='next'&&page<pages)page++; render(); }); });
+                } else { bot.innerHTML=''; }
+            }
+            if(typeof fitUtbl==='function') fitUtbl();
+        }
+        return {
+            render:render,
+            reset:function(){ page=1; render(); },
+            setSize:function(v){ if(sizes.indexOf(v)<0) v=50; size=v; page=1; try{localStorage.setItem('utbl_size',String(v));}catch(e){} render(); },
+            getSize:function(){ return size; }
+        };
+    })();
+    (function(){ var sel=document.getElementById('utblSize'); if(sel) sel.value=String(UTBL.getSize()); UTBL.render(); })();
     </script>
