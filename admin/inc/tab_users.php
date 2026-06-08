@@ -137,7 +137,6 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         #utbl .u-name{color:var(--text-strong);font-weight:600}
         #utbl .tag{display:inline-flex;align-items:center;gap:.3rem}
         #utbl .tag .d{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
-        .tag.grace{background:var(--c-info-bg);color:var(--c-info-fg)}
         #utbl .sublink{font-family:monospace}
         #utbl .u-actions{white-space:nowrap}
         .actcell{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
@@ -178,8 +177,8 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         .hw-act{display:flex;gap:.5rem;flex:0 0 auto}
         .btn-block{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
         .btn-block.on{border-color:var(--accent);color:var(--accent-text)}
-        .btn-del{border-color:var(--red);color:#ff9b94}
-        .btn-del:hover{border-color:var(--red);color:#ff9b94;background:var(--c-bad-bg)}
+        .btn-del{border-color:var(--red);color:var(--c-bad-fg)}
+        .btn-del:hover{border-color:var(--red);color:var(--c-bad-fg);background:var(--c-bad-bg)}
         .tip{position:relative;cursor:help}
         .tip:hover::after{content:attr(data-tip);position:absolute;left:50%;transform:translateX(-50%);bottom:135%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.45rem .7rem;font-size:.78rem;font-weight:500;white-space:nowrap;box-shadow:var(--shadow);z-index:10}
     </style>
