@@ -111,7 +111,11 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         .dens button.on{background:var(--accent-light);color:var(--accent-text)}
         .dens button:hover{color:var(--text)}
         .dens svg{width:15px;height:15px}
-        .utbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:.9rem;max-height:620px}
+        .utbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:.9rem;max-height:calc(100vh - 210px);scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+        .utbl-wrap::-webkit-scrollbar{width:8px;height:8px}
+        .utbl-wrap::-webkit-scrollbar-track{background:transparent}
+        .utbl-wrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+        .utbl-wrap:hover::-webkit-scrollbar-thumb{background:var(--muted)}
         #utbl{width:100%;border-collapse:separate;border-spacing:0;font-size:.88rem}
         #utbl thead th{position:sticky;top:0;z-index:2;background:var(--bg2);color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
         #utbl thead th.srt{cursor:pointer;user-select:none}
@@ -128,7 +132,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         #utbl .sublink{font-family:monospace}
         #utbl .u-actions{white-space:nowrap}
         .actcell{display:flex;gap:.35rem;align-items:center}
-        .icobtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--line);border-radius:8px;color:var(--muted);background:transparent;cursor:pointer;position:relative;flex:0 0 auto}
+        .icobtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;line-height:1;border:1px solid var(--line);border-radius:8px;color:var(--muted);background:transparent;cursor:pointer;position:relative;flex:0 0 auto}
         .icobtn:hover{border-color:var(--accent);color:var(--accent-text)}
         .icobtn svg{width:15px;height:15px}
         .icobtn.on{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
@@ -313,11 +317,4 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
     document.querySelectorAll('.nolog-btn').forEach(function(b){
         b.addEventListener('click',function(){nologToggle(b);});
     });
-    document.addEventListener('keydown',function(e){if(e.key==='Escape')hwClose();});
-    document.querySelectorAll('#utbl td[data-ets]').forEach(function(td){
-        var d=new Date(parseInt(td.dataset.ets,10)*1000);
-        if(isNaN(d.getTime())) return;
-        function p(n){return(n<10?'0':'')+n;}
-        td.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' в '+p(d.getHours())+':'+p(d.getMinutes());
-    });
-    </script>
+    document.addEventListener('keydown',function(e){if(e.key===
