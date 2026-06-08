@@ -34,7 +34,21 @@ function squadconf_ensure() {
             )");
             $p->exec("CREATE INDEX IF NOT EXISTS idx_squad_cfg ON squad_configs(squad_uuid)");
         }
+        if (setting('sqcfg_squads_col', '') !== '1') {
+            try { $p->exec('ALTER TABLE squad_configs ADD COLUMN squads ' . (db_driver() === 'mysql' ? 'MEDIUMTEXT' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
+            set_setting('sqcfg_squads_col', '1');
+        }
     } catch (Throwable $e) { error_log('submw squadconf ensure: ' . $e->getMessage()); }
+}
+
+function squadconf_squads_of($row) {
+    $s = (string) ($row['squads'] ?? '');
+    if ($s !== '') {
+        $a = json_decode($s, true);
+        if (is_array($a)) { $a = array_values(array_filter(array_map('strval', $a), fn($x) => $x !== '')); if ($a) return $a; }
+    }
+    $u = (string) ($row['squad_uuid'] ?? '');
+    return $u !== '' ? [$u] : [];
 }
 
 function squadconf_all() {
@@ -49,25 +63,29 @@ function squadconf_all() {
 
 function squadconf_for_squads(array $squad_uuids) {
     squadconf_ensure();
-    $squad_uuids = array_values(array_filter(array_unique(array_map('strval', $squad_uuids)), fn($s) => $s !== ''));
-    if (!$squad_uuids || !($p = db())) return [];
+    $user = array_flip(array_values(array_filter(array_map('strval', $squad_uuids), fn($s) => $s !== '')));
+    if (!$user || !($p = db())) return [];
+    $out = [];
     try {
-        $in = implode(',', array_fill(0, count($squad_uuids), '?'));
-        $st = $p->prepare("SELECT * FROM squad_configs WHERE enabled = 1 AND squad_uuid IN ($in) ORDER BY id");
-        $st->execute($squad_uuids);
-        return $st->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Throwable $e) { error_log('submw squadconf for_squads: ' . $e->getMessage()); return []; }
+        foreach ($p->query('SELECT * FROM squad_configs WHERE enabled = 1 ORDER BY id') as $r) {
+            foreach (squadconf_squads_of($r) as $sq) {
+                if (isset($user[$sq])) { $out[] = $r; break; }
+            }
+        }
+    } catch (Throwable $e) { error_log('submw squadconf for_squads: ' . $e->getMessage()); }
+    return $out;
 }
 
-function squadconf_add($squad_uuid, $type, $name, $raw, $parsed) {
+function squadconf_add($squad_uuids, $type, $name, $raw, $parsed) {
     squadconf_ensure();
-    $squad_uuid = trim((string) $squad_uuid);
+    $squad_uuids = array_values(array_filter(array_unique(array_map('strval', (array) $squad_uuids)), fn($s) => trim($s) !== ''));
     $raw = (string) $raw;
-    if (!($p = db()) || $squad_uuid === '' || trim($raw) === '') return false;
+    if (!($p = db()) || !$squad_uuids || trim($raw) === '') return false;
     try {
-        $st = $p->prepare('INSERT INTO squad_configs (squad_uuid, type, name, raw, parsed) VALUES (?, ?, ?, ?, ?)');
+        $st = $p->prepare('INSERT INTO squad_configs (squad_uuid, squads, type, name, raw, parsed) VALUES (?, ?, ?, ?, ?, ?)');
         return $st->execute([
-            $squad_uuid,
+            $squad_uuids[0],
+            json_encode(array_values($squad_uuids), JSON_UNESCAPED_SLASHES),
             mb_substr((string) $type, 0, 32),
             ($name !== '' ? mb_substr((string) $name, 0, 191) : null),
             $raw,
@@ -92,16 +110,17 @@ function squadconf_toggle($id, $enabled) {
     catch (Throwable $e) { error_log('submw squadconf toggle: ' . $e->getMessage()); return false; }
 }
 
-function squadconf_update($id, $squad_uuid, $type, $name, $raw, $parsed) {
+function squadconf_update($id, $squad_uuids, $type, $name, $raw, $parsed) {
     squadconf_ensure();
     $id = (int) $id;
-    $squad_uuid = trim((string) $squad_uuid);
+    $squad_uuids = array_values(array_filter(array_unique(array_map('strval', (array) $squad_uuids)), fn($s) => trim($s) !== ''));
     $raw = (string) $raw;
-    if (!($p = db()) || $id <= 0 || $squad_uuid === '' || trim($raw) === '') return false;
+    if (!($p = db()) || $id <= 0 || !$squad_uuids || trim($raw) === '') return false;
     try {
-        $st = $p->prepare('UPDATE squad_configs SET squad_uuid = ?, type = ?, name = ?, raw = ?, parsed = ? WHERE id = ?');
+        $st = $p->prepare('UPDATE squad_configs SET squad_uuid = ?, squads = ?, type = ?, name = ?, raw = ?, parsed = ? WHERE id = ?');
         return $st->execute([
-            $squad_uuid,
+            $squad_uuids[0],
+            json_encode(array_values($squad_uuids), JSON_UNESCAPED_SLASHES),
             mb_substr((string) $type, 0, 32),
             ($name !== '' ? mb_substr((string) $name, 0, 191) : null),
             $raw,

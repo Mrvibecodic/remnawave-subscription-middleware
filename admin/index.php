@@ -665,17 +665,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     }
 
     if ($action === 'save_squad_config') {
-        $squad = trim($_POST['squad_uuid'] ?? '');
+        $squads = array_values(array_filter(array_map('strval', (array) ($_POST['squads'] ?? [])), fn($s) => trim($s) !== ''));
         $raw   = (string) ($_POST['raw'] ?? '');
         $name  = trim($_POST['name'] ?? '');
-        if ($squad === '' || $name === '' || trim($raw) === '') {
-            flash('Укажите сквад, метку и вставьте конфиг');
+        if (!$squads || $name === '' || trim($raw) === '') {
+            flash('Выберите хотя бы один сквад, укажите метку и вставьте конфиг');
         } else {
             $parsed = awg_parse_conf($raw);
             if (!$parsed['ok']) {
                 flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
             } else {
-                squadconf_add($squad, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
+                squadconf_add($squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
                 flash('Конфиг добавлен (' . awg_summary($parsed) . ')');
             }
         }
@@ -683,18 +683,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     }
 
     if ($action === 'edit_squad_config') {
-        $id    = (int) ($_POST['id'] ?? 0);
-        $squad = trim($_POST['squad_uuid'] ?? '');
-        $raw   = (string) ($_POST['raw'] ?? '');
-        $name  = trim($_POST['name'] ?? '');
-        if ($id <= 0 || $squad === '' || $name === '' || trim($raw) === '') {
-            flash('Укажите сквад, метку и конфиг');
+        $id     = (int) ($_POST['id'] ?? 0);
+        $squads = array_values(array_filter(array_map('strval', (array) ($_POST['squads'] ?? [])), fn($s) => trim($s) !== ''));
+        $raw    = (string) ($_POST['raw'] ?? '');
+        $name   = trim($_POST['name'] ?? '');
+        if ($id <= 0 || !$squads || $name === '' || trim($raw) === '') {
+            flash('Выберите хотя бы один сквад, укажите метку и конфиг');
         } else {
             $parsed = awg_parse_conf($raw);
             if (!$parsed['ok']) {
                 flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
             } else {
-                squadconf_update($id, $squad, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
+                squadconf_update($id, $squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
                 flash('Конфиг обновлён (' . awg_summary($parsed) . ')');
             }
         }
