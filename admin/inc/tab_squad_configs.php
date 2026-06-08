@@ -1,43 +1,49 @@
-    <div class="card">
-        <h2 style="margin-top:0;font-size:1rem">Доп. конфиги по внутреннему скваду</h2>
-        <p class="muted">Конфиги, привязанные к внутреннему скваду Remnawave, дописываются в подписку пользователям этого сквада. Доступны <b>только пока подписка активна</b>: при истечении / блокировке конфиг из подписки исчезает (остаются заглушки).</p>
-        <?php if ($sqcfg_squads_err !== ''): ?>
-            <div class="warn">Список сквадов недоступен: <?= h($sqcfg_squads_err) ?>. Проверьте URL панели и токен во вкладке «Подключение».</div>
-        <?php elseif (!$sqcfg_squads): ?>
-            <div class="warn">Внутренние сквады не получены. Настройте подключение к панели.</div>
-        <?php endif; ?>
+    <section class="coll" data-coll="sqcfg_add">
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Доп. конфиги по внутреннему скваду</span>
+            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="coll-body">
+            <p class="muted" style="margin-top:0">Конфиги, привязанные к внутреннему скваду Remnawave, дописываются в подписку пользователям этого сквада. Доступны <b>только пока подписка активна</b>: при истечении / блокировке конфиг из подписки исчезает (остаются заглушки).</p>
+            <?php if ($sqcfg_squads_err !== ''): ?>
+                <div class="warn">Список сквадов недоступен: <?= h($sqcfg_squads_err) ?>. Проверьте URL панели и токен во вкладке «Подключение».</div>
+            <?php elseif (!$sqcfg_squads): ?>
+                <div class="warn">Внутренние сквады не получены. Настройте подключение к панели.</div>
+            <?php endif; ?>
 
-        <form method="post" autocomplete="off">
-            <input type="hidden" name="csrf" value="<?= h($token) ?>">
-            <input type="hidden" name="action" value="save_squad_config">
+            <form method="post" autocomplete="off">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="save_squad_config">
 
-            <div class="form-row">
-                <label>1. Сквады <span class="muted" style="font-weight:400">— выберите один или несколько</span></label>
-                <input type="text" class="sq-search" placeholder="поиск сквада…">
-                <div class="sq-chips">
-                    <?php foreach ($sqcfg_squads as $s): ?>
-                        <label class="sq-chip"><input type="checkbox" name="squads[]" value="<?= h($s['uuid']) ?>"><span class="ck">✓</span><span class="nm"><?= h($s['name']) ?><?= $s['members'] ? ' · ' . (int) $s['members'] : '' ?></span></label>
-                    <?php endforeach; ?>
-                    <?php if (!$sqcfg_squads): ?><span class="muted" style="font-size:.82rem">Сквады не получены — настройте подключение.</span><?php endif; ?>
+                <div class="sqc-2col">
+                    <div>
+                        <label>1. Сквады <span class="muted" style="font-weight:400">— один или несколько</span></label>
+                        <input type="text" class="sq-search" placeholder="поиск сквада…">
+                        <div class="sq-grid">
+                            <?php foreach ($sqcfg_squads as $s): ?>
+                                <label class="sq-item"><input type="checkbox" name="squads[]" value="<?= h($s['uuid']) ?>"><span class="sq-n"><?= h($s['name']) ?></span><span class="muted" style="font-size:.78rem"><?= (int) $s['members'] ?></span></label>
+                            <?php endforeach; ?>
+                            <?php if (!$sqcfg_squads): ?><span class="muted" style="font-size:.82rem">Сквады не получены — настройте подключение.</span><?php endif; ?>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="sqcfg_name">2. Метка</label>
+                        <input type="text" id="sqcfg_name" name="name" class="sqcfg-flag" placeholder="напр.: Нидерланды · Сервер 1" maxlength="191" required style="box-sizing:border-box">
+                        <div class="muted" style="font-size:.8rem;margin-top:.55rem;line-height:1.5">Тип и поддерживаемые клиенты определятся автоматически — покажу под полем конфига. Введёшь страну в метке — флаг подставится сам (Нидерланды → 🇳🇱).</div>
+                    </div>
                 </div>
-            </div>
-            <div class="form-row" style="margin-top:.9rem">
-                <label for="sqcfg_name">2. Метка</label>
-                <input type="text" id="sqcfg_name" name="name" class="sqcfg-flag" placeholder="напр.: Нидерланды · Сервер 1" maxlength="191" required style="max-width:380px;box-sizing:border-box">
-            </div>
-            <div class="muted" style="font-size:.8rem;margin-top:.45rem">Тип конфига и поддерживаемые клиенты определятся автоматически — покажу под полем после вставки. Введёшь страну в метке — флаг подставится автоматически (Нидерланды → 🇳🇱).</div>
 
-            <div class="form-row" style="margin-top:1rem">
-                <label for="sqcfg_raw">3. Конфиг</label>
-                <textarea id="sqcfg_raw" name="raw" rows="12" spellcheck="false" placeholder="Вставьте содержимое конфига" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
-            </div>
-            <div id="sqcfg_hint" class="sqcfg-hint" style="display:none"></div>
-            <div style="margin-top:1rem;display:flex;align-items:center;gap:.75rem">
-                <button type="submit" class="btn">Добавить конфиг</button>
-                <span class="muted" style="font-size:.8rem">Секреты конфига хранятся в БД и отдаются только при активной подписке.</span>
-            </div>
-        </form>
-    </div>
+                <div class="form-row" style="margin-top:1rem">
+                    <label for="sqcfg_raw">3. Конфиг</label>
+                    <textarea id="sqcfg_raw" name="raw" rows="10" spellcheck="false" placeholder="Вставьте содержимое конфига" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
+                </div>
+                <div id="sqcfg_hint" class="sqcfg-hint" style="display:none"></div>
+                <div style="margin-top:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+                    <button type="submit" class="btn">Добавить конфиг</button>
+                    <span class="muted" style="font-size:.8rem">Секреты конфига хранятся в БД и отдаются только при активной подписке.</span>
+                </div>
+            </form>
+        </div>
+    </section>
 
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Добавленные конфиги (<?= count($sqcfg_list) ?>)</h2>
@@ -101,9 +107,9 @@
                     <div style="margin-bottom:.85rem">
                         <label>Сквады</label>
                         <input type="text" class="sq-search" placeholder="поиск сквада…">
-                        <div class="sq-chips" id="sqedit_chips">
+                        <div class="sq-grid" id="sqedit_chips">
                             <?php foreach ($sqcfg_squads as $s): ?>
-                                <label class="sq-chip"><input type="checkbox" name="squads[]" value="<?= h($s['uuid']) ?>"><span class="ck">✓</span><span class="nm"><?= h($s['name']) ?><?= $s['members'] ? ' · ' . (int) $s['members'] : '' ?></span></label>
+                                <label class="sq-item"><input type="checkbox" name="squads[]" value="<?= h($s['uuid']) ?>"><span class="sq-n"><?= h($s['name']) ?></span><span class="muted" style="font-size:.78rem"><?= (int) $s['members'] ?></span></label>
                             <?php endforeach; ?>
                         </div>
                     </div>
@@ -140,13 +146,10 @@
         .sqcfg-edit{margin-right:.45rem}
         #sqEditModal label{display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
         .card label{display:block;margin-bottom:.35rem;font-weight:600;font-size:.85rem}
-        .sq-chips{display:flex;flex-wrap:wrap;gap:.4rem;max-height:210px;overflow:auto;padding:.15rem 0}
-        .sq-chip{display:inline-flex;align-items:center;gap:.45rem;border:1px solid var(--line);border-radius:20px;padding:.32rem .7rem;cursor:pointer;font-size:.82rem;user-select:none;background:var(--bg2)}
-        .sq-chip input{display:none}
-        .sq-chip .ck{width:15px;height:15px;border:1.5px solid var(--muted);border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:.66rem;line-height:1;color:transparent;flex:0 0 auto}
-        .sq-chip.on{border-color:var(--accent);color:var(--accent-text);background:var(--accent-light)}
-        .sq-chip.on .ck{border-color:var(--accent);background:var(--accent);color:#fff}
-        .sq-search{max-width:380px;width:100%;margin:.1rem 0 .55rem;box-sizing:border-box}
+        .sqc-2col{display:grid;grid-template-columns:1.7fr 1fr;gap:1.2rem;align-items:start}
+        .sqc-2col .sq-grid,#sqEditModal .sq-grid{max-height:230px;overflow:auto;padding-right:.2rem}
+        @media(max-width:760px){.sqc-2col{grid-template-columns:1fr}}
+        .sq-search{width:100%;margin:.1rem 0 .55rem;box-sizing:border-box}
         .sq-tag{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:.08rem .45rem;font-size:.74rem;margin:.1rem .25rem .1rem 0;white-space:nowrap}
     </style>
     <script>
@@ -197,17 +200,17 @@
         document.querySelectorAll('.sqcfg-flag').forEach(function(i){ i.addEventListener('blur',function(){ apply(i); }); });
     })();
     (function(){
-        function sync(cb){ var l = cb.closest('.sq-chip'); if(l) l.classList.toggle('on', cb.checked); }
-        document.querySelectorAll('.sq-chips input[type=checkbox]').forEach(function(cb){
+        function sync(cb){ var l = cb.closest('.sq-item'); if(l) l.classList.toggle('on', cb.checked); }
+        document.querySelectorAll('.sq-grid input[type=checkbox]').forEach(function(cb){
             sync(cb);
             cb.addEventListener('change', function(){ sync(cb); });
         });
         document.querySelectorAll('.sq-search').forEach(function(inp){
             inp.addEventListener('input', function(){
                 var q = inp.value.trim().toLowerCase();
-                var box = inp.parentNode.querySelector('.sq-chips'); if(!box) return;
-                box.querySelectorAll('.sq-chip').forEach(function(ch){
-                    var nm = (ch.querySelector('.nm') || {}).textContent || '';
+                var box = inp.parentNode.querySelector('.sq-grid'); if(!box) return;
+                box.querySelectorAll('.sq-item').forEach(function(ch){
+                    var nm = (ch.querySelector('.sq-n') || {}).textContent || '';
                     ch.style.display = nm.toLowerCase().indexOf(q) > -1 ? '' : 'none';
                 });
             });
@@ -223,7 +226,7 @@
             var sqs = d.squads || [];
             modal.querySelectorAll('#sqedit_chips input[type=checkbox]').forEach(function(cb){
                 cb.checked = sqs.indexOf(cb.value) > -1;
-                var l = cb.closest('.sq-chip'); if(l) l.classList.toggle('on', cb.checked);
+                var l = cb.closest('.sq-item'); if(l) l.classList.toggle('on', cb.checked);
             });
             document.getElementById('sqedit_name').value = d.name || '';
             document.getElementById('sqedit_raw').value = d.raw || '';
