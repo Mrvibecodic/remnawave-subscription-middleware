@@ -18,6 +18,10 @@ if (empty($path) || $path === 'index.php') {
     exit();
 }
 
+if (subpage_dispatch($path, $query)) {
+    exit();
+}
+
 register_shutdown_function(function () {
     if (!function_exists('fastcgi_finish_request') || !function_exists('metrics_tick') || !empty($GLOBALS['submw_skip_metric'])) return;
     $t0 = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true);
@@ -38,7 +42,11 @@ $skip_log =
     || preg_match('~^(app|api|backend|frontend|server|config|credentials|secrets|keyfile|phpinfo\.php|wp-login\.php|wp-admin|xmlrpc\.php)$~i', $path)
     || preg_match('~(^|/)(favicon\.ico|robots\.txt|sitemap\.xml|browserconfig\.xml|apple-touch-icon[\w-]*\.png)$~i', $path);
 
-$target_url = 'https://' . $target_domain . '/' . $path;
+if (subpage_active()) {
+    $target_url = remnawave_url() . '/api/sub/' . $path;
+} else {
+    $target_url = 'https://' . $target_domain . '/' . $path;
+}
 if ($query) $target_url .= '?' . $query;
 
 $request_headers = [];
@@ -53,6 +61,10 @@ if (function_exists('getallheaders')) {
             if (strtolower($hn) !== 'host') $request_headers[] = "$hn: $value";
         }
     }
+}
+
+if (subpage_active()) {
+    $request_headers[] = 'x-remnawave-real-ip: ' . client_ip();
 }
 
 $grabbed_headers = [];

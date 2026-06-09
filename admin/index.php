@@ -457,6 +457,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('trust_header_expire', isset($_POST['trust_header_expire']) ? '1' : '0');
         set_setting('tls_verify', isset($_POST['tls_verify']) ? '1' : '0');
         set_setting('proxy_timeout', (string) max(5, (int) ($_POST['proxy_timeout'] ?? 30)));
+        set_setting('sub_source', ($_POST['sub_source'] ?? 'mirror') === 'panel' ? 'panel' : 'mirror');
+        set_setting('subpage_render', ($_POST['subpage_render'] ?? 'embedded') === 'external' ? 'external' : 'embedded');
+        set_setting('subpage_external_url', rtrim(trim($_POST['subpage_external_url'] ?? ''), '/'));
+        set_setting('subpage_token_mode', ($_POST['subpage_token_mode'] ?? 'shared') === 'separate' ? 'separate' : 'shared');
+        if (($_POST['subpage_api_key'] ?? '') !== '') set_setting('subpage_api_key', trim($_POST['subpage_api_key']));
         flash('Настройки подключения сохранены');
         header('Location: index.php?tab=connection'); exit();
     }

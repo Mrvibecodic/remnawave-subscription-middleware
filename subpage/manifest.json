@@ -1,0 +1,11 @@
+{
+  "sourceImage": "remnawave/subscription-page:latest",
+  "imageDigest": "sha256:fc9c4f5f833611a7297bec688ee33d89987c6f12a9ed2377bbf427cf20496c5a",
+  "appConfigRoute": "/assets/.app-config-v2.json",
+  "placeholders": {
+    "metaTitle": "<%= metaTitle %>",
+    "metaDescription": "<%= metaDescription %>",
+    "panelData": "<%- panelData %>"
+  },
+  "extractedAt": "2026-06-09T23:34:19Z"
+}
