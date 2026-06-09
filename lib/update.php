@@ -237,10 +237,6 @@ function update_apply(&$log, &$err = null) {
     if ($cmp === null) return false;
 
     $root = update_root();
-    $bdir = $root . '/.backups';
-    if (!is_dir($bdir) && !@mkdir($bdir, 0775, true)) { $err = 'Не удалось создать каталог .backups/'; return false; }
-    if (!is_writable($bdir)) { $err = 'Каталог .backups/ недоступен на запись'; return false; }
-    if (!is_writable($root)) { $err = 'Корень установки недоступен на запись'; return false; }
 
     $writes = [];
     $deletes = [];
@@ -253,7 +249,17 @@ function update_apply(&$log, &$err = null) {
             $deletes[] = $f['previous'];
         }
     }
-    if (!$writes && !$deletes) { $err = 'Нет файлов для применения (всё защищено или пусто).'; return false; }
+    if (!$writes && !$deletes) {
+        set_setting('installed_commit', $latest['sha']);
+        update_refresh($e);
+        $log[] = 'Изменения только в защищённых файлах — переписывать нечего, версия отмечена обновлённой.';
+        return true;
+    }
+
+    $bdir = $root . '/.backups';
+    if (!is_dir($bdir) && !@mkdir($bdir, 0775, true)) { $err = 'Не удалось создать каталог .backups/'; return false; }
+    if (!is_writable($bdir)) { $err = 'Каталог .backups/ недоступен на запись'; return false; }
+    if (!is_writable($root)) { $err = 'Корень установки недоступен на запись'; return false; }
 
     $unwritable = [];
     foreach ($writes as $rel) {
