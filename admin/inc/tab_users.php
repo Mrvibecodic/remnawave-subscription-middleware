@@ -1,33 +1,48 @@
-    <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
-            <h2 style="margin:0;font-size:1rem">Пользователи панели (<?= count($users) ?>)</h2>
-            <div style="display:flex;align-items:center;gap:.5rem">
-                <input type="text" id="flt" placeholder="фильтр по имени / статусу / shortUuid" style="max-width:340px" oninput="filterRows()">
+<?php
+$ico_dev    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="18" x2="15" y2="18"/></svg>';
+$ico_eye    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+$ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.2A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a13 13 0 0 1-2.2 3M6.6 6.6A13 13 0 0 0 2 11s3.5 7 10 7a9 9 0 0 0 4.5-1.2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
+?>
+    <div class="card utbl-card">
+        <div class="utbl-head">
+            <h2>Пользователи панели (<?= count($users) ?>)</h2>
+            <?php if ($users): ?>
+            <div class="utbl-tools">
+                <label class="pgr-size">На странице:
+                    <select id="utblSize" onchange="UTBL.setSize(parseInt(this.value,10))">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                    </select>
+                </label>
+                <input type="text" id="flt" placeholder="фильтр по имени / статусу / shortUuid" oninput="filterRows()">
+                <div class="dens" title="Плотность строк">
+                    <button type="button" class="on" onclick="utblDens(0,this)" aria-label="Комфортная плотность"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></button>
+                    <button type="button" onclick="utblDens(1,this)" aria-label="Компактная плотность"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="5" x2="20" y2="5"/><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="13" x2="20" y2="13"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+                </div>
                 <button type="button" class="qh" onclick="help('userflags')" aria-label="Справка по колонкам «Статус» и «Конфиг»">?</button>
             </div>
+            <?php endif; ?>
         </div>
         <p class="muted">Ссылки подписки показаны уже с адресом зеркала <code><?= h($mirror) ?></code> — их и раздавайте.</p>
         <?php if ($users_err): ?>
             <div class="warn">API недоступен: <?= h($users_err) ?>. Проверьте URL панели и токен во вкладке «Подключение».</div>
         <?php endif; ?>
-        <style>
-            .tag.src-mw{background:rgba(232,89,12,.18);color:#ffa94d}
-            .tag.src-panel{background:rgba(47,158,68,.18);color:#69db7c}
-            #utbl th.srt{cursor:pointer;user-select:none;white-space:nowrap}
-            #utbl th.srt:hover{color:var(--accent-text)}
-            #utbl th.srt .sar{font-size:.7rem;opacity:.85;margin-left:.25rem}
-            .tag.grace{background:var(--c-info-bg);color:var(--c-info-fg)}
-        </style>
+
+        <?php if ($users): ?>
+        <div class="utbl-wrap">
         <table id="utbl">
+            <thead>
             <tr>
                 <th class="srt" onclick="sortUsers(0)">Пользователь<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(1)">Статус<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(2)">Истекает<span class="sar"></span></th>
                 <th class="srt" onclick="sortUsers(3)">Конфиг<span class="sar"></span></th>
-                <th>Лог</th>
-                <th>Устройства</th>
                 <th>Ссылка подписки (через зеркало)</th>
+                <th>Действия</th>
             </tr>
+            </thead>
+            <tbody>
             <?php
             $grace_sq = grace_squad_uuid();
             foreach ($users as $u):
@@ -47,19 +62,35 @@
                 $in_grace = ($grace_sq !== '' && $st === 'ACTIVE' && in_array($grace_sq, grace_squads_from_user($u), true));
                 $src_label = $src === 'mw' ? 'Прослойка' : ($in_grace ? 'Панель + Грейс' : 'Панель');
                 $has_hwid_block = ($un !== '' && isset($blocked_hwid_users[mb_strtolower($un)]));
+                $nl = ($su !== '' && isset($nolog_set[$su]));
             ?>
-            <tr>
-                <td><?= h($un) ?></td>
-                <td><?php if ($in_grace): ?><span class="tag grace">ГРЕЙС</span><?php else: ?><span class="tag <?= h($st) ?>"><?= h($st) ?></span><?php endif; ?></td>
-                <td class="muted"<?= $exp_ts !== null ? ' data-ets="' . (int) $exp_ts . '"' : '' ?>><?= h($exp) ?></td>
-                <td><span class="tag src-<?= h($src) ?>"><?= h($src_label) ?></span></td>
-                <td><?php if ($su !== ''): $nl = isset($nolog_set[$su]); ?><button class="btn-sm nolog-btn<?= $nl ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>"><?= $nl ? '🙈 Скрыт' : '👁 В логе' ?></button><?php else: ?><span class="muted">—</span><?php endif; ?></td>
-                <td><?php if ($uuid !== ''): ?><button class="btn-sm hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>">HWID</button><?php if ($has_hwid_block): ?><span class="tip hw-warn" data-tip="Есть активный блок HWID">!</span><?php endif; ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
-                <td><input class="sublink" type="text" readonly value="<?= h($mirror_link) ?>" title="Нажмите, чтобы скопировать" onclick="subCopy(this)"></td>
+            <tr data-su="<?= h($su) ?>">
+                <td class="u-name"><?= h($un) ?></td>
+                <td data-label="Статус"><?php if ($in_grace): ?><span class="tag grace"><span class="d"></span>ГРЕЙС</span><?php else: ?><span class="tag <?= h($st) ?>"><span class="d"></span><?= h($st) ?></span><?php endif; ?></td>
+                <td data-label="Истекает" class="muted"<?= $exp_ts !== null ? ' data-ets="' . (int) $exp_ts . '"' : '' ?>><?= h($exp) ?></td>
+                <td data-label="Конфиг"><span class="tag src-<?= h($src) ?>"><?= h($src_label) ?></span></td>
+                <td data-label="Ссылка подписки"><?php if ($mirror_link !== ''): ?><input class="sublink" type="text" readonly value="<?= h($mirror_link) ?>" title="Нажмите, чтобы скопировать" onclick="subCopy(this)"><?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                <td data-label="Действия" class="u-actions">
+                    <?php if ($uuid !== '' || $su !== ''): ?>
+                    <div class="actcell">
+                        <?php if ($uuid !== ''): ?><button class="btn-sm hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>"><?= $ico_dev ?>HWID</button><?php if ($has_hwid_block): ?><span class="tip hw-warn" data-tip="Есть активный блок HWID">!</span><?php endif; ?><?php endif; ?>
+                        <?php if ($su !== ''): ?><button class="btn-sm nolog-btn<?= $nl ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>" title="<?= $nl ? 'Скрыт из лога — нажмите, чтобы вернуть' : 'В логе — нажмите, чтобы скрыть' ?>"><?= $nl ? $ico_eyeoff . 'Скрыт' : $ico_eye . 'В логе' ?></button><?php endif; ?>
+                    </div>
+                    <?php else: ?><span class="muted">—</span><?php endif; ?>
+                </td>
             </tr>
             <?php endforeach; ?>
-            <?php if (!$users && !$users_err): ?><tr><td colspan="7" class="muted">Пусто</td></tr><?php endif; ?>
+            </tbody>
         </table>
+        </div>
+        <div class="pgr-bot" id="utblPager"></div>
+        <?php elseif (!$users_err): ?>
+        <div class="uempty">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span>
+            <b>Пользователей пока нет</b>
+            <span>Список тянется из API панели Remnawave. Проверьте URL панели и токен во вкладке «Подключение».</span>
+        </div>
+        <?php endif; ?>
     </div>
 
     <div id="hwModal" class="modal-overlay" onclick="if(event.target===this)hwClose()">
@@ -79,8 +110,60 @@
     </div>
 
     <style>
+        .utbl-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+        .utbl-head h2{margin:0;font-size:1rem}
+        .utbl-card{margin-bottom:0}
+        .utbl-tools{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+        .utbl-tools input#flt{width:280px;max-width:48vw}
+        .dens{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+        .dens button{background:transparent;border:0;color:var(--muted);padding:.45rem .55rem;cursor:pointer;display:flex;align-items:center}
+        .dens button.on{background:var(--accent-light);color:var(--accent-text)}
+        .dens button:hover{color:var(--text)}
+        .dens svg{width:15px;height:15px}
+        .utbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:.9rem;max-height:calc(100vh - 230px);scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+        .utbl-wrap::-webkit-scrollbar{width:8px;height:8px}
+        .utbl-wrap::-webkit-scrollbar-track{background:transparent}
+        .utbl-wrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+        .utbl-wrap:hover::-webkit-scrollbar-thumb{background:var(--muted)}
+        #utbl{width:100%;border-collapse:separate;border-spacing:0;font-size:.88rem}
+        #utbl thead th{position:sticky;top:0;z-index:2;background:var(--bg2);color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
+        #utbl thead th.srt{cursor:pointer;user-select:none}
+        #utbl thead th.srt:hover{color:var(--accent-text)}
+        #utbl thead th .sar{font-size:.7rem;opacity:.85;margin-left:.2rem}
+        #utbl tbody td{padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);vertical-align:middle}
+        #utbl tbody tr:last-child td{box-shadow:none}
+        #utbl tbody tr:hover td{background:var(--hover2)}
+        #utbl.compact tbody td{padding:.42rem .8rem}
+        #utbl .u-name{color:var(--text-strong);font-weight:600}
+        #utbl .tag{display:inline-flex;align-items:center;gap:.3rem}
+        #utbl .tag .d{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+        #utbl .sublink{font-family:monospace}
+        #utbl .u-actions{white-space:nowrap}
+        .actcell{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+        .nolog-btn.on{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
+        .hw-warn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:.72rem;font-weight:700;cursor:help;flex:0 0 auto}
+        .uempty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.6rem;padding:2.4rem 1rem;color:var(--muted)}
+        .uempty .ic{width:46px;height:46px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+        .uempty .ic svg{width:22px;height:22px;opacity:.7}
+        .uempty b{color:var(--text);font-size:.95rem}
+        @media(max-width:900px){
+            .utbl-wrap{max-height:none;overflow:visible;border:0;margin-top:.6rem}
+            #utbl{display:block}
+            #utbl thead{display:none}
+            #utbl tbody,#utbl tbody tr,#utbl tbody td{display:block;width:100%}
+            #utbl tbody tr{border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:.85rem;margin-bottom:.7rem}
+            #utbl tbody td{box-shadow:none;padding:.28rem 0;display:flex;justify-content:space-between;align-items:center;gap:1rem;white-space:normal}
+            #utbl tbody td::before{content:attr(data-label);color:var(--muted);font-size:.8rem;flex:0 0 auto}
+            #utbl tbody td.u-name{font-size:1rem;padding-bottom:.45rem}
+            #utbl tbody td.u-name::before{display:none}
+            #utbl tbody td[data-label="Ссылка подписки"]{display:block}
+            #utbl tbody td[data-label="Ссылка подписки"]::before{display:block;margin-bottom:.3rem}
+            #utbl .sublink{width:100%}
+            #utbl tbody td.u-actions{justify-content:flex-start}
+        }
         .btn-sm{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.42rem .8rem;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap}
         .btn-sm:hover{border-color:var(--accent);color:var(--accent-text)}
+        .btn-sm svg{width:14px;height:14px;flex:0 0 auto}
         .hw-count{font-size:.9rem;color:var(--muted);margin-bottom:.75rem}
         .hw-item{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem .9rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);margin-bottom:.6rem}
         .hw-item:last-child{margin-bottom:0}
@@ -94,15 +177,15 @@
         .hw-act{display:flex;gap:.5rem;flex:0 0 auto}
         .btn-block{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
         .btn-block.on{border-color:var(--accent);color:var(--accent-text)}
-        .nolog-btn.on{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
-        .btn-del{border-color:var(--red);color:#ff9b94}
-        .btn-del:hover{border-color:var(--red);color:#ff9b94;background:var(--c-bad-bg)}
-        .hw-warn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:.72rem;font-weight:700;margin-left:.45rem;cursor:help;vertical-align:middle}
+        .btn-del{border-color:var(--red);color:var(--c-bad-fg)}
+        .btn-del:hover{border-color:var(--red);color:var(--c-bad-fg);background:var(--c-bad-bg)}
         .tip{position:relative;cursor:help}
         .tip:hover::after{content:attr(data-tip);position:absolute;left:50%;transform:translateX(-50%);bottom:135%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.45rem .7rem;font-size:.78rem;font-weight:500;white-space:nowrap;box-shadow:var(--shadow);z-index:10}
     </style>
     <script>
     var HW_CSRF = <?= json_encode($token) ?>;
+    var NL_VIS = <?= json_encode($ico_eye) ?> + 'В логе';
+    var NL_HID = <?= json_encode($ico_eyeoff) ?> + 'Скрыт';
     <?php $bh=[]; foreach($overrides as $o){ if(($o['match_type']??'')==='hwid' && ($o['reason']??'')==='blocked') $bh[]=mb_strtolower($o['match_value']); } ?>
     var HW_BLOCKED = <?= json_encode($bh) ?>;
     var hwUuid='', hwLimit='', hwName='', hwDevices=[];
@@ -191,14 +274,12 @@
             navigator.clipboard.writeText(el.value).then(done).catch(function(){ try{document.execCommand('copy');}catch(e){} done(); });
         } else { try{document.execCommand('copy');}catch(e){} done(); }
     }
-    function filterRows(){var q=document.getElementById('flt').value.toLowerCase();
-        document.querySelectorAll('#utbl tr').forEach(function(tr,i){if(i===0)return;
-            tr.style.display=tr.textContent.toLowerCase().indexOf(q)>-1?'':'none';});}
+    function filterRows(){ if(window.UTBL) UTBL.reset(); }
     var uSort={col:-1,dir:1};
     function sortUsers(col){
         var tbl=document.getElementById('utbl'); if(!tbl||!tbl.tBodies.length) return;
         var body=tbl.tBodies[0];
-        var rows=Array.prototype.slice.call(tbl.rows,1);
+        var rows=Array.prototype.slice.call(body.rows);
         if(rows.length<2){return;}
         var dir=(uSort.col===col)?-uSort.dir:1; uSort={col:col,dir:dir};
         rows.sort(function(a,b){
@@ -210,10 +291,19 @@
             return (x<y?-1:1)*dir;
         });
         rows.forEach(function(r){body.appendChild(r);});
-        var hdr=tbl.rows[0];
+        var hdr=tbl.tHead?tbl.tHead.rows[0]:tbl.rows[0];
         for(var i=0;i<hdr.cells.length;i++){var s=hdr.cells[i].querySelector('.sar'); if(s) s.textContent='';}
         var ar=hdr.cells[col]?hdr.cells[col].querySelector('.sar'):null; if(ar) ar.textContent=dir>0?'▲':'▼';
+        if(window.UTBL) UTBL.render();
     }
+    function utblDens(c,btn){
+        var t=document.getElementById('utbl'); if(t) t.classList.toggle('compact',c===1);
+        document.querySelectorAll('.dens button').forEach(function(x){x.classList.remove('on');});
+        if(btn) btn.classList.add('on');
+        try{localStorage.setItem('utbl_dens',c===1?'1':'0');}catch(e){}
+        if(typeof fitUtbl==='function') fitUtbl();
+    }
+    (function(){try{if(localStorage.getItem('utbl_dens')==='1'){var t=document.getElementById('utbl');if(t)t.classList.add('compact');var bs=document.querySelectorAll('.dens button');if(bs.length>1){bs.forEach(function(x){x.classList.remove('on');});bs[1].classList.add('on');}}}catch(e){}})();
     document.querySelectorAll('.hw-btn').forEach(function(b){
         b.addEventListener('click',function(){hwOpen(b.dataset.uuid,b.dataset.name||'',b.dataset.limit||'');});
     });
@@ -225,7 +315,8 @@
         fetch('?ajax=toggle_nolog',{method:'POST',body:f}).then(function(r){return r.json();}).then(function(d){
             btn.disabled=false;
             if(!d.ok){ uiAlert('Ошибка: '+(d.error||'')); return; }
-            if(d.nolog){ btn.classList.add('on'); btn.innerHTML='🙈 Скрыт'; } else { btn.classList.remove('on'); btn.innerHTML='👁 В логе'; }
+            if(d.nolog){ btn.classList.add('on'); btn.innerHTML=NL_HID; btn.title='Скрыт из лога — нажмите, чтобы вернуть'; }
+            else { btn.classList.remove('on'); btn.innerHTML=NL_VIS; btn.title='В логе — нажмите, чтобы скрыть'; }
             if(window.uiToast) uiToast(d.nolog?'Запросы пользователя скрыты из лога':'Логирование пользователя включено');
         }).catch(function(){ btn.disabled=false; uiAlert('Сетевая ошибка'); });
     }
@@ -239,4 +330,52 @@
         function p(n){return(n<10?'0':'')+n;}
         td.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' в '+p(d.getHours())+':'+p(d.getMinutes());
     });
+    function fitUtbl(){
+        var wrap=document.querySelector('.utbl-wrap'); if(!wrap) return;
+        if(window.innerWidth<=900){ wrap.style.maxHeight=''; return; }
+        wrap.style.maxHeight='none';
+        var r=wrap.getBoundingClientRect();
+        var card=wrap.closest('.card'), content=document.querySelector('.rw-content');
+        var below=6;
+        if(card){ var cs=getComputedStyle(card); below+=(card.getBoundingClientRect().bottom-r.bottom)+(parseFloat(cs.marginBottom)||0); }
+        if(content){ below+=parseFloat(getComputedStyle(content).paddingBottom)||0; }
+        var mh=window.innerHeight-r.top-below;
+        if(mh>160) wrap.style.maxHeight=Math.floor(mh)+'px';
+    }
+    window.addEventListener('resize',fitUtbl);
+    var UTBL=(function(){
+        var sizes=[10,25,50], size=50, page=1;
+        try{var s=parseInt(localStorage.getItem('utbl_size'),10); if(sizes.indexOf(s)>-1) size=s;}catch(e){}
+        function allRows(){ var t=document.getElementById('utbl'); if(!t||!t.tBodies.length) return []; return Array.prototype.slice.call(t.tBodies[0].rows); }
+        function matched(){
+            var q=((document.getElementById('flt')||{}).value||'').toLowerCase();
+            return allRows().filter(function(tr){ return (tr.textContent+' '+(tr.dataset.su||'')).toLowerCase().indexOf(q)>-1; });
+        }
+        function render(){
+            var m=matched(), total=m.length, per=size, pages=Math.max(1,Math.ceil(total/per));
+            if(page>pages) page=pages; if(page<1) page=1;
+            var start=(page-1)*per, end=start+per;
+            allRows().forEach(function(tr){ tr.style.display='none'; });
+            m.forEach(function(tr,i){ tr.style.display=(i>=start&&i<end)?'':'none'; });
+            var bot=document.getElementById('utblPager');
+            if(bot){
+                if(total>per){
+                    bot.innerHTML='<div class="pgr-nav">'
+                        +'<button type="button" class="pgr-b" data-go="prev"'+(page<=1?' disabled':'')+'>◀</button>'
+                        +'<span class="pgr-st">'+(total?start+1:0)+'–'+Math.min(end,total)+' из '+total+' · стр. '+page+'/'+pages+'</span>'
+                        +'<button type="button" class="pgr-b" data-go="next"'+(page>=pages?' disabled':'')+'>▶</button>'
+                        +'</div>';
+                    bot.querySelectorAll('.pgr-b').forEach(function(b){ b.addEventListener('click',function(){ if(b.dataset.go==='prev'&&page>1)page--; if(b.dataset.go==='next'&&page<pages)page++; render(); }); });
+                } else { bot.innerHTML=''; }
+            }
+            if(typeof fitUtbl==='function') fitUtbl();
+        }
+        return {
+            render:render,
+            reset:function(){ page=1; render(); },
+            setSize:function(v){ if(sizes.indexOf(v)<0) v=50; size=v; page=1; try{localStorage.setItem('utbl_size',String(v));}catch(e){} render(); },
+            getSize:function(){ return size; }
+        };
+    })();
+    (function(){ var sel=document.getElementById('utblSize'); if(sel) sel.value=String(UTBL.getSize()); UTBL.render(); })();
     </script>

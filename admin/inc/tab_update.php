@@ -41,7 +41,8 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         </div>
     </section>
 
-    <div class="card">
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:stretch;margin-bottom:1rem">
+    <div class="card" style="flex:1 1 300px;margin:0">
         <h2 style="margin-top:0;font-size:1rem">Текущая версия</h2>
         <?php if ($u_installed === ''): ?>
             <div class="warn">Базовый коммит не задан. Если вы только что обновили файлы вручную — нажмите «Отметить текущую версию», чтобы зафиксировать, с какого коммита установлена прослойка. После этого новые коммиты будут отслеживаться.</div>
@@ -66,7 +67,7 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         </form>
     </div>
 
-    <div class="card">
+    <div class="card" style="flex:1 1 300px;margin:0">
         <h2 style="margin-top:0;font-size:1rem">Ветка обновлений</h2>
         <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
         <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Обновления тянутся из выбранной ветки.</p>
@@ -82,9 +83,10 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         </form>
         <p class="muted" style="margin:.5rem 0 0;font-size:.8rem">После переключения нажми «Проверить обновления», затем «Обновить» — прослойка перейдёт на последний коммит выбранной ветки.</p>
     </div>
+    </div>
 
     <?php if ($u_installed !== '' && $u_avail): ?>
-    <div class="card" style="border-color:#f5b50a">
+    <div class="card" style="border-color:var(--amber)">
         <h2 style="margin-top:0;font-size:1rem">Доступно обновление · коммитов: <?= (int) ($u_state['ahead_by'] ?? count($u_commits)) ?></h2>
         <?php if ($u_commits): ?>
             <div class="up-block">
@@ -154,10 +156,10 @@ sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
         .up-commit{padding:.25rem 0;line-height:1.5;border-bottom:1px dashed var(--line)}
         .up-file{padding:.22rem 0;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
         .up-st{font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;font-weight:700;padding:.1rem .4rem;border-radius:6px;flex:0 0 auto}
-        .up-add{background:rgba(34,197,94,.18);color:#22c55e}
-        .up-mod{background:rgba(245,181,10,.18);color:#f5b50a}
-        .up-del{background:rgba(239,68,68,.18);color:#ef4444}
-        .up-ren{background:rgba(59,130,246,.18);color:#3b82f6}
+        .up-add{background:rgba(34,197,94,.18);color:var(--c-ok-fg)}
+        .up-mod{background:rgba(245,181,10,.18);color:var(--amber)}
+        .up-del{background:rgba(239,68,68,.18);color:var(--c-bad-fg)}
+        .up-ren{background:rgba(59,130,246,.18);color:var(--c-info-fg)}
         .up-logbox{font-family:monospace;font-size:.82rem;line-height:1.6;max-height:320px;overflow:auto;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;word-break:break-word}
     </style>
     <script>

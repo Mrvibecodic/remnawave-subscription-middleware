@@ -62,7 +62,7 @@ EXIT;</pre>
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="migrate_db">
             <input type="hidden" name="to" value="sqlite">
-            <div style="margin-top:.4rem"><button type="submit">🗄 Мигрировать на SQLite</button></div>
+            <div style="margin-top:.4rem"><button type="submit">🪶 Мигрировать на SQLite</button></div>
         </form>
     </div>
     <?php endif; ?>

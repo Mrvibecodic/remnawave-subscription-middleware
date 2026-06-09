@@ -5,6 +5,22 @@ function landing_preset() {
     return ($v >= 1 && $v <= 4) ? $v : 1;
 }
 
+function landing_fp_new() {
+    try { return bin2hex(random_bytes(8)); }
+    catch (Throwable $e) { return substr(md5(uniqid('', true) . mt_rand()), 0, 16); }
+}
+
+function landing_fp() {
+    $fp = trim((string) setting('landing_fp', ''));
+    if (!preg_match('~^[0-9a-f]{8,32}$~', $fp)) { $fp = landing_fp_new(); set_setting('landing_fp', $fp); }
+    return $fp;
+}
+
+function landing_fp_regenerate() {
+    set_setting('landing_fp', landing_fp_new());
+    set_setting('landing_fp_ack', '1');
+}
+
 function landing_login_script() {
     ?>
 <script>
@@ -39,14 +55,20 @@ function landing_login_script() {
 
 function landing_render() {
     $preset = landing_preset();
+    $fp = landing_fp();
+    $fp_titles = ['Личный кабинет — Вход', 'Вход в личный кабинет', 'Личный кабинет', 'Авторизация', 'Вход — личный кабинет', 'Кабинет — авторизация', 'Вход в систему'];
+    $fp_title = $fp_titles[hexdec(substr($fp, 0, 4)) % count($fp_titles)];
+    $fp_v = substr(sha1($fp), 0, 8);
+    $fp_b = substr(sha1($fp . 'b'), 0, 12);
     echo "<!DOCTYPE html>\n";
     ?>
-<html lang="ru">
+<html lang="ru" data-v="<?= $fp_v ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>Личный кабинет — Вход</title>
+    <meta name="build" content="<?= $fp_b ?>">
+    <title><?= $fp_title ?></title>
 <?php if ($preset === 2): ?>
     <style>
         :root{--accent:#4f46e5;--accent-h:#4338ca;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--err:#ef4444}

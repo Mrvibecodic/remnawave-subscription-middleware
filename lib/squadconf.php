@@ -34,7 +34,21 @@ function squadconf_ensure() {
             )");
             $p->exec("CREATE INDEX IF NOT EXISTS idx_squad_cfg ON squad_configs(squad_uuid)");
         }
+        if (setting('sqcfg_squads_col', '') !== '1') {
+            try { $p->exec('ALTER TABLE squad_configs ADD COLUMN squads ' . (db_driver() === 'mysql' ? 'MEDIUMTEXT' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
+            set_setting('sqcfg_squads_col', '1');
+        }
     } catch (Throwable $e) { error_log('submw squadconf ensure: ' . $e->getMessage()); }
+}
+
+function squadconf_squads_of($row) {
+    $s = (string) ($row['squads'] ?? '');
+    if ($s !== '') {
+        $a = json_decode($s, true);
+        if (is_array($a)) { $a = array_values(array_filter(array_map('strval', $a), fn($x) => $x !== '')); if ($a) return $a; }
+    }
+    $u = (string) ($row['squad_uuid'] ?? '');
+    return $u !== '' ? [$u] : [];
 }
 
 function squadconf_all() {
@@ -49,25 +63,29 @@ function squadconf_all() {
 
 function squadconf_for_squads(array $squad_uuids) {
     squadconf_ensure();
-    $squad_uuids = array_values(array_filter(array_unique(array_map('strval', $squad_uuids)), fn($s) => $s !== ''));
-    if (!$squad_uuids || !($p = db())) return [];
+    $user = array_flip(array_values(array_filter(array_map('strval', $squad_uuids), fn($s) => $s !== '')));
+    if (!$user || !($p = db())) return [];
+    $out = [];
     try {
-        $in = implode(',', array_fill(0, count($squad_uuids), '?'));
-        $st = $p->prepare("SELECT * FROM squad_configs WHERE enabled = 1 AND squad_uuid IN ($in) ORDER BY id");
-        $st->execute($squad_uuids);
-        return $st->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Throwable $e) { error_log('submw squadconf for_squads: ' . $e->getMessage()); return []; }
+        foreach ($p->query('SELECT * FROM squad_configs WHERE enabled = 1 ORDER BY id') as $r) {
+            foreach (squadconf_squads_of($r) as $sq) {
+                if (isset($user[$sq])) { $out[] = $r; break; }
+            }
+        }
+    } catch (Throwable $e) { error_log('submw squadconf for_squads: ' . $e->getMessage()); }
+    return $out;
 }
 
-function squadconf_add($squad_uuid, $type, $name, $raw, $parsed) {
+function squadconf_add($squad_uuids, $type, $name, $raw, $parsed) {
     squadconf_ensure();
-    $squad_uuid = trim((string) $squad_uuid);
+    $squad_uuids = array_values(array_filter(array_unique(array_map('strval', (array) $squad_uuids)), fn($s) => trim($s) !== ''));
     $raw = (string) $raw;
-    if (!($p = db()) || $squad_uuid === '' || trim($raw) === '') return false;
+    if (!($p = db()) || !$squad_uuids || trim($raw) === '') return false;
     try {
-        $st = $p->prepare('INSERT INTO squad_configs (squad_uuid, type, name, raw, parsed) VALUES (?, ?, ?, ?, ?)');
+        $st = $p->prepare('INSERT INTO squad_configs (squad_uuid, squads, type, name, raw, parsed) VALUES (?, ?, ?, ?, ?, ?)');
         return $st->execute([
-            $squad_uuid,
+            $squad_uuids[0],
+            json_encode(array_values($squad_uuids), JSON_UNESCAPED_SLASHES),
             mb_substr((string) $type, 0, 32),
             ($name !== '' ? mb_substr((string) $name, 0, 191) : null),
             $raw,
@@ -92,16 +110,17 @@ function squadconf_toggle($id, $enabled) {
     catch (Throwable $e) { error_log('submw squadconf toggle: ' . $e->getMessage()); return false; }
 }
 
-function squadconf_update($id, $squad_uuid, $type, $name, $raw, $parsed) {
+function squadconf_update($id, $squad_uuids, $type, $name, $raw, $parsed) {
     squadconf_ensure();
     $id = (int) $id;
-    $squad_uuid = trim((string) $squad_uuid);
+    $squad_uuids = array_values(array_filter(array_unique(array_map('strval', (array) $squad_uuids)), fn($s) => trim($s) !== ''));
     $raw = (string) $raw;
-    if (!($p = db()) || $id <= 0 || $squad_uuid === '' || trim($raw) === '') return false;
+    if (!($p = db()) || $id <= 0 || !$squad_uuids || trim($raw) === '') return false;
     try {
-        $st = $p->prepare('UPDATE squad_configs SET squad_uuid = ?, type = ?, name = ?, raw = ?, parsed = ? WHERE id = ?');
+        $st = $p->prepare('UPDATE squad_configs SET squad_uuid = ?, squads = ?, type = ?, name = ?, raw = ?, parsed = ? WHERE id = ?');
         return $st->execute([
-            $squad_uuid,
+            $squad_uuids[0],
+            json_encode(array_values($squad_uuids), JSON_UNESCAPED_SLASHES),
             mb_substr((string) $type, 0, 32),
             ($name !== '' ? mb_substr((string) $name, 0, 191) : null),
             $raw,
@@ -165,10 +184,10 @@ function awg_parse_conf($raw) {
     foreach (['PublicKey', 'Endpoint'] as $f) if (empty($res['peer'][$f])) { $res['warnings'][] = "В [Peer] нет обязательного поля $f."; $missing = true; }
 
     if ($res['type'] === 'amneziawg') {
-        $res['clients'] = ['Mihomo / Clash.Meta'];
-        $res['warnings'][] = 'AmneziaWG: работает только в Mihomo / Clash.Meta. В base64-клиентах (v2rayNG) и xray-json (Happ) — нет, туда конфиг не уйдёт.';
+        $res['clients'] = ['Mihomo / Clash.Meta', 'Throne (wg://)'];
+        $res['warnings'][] = 'AmneziaWG: работает в Mihomo (clash) и в клиентах с wg://-AmneziaWG (Throne и др.). В v2rayNG (wireguard://) и xray — нет.';
     } elseif ($res['type'] === 'wireguard') {
-        $res['clients'] = ['Mihomo / Clash.Meta', 'base64-клиенты (v2rayNG и др.)'];
+        $res['clients'] = ['Mihomo / Clash.Meta', 'base64-клиенты (v2rayNG и др.)', 'sing-box (Throne и др.)'];
     }
 
     $res['ok'] = in_array($res['type'], ['wireguard', 'amneziawg'], true) && !$missing;
@@ -341,24 +360,136 @@ function squadconf_inject_clash($body, array $configs) {
     return clash_insert_proxies($body, $blocks, $names);
 }
 
+function squadconf_wgkey($v) { return str_replace('=', '%3D', (string) $v); }
+
+function wg_to_uri_wg($parsed, $name) {
+    if (!is_array($parsed) || !in_array($parsed['type'] ?? '', ['wireguard', 'amneziawg'], true)) return '';
+    $if = $parsed['iface']; $pe = $parsed['peer'];
+    $ep = (string) ($pe['Endpoint'] ?? '');
+    $host = $ep; $port = '';
+    if (($pos = strrpos($ep, ':')) !== false) { $host = substr($ep, 0, $pos); $port = substr($ep, $pos + 1); }
+    $host = trim($host, '[]');
+    $pk = (string) ($if['PrivateKey'] ?? '');
+    if ($pk === '' || $host === '' || $port === '' || empty($pe['PublicKey'])) return '';
+    $q = ['private_key=' . squadconf_wgkey($pk)];
+    $addr = str_replace(' ', '', (string) ($if['Address'] ?? ''));
+    if ($addr !== '') $q[] = 'local_address=' . $addr;
+    if (($parsed['type'] ?? '') === 'amneziawg') {
+        $q[] = 'enable_amnezia=true';
+        foreach (['Jc' => 'jc', 'Jmin' => 'jmin', 'Jmax' => 'jmax', 'S1' => 's1', 'S2' => 's2', 'S3' => 's3', 'S4' => 's4'] as $src => $dst) {
+            if (isset($if[$src]) && $if[$src] !== '') $q[] = $dst . '=' . (int) $if[$src];
+        }
+        foreach (['H1' => 'h1', 'H2' => 'h2', 'H3' => 'h3', 'H4' => 'h4'] as $src => $dst) {
+            if (isset($if[$src]) && $if[$src] !== '') $q[] = $dst . '=' . $if[$src];
+        }
+        foreach (['I1' => 'i1', 'I2' => 'i2', 'I3' => 'i3', 'I4' => 'i4', 'I5' => 'i5'] as $src => $dst) {
+            if (!empty($if[$src])) $q[] = $dst . '=' . rawurlencode((string) $if[$src]);
+        }
+    }
+    $q[] = 'public_key=' . squadconf_wgkey((string) $pe['PublicKey']);
+    if (!empty($pe['PresharedKey'])) $q[] = 'pre_shared_key=' . squadconf_wgkey((string) $pe['PresharedKey']);
+    if (!empty($if['MTU'])) $q[] = 'mtu=' . (int) $if['MTU'];
+    if (!empty($pe['PersistentKeepalive'])) $q[] = 'persistent_keepalive_interval=' . (int) $pe['PersistentKeepalive'];
+    return 'wg://' . $host . ':' . (int) $port . '?' . implode('&', $q) . '#' . rawurlencode($name);
+}
+
 function squadconf_inject_base64($body, array $configs) {
+    $decoded = base64_decode(trim((string) $body), true);
+    if ($decoded === false || $decoded === '') return $body;
+    $ua = strtolower((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    if (strpos($ua, 'v2rayng') !== false || strpos($ua, 'v2rayn') !== false) {
+        $scheme = 'wireguard';
+    } else {
+        $scheme = (strpos($decoded, 'wireguard://') !== false && strpos($decoded, 'wg://') === false) ? 'wireguard' : 'wg';
+    }
     $uris = []; $names = [];
+    foreach ($configs as $c) {
+        $pn = json_decode((string) ($c['parsed'] ?? ''), true);
+        if (!is_array($pn)) continue;
+        $t = $pn['type'] ?? '';
+        if ($scheme === 'wg') { if (!in_array($t, ['wireguard', 'amneziawg'], true)) continue; }
+        elseif ($t !== 'wireguard') continue;
+        $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : (($t === 'amneziawg') ? 'AmneziaWG' : 'WireGuard');
+        $base = $nm; $i = 1;
+        while (in_array($nm, $names, true)) { $i++; $nm = $base . ' ' . $i; }
+        $u = ($scheme === 'wg') ? wg_to_uri_wg($pn, $nm) : wg_to_uri($pn, $nm);
+        if ($u === '') continue;
+        $uris[] = $u; $names[] = $nm;
+    }
+    if (!$uris) return $body;
+    $sep = (strpos($decoded, "\r\n") !== false) ? "\r\n" : "\n";
+    $decoded = rtrim($decoded, "\r\n") . $sep . implode($sep, $uris);
+    return base64_encode($decoded);
+}
+
+function squadconf_singbox_outbound($parsed, $tag) {
+    if (!is_array($parsed) || ($parsed['type'] ?? '') !== 'wireguard') return null;
+    $if = $parsed['iface']; $pe = $parsed['peer'];
+    $ep = (string) ($pe['Endpoint'] ?? '');
+    if ($ep === '' || empty($if['PrivateKey']) || empty($pe['PublicKey'])) return null;
+    $host = $ep; $port = '';
+    if (($pos = strrpos($ep, ':')) !== false) { $host = substr($ep, 0, $pos); $port = substr($ep, $pos + 1); }
+    $host = trim($host, '[]');
+    if ($host === '' || $port === '') return null;
+    $addr = array_values(array_filter(array_map('trim', explode(',', (string) ($if['Address'] ?? '')))));
+    $o = [
+        'type'            => 'wireguard',
+        'tag'             => ($tag !== '' ? $tag : 'wg-squad'),
+        'server'          => $host,
+        'server_port'     => (int) $port,
+        'local_address'   => $addr ?: ['10.0.0.2/32'],
+        'private_key'     => (string) $if['PrivateKey'],
+        'peer_public_key' => (string) $pe['PublicKey'],
+    ];
+    if (!empty($pe['PresharedKey'])) $o['pre_shared_key'] = (string) $pe['PresharedKey'];
+    if (!empty($if['MTU'])) $o['mtu'] = (int) $if['MTU'];
+    return $o;
+}
+
+function squadconf_is_singbox($obj) {
+    if (!is_array($obj) || !isset($obj['outbounds']) || !is_array($obj['outbounds'])) return false;
+    if (isset($obj['routing']) || isset($obj['policy']) || isset($obj['stats']) || isset($obj['inbounds'][0]['protocol'])) return false;
+    return isset($obj['route']) || isset($obj['endpoints']) || isset($obj['experimental']) || isset($obj['log']['level']) || isset($obj['inbounds'][0]['type']);
+}
+
+function squadconf_inject_singbox($body, array $configs) {
+    $obj = json_decode((string) $body, true);
+    if (!squadconf_is_singbox($obj)) return $body;
+    $existing = [];
+    foreach ($obj['outbounds'] as $o) if (is_array($o) && isset($o['tag'])) $existing[] = (string) $o['tag'];
+    $added = []; $names = [];
     foreach ($configs as $c) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
         if (!is_array($pn) || ($pn['type'] ?? '') !== 'wireguard') continue;
         $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : 'WireGuard';
         $base = $nm; $i = 1;
-        while (in_array($nm, $names, true)) { $i++; $nm = $base . ' ' . $i; }
-        $u = wg_to_uri($pn, $nm);
-        if ($u === '') continue;
-        $uris[] = $u; $names[] = $nm;
+        while (in_array($nm, $names, true) || in_array($nm, $existing, true)) { $i++; $nm = $base . ' ' . $i; }
+        $ob = squadconf_singbox_outbound($pn, $nm);
+        if (!$ob) continue;
+        $obj['outbounds'][] = $ob; $added[] = $nm; $names[] = $nm;
     }
-    if (!$uris) return $body;
-    $decoded = base64_decode(trim((string) $body), true);
-    if ($decoded === false || $decoded === '') return $body;
-    $sep = (strpos($decoded, "\r\n") !== false) ? "\r\n" : "\n";
-    $decoded = rtrim($decoded, "\r\n") . $sep . implode($sep, $uris);
-    return base64_encode($decoded);
+    if (!$added) return $body;
+    foreach ($obj['outbounds'] as &$o) {
+        if (is_array($o) && in_array(($o['type'] ?? ''), ['selector', 'urltest'], true) && isset($o['outbounds']) && is_array($o['outbounds'])) {
+            foreach ($added as $nm) if (!in_array($nm, $o['outbounds'], true)) $o['outbounds'][] = $nm;
+        }
+    }
+    unset($o);
+    $enc = json_encode($obj, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return $enc === false ? $body : $enc;
+}
+
+function squadconf_inject($body, $format, array $configs) {
+    if (!$configs) return $body;
+    try {
+        if ($format === 'clash') return squadconf_inject_clash($body, $configs);
+        $trim = ltrim((string) $body);
+        if ($trim === '' || ($trim[0] !== '[' && $trim[0] !== '{')) return squadconf_inject_base64($body, $configs);
+        $obj = json_decode($body, true);
+        if (squadconf_is_singbox($obj)) return squadconf_inject_singbox($body, $configs);
+        if (setting('squad_xray_json_inject', '0') === '1') return squadconf_inject_xray_json($body, $configs);
+        return $body;
+    } catch (Throwable $e) { error_log('submw squadconf inject: ' . $e->getMessage()); return $body; }
 }
 
 function xray_wg_outbound($parsed, $tag) {

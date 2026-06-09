@@ -649,22 +649,33 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'save_landing') {
         $lp = (int) ($_POST['landing_preset'] ?? 1);
         set_setting('landing_preset', (string) (($lp >= 1 && $lp <= 4) ? $lp : 1));
-        flash('Дизайн страницы-приманки сохранён');
+        flash('Дизайн страницы-заглушки сохранён');
+        header('Location: index.php?tab=branding'); exit();
+    }
+
+    if ($action === 'landing_regen_fp') {
+        landing_fp_regenerate();
+        flash('Отпечаток страницы-заглушки перегенерирован — установка стала уникальной');
+        header('Location: index.php?tab=branding'); exit();
+    }
+
+    if ($action === 'landing_ack_fp') {
+        set_setting('landing_fp_ack', '1');
         header('Location: index.php?tab=branding'); exit();
     }
 
     if ($action === 'save_squad_config') {
-        $squad = trim($_POST['squad_uuid'] ?? '');
+        $squads = array_values(array_filter(array_map('strval', (array) ($_POST['squads'] ?? [])), fn($s) => trim($s) !== ''));
         $raw   = (string) ($_POST['raw'] ?? '');
         $name  = trim($_POST['name'] ?? '');
-        if ($squad === '' || $name === '' || trim($raw) === '') {
-            flash('Укажите сквад, метку и вставьте конфиг');
+        if (!$squads || $name === '' || trim($raw) === '') {
+            flash('Выберите хотя бы один сквад, укажите метку и вставьте конфиг');
         } else {
             $parsed = awg_parse_conf($raw);
             if (!$parsed['ok']) {
                 flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
             } else {
-                squadconf_add($squad, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
+                squadconf_add($squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
                 flash('Конфиг добавлен (' . awg_summary($parsed) . ')');
             }
         }
@@ -672,18 +683,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     }
 
     if ($action === 'edit_squad_config') {
-        $id    = (int) ($_POST['id'] ?? 0);
-        $squad = trim($_POST['squad_uuid'] ?? '');
-        $raw   = (string) ($_POST['raw'] ?? '');
-        $name  = trim($_POST['name'] ?? '');
-        if ($id <= 0 || $squad === '' || $name === '' || trim($raw) === '') {
-            flash('Укажите сквад, метку и конфиг');
+        $id     = (int) ($_POST['id'] ?? 0);
+        $squads = array_values(array_filter(array_map('strval', (array) ($_POST['squads'] ?? [])), fn($s) => trim($s) !== ''));
+        $raw    = (string) ($_POST['raw'] ?? '');
+        $name   = trim($_POST['name'] ?? '');
+        if ($id <= 0 || !$squads || $name === '' || trim($raw) === '') {
+            flash('Выберите хотя бы один сквад, укажите метку и конфиг');
         } else {
             $parsed = awg_parse_conf($raw);
             if (!$parsed['ok']) {
                 flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
             } else {
-                squadconf_update($id, $squad, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
+                squadconf_update($id, $squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
                 flash('Конфиг обновлён (' . awg_summary($parsed) . ')');
             }
         }
@@ -902,10 +913,10 @@ window.LogPager=function(opts){
 <?php
 $nav = [
     'users'     => ['Пользователи', '<circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.85"/>'],
-    'branding'  => ['Брендинг', '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5h5a1.75 1.75 0 0 1 0 3.5H9a1.75 1.75 0 0 0 0 3.5h5.5"/>'],
+    'branding'  => ['Брендинг', '<path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><circle cx="7.5" cy="7.5" r="1.5"/>'],
     'connection'=> ['Подключение', '<path d="M9 7H6a3 3 0 0 0 0 6h3"/><path d="M15 7h3a3 3 0 0 1 0 6h-3"/><line x1="8" y1="10" x2="16" y2="10"/>'],
     'webhooks'  => ['Настройки', '<path d="M18 8a3 3 0 1 0-2.6-4.5"/><circle cx="6" cy="16" r="3"/><circle cx="18" cy="18" r="3"/><path d="M12 11l-3.6 6"/><path d="M12 7v4l3.6 6"/>'],
-    'subst'     => ['Грейс-сквад', '<path d="M4 4h16v6H4z"/><path d="M4 14h16v6H4z"/><path d="M8 17h8"/>'],
+    'subst'     => ['Грейс-сквад', '<path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.17a2 2 0 0 0-.59-1.41L12 12l-4.41 4.42A2 2 0 0 0 7 17.83V22"/><path d="M7 2v4.17a2 2 0 0 0 .59 1.41L12 12l4.41-4.42A2 2 0 0 0 17 6.17V2"/>'],
     'headers'   => ['Заголовки', '<polyline points="7 8 3 12 7 16"/><polyline points="17 8 21 12 17 16"/><line x1="13.5" y1="4" x2="10.5" y2="20"/>'],
     'rules'     => ['Правила ответа', '<path d="M4 6h10"/><path d="M4 12h7"/><path d="M4 18h10"/><circle cx="18" cy="8" r="2"/><circle cx="16" cy="16" r="2"/>'],
     'hwid'      => ['HWID', '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="18" x2="15" y2="18"/><path d="M9 6h6M9 9h6"/>'],
@@ -915,7 +926,7 @@ $nav = [
     'whlog'       => ['Юзер-лог', '<path d="M13 2L3 14h7l-1 8 10-12h-7z"/>'],
     'whlog_other' => ['Прочие события', '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>'],
     'fwdlog'    => ['Лог пересылки', '<path d="M4 12h12"/><path d="M12 6l6 6-6 6"/><path d="M20 4v16"/>'],
-    'grace_users' => ['Грейс-юзеры', '<circle cx="9" cy="7" r="3"/><path d="M3 21v-1a5 5 0 0 1 5-5h2"/><path d="M16 11l2 2 4-4"/>'],
+    'grace_users' => ['Грейс-юзеры', '<circle cx="9" cy="7" r="3"/><path d="M3 21v-1a5 5 0 0 1 5-5h2.5"/><circle cx="17" cy="16" r="4"/><path d="M17 14.4V16l1.2 1"/>'],
     'sysinfo'   => ['О системе', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'],
     'update'    => ['Обновление', '<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>'],
     'migrate'   => ['Миграция БД', '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.6 3.6 3 8 3s8-1.4 8-3V5"/><path d="M4 12c0 1.6 3.6 3 8 3s8-1.4 8-3"/>'],
@@ -978,7 +989,7 @@ function nav_link($key, $it, $active, $badge = false) {
             </div>
             <div class="rw-hcontrols">
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
-                <a class="hbtn hbtn-ver" href="?tab=update" title="<?= update_available() ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code><?php if (update_available()): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
+                <a class="hbtn hbtn-ver" href="?tab=update" title="<?= update_available() ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if (update_available()): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
                 <a class="hbtn" href="?logout=1" title="Выйти" aria-label="Выйти"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>

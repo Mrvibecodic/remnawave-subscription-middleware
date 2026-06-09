@@ -41,7 +41,7 @@
         .ah-row input[type=text]{margin:0}
         .ah-chk{display:flex;align-items:center;justify-content:center}
         .ah-chk input{width:auto;margin:0}
-        .ah-del{background:transparent;border:1px solid var(--line);color:#ff8787;border-radius:7px;padding:.45rem 0;cursor:pointer;line-height:1}
+        .ah-del{background:transparent;border:1px solid var(--line);color:var(--c-bad-fg);border-radius:7px;padding:.45rem 0;cursor:pointer;line-height:1}
         .ah-del:hover{border-color:var(--red)}
         .catgrp{border:1px solid var(--line);border-radius:10px;margin-bottom:.6rem;overflow:hidden}
         .cathead{width:100%;display:flex;align-items:center;justify-content:space-between;gap:1rem;background:var(--bg2);color:var(--text-strong);border:0;border-radius:0;padding:.7rem .9rem;cursor:pointer;font-weight:600;font-size:.92rem;text-align:left}
