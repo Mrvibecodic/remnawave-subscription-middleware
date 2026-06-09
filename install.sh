@@ -49,15 +49,39 @@ apt-get install -y $PKGS >/dev/null
 
 echo "-> Установка актуального nginx из официального репозитория nginx.org..."
 if dpkg -l 2>/dev/null | grep -qE '^ii[[:space:]]+nginx' || command -v nginx >/dev/null 2>&1; then
-    echo "!! ВНИМАНИЕ: на сервере уже установлен nginx."
-    echo "   Установщик удалит текущие пакеты nginx (remove + purge nginx-common) и поставит сборку с nginx.org."
-    echo "   purge затронет системный конфиг в /etc/nginx (сайты в conf.d, nginx.conf и т.п.) — сделайте бэкап, если nginx обслуживает другие сайты."
-    ANS="$(ask 'Удалить предустановленный nginx и продолжить?' 'N')"
+    echo
+    echo "=================================================================="
+    echo "  !! ВНИМАНИЕ: на этом сервере УЖЕ УСТАНОВЛЕН nginx"
+    echo "=================================================================="
+    echo "  Для сборки с nginx.org установщик СНАЧАЛА УДАЛИТ текущий nginx:"
+    echo "    - remove: nginx nginx-common nginx-core nginx-full"
+    echo "    - purge nginx-common -> УДАЛИТ ВЕСЬ каталог /etc/nginx"
+    echo "      (ваши сайты в conf.d / sites-enabled, nginx.conf и пр.)"
+    echo
+    echo "  Если nginx сейчас обслуживает ДРУГИЕ сайты - они перестанут работать"
+    echo "  до ручного восстановления из резервной копии."
+    echo "=================================================================="
+    echo
+    ANS="$(ask 'Понимаю риск. Удалить предустановленный nginx и продолжить установку?' 'N')"
     case "$ANS" in
+        [yY]|[yY][eE][sS]) : ;;
+        *) echo "Отменено: nginx не тронут, установка прервана."; exit 1 ;;
+    esac
+    if [ -d /etc/nginx ]; then
+        NGINX_BK="/root/etc-nginx-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+        if tar czf "$NGINX_BK" -C / etc/nginx 2>/dev/null; then
+            echo "   -> резервная копия текущего /etc/nginx: ${NGINX_BK}"
+        else
+            echo "   !! не удалось создать бэкап /etc/nginx - продолжаем без него"
+        fi
+    fi
+    ANS2="$(ask 'Отдельное подтверждение: удалить /etc/nginx (purge)? yes - удалить, иначе прервать' 'no')"
+    case "$ANS2" in
         [yY]|[yY][eE][sS]) echo "   -> удаляю предустановленный nginx..." ;;
         *) echo "Отменено: nginx не тронут, установка прервана."; exit 1 ;;
     esac
 fi
+systemctl stop nginx >/dev/null 2>&1 || true
 apt-get remove -y nginx nginx-common nginx-core nginx-full >/dev/null 2>&1 || true
 apt-get purge  -y nginx nginx-common >/dev/null 2>&1 || true
 OS_ID="$(. /etc/os-release; echo "${ID:-ubuntu}")"
