@@ -33,8 +33,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
         <div class="coll-body">
             <?php if ($u_writable): ?><div class="info" style="margin-top:0">✓ Права на запись уже есть — шаг выполнен, можно сворачивать.</div><?php endif; ?>
             <p class="muted" style="margin-top:0;line-height:1.7">Чтобы кнопка «Обновить» могла записать новые файлы из GitHub, веб-серверу (пользователь <code><?= h($u_user) ?></code>) нужно право записи в каталог установки. Один раз выполните на сервере под root:</p>
-            <div class="up-logbox">cd <?= h(update_root()) ?>
-sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div>
+            <div class="up-logbox"><div>cd <?= h(update_root()) ?></div><div>sudo chown -R <?= h($u_user) ?>: <?= h(update_root()) ?></div></div>
             <p class="muted" style="line-height:1.7"><b>Что делает:</b> назначает владельцем всех файлов и папок установки пользователя веб-сервера (<code><?= h($u_user) ?></code>), чтобы PHP при обновлении мог перезаписывать файлы и складывать бэкап в <code>.backups/</code>.</p>
             <p class="muted" style="line-height:1.7"><b>Насколько безопасно:</b> права действуют <u>только внутри этого каталога</u> — за его пределы (на систему, другие сайты) доступ не распространяется. Это штатный режим для самообновляющихся приложений (как WordPress). Единственный риск: при взломе самого сайта злоумышленник сможет переписать код в этой папке — поэтому держите доступ к админке и серверу закрытым. <code>config.php</code> и база наружу не отдаются (закрыты конфигом веб-сервера).</p>
             <button type="button" class="btn" onclick="collToggle(this)">✓ Я сделал — свернуть</button>
