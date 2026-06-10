@@ -26,7 +26,8 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
     <div class="info">
         Прослойка запущена в <b>Docker</b>. Обновление — через <code>docker pull</code> образа в консоли сервера; записи файлов и git здесь нет.
     </div>
-    <div class="card">
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:stretch;margin-bottom:1rem">
+    <div class="card" style="flex:1 1 320px;margin:0">
         <h2 style="margin-top:0;font-size:1rem">Версия (Docker)</h2>
         <p style="margin:.2rem 0"><span class="muted">Образ:</span> <code class="up-sha"><?= h($u_installed !== '' ? substr($u_installed, 0, 12) : '—') ?></code> · тег <code><?= h($u_branch) ?></code></p>
         <?php if ($u_latest !== ''): ?><p style="margin:.2rem 0"><span class="muted">Последний в ветке:</span> <code class="up-sha"><?= h(substr($u_latest, 0, 12)) ?></code></p><?php endif; ?>
@@ -38,7 +39,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
             <button type="submit" class="btn ghost">🔄 Проверить обновления</button>
         </form>
     </div>
-    <div class="card">
+    <div class="card" style="flex:1 1 320px;margin:0">
         <h2 style="margin-top:0;font-size:1rem">Ветка (тег образа)</h2>
         <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
         <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Ветка = тег образа в реестре.</p>
@@ -53,6 +54,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
             <button type="submit" class="btn">Переключить</button>
         </form>
         <p class="muted" style="margin:.5rem 0 0;font-size:.8rem">Чтобы перейти на выбранную ветку: смените тег образа в <code>docker-compose.yml</code> на <code>:<?= h($u_branch) ?></code>, затем <code>docker compose pull &amp;&amp; docker compose up -d</code>.</p>
+    </div>
     </div>
     <?php if ($u_installed !== '' && $u_avail): ?>
     <div class="card" style="border-color:var(--amber)">

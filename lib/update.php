@@ -206,7 +206,9 @@ function update_available() {
     $installed = update_installed_commit();
     if ($installed === '') return false;
     $latest = (string) ($st['latest_sha'] ?? '');
-    return $latest !== '' && $latest !== $installed && (int) ($st['ahead_by'] ?? 0) > 0;
+    if ($latest === '' || $latest === $installed) return false;
+    if ((int) ($st['ahead_by'] ?? 0) <= 0) return false;
+    return !empty($st['files']);
 }
 
 function update_set_current(&$err = null) {
