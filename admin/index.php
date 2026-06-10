@@ -625,7 +625,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         $cur = db_driver();
         $e = '';
         if ($to === 'mysql' && $cur !== 'mysql') {
-            $mc = [
+            $envdb = submw_in_docker() ? submw_env_db() : null;
+            $mc = $envdb ?: [
                 'driver' => 'mysql',
                 'host'   => (trim($_POST['m_host'] ?? '') ?: '127.0.0.1'),
                 'port'   => (int) (trim($_POST['m_port'] ?? '') ?: 3306),
@@ -633,7 +634,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
                 'user'   => trim($_POST['m_user'] ?? ''),
                 'pass'   => (string) ($_POST['m_pass'] ?? ''),
             ];
-            if ($mc['name'] === '' || $mc['user'] === '') flash('Укажите имя БД и пользователя MySQL.');
+            if ($mc['name'] === '' || $mc['user'] === '') flash($envdb ? 'БД из compose задана не полностью (SUBMW_DB_NAME / SUBMW_DB_USER).' : 'Укажите имя БД и пользователя MySQL.');
             else flash(db_migrate(db_conf(), $mc, $e) ? 'Миграция на MySQL завершена. Прослойка переключена на MySQL.' : ('Ошибка миграции: ' . $e));
         } elseif ($to === 'sqlite' && $cur !== 'sqlite') {
             flash(db_migrate(db_conf(), ['driver' => 'sqlite', 'path' => default_db_path()], $e) ? 'Миграция на SQLite завершена. Прослойка переключена на SQLite.' : ('Ошибка миграции: ' . $e));

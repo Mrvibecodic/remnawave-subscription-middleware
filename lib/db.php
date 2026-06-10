@@ -7,6 +7,19 @@ function config_path() {
 
 function default_db_path() { return dirname(__DIR__) . '/data/submw.sqlite'; }
 
+function submw_env_db() {
+    $host = getenv('SUBMW_DB_HOST');
+    if ($host === false || $host === '') return null;
+    return [
+        'driver' => 'mysql',
+        'host'   => (string) $host,
+        'port'   => (int) (getenv('SUBMW_DB_PORT') ?: 3306),
+        'name'   => (string) getenv('SUBMW_DB_NAME'),
+        'user'   => (string) getenv('SUBMW_DB_USER'),
+        'pass'   => (string) getenv('SUBMW_DB_PASSWORD'),
+    ];
+}
+
 function db_conf() { return cfg()['db'] ?? null; }
 
 function db_driver() {

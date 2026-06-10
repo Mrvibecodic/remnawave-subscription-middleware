@@ -1,4 +1,67 @@
 <?php $cur_drv = db_driver(); ?>
+<?php if (submw_in_docker()): ?>
+    <div class="card">
+        <h2 style="margin-top:0;font-size:1rem">Миграция базы данных (Docker)</h2>
+        <p class="muted">Сейчас прослойка работает на: <b><?= $cur_drv === 'mysql' ? 'MySQL / MariaDB' : 'SQLite' ?></b>. Миграция копирует все таблицы в другую БД и переключает прослойку. <code>config.php</code> лежит в volume — переключение сохраняется при <code>docker compose pull</code>.</p>
+    </div>
+    <?php if ($cur_drv !== 'mysql'): $envdb = submw_env_db(); ?>
+    <div class="card">
+        <h2 style="margin-top:0;font-size:1rem">Перейти на MySQL / MariaDB</h2>
+        <p class="muted">В Docker MariaDB поднимается соседним сервисом в compose, а её адрес и креды прокидываются прослойке через окружение — форму заполнять не нужно.</p>
+        <p style="margin:.9rem 0 .3rem"><b>1.</b> В <code>docker-compose.yml</code> (там же, где сервис прослойки) добавьте сервис БД и env прослойке. Пароль задайте свой и одинаковый в двух местах:</p>
+        <pre>services:
+  remnawave-submw-db:
+    image: mariadb:11
+    container_name: remnawave-submw-db
+    restart: always
+    networks: [remnawave-network]
+    environment:
+      - MARIADB_DATABASE=submw
+      - MARIADB_USER=submw
+      - MARIADB_PASSWORD=ВАШ_ПАРОЛЬ
+      - MARIADB_ROOT_PASSWORD=ВАШ_ROOT_ПАРОЛЬ
+    volumes:
+      - submw-db:/var/lib/mysql
+
+  remnawave-subscription-middleware:
+    environment:
+      - SUBMW_DB_HOST=remnawave-submw-db
+      - SUBMW_DB_NAME=submw
+      - SUBMW_DB_USER=submw
+      - SUBMW_DB_PASSWORD=ВАШ_ПАРОЛЬ
+
+volumes:
+  submw-db:</pre>
+        <p class="muted">Блоки <code>services:</code> / <code>volumes:</code> не дублируйте — добавляйте сервис/том в существующие.</p>
+        <p style="margin:.9rem 0 .3rem"><b>2.</b> Применить (из каталога с compose):</p>
+        <pre>docker compose pull
+docker compose up -d</pre>
+        <p style="margin:.9rem 0 .3rem"><b>3.</b> Обновите эту страницу и нажмите «Переехать» — прослойка прочитает БД из окружения, скопирует данные и переключится.</p>
+        <?php if ($envdb && ($envdb['name'] ?? '') !== '' && ($envdb['user'] ?? '') !== ''): ?>
+            <div class="info" style="margin-top:.6rem">БД из compose найдена: хост <code><?= h($envdb['host']) ?></code>, база <code><?= h($envdb['name']) ?></code>, пользователь <code><?= h($envdb['user']) ?></code>.</div>
+            <form method="post" onsubmit="return uiConfirmForm(this,'Перенести все данные в MySQL и переключить прослойку на неё?')">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="migrate_db">
+                <input type="hidden" name="to" value="mysql">
+                <div style="margin-top:1rem"><button type="submit">🐬 Переехать на MySQL</button></div>
+            </form>
+        <?php else: ?>
+            <div class="warn" style="margin-top:.6rem">Переменные БД (<code>SUBMW_DB_HOST</code> и др.) в окружении не заданы. Выполните шаги 1–2 — после <code>up -d</code> здесь появится кнопка «Переехать».</div>
+        <?php endif; ?>
+    </div>
+    <?php else: ?>
+    <div class="card">
+        <h2 style="margin-top:0;font-size:1rem">Вернуться на SQLite</h2>
+        <p class="muted">Все данные скопируются в файловую базу <code>data/submw.sqlite</code> (в volume), прослойка переключится на неё. MySQL-база останется нетронутой — после этого можно убрать сервис БД и env из compose.</p>
+        <form method="post" onsubmit="return uiConfirmForm(this,'Перенести все данные в SQLite и переключить прослойку на неё?')">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="migrate_db">
+            <input type="hidden" name="to" value="sqlite">
+            <div style="margin-top:.4rem"><button type="submit">🪶 Мигрировать на SQLite</button></div>
+        </form>
+    </div>
+    <?php endif; ?>
+<?php else: ?>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Миграция базы данных</h2>
         <p class="muted">Сейчас прослойка работает на: <b><?= $cur_drv === 'mysql' ? 'MySQL / MariaDB' : 'SQLite' ?></b>. Миграция копирует все таблицы в другую БД и переключает прослойку на неё (config.php обновляется автоматически). Перед миграцией сделайте бэкап.</p>
@@ -66,3 +129,4 @@ EXIT;</pre>
         </form>
     </div>
     <?php endif; ?>
+<?php endif; ?>

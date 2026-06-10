@@ -15,6 +15,7 @@ RUN set -eux; \
            /var/www/html/install.sh /var/www/html/Dockerfile /var/www/html/.dockerignore; \
     rm -f /etc/nginx/sites-enabled/default; \
     sed -i 's/^listen = .*/listen = 127.0.0.1:9000/' /usr/local/etc/php-fpm.d/zz-docker.conf; \
+    { echo 'pm = ondemand'; echo 'pm.max_children = 8'; echo 'pm.process_idle_timeout = 10s'; echo 'pm.max_requests = 500'; } >> /usr/local/etc/php-fpm.d/zz-docker.conf; \
     mkdir -p /var/www/html/data; \
     chown -R www-data:www-data /var/www/html; \
     chmod +x /entrypoint.sh
