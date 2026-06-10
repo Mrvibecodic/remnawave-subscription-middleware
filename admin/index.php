@@ -18,6 +18,8 @@ if (!is_installed()) {
     $prefill = is_file($prefill_file) ? json_decode((string) @file_get_contents($prefill_file), true) : null;
     if (!is_array($prefill)) $prefill = [];
     $pf_db = (isset($prefill['db']) && is_array($prefill['db'])) ? $prefill['db'] : ['driver' => 'sqlite', 'path' => default_db_path()];
+    $pf_mode = (($prefill['mode'] ?? '') === 'panel') ? 'panel' : 'mirror';
+    $pf_rw_url = (string) ($prefill['remnawave_url'] ?? '');
 
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $f = fn($k) => trim((string) ($_POST[$k] ?? ''));
@@ -32,9 +34,10 @@ if (!is_installed()) {
         $au       = $f('admin_user');
         $ap       = (string) ($_POST['admin_pass'] ?? '');
         $ap2      = (string) ($_POST['admin_pass2'] ?? '');
+        $mode     = (($_POST['sub_source'] ?? $pf_mode) === 'panel') ? 'panel' : 'mirror';
 
-        if ($target === '' || $au === '' || $ap === '') {
-            $err = 'Заполните обязательные поля (origin-домен, логин и пароль админки).';
+        if (($mode === 'mirror' && $target === '') || $au === '' || $ap === '') {
+            $err = 'Заполните обязательные поля (' . ($mode === 'mirror' ? 'origin-домен, ' : '') . 'логин и пароль админки).';
         } elseif ($ap !== $ap2) {
             $err = 'Пароли админки не совпадают.';
         } elseif (strlen($ap) < 8) {
@@ -61,6 +64,10 @@ if (!is_installed()) {
                     $set('remnawave_url', $rw_url);
                     $set('remnawave_api_key', $rw_key);
                     $set('remnawave_cookie', $rw_cookie);
+                    $set('sub_source', $mode);
+                    if (($prefill['subpage_external_url'] ?? '') !== '') {
+                        $set('subpage_external_url', rtrim((string) $prefill['subpage_external_url'], '/'));
+                    }
                 } catch (Throwable $e) {
                     $err = 'Ошибка создания таблиц: ' . $e->getMessage();
                 }
@@ -119,25 +126,36 @@ if (!is_installed()) {
     <?php endif; ?>
     <form method="post">
         <div class="card">
+            <h2>Режим работы</h2>
+            <label>Что делает прослойка</label>
+            <select name="sub_source" id="subSource" onchange="submwMode()" style="width:100%;padding:.55rem;background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:.4rem">
+                <option value="mirror" <?= $pf_mode==='mirror'?'selected':'' ?>>Зеркало — проксирует origin-домен подписки</option>
+                <option value="panel" <?= $pf_mode==='panel'?'selected':'' ?>>Основная подписка (sub-сервис панели)</option>
+            </select>
+            <p class="muted">«Зеркало» — нужен origin-домен подписки панели. «Основная подписка» — прослойка сама отдаёт подписку напрямую с панели; origin не нужен, нужен URL панели + API-токен.</p>
+        </div>
+        <div class="card">
             <h2>База данных</h2>
             <?php if (($pf_db['driver'] ?? 'sqlite') === 'mysql'): ?>
             <p class="muted">MySQL/MariaDB — параметры подготовлены установщиком (база <code><?= h($pf_db['name'] ?? '') ?></code>). Заполнять ничего не нужно.</p>
             <?php else: ?>
-            <p class="muted">SQLite — отдельный сервер БД не нужен. Файл создаётся автоматически в <code>data/submw.sqlite</code>.</p>
+            <p class="muted">SQLite (по умолчанию) — отдельный сервер БД не нужен, файл создаётся автоматически в <code>data/submw.sqlite</code>. Нужна MySQL/MariaDB — выберите её при запуске установщика.</p>
             <?php endif; ?>
         </div>
         <div class="card">
             <h2>Домены</h2>
+            <div id="mirrorOrigin">
             <label>Origin — реальный домен подписки Remnawave *</label>
             <input name="target_domain" value="<?= h($_POST['target_domain'] ?? ($prefill['target_domain'] ?? '')) ?>" placeholder="sub.example.com">
             <p class="muted">Только домен, без <code>https://</code> и без пути. Пример: <code>sub.example.com</code></p>
+            </div>
             <label>Домен зеркала (где стоит прослойка)</label>
             <input name="mirror_domain" value="<?= h($_POST['mirror_domain'] ?? $host_guess) ?>" placeholder="mirror.example.com">
             <p class="muted">Тоже только домен, без <code>https://</code>. На зеркало уже указывают подписки юзеров — менять его не нужно.</p>
         </div>
         <div class="card">
             <h2>API Remnawave (для списка юзеров)</h2>
-            <label>URL панели</label><input name="remnawave_url" value="<?= h($_POST['remnawave_url'] ?? '') ?>" placeholder="https://panel.example.com">
+            <label>URL панели</label><input name="remnawave_url" value="<?= h($_POST['remnawave_url'] ?? $pf_rw_url) ?>" placeholder="https://panel.example.com или http://127.0.0.1:3000">
             <p class="muted">Полный адрес <b>со схемой</b> <code>https://</code> и без <code>/</code> на конце. Пример: <code>https://panel.example.com</code></p>
             <label>Cookie панели (если защита eGames; иначе пусто)</label><input name="remnawave_cookie" value="<?= h($_POST['remnawave_cookie'] ?? '') ?>" placeholder="aB3xK9pQ=Zt7mW2nR">
             <p class="muted">Нужна, только если панель закрыта cookie-защитой eGames reverse-proxy (без верной куки панель отдаёт 404); иначе оставьте пустым. Формат <code>имя=значение</code>.<br><b>Где взять:</b> проще всего в браузере — войдите в панель, F12 → Application (Storage) → Cookies → выберите домен панели → скопируйте защитную куку (её имя и значение). Либо в конфиге вашего eGames reverse-proxy (nginx/Caddy), где проверяется кука, или в выводе установщика eGames при настройке.</p>
@@ -159,7 +177,12 @@ if (!is_installed()) {
         </div>
         <button type="submit">🚀 Установить</button>
     </form>
-    </div></body></html>
+    </div>
+    <script>
+    function submwMode(){var m=document.getElementById('subSource').value;var o=document.getElementById('mirrorOrigin');if(o)o.style.display=(m==='panel')?'none':'';}
+    submwMode();
+    </script>
+    </body></html>
     <?php
     exit();
 }
@@ -458,10 +481,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('tls_verify', isset($_POST['tls_verify']) ? '1' : '0');
         set_setting('proxy_timeout', (string) max(5, (int) ($_POST['proxy_timeout'] ?? 30)));
         set_setting('sub_source', ($_POST['sub_source'] ?? 'mirror') === 'panel' ? 'panel' : 'mirror');
-        set_setting('subpage_render', ($_POST['subpage_render'] ?? 'embedded') === 'external' ? 'external' : 'embedded');
         set_setting('subpage_external_url', rtrim(trim($_POST['subpage_external_url'] ?? ''), '/'));
-        set_setting('subpage_token_mode', ($_POST['subpage_token_mode'] ?? 'shared') === 'separate' ? 'separate' : 'shared');
-        if (($_POST['subpage_api_key'] ?? '') !== '') set_setting('subpage_api_key', trim($_POST['subpage_api_key']));
         flash('Настройки подключения сохранены');
         header('Location: index.php?tab=connection'); exit();
     }

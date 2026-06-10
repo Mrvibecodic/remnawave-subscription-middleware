@@ -50,20 +50,31 @@ if (subpage_active()) {
 if ($query) $target_url .= '?' . $query;
 
 $request_headers = [];
+$strip_fwd = subpage_active();
 if (function_exists('getallheaders')) {
     foreach (getallheaders() as $key => $value) {
-        if (strtolower($key) !== 'host') $request_headers[] = "$key: $value";
+        $lk = strtolower($key);
+        if ($lk === 'host') continue;
+        if ($strip_fwd && ($lk === 'x-forwarded-for' || $lk === 'x-forwarded-proto')) continue;
+        $request_headers[] = "$key: $value";
     }
 } else {
     foreach ($_SERVER as $key => $value) {
         if (substr($key, 0, 5) === 'HTTP_') {
             $hn = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
-            if (strtolower($hn) !== 'host') $request_headers[] = "$hn: $value";
+            $lh = strtolower($hn);
+            if ($lh === 'host') continue;
+            if ($strip_fwd && ($lh === 'x-forwarded-for' || $lh === 'x-forwarded-proto')) continue;
+            $request_headers[] = "$hn: $value";
         }
     }
 }
 
 if (subpage_active()) {
+    if (strpos(remnawave_url(), 'http://') === 0) {
+        $request_headers[] = 'x-forwarded-proto: https';
+        $request_headers[] = 'x-forwarded-for: 127.0.0.1';
+    }
     $request_headers[] = 'x-remnawave-real-ip: ' . client_ip();
 }
 

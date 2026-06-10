@@ -35,24 +35,8 @@
                     <option value="panel" <?= sub_source()==='panel'?'selected':'' ?>>Панель (sub-сервис)</option>
                 </select>
             </div>
-            <div class="set-row">
-                <div class="set-info"><div class="set-t">Рендер страницы подписки</div><div class="set-d">Только для режима «Панель». «Встроенный бандл» — страницу отдаёт сама прослойка. «Внешний контейнер» — reverse-proxy на отдельно поднятый официальный subscription-page.</div></div>
-                <select name="subpage_render">
-                    <option value="embedded" <?= subpage_render_mode()==='embedded'?'selected':'' ?>>Встроенный бандл</option>
-                    <option value="external" <?= subpage_render_mode()==='external'?'selected':'' ?>>Внешний контейнер</option>
-                </select>
-            </div>
             <div class="row">
-                <div><label>URL внешнего контейнера</label><input type="text" name="subpage_external_url" value="<?= h(subpage_external_url()) ?>" placeholder="http://127.0.0.1:3010"></div>
-                <div><label>Токен для страницы</label>
-                    <select name="subpage_token_mode">
-                        <option value="shared" <?= setting('subpage_token_mode','shared')==='shared'?'selected':'' ?>>API-токен панели</option>
-                        <option value="separate" <?= setting('subpage_token_mode','shared')==='separate'?'selected':'' ?>>Отдельный токен</option>
-                    </select>
-                </div>
-            </div>
-            <div class="row">
-                <div><label>Отдельный токен страницы</label><input type="password" name="subpage_api_key" value="" placeholder="<?= trim((string)setting('subpage_api_key',''))?'•••••• задан':'не задан' ?>"></div>
+                <div><label>URL контейнера subscription-page (для режима «Панель»)</label><input type="text" name="subpage_external_url" value="<?= h(subpage_external_url()) ?>" placeholder="http://127.0.0.1:3010"></div>
                 <div></div>
             </div>
             <div style="margin-top:1.25rem"><button type="submit">💾 Сохранить подключение</button></div>
