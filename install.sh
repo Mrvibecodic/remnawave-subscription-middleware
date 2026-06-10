@@ -160,13 +160,14 @@ server {
     gzip_types text/css application/javascript application/json image/svg+xml text/plain;
     gzip_comp_level 5;
 
-    location ~ ^/(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|install\.sh)\$ { deny all; }
+    location ~ ^/(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|INSTALL\.md|install\.sh|Dockerfile)\$ { deny all; }
     location ~* \.(sqlite|sqlite3|db|db-wal|db-shm)\$ { deny all; }
     location ~ /\.(?!well-known) { deny all; }
     location = /assets/.app-config-v2.json { try_files \$uri /index.php\$is_args\$args; }
     location ^~ /data/ { deny all; }
     location ^~ /lib/  { deny all; }
     location ^~ /backups/ { deny all; }
+    location ^~ /docker/ { deny all; }
 
     location = /webhook.php { fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name; include fastcgi_params; fastcgi_param HTTPS on; fastcgi_pass unix:${PHP_SOCK}; }
 
@@ -384,13 +385,14 @@ server {
 
     location ^~ /.well-known/acme-challenge/ { root ${ACME_WEBROOT}; }
 
-    location ~ ^/(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|install\.sh)\$ { deny all; }
+    location ~ ^/(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|INSTALL\.md|install\.sh|Dockerfile)\$ { deny all; }
     location ~* \.(sqlite|sqlite3|db|db-wal|db-shm)\$ { deny all; }
     location ~ /\.(?!well-known) { deny all; }
     location = /assets/.app-config-v2.json { try_files \$uri /index.php\$is_args\$args; }
     location ^~ /data/ { deny all; }
     location ^~ /lib/  { deny all; }
     location ^~ /backups/ { deny all; }
+    location ^~ /docker/ { deny all; }
 
     location = /webhook.php { fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name; include fastcgi_params; fastcgi_pass unix:${PHP_SOCK}; }
 

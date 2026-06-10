@@ -1,8 +1,8 @@
 RewriteEngine On
 
-RewriteRule ^(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md)$ - [F,L]
+RewriteRule ^(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|INSTALL\.md|install\.sh|Dockerfile)$ - [F,L]
 
-RewriteRule ^(lib|data|docs|\.backups|\.git)(/|$) - [F,L]
+RewriteRule ^(lib|data|docs|docker|\.backups|\.git|\.github)(/|$) - [F,L]
 
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d

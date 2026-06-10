@@ -14,6 +14,7 @@ RUN set -eux; \
     rm -rf /var/www/html/.git /var/www/html/.github /var/www/html/docker \
            /var/www/html/install.sh /var/www/html/Dockerfile /var/www/html/.dockerignore; \
     rm -f /etc/nginx/sites-enabled/default; \
+    sed -i 's/^listen = .*/listen = 127.0.0.1:9000/' /usr/local/etc/php-fpm.d/zz-docker.conf; \
     mkdir -p /var/www/html/data; \
     chown -R www-data:www-data /var/www/html; \
     chmod +x /entrypoint.sh

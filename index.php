@@ -23,9 +23,9 @@ if (subpage_dispatch($path, $query)) {
 }
 
 register_shutdown_function(function () {
-    if (!function_exists('fastcgi_finish_request') || !function_exists('metrics_tick') || !empty($GLOBALS['submw_skip_metric'])) return;
+    if (!function_exists('metrics_tick') || !empty($GLOBALS['submw_skip_metric'])) return;
     $t0 = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true);
-    @fastcgi_finish_request();
+    if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
     metrics_tick((microtime(true) - $t0) * 1000, memory_get_peak_usage(true), !empty($GLOBALS['submw_real_sub']));
 });
 register_shutdown_function(function () {

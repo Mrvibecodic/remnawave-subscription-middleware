@@ -1,6 +1,9 @@
 <?php
 
-function config_path() { return dirname(__DIR__) . '/config.php'; }
+function config_path() {
+    if (getenv('SUBMW_DOCKER') === '1') return dirname(__DIR__) . '/data/config.php';
+    return dirname(__DIR__) . '/config.php';
+}
 
 function default_db_path() { return dirname(__DIR__) . '/data/submw.sqlite'; }
 
