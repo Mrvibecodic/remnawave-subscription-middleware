@@ -194,6 +194,7 @@ server {
     location ~ ^/(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|install\.sh)\$ { deny all; }
     location ~* \.(sqlite|sqlite3|db|db-wal|db-shm)\$ { deny all; }
     location ~ /\.(?!well-known) { deny all; }
+    location = /assets/.app-config-v2.json { try_files \$uri /index.php\$is_args\$args; }
     location ^~ /data/ { deny all; }
     location ^~ /lib/  { deny all; }
     location ^~ /backups/ { deny all; }
