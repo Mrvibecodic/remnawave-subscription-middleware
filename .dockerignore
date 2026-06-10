@@ -1,0 +1,6 @@
+.git
+.github
+.backups
+data
+config.php
+*.sqlite

@@ -1,0 +1,23 @@
+services:
+  remnawave-subscription-middleware:
+    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:dev
+    container_name: remnawave-subscription-middleware
+    hostname: remnawave-subscription-middleware
+    restart: always
+    networks:
+      - remnawave-network
+    ports:
+      - '127.0.0.1:8080:80'
+    environment:
+      - SUBMW_PANEL_URL=http://remnawave:3000
+      - SUBMW_SUBPAGE_URL=http://remnawave-subscription-page:3010
+      - SUBMW_DOMAIN=sub.example.com
+    volumes:
+      - submw-data:/var/www/html/data
+
+networks:
+  remnawave-network:
+    external: true
+
+volumes:
+  submw-data:

@@ -14,8 +14,59 @@ asks() { local p="$1" v; read -rsp "$p: " v; echo >&2; printf '%s' "$v"; }
 echo "== Установка прослойки подписки Remnawave =="
 echo "Тип установки:"
 echo "  1) Отдельный сервер — nginx + php-fpm + сертификат, всё автоматически"
-echo "  2) Рядом с панелью Remnawave (за её nginx) — ставим только зависимости, в конце короткая инструкция"
-SCENARIO="$(ask 'Выбор (1/2)' 1)"
+echo "  2) Рядом с панелью Remnawave (за её nginx, пакеты на хост)"
+echo "  3) Рядом с панелью, Docker-контейнером (из готового образа) — рекомендуется"
+SCENARIO="$(ask 'Выбор (1/2/3)' 3)"
+
+if [ "$SCENARIO" = "3" ]; then
+  DOMAIN="$(ask 'Домен подписки (он же домен прослойки), напр. sub.example.com')"
+  NET="$(ask 'Имя docker-сети панели' 'remnawave-network')"
+  PANEL_URL="$(ask 'Внутренний URL панели (имя контейнера)' 'http://remnawave:3000')"
+  SUBPAGE_URL="$(ask 'Внутренний URL контейнера subscription-page' 'http://remnawave-subscription-page:3010')"
+  LOCAL_PORT="$(ask 'Локальный порт прослойки за nginx панели' '8080')"
+  IMG_TAG="$(ask 'Тег образа (ветка)' 'dev')"
+  [ -n "$DOMAIN" ] || { echo "Не задан домен подписки."; exit 1; }
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "-> Docker не найден, устанавливаю..."; curl -fsSL https://get.docker.com | sh
+  fi
+  mkdir -p "$DEST"
+  cat > "$DEST/docker-compose.yml" <<YML
+services:
+  remnawave-subscription-middleware:
+    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:${IMG_TAG}
+    container_name: remnawave-subscription-middleware
+    hostname: remnawave-subscription-middleware
+    restart: always
+    networks:
+      - ${NET}
+    ports:
+      - '127.0.0.1:${LOCAL_PORT}:80'
+    environment:
+      - SUBMW_PANEL_URL=${PANEL_URL}
+      - SUBMW_SUBPAGE_URL=${SUBPAGE_URL}
+      - SUBMW_DOMAIN=${DOMAIN}
+    volumes:
+      - submw-data:/var/www/html/data
+networks:
+  ${NET}:
+    external: true
+volumes:
+  submw-data:
+YML
+  ( cd "$DEST" && docker compose pull && docker compose up -d )
+  echo
+  echo "================ ГОТОВО (Docker, рядом с панелью) ================"
+  echo "Контейнер: remnawave-subscription-middleware -> 127.0.0.1:${LOCAL_PORT}"
+  echo "Compose:   ${DEST}/docker-compose.yml"
+  echo
+  echo "ОСТАЛОСЬ 2 ШАГА (подробно — в INSTALL.md):"
+  echo "  1) В nginx ПАНЕЛИ апстрим подписки -> 127.0.0.1:${LOCAL_PORT} (у eGames это 'upstream json'), reload nginx панели."
+  echo "  2) Открыть https://${DOMAIN}/admin/ и завершить мастер (режим/адреса уже заданы окружением)."
+  echo
+  echo "Обновление: cd ${DEST} && docker compose pull && docker compose up -d"
+  echo "Инструкция: https://github.com/Mrvibecodic/remnawave-subscription-middleware/blob/main/INSTALL.md"
+  exit 0
+fi
 
 if [ "$SCENARIO" = "2" ]; then
   DOMAIN="$(ask 'Домен подписки (он же домен прослойки), напр. sub.example.com')"

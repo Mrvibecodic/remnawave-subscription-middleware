@@ -14,6 +14,10 @@ function update_set_branch($branch, &$err = null) {
 }
 function update_root() { return dirname(__DIR__); }
 
+function submw_in_docker() { return getenv('SUBMW_DOCKER') === '1'; }
+
+function submw_image_version() { return trim((string) getenv('SUBMW_VERSION')); }
+
 function update_web_user() {
     if (function_exists('posix_geteuid') && function_exists('posix_getpwuid')) {
         $u = @posix_getpwuid(posix_geteuid());
@@ -24,7 +28,7 @@ function update_web_user() {
 }
 
 function update_protected_paths() {
-    return ['config.php', 'config.example.php', '.git', 'backups', '.backups', 'docs', 'README.md', 'install.sh'];
+    return ['config.php', 'config.example.php', '.git', 'backups', '.backups', 'docs', 'README.md', 'INSTALL.md', 'install.sh', 'Dockerfile', '.dockerignore', 'docker', 'docker-compose.example.yml', '.github'];
 }
 
 function update_path_ok($rel) {
@@ -110,6 +114,10 @@ function update_local_git_commit() {
 }
 
 function update_installed_commit() {
+    if (submw_in_docker()) {
+        $v = submw_image_version();
+        if ($v !== '') return $v;
+    }
     $stored = trim((string) setting('installed_commit', ''));
     if ($stored !== '') return $stored;
     $git = update_local_git_commit();
@@ -188,7 +196,7 @@ function update_refresh(&$err = null) {
 
 function update_autocheck() {
     $st = update_state();
-    if (time() - (int) ($st['checked_at'] ?? 0) >= 86400) {
+    if (time() - (int) ($st['checked_at'] ?? 0) >= 43200) {
         update_refresh($e);
     }
 }
@@ -227,6 +235,7 @@ function update_raw_url($sha, $rel) {
 }
 
 function update_apply(&$log, &$err = null) {
+    if (submw_in_docker()) { $err = 'В Docker-режиме обновление выполняется через docker pull (см. вкладку «Обновление»).'; return false; }
     $log = [];
     $installed = update_installed_commit();
     if ($installed === '') { $err = 'Базовый коммит не задан — сначала «Отметить текущую версию».'; return false; }
