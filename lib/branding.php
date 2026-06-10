@@ -103,7 +103,13 @@ function remnawave_branding(&$error = '') {
             if ($name === '') $name = trim((string) ($b['title'] ?? ''));
             if ($logo === '') $logo = trim((string) ($b['logoUrl'] ?? ''));
         } elseif ($name === '' && $logo === '') {
-            $error = ($e2 ?: ('HTTP ' . $code2)) . ' /api/remnawave-settings (токену нужны права на настройки)';
+            $msg = ($e2 ?: ('HTTP ' . $code2)) . ' /api/remnawave-settings';
+            if ((int) $code2 === 403 && strpos(remnawave_url(), 'http://') === 0) {
+                $msg .= ' — 403 по внутреннему http: нужен образ прослойки с bypass-заголовками, обновите docker-образ. Имя и лого можно задать вручную ниже.';
+            } else {
+                $msg .= ' — проверьте URL и API-токен панели. Имя и лого можно задать вручную ниже.';
+            }
+            $error = $msg;
         }
     }
     return ['name' => $name, 'logo' => $logo, 'name_score' => $name !== '' ? 3 : 0];
