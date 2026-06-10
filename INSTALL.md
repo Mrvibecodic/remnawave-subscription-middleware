@@ -4,10 +4,9 @@
 
 Варианты:
 - **Рядом с панелью, Docker** — основной (панель и так в Docker). Прослойка-контейнер заменяет прямой доступ к `subscription-page`.
-- **Рядом с панелью, пакеты на хост** — без Docker, если так удобнее.
 - **Отдельный сервер** — прослойка одна, на своём домене с TLS.
 
-Во всех «рядом с панелью» вариантах контейнер `subscription-page` **остаётся работать** — прослойка проксирует страницу подписки на него (режим «внешний контейнер»), а клиентские конфиги и свои фичи обрабатывает сама.
+В варианте «рядом с панелью» контейнер `subscription-page` **остаётся работать** — прослойка проксирует страницу подписки на него (режим «внешний контейнер»), а клиентские конфиги и свои фичи обрабатывает сама.
 
 ---
 
@@ -20,7 +19,7 @@
 ```bash
 git clone https://github.com/Mrvibecodic/remnawave-subscription-middleware.git
 cd remnawave-subscription-middleware
-sudo bash install.sh    # выбрать "3) Рядом с панелью, Docker-контейнером"
+sudo bash install.sh    # выбрать "2) Рядом с панелью — Docker"
 ```
 Спросит: домен подписки, имя docker-сети панели (`remnawave-network`), внутренний URL панели (`http://remnawave:3000`), URL контейнера subpage (`http://remnawave-subscription-page:3010`), локальный порт (`8080`), тег образа (`dev`/`main`). Поставит Docker (если нет), создаст `docker-compose.yml`, скачает образ из GHCR и поднимет контейнер.
 
@@ -53,20 +52,10 @@ docker compose pull && docker compose up -d
 ```
 Во вкладке «Обновление» админка сама подсветит наличие новой версии и покажет эти команды. Данные (config.php, БД) в volume — не теряются.
 
----
-
-## Вариант 2. Рядом с панелью, пакеты на хост (без Docker)
-
-```bash
-git clone https://github.com/Mrvibecodic/remnawave-subscription-middleware.git
-cd remnawave-subscription-middleware
-sudo bash install.sh    # выбрать "2) Рядом с панелью (за её nginx)"
-```
-Поставит nginx+php-fpm, поднимет прослойку на `127.0.0.1:8080` (без TLS/certbot, 443 не трогает), запишет режим/адреса. Дальше — те же Шаг 2 и Шаг 3, что и в Docker-варианте. Обновление — обычное файловое (вкладка «Обновление» / `git pull`).
 
 ---
 
-## Вариант 3. Отдельный сервер (прослойка одна)
+## Вариант 2. Отдельный сервер (прослойка одна)
 
 ```bash
 git clone https://github.com/Mrvibecodic/remnawave-subscription-middleware.git

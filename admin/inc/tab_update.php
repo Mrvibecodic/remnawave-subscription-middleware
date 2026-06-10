@@ -38,6 +38,22 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
             <button type="submit" class="btn ghost">🔄 Проверить обновления</button>
         </form>
     </div>
+    <div class="card">
+        <h2 style="margin-top:0;font-size:1rem">Ветка (тег образа)</h2>
+        <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
+        <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Ветка = тег образа в реестре.</p>
+        <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return (function(f){uiConfirm('Переключить отслеживаемую ветку? Проверки обновлений будут сверяться с её последним коммитом.',function(){f.submit();},'Переключить',false);return false;})(this)">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="update_switch_branch">
+            <select name="branch" style="min-width:150px;padding:.4rem .6rem">
+                <?php foreach ($u_branches as $b): ?>
+                    <option value="<?= h($b) ?>"<?= $b === $u_branch ? ' selected' : '' ?>><?= h($b) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <button type="submit" class="btn">Переключить</button>
+        </form>
+        <p class="muted" style="margin:.5rem 0 0;font-size:.8rem">Чтобы перейти на выбранную ветку: смените тег образа в <code>docker-compose.yml</code> на <code>:<?= h($u_branch) ?></code>, затем <code>docker compose pull &amp;&amp; docker compose up -d</code>.</p>
+    </div>
     <?php if ($u_installed !== '' && $u_avail): ?>
     <div class="card" style="border-color:var(--amber)">
         <h2 style="margin-top:0;font-size:1rem">Доступно обновление · коммитов: <?= (int) ($u_state['ahead_by'] ?? count($u_commits)) ?></h2>

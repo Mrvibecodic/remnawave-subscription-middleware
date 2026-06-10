@@ -13,12 +13,11 @@ asks() { local p="$1" v; read -rsp "$p: " v; echo >&2; printf '%s' "$v"; }
 
 echo "== Установка прослойки подписки Remnawave =="
 echo "Тип установки:"
-echo "  1) Отдельный сервер — nginx + php-fpm + сертификат, всё автоматически"
-echo "  2) Рядом с панелью Remnawave (за её nginx, пакеты на хост)"
-echo "  3) Рядом с панелью, Docker-контейнером (из готового образа) — рекомендуется"
-SCENARIO="$(ask 'Выбор (1/2/3)' 3)"
+echo "  1) Отдельный сервер — пакеты на хост (nginx + php-fpm + сертификат)"
+echo "  2) Рядом с панелью — Docker-контейнером (из готового образа) — рекомендуется"
+SCENARIO="$(ask 'Выбор (1/2)' 2)"
 
-if [ "$SCENARIO" = "3" ]; then
+if [ "$SCENARIO" = "2" ]; then
   DOMAIN="$(ask 'Домен подписки (он же домен прослойки), напр. sub.example.com')"
   NET="$(ask 'Имя docker-сети панели' 'remnawave-network')"
   PANEL_URL="$(ask 'Внутренний URL панели (имя контейнера)' 'http://remnawave:3000')"
@@ -69,143 +68,6 @@ YML
   echo
   echo "Обновление: cd ${DEST} && docker compose pull && docker compose up -d"
   echo "Инструкция: https://github.com/Mrvibecodic/remnawave-subscription-middleware/blob/main/INSTALL.md"
-  exit 0
-fi
-
-if [ "$SCENARIO" = "2" ]; then
-  DOMAIN="$(ask 'Домен подписки (он же домен прослойки), напр. sub.example.com')"
-  PANEL_URL="$(ask 'Внутренний URL панели (как прослойка к ней обращается)' 'http://127.0.0.1:3000')"
-  LOCAL_PORT="$(ask 'Локальный порт прослойки за nginx панели' '8080')"
-  echo "Тип базы данных:"
-  echo "  1) SQLite — файл, ничего не ставим (по умолчанию)"
-  echo "  2) MySQL/MariaDB — поставим MariaDB и создадим базу"
-  DB_MODE="$(ask 'Выбор (1/2)' 1)"
-  [ -n "$DOMAIN" ] || { echo "Не задан домен подписки."; exit 1; }
-
-  echo "-> Установка зависимостей (php-fpm + nginx, без certbot)..."
-  export DEBIAN_FRONTEND=noninteractive
-  apt-get update -qq
-  PKGS="php-fpm php-cli php-sqlite3 php-mysql php-curl php-mbstring php-xml git openssl curl ca-certificates nginx"
-  [ "$DB_MODE" = "2" ] && PKGS="$PKGS mariadb-server"
-  apt-get install -y $PKGS >/dev/null
-
-  PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
-  PHP_POOL_DIR="/etc/php/${PHP_VER}/fpm/pool.d"
-  PHP_SOCK="/run/php/submw.sock"
-  if [ -d "$PHP_POOL_DIR" ]; then
-    cat > "${PHP_POOL_DIR}/submw.conf" <<POOL
-[submw]
-user = www-data
-group = www-data
-listen = ${PHP_SOCK}
-listen.owner = www-data
-listen.group = www-data
-pm = ondemand
-pm.max_children = 8
-pm.process_idle_timeout = 10s
-pm.max_requests = 500
-POOL
-  else
-    PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
-  fi
-  systemctl enable --now "php${PHP_VER}-fpm" >/dev/null 2>&1 || true
-  systemctl restart "php${PHP_VER}-fpm" >/dev/null 2>&1 || true
-
-  echo "-> Стягиваю файлы в ${DEST}..."
-  mkdir -p "$DEST"
-  if [ "$SRC_DIR" != "$DEST" ]; then cp -r "$SRC_DIR/." "$DEST/"; fi
-  rm -f "$DEST/install.sh"
-  mkdir -p "$DEST/data"
-  chown -R www-data:www-data "$DEST"
-  find "$DEST" -type d -exec chmod 755 {} \;
-  find "$DEST" -type f -exec chmod 644 {} \;
-  chmod 775 "$DEST/data"
-
-  DB_JSON=""
-  if [ "$DB_MODE" = "2" ]; then
-    echo "-> Настройка MariaDB (база и пользователь со случайными именем/паролем)..."
-    systemctl enable --now mariadb >/dev/null 2>&1 || true
-    DB_NAME="submw_$(openssl rand -hex 4)"
-    DB_USER="submw_$(openssl rand -hex 4)"
-    DB_PASS="$(openssl rand -hex 24)"
-    mysql <<SQL
-CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
-CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
-GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1';
-GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
-FLUSH PRIVILEGES;
-SQL
-    DB_JSON="\"db\":{\"driver\":\"mysql\",\"host\":\"127.0.0.1\",\"port\":3306,\"name\":\"${DB_NAME}\",\"user\":\"${DB_USER}\",\"pass\":\"${DB_PASS}\"}"
-    echo "   MariaDB: база ${DB_NAME}, пользователь ${DB_USER} — креды переданы мастеру установки"
-  else
-    DB_JSON="\"db\":{\"driver\":\"sqlite\",\"path\":\"${DEST}/data/submw.sqlite\"}"
-    echo "   БД: SQLite -> ${DEST}/data/submw.sqlite (создаст мастер установки)"
-  fi
-
-  cat > "${DEST}/data/install.json" <<JSON
-{"target_domain":"","mirror_domain":"${DOMAIN}","mode":"panel","remnawave_url":"${PANEL_URL}","subpage_external_url":"http://127.0.0.1:3010",${DB_JSON}}
-JSON
-  chown www-data:www-data "${DEST}/data/install.json"
-  chmod 600 "${DEST}/data/install.json"
-
-  cat > /etc/nginx/conf.d/submw.conf <<NG
-server {
-    listen 127.0.0.1:${LOCAL_PORT};
-    server_name _;
-
-    root ${DEST};
-    index index.php;
-    charset utf-8;
-    client_max_body_size 8m;
-
-    gzip on;
-    gzip_min_length 1024;
-    gzip_types text/css application/javascript application/json image/svg+xml text/plain;
-    gzip_comp_level 5;
-
-    location ~ ^/(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|INSTALL\.md|install\.sh|Dockerfile)\$ { deny all; }
-    location ~* \.(sqlite|sqlite3|db|db-wal|db-shm)\$ { deny all; }
-    location ~ /\.(?!well-known) { deny all; }
-    location = /assets/.app-config-v2.json { try_files \$uri /index.php\$is_args\$args; }
-    location ^~ /data/ { deny all; }
-    location ^~ /lib/  { deny all; }
-    location ^~ /backups/ { deny all; }
-    location ^~ /docker/ { deny all; }
-
-    location = /webhook.php { fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name; include fastcgi_params; fastcgi_param HTTPS on; fastcgi_pass unix:${PHP_SOCK}; }
-
-    location /admin/ { try_files \$uri \$uri/ /admin/index.php\$is_args\$args; }
-
-    location ~* \.(css|js|mjs|svg|png|jpe?g|gif|webp|ico|woff2?|ttf|map)\$ { try_files \$uri /index.php\$is_args\$args; expires 30d; access_log off; }
-
-    location / { try_files \$uri /index.php\$is_args\$args; }
-
-    location ~ \.php\$ { fastcgi_split_path_info ^(.+\.php)(/.+)\$; fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name; include fastcgi_params; fastcgi_param HTTPS on; fastcgi_pass unix:${PHP_SOCK}; }
-}
-NG
-
-  rm -f /etc/nginx/conf.d/default.conf
-  rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
-  nginx -t && systemctl restart nginx
-  systemctl enable nginx >/dev/null 2>&1 || true
-
-  echo
-  echo "================ ГОТОВО (рядом с панелью) ================"
-  echo "Прослойка слушает локально: http://127.0.0.1:${LOCAL_PORT}"
-  echo "Файлы:  ${DEST}"
-  echo "Режим:  основная подписка (панель), URL панели: ${PANEL_URL}"
-  echo
-  echo "ОСТАЛОСЬ 2 ШАГА (подробно — в README, ссылка ниже):"
-  echo "  1) В nginx ПАНЕЛИ направить домен подписки на прослойку:"
-  echo "     апстрим подписки -> 127.0.0.1:${LOCAL_PORT} (у eGames это 'upstream json'), затем reload nginx панели."
-  echo "  2) Открыть https://${DOMAIN}/admin/ и завершить мастер (всё уже подставлено)."
-  echo
-  echo "Контейнер remnawave-subscription-page останавливать НЕ нужно — прослойка отдаёт страницу через него"
-  echo "(режим «внешний контейнер», http://127.0.0.1:3010; бандл не используется)."
-  echo
-  echo "Инструкция со всеми вариантами nginx:"
-  echo "  https://github.com/Mrvibecodic/remnawave-subscription-middleware/blob/main/INSTALL.md"
   exit 0
 fi
 
