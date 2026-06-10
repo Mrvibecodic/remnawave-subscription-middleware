@@ -11,6 +11,66 @@ ACME_WEBROOT="/var/www/acme"
 ask()  { local p="$1" d="${2:-}" v; read -rp "$p${d:+ [$d]}: " v; printf '%s' "${v:-$d}"; }
 asks() { local p="$1" v; read -rsp "$p: " v; echo >&2; printf '%s' "$v"; }
 
+echo "== Установка прослойки подписки Remnawave =="
+echo "Тип установки:"
+echo "  1) Отдельный сервер — пакеты на хост (nginx + php-fpm + сертификат)"
+echo "  2) Рядом с панелью — Docker-контейнером (из готового образа) — рекомендуется"
+SCENARIO="$(ask 'Выбор (1/2)' 2)"
+
+if [ "$SCENARIO" = "2" ]; then
+  DOMAIN="$(ask 'Домен подписки (он же домен прослойки), напр. sub.example.com')"
+  NET="$(ask 'Имя docker-сети панели' 'remnawave-network')"
+  PANEL_URL="$(ask 'Внутренний URL панели (имя контейнера)' 'http://remnawave:3000')"
+  SUBPAGE_URL="$(ask 'Внутренний URL контейнера subscription-page' 'http://remnawave-subscription-page:3010')"
+  LOCAL_PORT="$(ask 'Локальный порт прослойки за nginx панели' '8080')"
+  IMG_TAG="$(ask 'Тег образа (ветка)' 'dev')"
+  [ -n "$DOMAIN" ] || { echo "Не задан домен подписки."; exit 1; }
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "-> Docker не найден, устанавливаю..."; curl -fsSL https://get.docker.com | sh
+  fi
+  mkdir -p "$DEST"
+  cat > "$DEST/docker-compose.yml" <<YML
+services:
+  remnawave-subscription-middleware:
+    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:${IMG_TAG}
+    container_name: remnawave-subscription-middleware
+    hostname: remnawave-subscription-middleware
+    restart: always
+    networks:
+      - ${NET}
+    ports:
+      - '127.0.0.1:${LOCAL_PORT}:80'
+    environment:
+      - SUBMW_PANEL_URL=${PANEL_URL}
+      - SUBMW_SUBPAGE_URL=${SUBPAGE_URL}
+      - SUBMW_DOMAIN=${DOMAIN}
+    volumes:
+      - submw-data:/var/www/html/data
+networks:
+  ${NET}:
+    external: true
+volumes:
+  submw-data:
+YML
+  ( cd "$DEST" && docker compose pull && docker compose up -d )
+  echo
+  echo "================ ГОТОВО (Docker, рядом с панелью) ================"
+  echo "Контейнер: remnawave-subscription-middleware -> 127.0.0.1:${LOCAL_PORT}"
+  echo "Compose:   ${DEST}/docker-compose.yml"
+  echo
+  echo "ОСТАЛОСЬ 2 ШАГА (подробно — в INSTALL.md):"
+  echo "  1) Направить домен подписки на прослойку — правка nginx ПАНЕЛИ:"
+  echo "       cd /opt/remnawave        # каталог панели (docker-compose.yml и nginx.conf)"
+  echo "       # в nginx.conf апстрим подписки -> server 127.0.0.1:${LOCAL_PORT};"
+  echo "       # (у eGames это блок 'upstream json', было server 127.0.0.1:3010;)"
+  echo "       docker exec remnawave-nginx nginx -t && docker exec remnawave-nginx nginx -s reload"
+  echo "  2) Открыть https://${DOMAIN}/admin/ и завершить мастер (режим/адреса уже заданы окружением)."
+  echo
+  echo "Обновление: cd ${DEST} && docker compose pull && docker compose up -d"
+  echo "Инструкция: https://github.com/Mrvibecodic/remnawave-subscription-middleware/blob/main/INSTALL.md"
+  exit 0
+fi
+
 echo "== Установка прослойки подписки Remnawave (РФ-сервер, nginx + PHP-FPM + SQLite) =="
 DOMAIN="$(ask 'Домен прослойки (он же зеркало подписок), напр. mirror.example.com')"
 ORIGIN_DOMAIN="$(ask 'Origin — домен подписки панели, напр. sub.example.com')"
@@ -191,13 +251,14 @@ server {
 
     location ^~ /.well-known/acme-challenge/ { root ${ACME_WEBROOT}; }
 
-    location ~ ^/(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|install\.sh)\$ { deny all; }
+    location ~ ^/(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|INSTALL\.md|install\.sh|Dockerfile)\$ { deny all; }
     location ~* \.(sqlite|sqlite3|db|db-wal|db-shm)\$ { deny all; }
     location ~ /\.(?!well-known) { deny all; }
     location = /assets/.app-config-v2.json { try_files \$uri /index.php\$is_args\$args; }
     location ^~ /data/ { deny all; }
     location ^~ /lib/  { deny all; }
     location ^~ /backups/ { deny all; }
+    location ^~ /docker/ { deny all; }
 
     location = /webhook.php { fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name; include fastcgi_params; fastcgi_pass unix:${PHP_SOCK}; }
 

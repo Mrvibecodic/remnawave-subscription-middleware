@@ -18,10 +18,14 @@ if (empty($path) || $path === 'index.php') {
     exit();
 }
 
+if (subpage_dispatch($path, $query)) {
+    exit();
+}
+
 register_shutdown_function(function () {
-    if (!function_exists('fastcgi_finish_request') || !function_exists('metrics_tick') || !empty($GLOBALS['submw_skip_metric'])) return;
+    if (!function_exists('metrics_tick') || !empty($GLOBALS['submw_skip_metric'])) return;
     $t0 = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true);
-    @fastcgi_finish_request();
+    if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
     metrics_tick((microtime(true) - $t0) * 1000, memory_get_peak_usage(true), !empty($GLOBALS['submw_real_sub']));
 });
 register_shutdown_function(function () {
@@ -38,21 +42,40 @@ $skip_log =
     || preg_match('~^(app|api|backend|frontend|server|config|credentials|secrets|keyfile|phpinfo\.php|wp-login\.php|wp-admin|xmlrpc\.php)$~i', $path)
     || preg_match('~(^|/)(favicon\.ico|robots\.txt|sitemap\.xml|browserconfig\.xml|apple-touch-icon[\w-]*\.png)$~i', $path);
 
-$target_url = 'https://' . $target_domain . '/' . $path;
+if (subpage_active()) {
+    $target_url = remnawave_url() . '/api/sub/' . $path;
+} else {
+    $target_url = 'https://' . $target_domain . '/' . $path;
+}
 if ($query) $target_url .= '?' . $query;
 
 $request_headers = [];
+$strip_fwd = subpage_active();
 if (function_exists('getallheaders')) {
     foreach (getallheaders() as $key => $value) {
-        if (strtolower($key) !== 'host') $request_headers[] = "$key: $value";
+        $lk = strtolower($key);
+        if ($lk === 'host') continue;
+        if ($strip_fwd && ($lk === 'x-forwarded-for' || $lk === 'x-forwarded-proto')) continue;
+        $request_headers[] = "$key: $value";
     }
 } else {
     foreach ($_SERVER as $key => $value) {
         if (substr($key, 0, 5) === 'HTTP_') {
             $hn = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
-            if (strtolower($hn) !== 'host') $request_headers[] = "$hn: $value";
+            $lh = strtolower($hn);
+            if ($lh === 'host') continue;
+            if ($strip_fwd && ($lh === 'x-forwarded-for' || $lh === 'x-forwarded-proto')) continue;
+            $request_headers[] = "$hn: $value";
         }
     }
+}
+
+if (subpage_active()) {
+    if (strpos(remnawave_url(), 'http://') === 0) {
+        $request_headers[] = 'x-forwarded-proto: https';
+        $request_headers[] = 'x-forwarded-for: 127.0.0.1';
+    }
+    $request_headers[] = 'x-remnawave-real-ip: ' . client_ip();
 }
 
 $grabbed_headers = [];
