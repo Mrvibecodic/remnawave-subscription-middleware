@@ -60,7 +60,11 @@ YML
   echo "Compose:   ${DEST}/docker-compose.yml"
   echo
   echo "ОСТАЛОСЬ 2 ШАГА (подробно — в INSTALL.md):"
-  echo "  1) В nginx ПАНЕЛИ апстрим подписки -> 127.0.0.1:${LOCAL_PORT} (у eGames это 'upstream json'), reload nginx панели."
+  echo "  1) Направить домен подписки на прослойку — правка nginx ПАНЕЛИ:"
+  echo "       cd /opt/remnawave        # каталог панели (docker-compose.yml и nginx.conf)"
+  echo "       # в nginx.conf апстрим подписки -> server 127.0.0.1:${LOCAL_PORT};"
+  echo "       # (у eGames это блок 'upstream json', было server 127.0.0.1:3010;)"
+  echo "       docker exec remnawave-nginx nginx -t && docker exec remnawave-nginx nginx -s reload"
   echo "  2) Открыть https://${DOMAIN}/admin/ и завершить мастер (режим/адреса уже заданы окружением)."
   echo
   echo "Обновление: cd ${DEST} && docker compose pull && docker compose up -d"
