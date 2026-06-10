@@ -11,6 +11,10 @@ function remnawave_api_get($path) {
         'Authorization: Bearer ' . $token,
         'Accept: application/json',
     ];
+    if (strpos($base, 'http://') === 0) {
+        $headers[] = 'x-forwarded-proto: https';
+        $headers[] = 'x-forwarded-for: 127.0.0.1';
+    }
     $cookie = remnawave_cookie();
     if ($cookie !== '') $headers[] = 'Cookie: ' . $cookie;
 
@@ -59,6 +63,10 @@ function remnawave_api_request($method, $path, $body = null) {
     if ($base === '' || $token === '') return [false, 0, null, 'Не заданы URL панели или API-токен'];
     $url = $base . '/' . ltrim($path, '/');
     $headers = ['Authorization: Bearer ' . $token, 'Accept: application/json'];
+    if (strpos($base, 'http://') === 0) {
+        $headers[] = 'x-forwarded-proto: https';
+        $headers[] = 'x-forwarded-for: 127.0.0.1';
+    }
     $cookie = remnawave_cookie();
     if ($cookie !== '') $headers[] = 'Cookie: ' . $cookie;
 
