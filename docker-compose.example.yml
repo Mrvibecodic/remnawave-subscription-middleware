@@ -1,6 +1,6 @@
 services:
   remnawave-subscription-middleware:
-    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:dev
+    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:${SUBMW_IMAGE_TAG:-latest}
     container_name: remnawave-subscription-middleware
     hostname: remnawave-subscription-middleware
     restart: always

@@ -30,7 +30,7 @@
                 <label class="switch"><input type="checkbox" name="tls_verify" <?= api_tls_verify()?'checked':'' ?>><span class="sl"></span></label>
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Источник подписки</div><div class="set-d">«Зеркало» — проксирование origin-домена (как раньше). «Панель» — прослойка работает как sub-сервис Remnawave: конфиги клиентам берутся напрямую с <code>/api/sub</code> панели, а в браузере рендерится страница подписки.</div></div>
+                <div class="set-info"><div class="set-t">Источник подписки</div><div class="set-d">«Зеркало» — проксирование origin-домена (как раньше). «Панель» — прослойка сама становится подпиской (sub-сервис Remnawave): конфиги берутся с <code>/api/sub</code> панели, а в браузере рендерится страница подписки. Адрес панели — это контейнер/loopback (рядом с панелью) <b>или</b> публичный <code>https://</code>-домен (если прослойка на отдельном сервере).</div></div>
                 <?php if (submw_in_docker()): ?><input type="hidden" name="sub_source" value="panel"><?php endif; ?>
                 <select name="sub_source" <?= submw_in_docker() ? 'disabled' : '' ?>>
                     <option value="mirror" <?= sub_source()==='mirror'?'selected':'' ?>>Зеркало (origin)</option>
@@ -38,7 +38,7 @@
                 </select>
             </div>
             <div class="row">
-                <div><label>URL контейнера subscription-page (для режима «Панель»)</label><input type="text" name="subpage_external_url" value="<?= h(subpage_external_url()) ?>" placeholder="http://127.0.0.1:3010" <?= submw_in_docker() ? 'readonly' : '' ?>></div>
+                <div><label>Адрес subscription-page (режим «Панель»)</label><input type="text" name="subpage_external_url" value="<?= h(subpage_external_url()) ?>" placeholder="https://panel.example.com или http://127.0.0.1:3010" <?= submw_in_docker() ? 'readonly' : '' ?>><div class="muted" style="font-size:.8rem;margin-top:.3rem">Рядом с панелью — адрес контейнера/loopback; на отдельном сервере — публичный https-адрес панели.</div></div>
                 <div></div>
             </div>
             <div style="margin-top:1.25rem"><button type="submit">💾 Сохранить подключение</button></div>

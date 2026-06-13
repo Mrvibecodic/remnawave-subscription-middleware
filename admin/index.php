@@ -319,12 +319,12 @@ if (isset($_GET['ajax']) && is_auth()) {
 
     if ($a === 'parse_config' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
-        $parsed = awg_parse_conf($_POST['raw'] ?? '');
+        $parsed = squadconf_parse_any($_POST['raw'] ?? '');
         echo json_encode([
             'ok'       => $parsed['ok'],
             'type'     => $parsed['type'],
             'version'  => $parsed['version'],
-            'summary'  => awg_summary($parsed),
+            'summary'  => squadconf_summary($parsed),
             'clients'  => $parsed['clients'],
             'warnings' => $parsed['warnings'],
         ], JSON_UNESCAPED_UNICODE);
@@ -697,12 +697,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         if (!$squads || $name === '' || trim($raw) === '') {
             flash('Выберите хотя бы один сквад, укажите метку и вставьте конфиг');
         } else {
-            $parsed = awg_parse_conf($raw);
+            $parsed = squadconf_parse_any($raw);
             if (!$parsed['ok']) {
                 flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
             } else {
                 squadconf_add($squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
-                flash('Конфиг добавлен (' . awg_summary($parsed) . ')');
+                flash('Конфиг добавлен (' . squadconf_summary($parsed) . ')');
             }
         }
         header('Location: index.php?tab=squad_configs'); exit();
@@ -716,12 +716,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         if ($id <= 0 || !$squads || $name === '' || trim($raw) === '') {
             flash('Выберите хотя бы один сквад, укажите метку и конфиг');
         } else {
-            $parsed = awg_parse_conf($raw);
+            $parsed = squadconf_parse_any($raw);
             if (!$parsed['ok']) {
                 flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
             } else {
                 squadconf_update($id, $squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
-                flash('Конфиг обновлён (' . awg_summary($parsed) . ')');
+                flash('Конфиг обновлён (' . squadconf_summary($parsed) . ')');
             }
         }
         header('Location: index.php?tab=squad_configs'); exit();
@@ -1117,8 +1117,8 @@ function nav_link($key, $it, $active, $badge = false) {
 var HELP={
 'origin':{t:'Origin — домен подписки',h:'<p>Реальный домен подписки Remnawave, откуда прослойка берёт рабочий конфиг для активных пользователей.</p><h4>Формат</h4><p>Только домен, <b>без</b> <code>https://</code> и без пути.</p><p>Пример: <code>sub.example.com</code></p><h4>Где взять</h4><p>Это домен публичной подписки панели. В <code>.env</code> панели — переменная <code>SUB_PUBLIC_DOMAIN</code> (часть до <code>/api/sub</code>).</p>'},
 'mirror':{t:'Домен зеркала',h:'<p>Домен, на котором установлена эта прослойка — именно его видят клиенты в ссылках подписки. Менять обычно не нужно, подставляется автоматически.</p><h4>Формат</h4><p>Только домен, <b>без</b> <code>https://</code>.</p><p>Пример: <code>mirror.example.com</code></p><h4>Совет: ставьте зеркало на РФ-сервер</h4><p>РФ-сервер почти всегда доступен из России без VPN, поэтому ссылка подписки открывается стабильно. А проксирование с РФ-сервера на origin часто продолжает работать, даже если сам origin заблокирован у клиента или спрятан за Cloudflare-прокси — прослойка ходит на origin со своей стороны. Итог: клиенты обновляют подписку надёжнее.</p>'},
-'rwurl':{t:'URL панели Remnawave',h:'<p>Адрес панели для обращения к её API (список пользователей, HWID-устройства, авто-брендинг). Работает с API-токеном ниже.</p><h4>Формат</h4><p><b>Полный URL со схемой</b> <code>https://</code> и <b>без</b> <code>/</code> на конце.</p><p>Пример: <code>https://panel.example.com</code></p><p>Отличие от Origin: здесь со схемой <code>https://</code>, а Origin — только домен.</p>'},
-'cookie':{t:'Cookie панели (eGames)',h:'<p>Нужна, только если панель закрыта <b>cookie-защитой</b> reverse-proxy eGames (без верной куки панель отдаёт 404). Если такой защиты нет — оставьте поле пустым.</p><h4>Формат</h4><p>Одна кука вида <code>имя=значение</code>.</p><p>Пример: <code>aB3xK9pQ=Zt7mW2nR</code></p><h4>Где взять</h4><ul><li>в конфиге reverse-proxy eGames (nginx/Caddy), где проверяется защитная кука;</li><li>в выводе установщика eGames при настройке;</li><li>проще всего — в браузере: войдите в панель, откройте DevTools → Application → Cookies и скопируйте имя и значение защитной куки.</li></ul><p>Проект: <code>github.com/eGamesAPI/remnawave-reverse-proxy</code></p>'},
+'rwurl':{t:'URL панели Remnawave',h:'<p>Адрес панели для обращения к её API (список пользователей, HWID-устройства, авто-брендинг). Работает с API-токеном ниже.</p><h4>Формат</h4><p><b>Полный URL со схемой</b> <code>https://</code> и <b>без</b> <code>/</code> на конце.</p><p>Пример: <code>https://panel.example.com</code></p><p>Отличие от Origin: здесь со схемой <code>https://</code>, а Origin — только домен.</p><h4>Где живёт панель</h4><p><b>Рядом</b> с панелью (Docker) — адрес контейнера/loopback, напр. <code>http://remnawave:3000</code> или <code>http://127.0.0.1:3000</code>. На <b>отдельном сервере</b> — публичный <code>https://</code>-домен панели (по http наружу панель не отдаёт).</p>'},
+'cookie':{t:'Cookie панели (eGames)',h:'<p>Нужна, только если панель закрыта <b>cookie-защитой</b> reverse-proxy eGames (без верной куки панель отдаёт 404). Если такой защиты нет — оставьте поле пустым.</p><h4>Формат</h4><p>Одна кука вида <code>имя=значение</code>.</p><p>Пример: <code>aB3xK9pQ=Zt7mW2nR</code></p><h4>Где взять</h4><ul><li>в конфиге reverse-proxy eGames (nginx/Caddy), где проверяется защитная кука;</li><li>в выводе установщика eGames при настройке;</li><li>проще всего — в браузере: войдите в панель, откройте DevTools → Application → Cookies и скопируйте имя и значение защитной куки.</li></ul><p>Проект: <code>github.com/eGamesAPI/remnawave-reverse-proxy</code></p><p>Кука применяется ко <b>всем</b> запросам прослойки к панели — и к API, и к проксированию подписки и страницы — поэтому работает и когда прослойка на отдельном сервере за eGames.</p>'},
 'apikey':{t:'API-токен панели',h:'<p>Bearer-токен для доступа к API панели Remnawave.</p><h4>Где взять</h4><p>Панель → раздел <b>API Tokens</b>: создайте токен и вставьте сюда.</p><h4>Поведение</h4><p>Оставьте поле пустым, чтобы не менять уже сохранённый токен.</p>'},
 'whsecret':{t:'Секрет вебхука',h:'<p>Ключ, которым панель подписывает вебхуки (заголовок <code>X-Remnawave-Signature</code>), а прослойка сверяет подпись.</p><h4>Формат</h4><p>Минимум 32 символа, только <code>a-z A-Z 0-9</code>. Должен совпадать со значением <code>WEBHOOK_SECRET_HEADER</code> в <code>.env</code> панели.</p><h4>Где взять</h4><p>Вы задаёте его сами (например командой <code>openssl rand -hex 32</code>) и прописываете в <code>.env</code> панели. Готовые строки для <code>.env</code> — в разделе «Как включить вебхук в Remnawave». Пусто — не менять сохранённый.</p>'},
 'trust':{t:'Доверять заголовку expire',h:'<p>Заголовок <code>subscription-userinfo: expire=…</code> от origin становится главным арбитром срока подписки.</p><h4>Рекомендуется включить</h4><p>Тогда продление само себя чинит: будущий <code>expire</code> мгновенно снимает флаг истечения, даже если вебхук о продлении потерялся. Выключать стоит только при отладке.</p>'},

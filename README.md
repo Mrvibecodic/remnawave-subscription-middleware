@@ -158,7 +158,7 @@ cd /opt/remnawave-subscription-middleware
 sudo bash install.sh        # выбрать «2) Рядом с панелью — Docker»
 ```
 
-Установщик спросит домен подписки, имя docker-сети панели, внутренние URL панели и контейнера `subscription-page`, тег образа (`dev`/`main`), создаст `docker-compose.yml`, скачает образ из GHCR и поднимет контейнер. Останется одной строкой в nginx панели перевести домен подписки с контейнера `subscription-page` на прослойку — все шаги в **[INSTALL.md](INSTALL.md)**. Контейнер `subscription-page` останавливать не нужно; данные (`config.php`, БД) живут в volume и переживают `docker pull`.
+Установщик спросит домен подписки, имя docker-сети панели, внутренние URL панели и контейнера `subscription-page`, тег образа (`latest` — стабильный, или `dev` — тестовый; см. [docs/docker-image-tag.md](docs/docker-image-tag.md)), создаст `docker-compose.yml`, скачает образ из GHCR и поднимет контейнер. Останется одной строкой в nginx панели перевести домен подписки с контейнера `subscription-page` на прослойку — все шаги в **[INSTALL.md](INSTALL.md)**. Контейнер `subscription-page` останавливать не нужно; данные (`config.php`, БД) живут в volume и переживают `docker pull`.
 
 ### Вариант 2. Отдельный сервер (файлами)
 
@@ -357,7 +357,7 @@ cd /opt/remnawave        # каталог docker-compose стека панели
 docker compose pull && docker compose up -d
 ```
 
-Ветка = тег образа (`dev`/`main`); сменить можно на той же вкладке (поправив тег в `docker-compose.yml`). `config.php` и БД лежат в volume и при обновлении не теряются.
+Ветка = тег образа (`latest` — стабильный, `dev` — тестовый); сменить можно на той же вкладке (поправив тег в `docker-compose.yml`). **Перед обновлением проверь, какой тег стоит в compose: `docker compose pull` тянет именно его — иначе можно случайно перейти на `dev`.** Подробнее — [docs/docker-image-tag.md](docs/docker-image-tag.md). `config.php` и БД лежат в volume и при обновлении не теряются.
 
 ### Вручную с сервера
 

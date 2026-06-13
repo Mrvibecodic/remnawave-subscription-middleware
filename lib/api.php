@@ -1,5 +1,15 @@
 <?php
 
+function panel_cookie_header(array $headers) {
+    $cookie = remnawave_cookie();
+    if ($cookie === '') return $headers;
+    foreach ($headers as $i => $h) {
+        if (stripos($h, 'cookie:') === 0) { $headers[$i] = rtrim($h, "; \t") . '; ' . $cookie; return $headers; }
+    }
+    $headers[] = 'Cookie: ' . $cookie;
+    return $headers;
+}
+
 function remnawave_api_get($path) {
     $base  = remnawave_url();
     $token = remnawave_token();

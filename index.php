@@ -76,6 +76,7 @@ if (subpage_active()) {
         $request_headers[] = 'x-forwarded-for: 127.0.0.1';
     }
     $request_headers[] = 'x-remnawave-real-ip: ' . client_ip();
+    $request_headers = panel_cookie_header($request_headers);
 }
 
 $grabbed_headers = [];

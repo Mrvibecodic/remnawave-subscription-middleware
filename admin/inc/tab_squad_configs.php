@@ -34,7 +34,7 @@
 
                 <div class="form-row" style="margin-top:1rem">
                     <label for="sqcfg_raw">3. Конфиг</label>
-                    <textarea id="sqcfg_raw" name="raw" rows="10" spellcheck="false" placeholder="Вставьте содержимое конфига" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
+                    <textarea id="sqcfg_raw" name="raw" rows="10" spellcheck="false" placeholder="Вставьте конфиг WireGuard/AmneziaWG (.conf) или ссылку vless://" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
                 </div>
                 <div id="sqcfg_hint" class="sqcfg-hint" style="display:none"></div>
                 <div style="margin-top:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
@@ -55,7 +55,7 @@
             <tbody>
             <?php foreach ($sqcfg_list as $c):
                 $pn = json_decode((string) ($c['parsed'] ?? ''), true);
-                $sumr = is_array($pn) ? awg_summary($pn) : ($c['type'] ?? '');
+                $sumr = is_array($pn) ? squadconf_summary($pn) : ($c['type'] ?? '');
                 $csquads = squadconf_squads_of($c);
                 $on = (int) $c['enabled'] === 1;
                 $ptype = is_array($pn) ? ($pn['type'] ?? '') : '';
@@ -65,9 +65,9 @@
                 <td><?php foreach ($csquads as $sq): ?><span class="sq-tag"><?= h($sqcfg_names[$sq] ?? $sq) ?></span><?php endforeach; ?></td>
                 <td><span class="tag normal"><?= h($sumr) ?></span></td>
                 <td><?= $c['name'] !== null && $c['name'] !== '' ? h($c['name']) : '<span class="muted">—</span>' ?></td>
-                <td style="font-size:.78rem"><?php if ($ptype === 'wireguard'): ?>base64<?php else: ?><span class="muted">—</span><?php endif; ?></td>
-                <td style="font-size:.78rem"><?php if (in_array($ptype, ['wireguard', 'amneziawg'], true)): ?>wg://<?php else: ?><span class="muted">—</span><?php endif; ?></td>
-                <td style="font-size:.78rem"><?php if (in_array($ptype, ['wireguard', 'amneziawg'], true)): ?>clash<?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                <td style="font-size:.78rem"><?php if ($ptype === 'wireguard'): ?>base64<?php elseif ($ptype === 'vless'): ?>base64/json<?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                <td style="font-size:.78rem"><?php if (in_array($ptype, ['wireguard', 'amneziawg'], true)): ?>wg://<?php elseif ($ptype === 'vless'): ?>json<?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                <td style="font-size:.78rem"><?php if (in_array($ptype, ['wireguard', 'amneziawg', 'vless'], true)): ?>clash<?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td>
                     <form method="post" style="margin:0;display:inline">
                         <input type="hidden" name="csrf" value="<?= h($token) ?>">
@@ -160,7 +160,7 @@
             var cls = d.ok ? 'ok' : 'bad';
             var html = d.ok
                 ? ('Распознан конфиг <b>'+esc(d.summary)+'</b>.')
-                : ('<span class="warn-line">Конфиг не распознан как WireGuard.</span>');
+                : ('<span class="warn-line">Конфиг не распознан (ожидается WireGuard/AmneziaWG .conf или ссылка vless://).</span>');
             if(d.ok && d.clients && d.clients.length){
                 html += ' Работает в клиентах: '+d.clients.map(esc).join(', ')+'. Будет доступен пользователю после обновления подписки.';
             }

@@ -185,9 +185,10 @@ function awg_parse_conf($raw) {
 
     if ($res['type'] === 'amneziawg') {
         $res['clients'] = ['Mihomo / Clash.Meta', 'Throne (wg://)'];
-        $res['warnings'][] = 'AmneziaWG: работает в Mihomo (clash) и в клиентах с wg://-AmneziaWG (Throne и др.). В v2rayNG (wireguard://) и xray — нет.';
+        $res['warnings'][] = 'AmneziaWG: работает в Mihomo (clash) и в клиентах с wg://-AmneziaWG (Throne и др.). В v2rayNG (wireguard://), xray и sing-box — нет (там нет amnezia-обфускации).';
     } elseif ($res['type'] === 'wireguard') {
-        $res['clients'] = ['Mihomo / Clash.Meta', 'base64-клиенты (v2rayNG и др.)', 'sing-box (Throne и др.)'];
+        $res['clients'] = ['Mihomo / Clash.Meta', 'base64-клиенты (v2rayNG и др.)', 'sing-box 1.11+'];
+        $res['warnings'][] = 'sing-box: только актуальная версия (1.11+) — WG отдаётся новым форматом endpoints; в сборках до 1.11 узел не подхватится.';
     }
 
     $res['ok'] = in_array($res['type'], ['wireguard', 'amneziawg'], true) && !$missing;
@@ -348,11 +349,14 @@ function squadconf_inject_clash($body, array $configs) {
     $blocks = []; $names = [];
     foreach ($configs as $c) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
-        if (!is_array($pn) || !in_array($pn['type'] ?? '', ['amneziawg', 'wireguard'], true)) continue;
-        $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : (($pn['type'] ?? '') === 'wireguard' ? 'WireGuard' : 'AmneziaWG');
+        if (!is_array($pn)) continue;
+        $t = $pn['type'] ?? '';
+        if (!in_array($t, ['amneziawg', 'wireguard', 'vless'], true)) continue;
+        $def = $t === 'vless' ? 'VLESS' : ($t === 'wireguard' ? 'WireGuard' : 'AmneziaWG');
+        $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : $def;
         $base = $nm; $i = 1;
         while (in_array($nm, $names, true)) { $i++; $nm = $base . ' ' . $i; }
-        $blk = awg_to_clash($pn, $nm);
+        $blk = $t === 'vless' ? vless_to_clash($pn, $nm) : awg_to_clash($pn, $nm);
         if ($blk === '') continue;
         $blocks[] = $blk; $names[] = $nm;
     }
@@ -407,6 +411,14 @@ function squadconf_inject_base64($body, array $configs) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
         if (!is_array($pn)) continue;
         $t = $pn['type'] ?? '';
+        if ($t === 'vless') {
+            $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : 'VLESS';
+            $base = $nm; $i = 1;
+            while (in_array($nm, $names, true)) { $i++; $nm = $base . ' ' . $i; }
+            $u = vless_relabel_uri((string) $c['raw'], $nm);
+            if ($u !== '') { $uris[] = $u; $names[] = $nm; }
+            continue;
+        }
         if ($scheme === 'wg') { if (!in_array($t, ['wireguard', 'amneziawg'], true)) continue; }
         elseif ($t !== 'wireguard') continue;
         $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : (($t === 'amneziawg') ? 'AmneziaWG' : 'WireGuard');
@@ -422,7 +434,7 @@ function squadconf_inject_base64($body, array $configs) {
     return base64_encode($decoded);
 }
 
-function squadconf_singbox_outbound($parsed, $tag) {
+function squadconf_singbox_endpoint($parsed, $tag) {
     if (!is_array($parsed) || ($parsed['type'] ?? '') !== 'wireguard') return null;
     $if = $parsed['iface']; $pe = $parsed['peer'];
     $ep = (string) ($pe['Endpoint'] ?? '');
@@ -432,16 +444,22 @@ function squadconf_singbox_outbound($parsed, $tag) {
     $host = trim($host, '[]');
     if ($host === '' || $port === '') return null;
     $addr = array_values(array_filter(array_map('trim', explode(',', (string) ($if['Address'] ?? '')))));
-    $o = [
-        'type'            => 'wireguard',
-        'tag'             => ($tag !== '' ? $tag : 'wg-squad'),
-        'server'          => $host,
-        'server_port'     => (int) $port,
-        'local_address'   => $addr ?: ['10.0.0.2/32'],
-        'private_key'     => (string) $if['PrivateKey'],
-        'peer_public_key' => (string) $pe['PublicKey'],
+    $allowed = array_values(array_filter(array_map('trim', explode(',', (string) ($pe['AllowedIPs'] ?? '0.0.0.0/0, ::/0')))));
+    $peer = [
+        'address'     => $host,
+        'port'        => (int) $port,
+        'public_key'  => (string) $pe['PublicKey'],
+        'allowed_ips' => $allowed ?: ['0.0.0.0/0', '::/0'],
     ];
-    if (!empty($pe['PresharedKey'])) $o['pre_shared_key'] = (string) $pe['PresharedKey'];
+    if (!empty($pe['PresharedKey'])) $peer['pre_shared_key'] = (string) $pe['PresharedKey'];
+    if (!empty($pe['PersistentKeepalive'])) $peer['persistent_keepalive_interval'] = (int) $pe['PersistentKeepalive'];
+    $o = [
+        'type'        => 'wireguard',
+        'tag'         => ($tag !== '' ? $tag : 'wg-squad'),
+        'address'     => $addr ?: ['10.0.0.2/32'],
+        'private_key' => (string) $if['PrivateKey'],
+        'peers'       => [$peer],
+    ];
     if (!empty($if['MTU'])) $o['mtu'] = (int) $if['MTU'];
     return $o;
 }
@@ -457,16 +475,29 @@ function squadconf_inject_singbox($body, array $configs) {
     if (!squadconf_is_singbox($obj)) return $body;
     $existing = [];
     foreach ($obj['outbounds'] as $o) if (is_array($o) && isset($o['tag'])) $existing[] = (string) $o['tag'];
+    if (isset($obj['endpoints']) && is_array($obj['endpoints'])) {
+        foreach ($obj['endpoints'] as $e) if (is_array($e) && isset($e['tag'])) $existing[] = (string) $e['tag'];
+    }
     $added = []; $names = [];
     foreach ($configs as $c) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
-        if (!is_array($pn) || ($pn['type'] ?? '') !== 'wireguard') continue;
-        $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : 'WireGuard';
+        if (!is_array($pn)) continue;
+        $t = $pn['type'] ?? '';
+        if (!in_array($t, ['wireguard', 'vless'], true)) continue;
+        $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : ($t === 'vless' ? 'VLESS' : 'WireGuard');
         $base = $nm; $i = 1;
         while (in_array($nm, $names, true) || in_array($nm, $existing, true)) { $i++; $nm = $base . ' ' . $i; }
-        $ob = squadconf_singbox_outbound($pn, $nm);
-        if (!$ob) continue;
-        $obj['outbounds'][] = $ob; $added[] = $nm; $names[] = $nm;
+        if ($t === 'vless') {
+            $ob = vless_to_singbox($pn, $nm);
+            if (!$ob) continue;
+            $obj['outbounds'][] = $ob;
+        } else {
+            $ep = squadconf_singbox_endpoint($pn, $nm);
+            if (!$ep) continue;
+            if (!isset($obj['endpoints']) || !is_array($obj['endpoints'])) $obj['endpoints'] = [];
+            $obj['endpoints'][] = $ep;
+        }
+        $added[] = $nm; $names[] = $nm;
     }
     if (!$added) return $body;
     foreach ($obj['outbounds'] as &$o) {
@@ -517,6 +548,11 @@ function xray_wg_outbound($parsed, $tag) {
     return $o;
 }
 
+function xray_outbound_any($pn, $tag) {
+    if (is_array($pn) && ($pn['type'] ?? '') === 'vless') return vless_to_xray($pn, $tag);
+    return xray_wg_outbound($pn, $tag);
+}
+
 function squadconf_inject_xray_json($body, array $configs) {
     $obj = json_decode((string) $body, true);
     if (!is_array($obj)) return $body;
@@ -524,8 +560,8 @@ function squadconf_inject_xray_json($body, array $configs) {
     $items = []; $names = [];
     foreach ($configs as $c) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
-        if (!is_array($pn) || ($pn['type'] ?? '') !== 'wireguard') continue;
-        $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : 'WireGuard';
+        if (!is_array($pn) || !in_array($pn['type'] ?? '', ['wireguard', 'vless'], true)) continue;
+        $nm = ($c['name'] !== null && trim((string) $c['name']) !== '') ? trim((string) $c['name']) : (($pn['type'] ?? '') === 'vless' ? 'VLESS' : 'WireGuard');
         $base = $nm; $i = 1;
         while (in_array($nm, $names, true)) { $i++; $nm = $base . ' ' . $i; }
         $items[] = ['pn' => $pn, 'name' => $nm]; $names[] = $nm;
@@ -551,7 +587,7 @@ function squadconf_inject_xray_json($body, array $configs) {
                     if (!in_array((string) ($ob['protocol'] ?? ''), ['freedom', 'blackhole', 'dns'], true)) { $pi = $oi; $ptag = (string) ($ob['tag'] ?? 'proxy'); break; }
                 }
             }
-            $wg = xray_wg_outbound($it['pn'], $ptag !== '' ? $ptag : 'proxy');
+            $wg = xray_outbound_any($it['pn'], $ptag !== '' ? $ptag : 'proxy');
             if (!$wg) continue;
             if ($pi >= 0) $el['outbounds'][$pi] = $wg;
             else array_unshift($el['outbounds'], $wg);
@@ -560,7 +596,7 @@ function squadconf_inject_xray_json($body, array $configs) {
         }
     } else {
         if (!isset($obj['outbounds']) || !is_array($obj['outbounds'])) return $body;
-        foreach ($items as $it) { $wg = xray_wg_outbound($it['pn'], ''); if ($wg) $obj['outbounds'][] = $wg; }
+        foreach ($items as $it) { $wg = xray_outbound_any($it['pn'], ''); if ($wg) $obj['outbounds'][] = $wg; }
     }
     $enc = json_encode($obj, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     return $enc === false ? $body : $enc;
@@ -612,4 +648,15 @@ function clash_insert_proxies($body, array $blocks, array $names) {
         foreach ($blocks as $b) foreach (explode("\n", $b) as $bl) $out[] = $bl;
     }
     return implode($nl, $out);
+}
+
+function squadconf_parse_any($raw) {
+    $raw = (string) $raw;
+    if (stripos(ltrim($raw), 'vless://') === 0) return vless_parse($raw);
+    return awg_parse_conf($raw);
+}
+
+function squadconf_summary($parsed) {
+    if (is_array($parsed) && ($parsed['type'] ?? '') === 'vless') return vless_summary($parsed);
+    return awg_summary($parsed);
 }
