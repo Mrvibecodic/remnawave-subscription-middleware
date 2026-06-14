@@ -440,6 +440,26 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'addsub_map_set' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $su  = trim($_POST['short_uuid'] ?? '');
+        $url = trim($_POST['url'] ?? '');
+        $note = trim($_POST['note'] ?? '');
+        if ($su === '' || $url === '') { echo json_encode(['ok' => false, 'error' => 'empty']); exit(); }
+        if (!preg_match('~^https?://~i', $url)) { echo json_encode(['ok' => false, 'error' => 'URL должен начинаться с http:// или https://']); exit(); }
+        $ok = addsub_map_set($su, $url, $note);
+        echo json_encode(['ok' => $ok], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'addsub_map_del' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $su = trim($_POST['short_uuid'] ?? '');
+        if ($su === '') { echo json_encode(['ok' => false, 'error' => 'empty']); exit(); }
+        echo json_encode(['ok' => addsub_map_del($su)], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'unknown ajax']);
     exit();
@@ -737,6 +757,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         squadconf_toggle((int) ($_POST['id'] ?? 0), ($_POST['enabled'] ?? '0') === '1');
         header('Location: index.php?tab=squad_configs'); exit();
     }
+
+    if ($action === 'save_addsub') {
+        set_setting('addsub_enabled', isset($_POST['addsub_enabled']) ? '1' : '0');
+        $suf = trim((string) ($_POST['addsub_username_suffix'] ?? '_addsub'));
+        set_setting('addsub_username_suffix', $suf === '' ? '_addsub' : $suf);
+        set_setting('addsub_cache_ttl', (string) max(30, (int) ($_POST['addsub_cache_ttl'] ?? 600)));
+        set_setting('addsub_label', trim((string) ($_POST['addsub_label'] ?? '')));
+        set_setting('addsub_stub_on_traffic', isset($_POST['addsub_stub_on_traffic']) ? '1' : '0');
+        $sl = trim((string) ($_POST['addsub_stub_label'] ?? ''));
+        set_setting('addsub_stub_label', $sl);
+        set_setting('addsub_merge_xray', isset($_POST['addsub_merge_xray']) ? '1' : '0');
+        flash('Настройки слияния подписок сохранены');
+        header('Location: index.php?tab=addsub'); exit();
+    }
 }
 
 $tab   = $_GET['tab'] ?? 'users';
@@ -769,6 +803,8 @@ if ($tab === 'overrides' && $overrides && remnawave_url() !== '' && remnawave_to
 $users = []; $users_err = '';
 $nolog_set = [];
 if ($tab === 'users') { $users = remnawave_all_users($users_err); $nolog_set = nolog_shortuuids(); }
+$addsub_links = [];
+if ($tab === 'users') { foreach (addsub_map_all() as $__r) $addsub_links[(string) $__r['main_short']] = (string) $__r['add_url']; }
 $panel_headers = []; $panel_headers_err = '';
 if ($tab === 'headers') $panel_headers = remnawave_panel_headers($panel_headers_err);
 
@@ -839,10 +875,12 @@ if ($tab === 'squad_configs') {
     foreach ($sqcfg_squads as $s) $sqcfg_names[$s['uuid']] = $s['name'];
     $sqcfg_list = squadconf_all();
 }
+$addsub_list = [];
+if ($tab === 'addsub') $addsub_list = addsub_map_all();
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги по скваду'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги по скваду', 'addsub' => 'Слияние подписок'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -948,6 +986,7 @@ $nav = [
     'hwid'      => ['HWID', '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="18" x2="15" y2="18"/><path d="M9 6h6M9 9h6"/>'],
     'overrides' => ['Оверрайды', '<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9.5 12l1.8 1.8L15 9.8"/>'],
     'squad_configs' => ['Доп. конфиги', '<path d="M4 5h16v4H4z"/><path d="M4 13h16v6H4z"/><path d="M7 16h4"/><circle cx="17" cy="16" r="1"/>'],
+    'addsub'    => ['Слияние подписок', '<path d="M8 7a5 5 0 1 0 0 10"/><path d="M16 7a5 5 0 1 1 0 10"/><line x1="8" y1="12" x2="16" y2="12"/>'],
     'reqlog'    => ['Лог запросов', '<line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'],
     'whlog'       => ['Юзер-лог', '<path d="M13 2L3 14h7l-1 8 10-12h-7z"/>'],
     'whlog_other' => ['Прочие события', '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>'],
@@ -965,7 +1004,7 @@ $nav_sections = [
     ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => ['webhooks', 'fwdlog', 'whlog', 'whlog_other']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
-    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides', 'squad_configs']],
+    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides', 'squad_configs', 'addsub']],
     ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => ['sysinfo', 'update', 'migrate']],
 ];
 function nav_link($key, $it, $active, $badge = false) {
@@ -1049,6 +1088,8 @@ function nav_link($key, $it, $active, $badge = false) {
 
 <?php elseif ($tab === 'squad_configs'): ?>
     <?php include __DIR__ . '/inc/tab_squad_configs.php'; ?>
+<?php elseif ($tab === 'addsub'): ?>
+    <?php include __DIR__ . '/inc/tab_addsub.php'; ?>
 
 <?php elseif ($tab === 'reqlog'): ?>
     <?php include __DIR__ . '/inc/tab_reqlog.php'; ?>

@@ -208,6 +208,22 @@ if ($decision === 'normal' && $short_uuid !== '' && squadconf_any()) {
     }
 }
 
+if ($decision === 'normal' && $short_uuid !== '' && addsub_enabled()) {
+    try {
+        $addsub_src = addsub_resolve($short_uuid);
+        if ($addsub_src) {
+            [$addsub_body, $addsub_info] = addsub_fetch_body($addsub_src['url']);
+            if ($addsub_body !== null && $addsub_body !== '') {
+                if (addsub_traffic_exhausted($addsub_info)) {
+                    if (addsub_stub_on_traffic()) $response = addsub_inject_stub($response, $format, addsub_stub_label());
+                } else {
+                    $response = addsub_merge($response, $addsub_body, $format);
+                }
+            }
+        }
+    } catch (Throwable $e) { error_log('submw addsub: ' . $e->getMessage()); }
+}
+
 $unsafe = ['host', 'connection', 'transfer-encoding', 'content-length', 'content-encoding'];
 http_response_code($http_code ?: 200);
 foreach ($grabbed_headers as $name => $value) {

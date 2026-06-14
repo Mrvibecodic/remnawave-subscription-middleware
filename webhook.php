@@ -53,6 +53,7 @@ if ($short_uuid === '' && !empty($data['subscriptionUrl'])) {
 $action = 'ignored';
 
 if ($short_uuid !== '') squadconf_cache_drop($short_uuid);
+if ($short_uuid !== '') addsub_cache_drop($short_uuid);
 
 if ($short_uuid !== '') {
     $expire_future = false;

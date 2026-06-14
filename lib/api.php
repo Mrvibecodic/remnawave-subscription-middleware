@@ -146,6 +146,18 @@ function remnawave_get_user_by_short($shortUuid, &$error = '') {
     return is_array($resp) ? $resp : null;
 }
 
+function remnawave_get_user_by_username($username, &$error = '') {
+    $error = '';
+    $username = (string) $username;
+    if ($username === '') { $error = 'Пустой username'; return null; }
+    [$ok, $code, $data, $e] = remnawave_api_request('GET', '/api/users/by-username/' . rawurlencode($username));
+    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return null; }
+    $resp = $data['response'] ?? $data;
+    if (is_array($resp) && isset($resp['users']) && is_array($resp['users'])) $resp = $resp['users'][0] ?? null;
+    elseif (is_array($resp) && isset($resp[0]) && is_array($resp[0])) $resp = $resp[0];
+    return is_array($resp) ? $resp : null;
+}
+
 function remnawave_update_user($uuid, array $fields, &$error = '') {
     $error = '';
     if ($uuid === '') { $error = 'Пустой UUID'; return false; }

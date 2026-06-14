@@ -75,6 +75,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
                     <div class="actcell">
                         <?php if ($uuid !== ''): ?><button class="btn-sm hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>"><?= $ico_dev ?>HWID</button><?php if ($has_hwid_block): ?><span class="tip hw-warn" data-tip="Есть активный блок HWID">!</span><?php endif; ?><?php endif; ?>
                         <?php if ($su !== ''): ?><button class="btn-sm nolog-btn<?= $nl ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>" title="<?= $nl ? 'Скрыт из лога — нажмите, чтобы вернуть' : 'В логе — нажмите, чтобы скрыть' ?>"><?= $nl ? $ico_eyeoff . 'Скрыт' : $ico_eye . 'В логе' ?></button><?php endif; ?>
+                        <?php if ($su !== ''): $alink = (isset($addsub_links) && isset($addsub_links[$su])) ? $addsub_links[$su] : ''; ?><button class="btn-sm addsub-btn<?= $alink !== '' ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>" data-url="<?= h($alink) ?>" title="Прикрепить дополнительную подписку"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><?= $alink !== '' ? 'Доп ✓' : 'Доп' ?></button><?php endif; ?>
                     </div>
                     <?php else: ?><span class="muted">—</span><?php endif; ?>
                 </td>
@@ -105,6 +106,25 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
                     <button id="hwDelAllBtn" class="btn-sm btn-del" type="button" style="display:none" onclick="hwDelAll()">🗑 Удалить все</button>
                 </div>
                 <div id="hwBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="addsubModal" class="modal-overlay" onclick="if(event.target===this)addsubClose()">
+        <div class="modal">
+            <div class="modal-head">
+                <div>Доп-подписка · <span id="addsubUser"></span></div>
+                <button type="button" class="modal-x" onclick="addsubClose()">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="muted" style="margin-top:0">Вставьте <b>адрес второй подписки</b> (URL) — её серверы подмешаются в основную ссылку этого пользователя. Основная ссылка не меняется. Работает, пока основная подписка активна.</p>
+                <input type="text" id="addsubUrl" placeholder="https://…/sub/…" spellcheck="false" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box">
+                <div id="addsubErr" class="warn" style="display:none;margin-top:.7rem"></div>
+                <div style="display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap">
+                    <button type="button" class="btn" onclick="addsubSave()">Сохранить</button>
+                    <button type="button" class="btn-sm" id="addsubDelBtn" style="display:none" onclick="addsubDel()">Отвязать</button>
+                    <button type="button" class="btn-sm" onclick="addsubClose()">Отмена</button>
+                </div>
             </div>
         </div>
     </div>
@@ -378,4 +398,44 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         };
     })();
     (function(){ var sel=document.getElementById('utblSize'); if(sel) sel.value=String(UTBL.getSize()); UTBL.render(); })();
+    </script>
+
+    <script>
+    (function(){
+        var CSRF = (typeof HW_CSRF !== 'undefined') ? HW_CSRF : '';
+        var su = '';
+        function el(id){ return document.getElementById(id); }
+        window.addsubClose = function(){ var m=el('addsubModal'); if(m) m.classList.remove('open'); };
+        function showErr(m){ var e=el('addsubErr'); if(e){ e.textContent=m; e.style.display=''; } }
+        function open(s, name, url){
+            su = s || '';
+            el('addsubUser').textContent = name || '';
+            el('addsubUrl').value = url || '';
+            var e=el('addsubErr'); if(e){ e.style.display='none'; e.textContent=''; }
+            el('addsubDelBtn').style.display = (url && url.length) ? '' : 'none';
+            el('addsubModal').classList.add('open');
+        }
+        window.addsubSave = function(){
+            var url = (el('addsubUrl').value || '').trim();
+            if (!url) { showErr('Введите адрес подписки'); return; }
+            if (!/^https?:\/\//i.test(url)) { showErr('URL должен начинаться с http:// или https://'); return; }
+            var f = new FormData(); f.append('csrf', CSRF); f.append('short_uuid', su); f.append('url', url);
+            fetch('?ajax=addsub_map_set', {method:'POST', body:f}).then(function(r){return r.json();}).then(function(d){
+                if (d.ok) { window.addsubClose(); if (window.uiToast) uiToast('Доп-подписка привязана'); location.reload(); }
+                else showErr('Ошибка: ' + (d.error || ''));
+            }).catch(function(){ showErr('Сетевая ошибка'); });
+        };
+        window.addsubDel = function(){
+            if (!su) return;
+            var f = new FormData(); f.append('csrf', CSRF); f.append('short_uuid', su);
+            fetch('?ajax=addsub_map_del', {method:'POST', body:f}).then(function(r){return r.json();}).then(function(d){
+                if (d.ok) { window.addsubClose(); if (window.uiToast) uiToast('Доп-подписка отвязана'); location.reload(); }
+                else showErr('Ошибка: ' + (d.error || ''));
+            }).catch(function(){ showErr('Сетевая ошибка'); });
+        };
+        document.querySelectorAll('.addsub-btn').forEach(function(b){
+            b.addEventListener('click', function(){ open(b.dataset.su, b.dataset.name || '', b.dataset.url || ''); });
+        });
+        document.addEventListener('keydown', function(e){ if (e.key === 'Escape') window.addsubClose(); });
+    })();
     </script>

@@ -27,7 +27,14 @@ INSERT INTO settings (k, v) VALUES
     ('landing_fp_ack',        ''),
     ('chat_enabled',          '0'),
     ('chat_tg_api_base',      ''),
-    ('nolog_shortuuids',      '[]')
+    ('nolog_shortuuids',      '[]'),
+    ('addsub_enabled',        '0'),
+    ('addsub_username_suffix','_addsub'),
+    ('addsub_cache_ttl',      '600'),
+    ('addsub_label',          ''),
+    ('addsub_stub_on_traffic','1'),
+    ('addsub_stub_label',     'Трафик доп-сервера истёк'),
+    ('addsub_merge_xray',     '0')
 ON CONFLICT(k) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS overrides (
@@ -121,3 +128,16 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     FOREIGN KEY (session_id) REFERENCES chat_sessions (id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_chat_msg_session ON chat_messages(session_id, id);
+
+CREATE TABLE IF NOT EXISTS addsub_map (
+    main_short TEXT NOT NULL PRIMARY KEY,
+    add_url TEXT NOT NULL,
+    note TEXT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS addsub_cache (
+    main_short TEXT NOT NULL PRIMARY KEY,
+    add_url TEXT NULL,
+    ts INTEGER NOT NULL DEFAULT 0
+);
