@@ -116,6 +116,7 @@ function install_statements_sqlite() {
         )",
         "CREATE INDEX IF NOT EXISTS idx_rl_ts ON request_log(ts)",
         "CREATE INDEX IF NOT EXISTS idx_rl_short ON request_log(short_uuid)",
+        "CREATE INDEX IF NOT EXISTS idx_rl_hwid ON request_log(hwid)",
         "CREATE TABLE IF NOT EXISTS webhook_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -172,7 +173,7 @@ function install_statements_mysql() {
             ip VARCHAR(45) NULL, short_uuid VARCHAR(191) NULL, path VARCHAR(255) NULL, user_agent VARCHAR(255) NULL,
             decision VARCHAR(16) NOT NULL DEFAULT 'normal', expire_ts INT NULL, hwid VARCHAR(191) NULL,
             is_app TINYINT(1) NOT NULL DEFAULT 1,
-            PRIMARY KEY (id), KEY idx_rl_ts (ts), KEY idx_rl_short (short_uuid)
+            PRIMARY KEY (id), KEY idx_rl_ts (ts), KEY idx_rl_short (short_uuid), KEY idx_rl_hwid (hwid)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE IF NOT EXISTS webhook_log (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -322,6 +323,125 @@ function sql_epoch($col) {
     return db_driver() === 'mysql' ? "UNIX_TIMESTAMP($col)" : "CAST(strftime('%s', $col) AS INTEGER)";
 }
 
+function migrate_extra_ddl($drv) {
+    if ($drv === 'mysql') {
+        return [
+            "CREATE TABLE IF NOT EXISTS squad_configs (
+                id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                squad_uuid VARCHAR(64) NOT NULL,
+                type VARCHAR(32) NOT NULL DEFAULT 'amneziawg',
+                name VARCHAR(191) NULL,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                raw MEDIUMTEXT NOT NULL,
+                parsed MEDIUMTEXT NULL,
+                squads MEDIUMTEXT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id), KEY idx_squad (squad_uuid)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS squad_cache (
+                su VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                squads TEXT NULL, ts INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (su)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS wg_lease (
+                id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                pool_id VARCHAR(96) NOT NULL, lease_key VARCHAR(191) NOT NULL,
+                config_id INT UNSIGNED NOT NULL, short_uuid VARCHAR(64) NULL, hwid VARCHAR(191) NULL,
+                manual TINYINT(1) NOT NULL DEFAULT 0, created_ts INT UNSIGNED NOT NULL DEFAULT 0,
+                seen_ts INT UNSIGNED NOT NULL DEFAULT 0, ua VARCHAR(255) NULL,
+                PRIMARY KEY (id), UNIQUE KEY uq_wgl_key (lease_key),
+                UNIQUE KEY uq_wgl_slot (pool_id, config_id), UNIQUE KEY uq_wgl_cfg (config_id),
+                KEY idx_wgl_pool (pool_id), KEY idx_wgl_short (short_uuid)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS hwid_devices (
+                user_uuid VARCHAR(64) NOT NULL, hwid VARCHAR(191) NOT NULL, short_uuid VARCHAR(64) NULL,
+                platform VARCHAR(64) NULL, seen_ts INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_uuid, hwid)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS wg_user_cache (
+                short_uuid VARCHAR(64) NOT NULL, data TEXT NOT NULL, ts INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (short_uuid), KEY idx_wguc_ts (ts)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS addsub_map (
+                main_short VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                add_url TEXT NOT NULL, note VARCHAR(191) NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (main_short)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS addsub_cache (
+                main_short VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                add_url TEXT NULL, ts INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (main_short)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS login_attempts (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, ip VARCHAR(45) NOT NULL,
+                ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id), KEY idx_la_ip (ip), KEY idx_la_ts (ts)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS junk_hits (
+                path VARCHAR(191) NOT NULL, hits BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                last_ts INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (path)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "ALTER TABLE grace_users ADD COLUMN orig_external_squad VARCHAR(191) NULL",
+        ];
+    }
+    return [
+        "CREATE TABLE IF NOT EXISTS squad_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, squad_uuid TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'amneziawg', name TEXT NULL, enabled INTEGER NOT NULL DEFAULT 1,
+            raw TEXT NOT NULL, parsed TEXT NULL, squads TEXT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_squad_cfg ON squad_configs(squad_uuid)",
+        "CREATE TABLE IF NOT EXISTS squad_cache (su TEXT NOT NULL PRIMARY KEY, squads TEXT NULL, ts INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE IF NOT EXISTS wg_lease (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, pool_id TEXT NOT NULL, lease_key TEXT NOT NULL,
+            config_id INTEGER NOT NULL, short_uuid TEXT NULL, hwid TEXT NULL, manual INTEGER NOT NULL DEFAULT 0,
+            created_ts INTEGER NOT NULL DEFAULT 0, seen_ts INTEGER NOT NULL DEFAULT 0, ua TEXT NULL
+        )",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_wgl_key ON wg_lease(lease_key)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_wgl_slot ON wg_lease(pool_id, config_id)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_wgl_cfg ON wg_lease(config_id)",
+        "CREATE INDEX IF NOT EXISTS idx_wgl_pool ON wg_lease(pool_id)",
+        "CREATE INDEX IF NOT EXISTS idx_wgl_short ON wg_lease(short_uuid)",
+        "CREATE TABLE IF NOT EXISTS hwid_devices (
+            user_uuid TEXT NOT NULL, hwid TEXT NOT NULL, short_uuid TEXT NULL, platform TEXT NULL,
+            seen_ts INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_uuid, hwid)
+        )",
+        "CREATE TABLE IF NOT EXISTS wg_user_cache (short_uuid TEXT PRIMARY KEY, data TEXT NOT NULL, ts INTEGER NOT NULL DEFAULT 0)",
+        "CREATE INDEX IF NOT EXISTS idx_wguc_ts ON wg_user_cache(ts)",
+        "CREATE TABLE IF NOT EXISTS addsub_map (main_short TEXT NOT NULL PRIMARY KEY, add_url TEXT NOT NULL, note TEXT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+        "CREATE TABLE IF NOT EXISTS addsub_cache (main_short TEXT NOT NULL PRIMARY KEY, add_url TEXT NULL, ts INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, ip TEXT NOT NULL, ts TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+        "CREATE INDEX IF NOT EXISTS idx_la_ip ON login_attempts(ip)",
+        "CREATE INDEX IF NOT EXISTS idx_la_ts ON login_attempts(ts)",
+        "CREATE TABLE IF NOT EXISTS junk_hits (path TEXT NOT NULL PRIMARY KEY, hits INTEGER NOT NULL DEFAULT 0, last_ts INTEGER NOT NULL DEFAULT 0)",
+        "ALTER TABLE grace_users ADD COLUMN orig_external_squad TEXT NULL",
+    ];
+}
+
+function db_list_tables($pdo, $drv) {
+    $out = [];
+    try {
+        if ($drv === 'mysql') {
+            foreach ($pdo->query('SHOW TABLES') as $row) { $out[] = array_values($row)[0]; }
+        } else {
+            foreach ($pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'") as $row) { $out[] = $row['name']; }
+        }
+    } catch (Throwable $e) { return []; }
+    return $out;
+}
+
+function db_table_exists($pdo, $drv, $name) {
+    try {
+        if ($drv === 'mysql') {
+            $st = $pdo->prepare('SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?');
+        } else {
+            $st = $pdo->prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?");
+        }
+        $st->execute([$name]);
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) { return false; }
+}
+
 function db_migrate(array $from, array $to, &$err = '') {
     $err = '';
     $e1 = ''; $e2 = '';
@@ -329,13 +449,28 @@ function db_migrate(array $from, array $to, &$err = '') {
     if (!$src) { $err = 'источник недоступен: ' . $e1; return false; }
     $dst = pdo_connect($to, $e2);
     if (!$dst) { $err = 'приёмник недоступен: ' . $e2; return false; }
+    $drv  = $to['driver'] ?? 'sqlite';
+    $sdrv = $from['driver'] ?? 'sqlite';
     try {
-        foreach (install_statements($to['driver']) as $sql) $dst->exec($sql);
-        $dst->exec(ddl_metrics_minute($to['driver']));
-        $dst->exec(ddl_metrics_peak($to['driver']));
-        $tables = ['settings', 'overrides', 'request_log', 'webhook_log', 'forward_log', 'grace_users', 'chat_sessions', 'chat_messages', 'metrics_minute', 'metrics_peak'];
-        $verb = ($to['driver'] === 'mysql') ? 'REPLACE' : 'INSERT OR REPLACE';
+        foreach (install_statements($drv) as $sql) $dst->exec($sql);
+        $dst->exec(ddl_metrics_minute($drv));
+        $dst->exec(ddl_metrics_peak($drv));
+        foreach (migrate_extra_ddl($drv) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
+    } catch (Throwable $e) { $err = 'подготовка приёмника: ' . $e->getMessage(); return false; }
+
+    $tables = db_list_tables($src, $sdrv);
+    if (!$tables) {
+        $tables = ['settings', 'overrides', 'request_log', 'webhook_log', 'forward_log', 'grace_users',
+                   'chat_sessions', 'chat_messages', 'metrics_minute', 'metrics_peak', 'squad_configs',
+                   'squad_cache', 'wg_lease', 'hwid_devices', 'wg_user_cache', 'addsub_map', 'addsub_cache', 'login_attempts', 'junk_hits'];
+    }
+    $verb = ($drv === 'mysql') ? 'REPLACE' : 'INSERT OR REPLACE';
+    $tx = false;
+    try {
+        $dst->beginTransaction(); $tx = true;
+        if ($drv === 'mysql') { try { $dst->exec('SET FOREIGN_KEY_CHECKS=0'); } catch (Throwable $e) {} }
         foreach ($tables as $t) {
+            if (!db_table_exists($dst, $drv, $t)) continue;
             try { $rows = $src->query("SELECT * FROM $t")->fetchAll(PDO::FETCH_ASSOC); }
             catch (Throwable $e) { continue; }
             if (!$rows) continue;
@@ -345,7 +480,13 @@ function db_migrate(array $from, array $to, &$err = '') {
             $ins = $dst->prepare("$verb INTO $t ($collist) VALUES ($ph)");
             foreach ($rows as $row) $ins->execute(array_values($row));
         }
-    } catch (Throwable $e) { $err = 'копирование: ' . $e->getMessage(); return false; }
+        if ($drv === 'mysql') { try { $dst->exec('SET FOREIGN_KEY_CHECKS=1'); } catch (Throwable $e) {} }
+        $dst->commit(); $tx = false;
+    } catch (Throwable $e) {
+        if ($tx) { try { $dst->rollBack(); } catch (Throwable $e2) {} }
+        $err = 'копирование: ' . $e->getMessage();
+        return false;
+    }
     $conf = cfg();
     $conf['db'] = $to;
     $php = "<?php\nreturn " . var_export($conf, true) . ";\n";

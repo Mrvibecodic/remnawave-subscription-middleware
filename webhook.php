@@ -98,11 +98,7 @@ if ($short_uuid !== '') {
         grace_cleanup($short_uuid);
         wglease_purge_user($short_uuid);
         $action = 'clear';
-    } elseif ($is_active) {
-        $renewed = grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''));
-        delete_override('shortuuid', $short_uuid, 'webhook');
-        $action = $renewed ? 'grace_renewed' : 'reactivate';
-    } elseif ($event === 'user.expired') {
+    } elseif ($status === 'EXPIRED' || $event === 'user.expired') {
         $g = grace_on_expired($short_uuid, $username);
         if ($g === 'grace_started' || $g === 'grace_ended' || $g === 'grace_active') {
             delete_override('shortuuid', $short_uuid, 'webhook');
@@ -111,6 +107,13 @@ if ($short_uuid !== '') {
             upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
             $action = 'set_expired';
         }
+    } elseif ($status === 'DISABLED' || $status === 'LIMITED') {
+        upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
+        $action = 'set_expired';
+    } elseif ($is_active) {
+        $renewed = grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''));
+        delete_override('shortuuid', $short_uuid, 'webhook');
+        $action = $renewed ? 'grace_renewed' : 'reactivate';
     } elseif ($is_inactive) {
         upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
         $action = 'set_expired';
@@ -119,11 +122,20 @@ if ($short_uuid !== '') {
 
 log_webhook($event, $short_uuid ?: null, $username, $status, true, $action);
 
+// Отвечаем панели сразу и закрываем соединение, а пересылку делаем после —
+// чтобы медленный получатель не задерживал ответ и панель не ретраила событие.
+ignore_user_abort(true);
 http_response_code(200);
+header('Content-Type: text/plain; charset=utf-8');
+header('Content-Length: 2');
+header('Connection: close');
 echo 'OK';
 
 if (function_exists('fastcgi_finish_request')) {
     fastcgi_finish_request();
+} else {
+    while (ob_get_level() > 0) { @ob_end_flush(); }
+    @flush();
 }
 try {
     forward_webhook($raw, $event);

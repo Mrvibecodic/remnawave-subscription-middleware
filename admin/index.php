@@ -79,7 +79,6 @@ if (!is_installed()) {
                     'db'                  => $db,
                     'admin_user'          => $au,
                     'admin_pass_hash'     => password_hash($ap, PASSWORD_DEFAULT),
-                    'admin_cookie_secret' => bin2hex(random_bytes(24)),
                 ];
                 $php = "<?php\nreturn "
                      . var_export($conf, true) . ";\n";
@@ -214,6 +213,7 @@ function csrf_token() {
     return $_SESSION['csrf'];
 }
 function csrf_ok() { return isset($_POST['csrf'], $_SESSION['csrf']) && hash_equals($_SESSION['csrf'], $_POST['csrf']); }
+function csrf_ok_get() { return isset($_GET['csrf'], $_SESSION['csrf']) && hash_equals($_SESSION['csrf'], (string) $_GET['csrf']); }
 function is_auth() { return !empty($_SESSION['auth']); }
 function flash($m) { $_SESSION['flash'] = $m; }
 function take_flash() { $m = $_SESSION['flash'] ?? null; unset($_SESSION['flash']); return $m; }
@@ -334,8 +334,24 @@ if (isset($_GET['ajax']) && is_auth()) {
 
     if ($a === 'test_forward' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        // Тестируем то, что сейчас в форме (если передано), иначе — сохранённых адресатов.
+        $targets = null;
+        $tj = (string) ($_POST['targets'] ?? '');
+        if ($tj !== '') {
+            $arr = json_decode($tj, true);
+            if (is_array($arr)) {
+                $targets = [];
+                foreach ($arr as $t) {
+                    if (!is_array($t)) continue;
+                    if (array_key_exists('enabled', $t) && $t['enabled'] === false) continue;
+                    $url = trim((string) ($t['url'] ?? ''));
+                    if ($url === '' || !preg_match('~^https?://~i', $url)) continue;
+                    $targets[] = ['name' => trim((string) ($t['name'] ?? '')), 'url' => $url, 'secret' => (string) ($t['secret'] ?? ''), 'enabled' => true];
+                }
+            }
+        }
         $payload = json_encode(['event' => 'test.ping', 'data' => ['ts' => time(), 'source' => 'middleware']], JSON_UNESCAPED_UNICODE);
-        $results = forward_webhook($payload, 'test.ping', true);
+        $results = forward_webhook($payload, 'test.ping', true, $targets);
         echo json_encode(['ok' => true, 'results' => $results], JSON_UNESCAPED_UNICODE);
         exit();
     }
@@ -426,7 +442,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     if ($a === 'chat_msgs') {
         $sid   = (int) ($_GET['sid'] ?? 0);
         $after = (int) ($_GET['after'] ?? 0);
-        if ($after === 0) chat_mark_read($sid);
+        if ($after === 0 && csrf_ok_get()) chat_mark_read($sid);
         echo json_encode(['ok' => true, 'messages' => chat_messages_since($sid, $after, 300)], JSON_UNESCAPED_UNICODE);
         exit();
     }
@@ -470,6 +486,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     }
 
     if ($a === 'pool_sizing') {
+        if (!csrf_ok_get()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $perr = ''; $pwarn = ''; $ptot = null;
         $rows = wglease_sizing($perr, $pwarn, $ptot);
         if ($perr === '') wglease_sizing_save($rows, $ptot);
@@ -682,6 +699,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 
     if ($action === 'clear_reqlog') {
         if ($pdo = db()) { $pdo->exec('DELETE FROM request_log'); flash('Лог запросов очищен'); }
+        header('Location: index.php?tab=reqlog'); exit();
+    }
+
+    if ($action === 'junk_exclude') {
+        $pth = (string) ($_POST['path'] ?? '');
+        if ($pth !== '') { junk_whitelist_add($pth); junk_forget($pth); flash('Путь исключён из мусорных — теперь обрабатывается как обычная подписка'); }
+        header('Location: index.php?tab=reqlog'); exit();
+    }
+
+    if ($action === 'junk_include') {
+        $pth = (string) ($_POST['path'] ?? '');
+        if ($pth !== '') { junk_whitelist_del($pth); flash('Путь возвращён в мусорные'); }
         header('Location: index.php?tab=reqlog'); exit();
     }
 
@@ -1049,7 +1078,10 @@ if ($db_ok && $tab === 'chat') { $chat_sessions = chat_sessions_list(100); }
 $short2name = [];
 $hwid2info  = [];
 $rl_total_users = 0; $rl_today_users = 0; $rl_today_devices = 0; $rl_total_devices = 0; $rl_today_label = date('d.m.Y');
+$junk_top = []; $junk_wl = [];
 if ($tab === 'reqlog') {
+    $junk_top = junk_top(100);
+    $junk_wl  = junk_whitelist();
     $tmp_e = '';
     $all_u = remnawave_all_users($tmp_e);
     $rl_total_users = count($all_u);
@@ -1138,7 +1170,8 @@ $brand_stale = !$manual_brand && (
     (int) ($bc_now['v'] ?? 0) < 5
     || ((($bc_now['name'] ?? '') === '' || ($bc_now['logo_file'] ?? '') === '') && (time() - (int) ($bc_now['ts'] ?? 0) > 600))
 );
-if ($db_ok && $brand_stale && remnawave_url() !== '' && remnawave_token() !== '') { brand_refresh(); }
+$logo_gone = $db_ok && ($bc_now['logo_url'] ?? '') !== '' && brand_logo_missing($bc_now);
+if ($db_ok && ($brand_stale || $logo_gone) && remnawave_url() !== '' && remnawave_token() !== '') { brand_refresh(); }
 $brand      = service_brand();
 $brand_icon = $brand['logo_file'] !== '' ? $brand['logo_file'] : '';
 $brand_emoji = (string) ($brand['emoji'] ?? '');

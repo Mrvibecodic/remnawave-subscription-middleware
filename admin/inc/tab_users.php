@@ -223,7 +223,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         hwLoad();
     }
     function hwClose(){ document.getElementById('hwModal').classList.remove('open'); }
-    function hwEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+    function hwEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function hwOsIcon(p){p=String(p||'').toLowerCase();
         var f='device';
         if(/ios|iphone|ipad|ipados|mac|darwin|os ?x/.test(p))f='apple';

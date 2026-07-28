@@ -141,6 +141,7 @@ function update_compare($base, $head, &$err = null) {
             'filename' => (string) ($f['filename'] ?? ''),
             'status'   => (string) ($f['status'] ?? ''),
             'previous' => (string) ($f['previous_filename'] ?? ''),
+            'sha'      => (string) ($f['sha'] ?? ''),
         ];
     }
     $commits = [];
@@ -150,11 +151,38 @@ function update_compare($base, $head, &$err = null) {
             'msg' => trim(strtok((string) ($c['commit']['message'] ?? ''), "\n")),
         ];
     }
+    $total_commits = (int) ($j['total_commits'] ?? count($commits));
     return [
-        'ahead_by' => (int) ($j['ahead_by'] ?? 0),
-        'commits'  => $commits,
-        'files'    => $files,
+        'ahead_by'      => (int) ($j['ahead_by'] ?? 0),
+        'total_commits' => $total_commits,
+        // GitHub отдаёт максимум ~300 файлов и 250 коммитов в ответе; если упёрлись — список неполный.
+        'truncated'     => (count($files) >= 300) || (count($commits) < $total_commits),
+        'commits'       => $commits,
+        'files'         => $files,
     ];
+}
+
+// Проверка целостности: git-хэш blob = sha1("blob <len>\0<content>").
+// Если хэша нет (или не SHA-1) — не блокируем.
+function update_verify_blob($data, $sha) {
+    $sha = strtolower(trim((string) $sha));
+    if (!preg_match('/^[0-9a-f]{40}$/', $sha)) return true;
+    return hash_equals($sha, sha1('blob ' . strlen($data) . "\0" . $data));
+}
+
+function update_prune_backups($keep = 5) {
+    $bdir = update_root() . '/.backups';
+    if (!is_dir($bdir)) return;
+    $items = @scandir($bdir);
+    if ($items === false) return;
+    $dirs = [];
+    foreach ($items as $it) {
+        if ($it === '.' || $it === '..' || $it === '' || $it[0] === '.') continue;
+        if (is_dir($bdir . '/' . $it)) $dirs[] = $it;
+    }
+    sort($dirs); // имена начинаются с даты YYYYmmdd-His → сортировка = хронология
+    $extra = count($dirs) - (int) $keep;
+    for ($i = 0; $i < $extra; $i++) update_rmrf($bdir . '/' . $dirs[$i]);
 }
 
 function update_state() {
@@ -253,8 +281,14 @@ function update_apply(&$log, &$err = null) {
     if ($installed === $latest['sha']) { $err = 'Уже на последней версии.'; return false; }
     $cmp = update_compare($installed, $latest['sha'], $err);
     if ($cmp === null) return false;
+    if (!empty($cmp['truncated'])) {
+        $err = 'Слишком много изменений между версиями для точечного обновления (GitHub отдаёт список частями). Обновитесь через git pull или переустановите файлы из архива.';
+        return false;
+    }
 
     $root = update_root();
+    $shamap = [];
+    foreach ($cmp['files'] as $f) { if (($f['filename'] ?? '') !== '') $shamap[$f['filename']] = (string) ($f['sha'] ?? ''); }
 
     $writes = [];
     $deletes = [];
@@ -306,6 +340,7 @@ function update_apply(&$log, &$err = null) {
     foreach ($writes as $rel) {
         $data = update_http_get(update_raw_url($latest['sha'], $rel), $e2, 'application/vnd.github.raw');
         if ($data === null) { update_rmrf($tmp); $err = 'Не удалось скачать ' . $rel . ': ' . $e2; return false; }
+        if (!update_verify_blob($data, $shamap[$rel] ?? '')) { update_rmrf($tmp); $err = 'Контроль целостности не пройден для ' . $rel . ' — обновление отменено.'; return false; }
         $tp = $tmp . '/' . $rel;
         if (!is_dir(dirname($tp)) && !@mkdir(dirname($tp), 0775, true)) { update_rmrf($tmp); $err = 'Не создать temp-подкаталог для ' . $rel; return false; }
         if (@file_put_contents($tp, $data) === false) { update_rmrf($tmp); $err = 'Не записать временный ' . $rel; return false; }
@@ -355,6 +390,7 @@ function update_apply(&$log, &$err = null) {
 
     set_setting('installed_commit', $latest['sha']);
     update_refresh($e);
+    update_prune_backups(5);
     return true;
 }
 

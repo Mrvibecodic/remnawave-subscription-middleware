@@ -616,7 +616,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
         if (calc) {
             calc.addEventListener('click', function(){
                 if (wgpMsg) wgpMsg.textContent = 'Считаю по панели…'; calc.disabled = true;
-                fetch('?ajax=pool_sizing').then(function(r){ return r.json(); }).then(function(d){
+                fetch('?ajax=pool_sizing&csrf=<?= h($token) ?>').then(function(r){ return r.json(); }).then(function(d){
                     calc.disabled = false;
                     if (!d.ok) { if (wgpMsg) wgpMsg.textContent = 'Ошибка: ' + (d.error || 'нет данных'); return; }
                     wgpApply(d.rows);

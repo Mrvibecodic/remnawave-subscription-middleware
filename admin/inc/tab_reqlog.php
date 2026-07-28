@@ -40,11 +40,53 @@
         </table>
         <div id="rl_pgrBot" class="pgr-bot"></div>
     </div>
+
+    <div class="card">
+        <h2>Мусорные запросы <span class="muted" style="font-weight:400;font-size:.76rem">(сканеры/боты — панель не опрашивается)</span></h2>
+        <p class="muted">Запросы на несуществующие адреса (файлы, <code>/wp-login.php</code>, <code>/.env</code> и т.п.). Для них прослойка не обращается к API панели, чтобы не нагружать её. Обычная подписка (shortUuid) сюда не попадает. Если в списке оказался нужный адрес — нажмите «Исключить», и он снова будет обрабатываться как подписка.</p>
+        <?php if (!empty($junk_wl)): ?>
+        <p class="muted" style="margin-top:.7rem;margin-bottom:.3rem">Исключены из мусорных:</p>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem">
+            <?php foreach ($junk_wl as $w): ?>
+            <form method="post" style="margin:0">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="junk_include">
+                <input type="hidden" name="path" value="<?= h($w) ?>">
+                <button class="btn ghost" type="submit" title="Вернуть в мусорные">✓ <?= h($w) ?> &nbsp;✕</button>
+            </form>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($junk_top)): ?>
+        <table class="logtbl">
+            <thead><tr><th>Путь</th><th>Запросов</th><th>Последний</th><th></th></tr></thead>
+            <tbody>
+            <?php foreach ($junk_top as $j): ?>
+            <tr>
+                <td><code><?= h(mb_substr((string) $j['path'], 0, 120)) ?></code></td>
+                <td><?= (int) $j['hits'] ?></td>
+                <td class="muted"><?= (int) $j['last_ts'] ? h(date('Y-m-d H:i', (int) $j['last_ts'])) : '—' ?></td>
+                <td>
+                    <form method="post" style="margin:0">
+                        <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                        <input type="hidden" name="action" value="junk_exclude">
+                        <input type="hidden" name="path" value="<?= h($j['path']) ?>">
+                        <button class="btn ghost" type="submit">Исключить</button>
+                    </form>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php else: ?>
+        <p class="muted">Пока пусто — мусорных запросов не зафиксировано.</p>
+        <?php endif; ?>
+    </div>
     <script>
     var RL_NAMES = <?= json_encode((object) $short2name, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     var RL_HWIDS = <?= json_encode((object) $hwid2info, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     var rlPager = window.LogPager ? LogPager({bodyId:'rlBody', topId:'rl_pgrTop', botId:'rl_pgrBot', colspan:6, storeKey:'pg_reqlog'}) : null;
-    function rlEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+    function rlEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function rlSumRender(s){
         var el=document.getElementById('rlSum'); if(!el||!s) return;
         var totalU=parseInt(el.getAttribute('data-total-users'),10)||0;

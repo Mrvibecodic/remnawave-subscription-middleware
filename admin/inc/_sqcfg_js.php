@@ -3,7 +3,7 @@
         var SQ_CSRF = <?= json_encode($token) ?>;
         var ta = document.getElementById('sqcfg_raw'), hint = document.getElementById('sqcfg_hint'), t = null;
         if(!ta || !hint) return;
-        function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+        function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
         function render(d){
             if(!d){ hint.style.display='none'; return; }
             var cls = d.ok ? 'ok' : 'bad';
@@ -141,7 +141,7 @@
                     document.getElementById('wgm_short').value = d.user.shortUuid || '';
                     var sqn = (d.user.squads || []).map(function(s){ return NAMES[s.uuid] || s.name || s.uuid; }).join(', ');
                     var lim = (d.user.hwidDeviceLimit == null ? '' : (' · лимит устройств: ' + d.user.hwidDeviceLimit));
-                    info.innerHTML = 'Пользователь: <b>' + (d.user.username || '') + '</b>' + lim + (sqn ? (' · сквады: ' + sqn) : '');
+                    info.innerHTML = 'Пользователь: <b>' + esc(d.user.username || '') + '</b>' + lim + (sqn ? (' · сквады: ' + esc(sqn)) : '');
                     var hw = document.getElementById('wgm_hwid');
                     if(hw){
                         hw.innerHTML = '<option value="">— любое (на пользователя)</option>';

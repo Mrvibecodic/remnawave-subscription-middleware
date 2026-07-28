@@ -255,7 +255,7 @@
 .pgr-b:hover:not([disabled]){background:var(--accent-light);color:var(--accent-text)}
 .pgr-b[disabled]{opacity:.35;cursor:default}
 .pgr-bot{margin-top:.85rem;display:flex;justify-content:center}
-html.lp tbody.lp-cap>tr:nth-child(n+26){display:none}
+html.lp tbody.lp-cap>tr:nth-child(n+51){display:none}
 @media(max-width:640px){.loghead-r{width:100%;justify-content:space-between}.pgr{flex:1 1 auto}}
     body{line-height:1.48}
     .rw-app{background:linear-gradient(180deg,var(--accent-light),transparent 260px),var(--bg)}

@@ -99,7 +99,7 @@
     var RR_CAT     = <?= json_encode(app_headers_catalog(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     var RR_TOKEN   = <?= json_encode($token) ?>;
 
-    function rrEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+    function rrEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function rrCatFind(name){for(var g in RR_CAT){for(var i=0;i<RR_CAT[g].length;i++){if(RR_CAT[g][i].name===name)return RR_CAT[g][i];}}return null;}
     function rrClientOptions(sel){
         var o='<option value=""'+(sel===''?' selected':'')+'>— выберите —</option>';

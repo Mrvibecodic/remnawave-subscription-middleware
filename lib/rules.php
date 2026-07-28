@@ -21,25 +21,16 @@ function rules_encode_value($name, $value) {
     return 'base64:' . base64_encode($value);
 }
 
+// Производный от единого справочника client_catalog() (см. lib/squadconf.php):
+// берём клиентов с ключом rk, «популярные» — вперёд. Список клиентов правится в одном месте.
 function rules_client_catalog() {
-    return [
-        ['key' => 'koala',        'label' => 'Koala Clash',         'ua' => 'koala',        'group' => 'popular'],
-        ['key' => 'flclashx',     'label' => 'FlClashX',            'ua' => 'flclashx',     'group' => 'popular'],
-        ['key' => 'happ',         'label' => 'Happ',                'ua' => 'happ',         'group' => 'popular'],
-        ['key' => 'incy',         'label' => 'INCY',                'ua' => 'incy',         'group' => 'popular'],
-        ['key' => 'flclash',      'label' => 'FlClash',             'ua' => 'flclash',      'group' => 'other'],
-        ['key' => 'clashverge',   'label' => 'Clash Verge',         'ua' => 'verge',        'group' => 'other'],
-        ['key' => 'clashmeta',    'label' => 'Clash Meta / Mihomo', 'ua' => 'mihomo',       'group' => 'other'],
-        ['key' => 'v2rayng',      'label' => 'v2rayNG',             'ua' => 'v2rayng',      'group' => 'other'],
-        ['key' => 'v2rayn',       'label' => 'v2rayN',              'ua' => 'v2rayn',       'group' => 'other'],
-        ['key' => 'streisand',    'label' => 'Streisand',           'ua' => 'streisand',    'group' => 'other'],
-        ['key' => 'nekobox',      'label' => 'NekoBox',             'ua' => 'nekobox',      'group' => 'other'],
-        ['key' => 'singbox',      'label' => 'sing-box',            'ua' => 'sing-box',     'group' => 'other'],
-        ['key' => 'karing',       'label' => 'Karing',              'ua' => 'karing',       'group' => 'other'],
-        ['key' => 'stash',        'label' => 'Stash',               'ua' => 'stash',        'group' => 'other'],
-        ['key' => 'shadowrocket', 'label' => 'Shadowrocket',        'ua' => 'shadowrocket', 'group' => 'other'],
-        ['key' => 'hiddify',      'label' => 'Hiddify',             'ua' => 'hiddify',      'group' => 'other'],
-    ];
+    $pop = []; $oth = [];
+    foreach (client_catalog() as $c) {
+        if (empty($c['rk'])) continue;
+        $e = ['key' => $c['rk'], 'label' => $c['label'], 'ua' => $c['ua'], 'group' => $c['rg'] ?? 'other'];
+        if (($c['rg'] ?? '') === 'popular') $pop[] = $e; else $oth[] = $e;
+    }
+    return array_merge($pop, $oth);
 }
 
 function app_headers_catalog() {

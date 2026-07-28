@@ -45,6 +45,8 @@ if (isset($_GET['inbound'])) {
 
 if (!chat_enabled()) chat_json(['ok' => false, 'error' => 'chat disabled'], 403);
 
+chat_maybe_gc();
+
 $api = $_GET['api'] ?? '';
 $cookie_name = 'submw_chat';
 
@@ -89,10 +91,13 @@ if ($api === 'send') {
     $body = trim((string) ($_POST['body'] ?? ''));
     if ($body === '') chat_json(['ok' => false, 'error' => 'empty'], 400);
     if (!$session) {
+        if (chat_recent_sessions_from_ip(client_ip()) >= chat_max_sessions_per_ip()) chat_json(['ok' => false, 'error' => 'rate'], 429);
         $session = chat_session_create(client_ip(), $_SERVER['HTTP_USER_AGENT'] ?? '');
         if (!$session) chat_json(['ok' => false, 'error' => 'cannot create'], 500);
         chat_set_cookie($cookie_name, $session['token']);
         if (chat_greeting() !== '') chat_add_message($session['id'], 'agent', 'system', chat_greeting());
+    } elseif (chat_session_msg_count($session['id']) >= chat_max_msgs_per_session()) {
+        chat_json(['ok' => false, 'error' => 'limit'], 429);
     }
     $id = chat_add_message($session['id'], 'visitor', 'site', $body);
     if (!$id) chat_json(['ok' => false, 'error' => 'store failed'], 500);

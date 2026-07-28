@@ -70,7 +70,7 @@ WEBHOOK_SECRET_HEADER=<?= h(webhook_secret() ?: '<секрет из «Подкл
     <script>
     var FWD_TARGETS = <?= json_encode(forward_targets(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     var FWD_CSRF = <?= json_encode($token) ?>;
-    function fwdEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+    function fwdEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function fwdRowHtml(t){
         t=t||{};
         return '<div class="fwd-row">'+
@@ -118,10 +118,11 @@ WEBHOOK_SECRET_HEADER=<?= h(webhook_secret() ?: '<секрет из «Подкл
         var res=document.getElementById('fwdRes');
         res.innerHTML='<div class="muted">Отправка теста…</div>';
         var f=new FormData(); f.append('csrf',FWD_CSRF);
+        f.append('targets', JSON.stringify(fwdCollect()));
         fetch('?ajax=test_forward',{method:'POST',body:f}).then(function(r){return r.json();}).then(function(d){
             if(!d.ok){ res.innerHTML='<div class="warn">Ошибка: '+fwdEsc(d.error||'')+'</div>'; return; }
             var rows=d.results||[];
-            if(!rows.length){ res.innerHTML='<div class="muted">Нет включённых адресатов. Отметьте «Вкл» и нажмите «Сохранить раздвоение», затем тест.</div>'; return; }
+            if(!rows.length){ res.innerHTML='<div class="muted">Нет включённых адресатов с корректным URL. Заполните URL и отметьте «Вкл».</div>'; return; }
             res.innerHTML=rows.map(function(x){
                 var ok=x.ok?'<span class="tag normal">ok '+x.code+'</span>':'<span class="tag error">'+(x.code||'—')+(x.error?(' '+fwdEsc(x.error)):'')+'</span>';
                 return '<div class="ln">'+ok+' &nbsp;'+fwdEsc(x.name||x.url)+'</div>';

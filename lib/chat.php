@@ -147,6 +147,50 @@ function chat_session_create($ip, $ua) {
     } catch (Throwable $e) { error_log('submw chat_session_create: ' . $e->getMessage()); return null; }
 }
 
+function chat_max_sessions_per_ip() { $n = (int) setting('chat_max_sessions_ip', '20'); return $n > 0 ? $n : 20; }
+function chat_max_msgs_per_session() { $n = (int) setting('chat_max_msgs', '200'); return $n > 0 ? $n : 200; }
+// 0 (по умолчанию) = не удалять автоматически. Чистка включается заданием положительного числа дней.
+function chat_retention_days() { return max(0, (int) setting('chat_retention_days', '0')); }
+
+function chat_recent_sessions_from_ip($ip, $window = 3600) {
+    $ip = mb_substr((string) $ip, 0, 45);
+    if ($ip === '' || !($p = db())) return 0;
+    try {
+        $st = $p->prepare('SELECT COUNT(*) FROM chat_sessions WHERE ip = ? AND ' . sql_epoch('created_at') . ' > ?');
+        $st->execute([$ip, time() - (int) $window]);
+        return (int) $st->fetchColumn();
+    } catch (Throwable $e) { return 0; }
+}
+
+function chat_session_msg_count($sid) {
+    if (!($p = db())) return 0;
+    try {
+        $st = $p->prepare('SELECT COUNT(*) FROM chat_messages WHERE session_id = ?');
+        $st->execute([(int) $sid]);
+        return (int) $st->fetchColumn();
+    } catch (Throwable $e) { return 0; }
+}
+
+function chat_gc() {
+    if (!ensure_chat_tables() || !($p = db())) return;
+    $days = chat_retention_days();
+    if ($days <= 0) return; // ретеншен выключен — ничего не удаляем
+    $cut = time() - $days * 86400;
+    try {
+        $st = $p->prepare('SELECT id FROM chat_sessions WHERE ' . sql_epoch('COALESCE(last_msg_at, last_seen, created_at)') . ' < ? LIMIT 200');
+        $st->execute([$cut]);
+        $ids = $st->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($ids as $sid) {
+            try { $p->prepare('DELETE FROM chat_messages WHERE session_id = ?')->execute([(int) $sid]); } catch (Throwable $e) {}
+            try { $p->prepare('DELETE FROM chat_sessions WHERE id = ?')->execute([(int) $sid]); } catch (Throwable $e) {}
+        }
+    } catch (Throwable $e) { error_log('submw chat_gc: ' . $e->getMessage()); }
+}
+
+function chat_maybe_gc() {
+    if (function_exists('random_int') && random_int(1, 200) === 1) chat_gc();
+}
+
 function chat_session_touch($id) {
     if (!($p = db())) return;
     try { $p->prepare('UPDATE chat_sessions SET last_seen = CURRENT_TIMESTAMP WHERE id = ?')->execute([(int) $id]); }
@@ -369,6 +413,9 @@ function chat_tg_handle_callback(array $cq) {
     $data    = (string) ($cq['data'] ?? '');
     $chat_id = $cq['message']['chat']['id'] ?? chat_tg_chat_id();
     $mid     = (int) ($cq['message']['message_id'] ?? 0);
+    $conf_chat = chat_tg_chat_id();
+    $cq_chat   = (string) ($cq['message']['chat']['id'] ?? '');
+    if ($conf_chat !== '' && $cq_chat !== '' && $cq_chat !== $conf_chat) return false;
     $esc     = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     $answer  = function ($text = '') use ($cqid) {
         if ($cqid === '') return;
@@ -433,6 +480,11 @@ function chat_tg_handle_update(array $update) {
     }
     $msg = $update['message'] ?? null;
     if (!is_array($msg)) return false;
+    $conf_chat = chat_tg_chat_id();
+    if ($conf_chat !== '' && (string) ($msg['chat']['id'] ?? '') !== $conf_chat) {
+        error_log('submw chat tg: сообщение из чужого чата — игнор');
+        return false;
+    }
     $text = trim((string) ($msg['text'] ?? ''));
     if ($text === '') return false;
 

@@ -360,6 +360,11 @@ function squadconf_user_squads($short) {
 }
 
 function squadconf_inject_clash($body, array $configs) {
+    // Тело должно быть YAML-подпиской Clash, а не base64/JSON/страницей ошибки —
+    // иначе не дописываем ничего, чтобы не испортить ответ.
+    $s = ltrim((string) $body);
+    if ($s === '' || $s[0] === '{' || $s[0] === '[') return $body;
+    if (!preg_match('~(^|\n)\s*(proxies|proxy-groups|proxy-providers|mixed-port|port|mode)\s*:~i', $s)) return $body;
     $blocks = []; $names = [];
     foreach ($configs as $c) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
@@ -411,31 +416,41 @@ function wg_to_uri_wg($parsed, $name) {
     return 'wg://' . $host . ':' . (int) $port . '?' . implode('&', $q) . '#' . rawurlencode($name);
 }
 
-function squadconf_ua_rules_catalog() {
+// Единый справочник клиентов — источник и для правил выдачи (core/no_awg/no_wg),
+// и для каталога «Правил ответа» (rk = ключ, rg = группа в UI). Добавлять клиента здесь одним местом.
+function client_catalog() {
     return [
-        ['ua' => 'mihomo',       'label' => 'Clash Meta / Mihomo', 'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0],
+        ['ua' => 'mihomo',       'label' => 'Clash Meta / Mihomo', 'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0, 'rk' => 'clashmeta',    'rg' => 'other'],
         ['ua' => 'clash',        'label' => 'Clash',               'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0],
-        ['ua' => 'verge',        'label' => 'Clash Verge',         'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0],
-        ['ua' => 'flclash',      'label' => 'FlClash',             'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0],
-        ['ua' => 'flclashx',     'label' => 'FlClashX',            'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0],
-        ['ua' => 'koala',        'label' => 'Koala Clash',         'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0],
-        ['ua' => 'stash',        'label' => 'Stash',               'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0],
+        ['ua' => 'verge',        'label' => 'Clash Verge',         'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0, 'rk' => 'clashverge',   'rg' => 'other'],
+        ['ua' => 'flclash',      'label' => 'FlClash',             'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0, 'rk' => 'flclash',      'rg' => 'other'],
+        ['ua' => 'flclashx',     'label' => 'FlClashX',            'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0, 'rk' => 'flclashx',     'rg' => 'popular'],
+        ['ua' => 'koala',        'label' => 'Koala Clash',         'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0, 'rk' => 'koala',        'rg' => 'popular'],
+        ['ua' => 'stash',        'label' => 'Stash',               'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0, 'rk' => 'stash',        'rg' => 'other'],
         ['ua' => 'throne',       'label' => 'Throne',              'core' => 'sing-box', 'no_awg' => 0, 'no_wg' => 0],
-        ['ua' => 'happ',         'label' => 'Happ',                'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0],
-        ['ua' => 'incy',         'label' => 'INCY',                'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0],
-        ['ua' => 'v2rayng',      'label' => 'v2rayNG',             'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0],
-        ['ua' => 'v2rayn',       'label' => 'v2rayN',              'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0],
+        ['ua' => 'happ',         'label' => 'Happ',                'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0, 'rk' => 'happ',         'rg' => 'popular'],
+        ['ua' => 'incy',         'label' => 'INCY',                'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0, 'rk' => 'incy',         'rg' => 'popular'],
+        ['ua' => 'v2rayng',      'label' => 'v2rayNG',             'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0, 'rk' => 'v2rayng',      'rg' => 'other'],
+        ['ua' => 'v2rayn',       'label' => 'v2rayN',              'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0, 'rk' => 'v2rayn',       'rg' => 'other'],
         ['ua' => 'v2raytun',     'label' => 'v2RayTun',            'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0],
         ['ua' => 'v2box',        'label' => 'V2Box',               'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0],
         ['ua' => 'foxray',       'label' => 'FoXray',              'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0],
-        ['ua' => 'shadowrocket', 'label' => 'Shadowrocket',        'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0],
-        ['ua' => 'sing-box',     'label' => 'sing-box',            'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0],
-        ['ua' => 'nekobox',      'label' => 'NekoBox',             'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0],
+        ['ua' => 'shadowrocket', 'label' => 'Shadowrocket',        'core' => 'xray',     'no_awg' => 1, 'no_wg' => 0, 'rk' => 'shadowrocket', 'rg' => 'other'],
+        ['ua' => 'sing-box',     'label' => 'sing-box',            'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0, 'rk' => 'singbox',      'rg' => 'other'],
+        ['ua' => 'nekobox',      'label' => 'NekoBox',             'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0, 'rk' => 'nekobox',      'rg' => 'other'],
         ['ua' => 'nekoray',      'label' => 'NekoRay',             'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0],
-        ['ua' => 'hiddify',      'label' => 'Hiddify',             'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0],
-        ['ua' => 'streisand',    'label' => 'Streisand',           'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0],
-        ['ua' => 'karing',       'label' => 'Karing',              'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0],
+        ['ua' => 'hiddify',      'label' => 'Hiddify',             'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0, 'rk' => 'hiddify',      'rg' => 'other'],
+        ['ua' => 'streisand',    'label' => 'Streisand',           'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0, 'rk' => 'streisand',    'rg' => 'other'],
+        ['ua' => 'karing',       'label' => 'Karing',              'core' => 'sing-box', 'no_awg' => 1, 'no_wg' => 0, 'rk' => 'karing',       'rg' => 'other'],
     ];
+}
+
+function squadconf_ua_rules_catalog() {
+    $out = [];
+    foreach (client_catalog() as $c) {
+        $out[] = ['ua' => $c['ua'], 'label' => $c['label'], 'core' => $c['core'], 'no_awg' => $c['no_awg'], 'no_wg' => $c['no_wg']];
+    }
+    return $out;
 }
 
 function squadconf_ua_rules() {
@@ -637,7 +652,14 @@ function squadconf_supported_types($body, $format) {
     $trim = ltrim((string) $body);
     $is_json = !($trim === '' || ($trim[0] !== '[' && $trim[0] !== '{'));
     if ($wg_ok) $t[] = 'wireguard';
-    if (!$is_json && $awg_ok) $t[] = 'amneziawg';
+    if (!$is_json && $awg_ok) {
+        // AmneziaWG уходит клиенту только когда отдаётся схема wg:// (она несёт оба типа).
+        // Если панель вернула wireguard:// без wg://, клиент получит только wireguard,
+        // поэтому амнезию не бронируем — иначе адрес пула занимается впустую.
+        $decoded = base64_decode(trim((string) $body), true);
+        $scheme = (is_string($decoded) && strpos($decoded, 'wireguard://') !== false && strpos($decoded, 'wg://') === false) ? 'wireguard' : 'wg';
+        if ($scheme === 'wg') $t[] = 'amneziawg';
+    }
     return $t;
 }
 
@@ -762,15 +784,17 @@ function clash_insert_proxies($body, array $blocks, array $names) {
     $injected = false;
     $seen_top = false;
     $in_list = false;
-    $item_indent = '';
-    $min_indent = 0;
+    $item_indent = null;
+    $key_indent = 0;
     foreach ($lines as $line) {
         if ($in_list) {
-            if (preg_match('/^(\s*)-\s/', $line, $mm) && strlen($mm[1]) >= $min_indent) {
+            if (preg_match('/^(\s*)-\s/', $line, $mm) && strlen($mm[1]) >= $key_indent) {
+                if ($item_indent === null) $item_indent = $mm[1];
                 $out[] = $line;
                 continue;
             }
-            foreach ($names as $n) $out[] = $item_indent . '- ' . yaml_q($n);
+            $ind = ($item_indent !== null) ? $item_indent : str_repeat(' ', $key_indent);
+            foreach ($names as $n) $out[] = $ind . '- ' . yaml_q($n);
             $in_list = false;
         }
         if (!$injected && preg_match('/^proxies:\s*\[\s*\]\s*$/', $line)) {
@@ -789,13 +813,16 @@ function clash_insert_proxies($body, array $blocks, array $names) {
         if (preg_match('/^(\s+)proxies:\s*$/', $line, $m)) {
             $out[] = $line;
             $in_list = true;
-            $item_indent = $m[1] . '  ';
-            $min_indent = strlen($m[1]) + 1;
+            $item_indent = null;
+            $key_indent = strlen($m[1]);
             continue;
         }
         $out[] = $line;
     }
-    if ($in_list) foreach ($names as $n) $out[] = $item_indent . '- ' . yaml_q($n);
+    if ($in_list) {
+        $ind = ($item_indent !== null) ? $item_indent : str_repeat(' ', $key_indent);
+        foreach ($names as $n) $out[] = $ind . '- ' . yaml_q($n);
+    }
     if (!$injected && !$seen_top) {
         $out[] = 'proxies:';
         foreach ($blocks as $b) foreach (explode("\n", $b) as $bl) $out[] = $bl;

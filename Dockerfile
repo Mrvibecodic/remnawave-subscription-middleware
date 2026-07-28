@@ -20,4 +20,6 @@ RUN set -eux; \
     chown -R www-data:www-data /var/www/html; \
     chmod +x /entrypoint.sh
 EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD php -r '$c=@fsockopen("127.0.0.1",9000,$e,$s,2); exit($c?0:1);' || exit 1
 ENTRYPOINT ["/entrypoint.sh"]

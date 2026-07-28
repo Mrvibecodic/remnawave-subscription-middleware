@@ -496,7 +496,17 @@ function addsub_merge_xray($a, $b) {
     $nodes = addsub_xray_collect($ob);
     if (!$nodes) return $a;
     if (!isset($oa->outbounds) || !is_array($oa->outbounds)) return $a;
-    foreach ($nodes as $n) $oa->outbounds[] = $n;
+    $used = [];
+    foreach ($oa->outbounds as $ex) { if (is_object($ex) && isset($ex->tag) && $ex->tag !== '') $used[(string) $ex->tag] = true; }
+    foreach ($nodes as $n) {
+        if (is_object($n) && isset($n->tag) && $n->tag !== '') {
+            $base = (string) $n->tag; $nm = $base; $i = 1;
+            while (isset($used[$nm])) { $i++; $nm = $base . '-' . $i; }
+            if ($nm !== $base) $n->tag = $nm;
+            $used[$nm] = true;
+        }
+        $oa->outbounds[] = $n;
+    }
     $enc = json_encode($oa, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     return $enc === false ? $a : $enc;
 }

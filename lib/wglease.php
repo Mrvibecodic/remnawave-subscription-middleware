@@ -56,11 +56,48 @@ function wglease_ensure() {
             )");
         }
     } catch (Throwable $e) { error_log('submw wglease ensure: ' . $e->getMessage()); }
-    try { $p->exec('CREATE UNIQUE INDEX uq_wgl_cfg ON wg_lease (config_id)'); } catch (Throwable $e) {}
+    wglease_ensure_cfg_uidx($p);
     if (setting('wgl_ua_col', '') !== '1') {
         try { $p->exec('ALTER TABLE wg_lease ADD COLUMN ua ' . (db_driver() === 'mysql' ? 'VARCHAR(255)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
         set_setting('wgl_ua_col', '1');
     }
+}
+
+function wglease_cfg_uidx_exists($p) {
+    try {
+        if (db_driver() === 'mysql') {
+            $st = $p->prepare("SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'wg_lease' AND index_name = 'uq_wgl_cfg' LIMIT 1");
+            $st->execute();
+            return (bool) $st->fetchColumn();
+        }
+        $st = $p->query("SELECT 1 FROM sqlite_master WHERE type='index' AND name='uq_wgl_cfg' LIMIT 1");
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) { return false; }
+}
+
+function wglease_try_cfg_uidx($p) {
+    try {
+        if (db_driver() === 'mysql') $p->exec('ALTER TABLE wg_lease ADD UNIQUE KEY uq_wgl_cfg (config_id)');
+        else $p->exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_wgl_cfg ON wg_lease (config_id)');
+        return true;
+    } catch (Throwable $e) { return false; }
+}
+
+function wglease_ensure_cfg_uidx($p) {
+    if (setting('wgl_cfg_uidx', '') === '1') return;
+    if (wglease_cfg_uidx_exists($p)) { set_setting('wgl_cfg_uidx', '1'); return; }
+    if (wglease_try_cfg_uidx($p)) { set_setting('wgl_cfg_uidx', '1'); return; }
+    // индекс не создался — в таблице есть повторяющиеся config_id; оставляем по одной аренде на config_id
+    try {
+        $dups = $p->query('SELECT config_id FROM wg_lease GROUP BY config_id HAVING COUNT(*) > 1')->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($dups as $cid) {
+            $keep = $p->prepare('SELECT id FROM wg_lease WHERE config_id = ? ORDER BY manual DESC, id ASC LIMIT 1');
+            $keep->execute([(int) $cid]);
+            $keepId = (int) $keep->fetchColumn();
+            if ($keepId > 0) $p->prepare('DELETE FROM wg_lease WHERE config_id = ? AND id <> ?')->execute([(int) $cid, $keepId]);
+        }
+    } catch (Throwable $e) { error_log('submw wglease dedupe: ' . $e->getMessage()); return; }
+    if (wglease_try_cfg_uidx($p)) set_setting('wgl_cfg_uidx', '1');
 }
 
 function wglease_mode($squad_uuid) {
@@ -253,7 +290,8 @@ function wglease_reset_auto() {
     try {
         $n = (int) $p->query('SELECT COUNT(*) FROM wg_lease WHERE manual = 0')->fetchColumn();
         $p->exec('DELETE FROM wg_lease WHERE manual = 0');
-        try { $p->exec('CREATE UNIQUE INDEX uq_wgl_cfg ON wg_lease (config_id)'); } catch (Throwable $e) {}
+        set_setting('wgl_cfg_uidx', '');
+        wglease_ensure_cfg_uidx($p);
         return $n;
     } catch (Throwable $e) { return 0; }
 }

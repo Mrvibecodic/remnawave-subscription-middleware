@@ -48,6 +48,11 @@ $skip_log =
     || preg_match('~^(app|api|backend|frontend|server|config|credentials|secrets|keyfile|phpinfo\.php|wp-login\.php|wp-admin|xmlrpc\.php)$~i', $path)
     || preg_match('~(^|/)(favicon\.ico|robots\.txt|sitemap\.xml|browserconfig\.xml|apple-touch-icon[\w-]*\.png)$~i', $path);
 
+// «Мусорный» путь (файлы, сканеры ботов): для таких не дёргаем API панели.
+// Реальная подписка (shortUuid) сюда не попадает; при ложном срабатывании путь
+// можно исключить в админке (Лог запросов → Мусорные запросы).
+$junk_path = $skip_log && !junk_excluded($path);
+
 $to_panel = subpage_active() || $apisub_in;
 if ($to_panel) {
     $target_url = remnawave_url() . '/api/sub/' . $path;
@@ -228,7 +233,11 @@ if ($do_substitute) {
     exit();
 }
 
-if ($decision === 'normal' && $short_uuid !== '' && squadconf_any()) {
+if ($junk_path && $short_uuid !== '' && (squadconf_any() || addsub_enabled())) {
+    junk_record($path);
+}
+
+if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any()) {
     $u_squads = squadconf_user_squads($short_uuid);
     if ($u_squads) {
         $u_cfgs = wglease_select($short_uuid, $current_hwid, $u_squads, squadconf_supported_types($response, $format));
@@ -236,7 +245,7 @@ if ($decision === 'normal' && $short_uuid !== '' && squadconf_any()) {
     }
 }
 
-if ($decision === 'normal' && $short_uuid !== '' && addsub_enabled()) {
+if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enabled()) {
     try {
         $addsub_src = addsub_resolve($short_uuid);
         if ($addsub_src) {

@@ -13,6 +13,13 @@ function ensure_reqlog_hwid() {
         try { $p->exec('ALTER TABLE request_log ADD COLUMN is_app INTEGER NOT NULL DEFAULT 1'); } catch (Throwable $e) {}
         set_setting('reqlog_isapp_col', '1');
     }
+    if (setting('reqlog_hwid_idx', '') !== '1') {
+        try {
+            if (db_driver() === 'mysql') $p->exec('ALTER TABLE request_log ADD INDEX idx_rl_hwid (hwid)');
+            else $p->exec('CREATE INDEX IF NOT EXISTS idx_rl_hwid ON request_log(hwid)');
+        } catch (Throwable $e) {}
+        set_setting('reqlog_hwid_idx', '1');
+    }
     if (setting('reqlog_browser_purge', '') !== '2') {
         try { $p->exec("DELETE FROM request_log WHERE decision = 'browser' OR user_agent LIKE 'Mozilla/%'"); } catch (Throwable $e) {}
         set_setting('reqlog_browser_purge', '2');

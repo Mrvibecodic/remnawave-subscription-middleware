@@ -56,6 +56,15 @@ function remnawave_panel_headers(&$error = '') {
 
 function brand_dir() { return dirname(__DIR__) . '/admin/assets'; }
 
+// Файл логотипа записан в кэше, но физически отсутствует (например, после
+// обновления docker-образа assets не в томе) — сигнал перекачать логотип.
+function brand_logo_missing($cache) {
+    $lf = (string) ($cache['logo_file'] ?? '');
+    if ($lf === '') return false;
+    $full = dirname(brand_dir()) . '/' . $lf;
+    return !is_file($full);
+}
+
 function brand_find_logo($node, $depth = 0) {
     if (!is_array($node) || $depth > 8) return '';
     foreach ($node as $k => $v) {

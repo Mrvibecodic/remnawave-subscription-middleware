@@ -146,7 +146,7 @@ $c_color  = chat_widget_color();
     var CB_CSRF = <?= json_encode($token) ?>;
     var CB_SESS = <?= json_encode($chat_sessions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     var cbCur = 0, cbLast = 0, cbPoll = null, cbSeen = {}, cbBusy = false;
-    function cbEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+    function cbEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function cbLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);function p(n){return(n<10?'0':'')+n;}return p(d.getHours())+':'+p(d.getMinutes());}
     document.querySelectorAll('.cb-pre').forEach(function(el){el.addEventListener('click',function(){document.querySelectorAll('.cb-pre').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');});});
     function cbRenderList(rows){
@@ -187,7 +187,7 @@ $c_color  = chat_widget_color();
         document.getElementById('cbHead').style.display='flex';
         var box=document.getElementById('cbMsgs');box.innerHTML='';
         document.getElementById('cbReplyBox').style.display='flex';
-        fetch('?ajax=chat_msgs&sid='+id+'&after=0',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+        fetch('?ajax=chat_msgs&sid='+id+'&after=0&csrf='+encodeURIComponent(CB_CSRF),{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
             if(d.ok)(d.messages||[]).forEach(cbAddMsg);
         });
     }

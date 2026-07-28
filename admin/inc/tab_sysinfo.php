@@ -189,7 +189,7 @@ $si_ntot = (isset($si_pn['total']) && $si_pn['total'] !== null) ? (int) $si_pn['
     var SI_PANEL = null;
     function siFmtBytes(n){n=Number(n)||0;var u=['B','KB','MB','GB','TB'],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return (i===0?Math.round(n):(n>=100?Math.round(n):Math.round(n*10)/10))+' '+u[i];}
     function siLocal(ep,withDate){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);function p(n){return(n<10?'0':'')+n;}var t=p(d.getHours())+':'+p(d.getMinutes());return withDate?(d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+t):t;}
-    function siEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+    function siEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function siPnum(v){return (v===null||v===undefined)?'—':Number(v).toLocaleString('ru-RU');}
     function siChart(series){
         var box=document.getElementById('si_chart'); if(!box||!series) return;

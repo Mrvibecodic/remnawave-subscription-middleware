@@ -125,9 +125,9 @@ function forward_targets() {
     return $out;
 }
 
-function forward_webhook($raw_body, $event = null, $force = false) {
+function forward_webhook($raw_body, $event = null, $force = false, $targets = null) {
     if (!$force && !forward_enabled()) return [];
-    $targets = forward_targets();
+    if ($targets === null) $targets = forward_targets();
     if (!$targets) return [];
 
     $timeout = forward_timeout();
@@ -145,6 +145,7 @@ function forward_webhook($raw_body, $event = null, $force = false) {
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => $timeout,
             CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_NOSIGNAL       => true,
             CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
             CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
             CURLOPT_HTTPHEADER     => [
