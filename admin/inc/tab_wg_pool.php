@@ -109,11 +109,16 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                         <label>Префикс метки <span class="muted" style="font-weight:400">— необязательно</span></label>
                         <input type="text" name="label_prefix" class="sqcfg-flag" maxlength="120" placeholder="напр.: Нидерланды" style="width:100%;box-sizing:border-box">
                     </div>
+                    <div>
+                        <label>Группа / подпул <span class="muted" style="font-weight:400">— необязательно</span></label>
+                        <input type="text" name="grp" maxlength="64" placeholder="напр.: NL" style="width:100%;box-sizing:border-box">
+                    </div>
                     <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
                         <button type="submit" class="btn">Загрузить</button>
                         <span class="muted" style="font-size:.8rem">Метки потом можно переименовать в списке.</span>
                     </div>
                 </div>
+                <p class="muted" style="font-size:.8rem;margin-top:.5rem;line-height:1.5">💡 <b>Группа/подпул</b> делит конфиги внутри одного сквада на независимые пулы. В режиме «на пользователя/устройство» юзер получит <b>по одному из каждой группы</b>: загрузи германские с группой <code>DE</code>, нидерландские — с <code>NL</code>, и в одном скваде каждый получит 1 DE + 1 NL. Пусто — общий пул по типу, как раньше.</p>
             </form>
         </div>
     </section>
@@ -363,16 +368,34 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
             <input type="hidden" name="param" id="wgEditParamH">
             <input type="hidden" name="value" id="wgEditValueH">
         </form>
+        <div class="wg-editbar">
+            <div class="we-lbl muted">Группа (подпул):</div>
+            <div class="we-grid">
+                <input type="text" id="wgGrpValue" maxlength="64" placeholder="напр. NL (пусто — очистить)">
+            </div>
+            <div class="we-btns">
+                <button type="button" id="wgGrpSel" class="sqcfg-btn" disabled>К выбранным</button>
+                <button type="button" id="wgGrpAll" class="sqcfg-btn">Ко всем</button>
+            </div>
+        </div>
+        <form method="post" id="wgGrpForm" style="display:none">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="bulk_set_group">
+            <input type="hidden" name="ret" value="wg_pool">
+            <input type="hidden" name="ids" id="wgGrpIds">
+            <input type="hidden" name="group" id="wgGrpValueH">
+        </form>
         <style>#wgTbl.pgr-pre tbody tr:nth-child(n+<?= $wg_psize + 1 ?>){display:none}#wgPager{min-height:2.1rem}</style>
         <table class="logtbl pgr-pre" id="wgTbl">
-            <thead><tr><th style="width:1%"><input type="checkbox" id="wgChkAll" aria-label="Выбрать все"></th><th>Сквады</th><th>Тип</th><th>Метка</th><th>Статус</th><th>Выдан</th><th></th></tr></thead>
+            <thead><tr><th style="width:1%"><input type="checkbox" id="wgChkAll" aria-label="Выбрать все"></th><th>Сквады</th><th>Тип</th><th>Метка</th><th>Группа</th><th>Статус</th><th>Выдан</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($sqcfg_wg as $c):
                 $pn = json_decode((string) ($c['parsed'] ?? ''), true);
                 $sumr = is_array($pn) ? squadconf_summary($pn) : ($c['type'] ?? '');
                 $csquads = squadconf_squads_of($c);
                 $on = (int) $c['enabled'] === 1;
-                $sqcfg_edit[(int) $c['id']] = ['squads' => array_values($csquads), 'name' => (string) ($c['name'] ?? ''), 'raw' => (string) $c['raw']];
+                $cgrp = trim((string) ($c['grp'] ?? ''));
+                $sqcfg_edit[(int) $c['id']] = ['squads' => array_values($csquads), 'name' => (string) ($c['name'] ?? ''), 'raw' => (string) $c['raw'], 'grp' => $cgrp];
                 $lz = $sqcfg_lease_by_cfg[(int) $c['id']] ?? null;
             ?>
             <tr>
@@ -380,6 +403,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                 <td><?php foreach ($csquads as $sq): ?><span class="sq-tag"><?= h($sqcfg_names[$sq] ?? $sq) ?></span><?php endforeach; ?></td>
                 <td><span class="tag normal"><?= h($sumr) ?></span></td>
                 <td><?= $c['name'] !== null && $c['name'] !== '' ? h($c['name']) : '<span class="muted">—</span>' ?></td>
+                <td><?= $cgrp !== '' ? '<span class="sq-tag">' . h($cgrp) . '</span>' : '<span class="muted">—</span>' ?></td>
                 <td>
                     <form method="post" style="margin:0;display:inline">
                         <input type="hidden" name="csrf" value="<?= h($token) ?>">
@@ -451,6 +475,10 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                         <input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required style="width:100%;box-sizing:border-box">
                     </div>
                     <div style="margin-bottom:.85rem">
+                        <label>Группа / подпул <span class="muted" style="font-weight:400">— необязательно</span></label>
+                        <input type="text" name="grp" id="sqedit_grp" maxlength="64" placeholder="напр.: NL" style="width:100%;box-sizing:border-box">
+                    </div>
+                    <div style="margin-bottom:.85rem">
                         <label>Конфиг</label>
                         <textarea name="raw" id="sqedit_raw" rows="11" spellcheck="false" required style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
                     </div>
@@ -503,6 +531,27 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
             var label = pIn.options[pIn.selectedIndex].text, v = vIn.value;
             uiConfirm('Изменить «' + label + '» = "' + (v || '(убрать поле)') + '" у ' + ids.length + ' конфиг(ов)?', function(){
                 idsH.value = ids.join(','); pH.value = pIn.value; vH.value = v; form.submit();
+            }, 'Применить', false);
+        }
+        if (selB) selB.addEventListener('click', function(){ go(checked()); });
+        if (allB) allB.addEventListener('click', function(){ go(chks().map(function(c){ return c.value; })); });
+        upd();
+    })();
+    (function(){
+        var form = document.getElementById('wgGrpForm');
+        if (!form) return;
+        var selB = document.getElementById('wgGrpSel'), allB = document.getElementById('wgGrpAll');
+        var vIn = document.getElementById('wgGrpValue');
+        var idsH = document.getElementById('wgGrpIds'), vH = document.getElementById('wgGrpValueH');
+        function chks(){ return Array.prototype.slice.call(document.querySelectorAll('.wg-chk')); }
+        function checked(){ return chks().filter(function(c){ return c.checked; }).map(function(c){ return c.value; }); }
+        function upd(){ if (selB) selB.disabled = checked().length === 0; }
+        document.addEventListener('change', function(e){ if (e.target && e.target.classList && (e.target.classList.contains('wg-chk') || e.target.id === 'wgChkAll')) upd(); });
+        function go(ids){
+            if (!ids.length) return;
+            var v = vIn.value.trim();
+            uiConfirm('Проставить группу "' + (v || '(очистить)') + '" у ' + ids.length + ' конфиг(ов)?', function(){
+                idsH.value = ids.join(','); vH.value = v; form.submit();
             }, 'Применить', false);
         }
         if (selB) selB.addEventListener('click', function(){ go(checked()); });

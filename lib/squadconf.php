@@ -15,6 +15,7 @@ function squadconf_ensure() {
                 enabled TINYINT(1) NOT NULL DEFAULT 1,
                 raw MEDIUMTEXT NOT NULL,
                 parsed MEDIUMTEXT NULL,
+                grp VARCHAR(64) NULL,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
@@ -29,6 +30,7 @@ function squadconf_ensure() {
                 enabled INTEGER NOT NULL DEFAULT 1,
                 raw TEXT NOT NULL,
                 parsed TEXT NULL,
+                grp TEXT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )");
@@ -37,6 +39,10 @@ function squadconf_ensure() {
         if (setting('sqcfg_squads_col', '') !== '1') {
             try { $p->exec('ALTER TABLE squad_configs ADD COLUMN squads ' . (db_driver() === 'mysql' ? 'MEDIUMTEXT' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
             set_setting('sqcfg_squads_col', '1');
+        }
+        if (setting('sqcfg_grp_col', '') !== '1') {
+            try { $p->exec('ALTER TABLE squad_configs ADD COLUMN grp ' . (db_driver() === 'mysql' ? 'VARCHAR(64)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
+            set_setting('sqcfg_grp_col', '1');
         }
     } catch (Throwable $e) { error_log('submw squadconf ensure: ' . $e->getMessage()); }
 }
@@ -88,13 +94,14 @@ function squadconf_for_squads(array $squad_uuids) {
     return $out;
 }
 
-function squadconf_add($squad_uuids, $type, $name, $raw, $parsed) {
+function squadconf_add($squad_uuids, $type, $name, $raw, $parsed, $grp = '') {
     squadconf_ensure();
     $squad_uuids = array_values(array_filter(array_unique(array_map('strval', (array) $squad_uuids)), fn($s) => trim($s) !== ''));
     $raw = (string) $raw;
     if (!($p = db()) || !$squad_uuids || trim($raw) === '') return false;
+    $grp = trim((string) $grp);
     try {
-        $st = $p->prepare('INSERT INTO squad_configs (squad_uuid, squads, type, name, raw, parsed) VALUES (?, ?, ?, ?, ?, ?)');
+        $st = $p->prepare('INSERT INTO squad_configs (squad_uuid, squads, type, name, raw, parsed, grp) VALUES (?, ?, ?, ?, ?, ?, ?)');
         return $st->execute([
             $squad_uuids[0],
             json_encode(array_values($squad_uuids), JSON_UNESCAPED_SLASHES),
@@ -102,8 +109,23 @@ function squadconf_add($squad_uuids, $type, $name, $raw, $parsed) {
             ($name !== '' ? mb_substr((string) $name, 0, 191) : null),
             $raw,
             ($parsed !== '' ? (string) $parsed : null),
+            ($grp !== '' ? mb_substr($grp, 0, 64) : null),
         ]);
     } catch (Throwable $e) { error_log('submw squadconf add: ' . $e->getMessage()); return false; }
+}
+
+// $grp === null → группу не трогаем (для массовых правок параметров конфига).
+function squadconf_set_group(array $ids, $grp) {
+    squadconf_ensure();
+    $ids = array_values(array_filter(array_map('intval', $ids), fn($i) => $i > 0));
+    if (!($p = db()) || !$ids) return 0;
+    $g = trim((string) $grp);
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $st = $p->prepare("UPDATE squad_configs SET grp = ? WHERE id IN ($in)");
+        $st->execute(array_merge([$g !== '' ? mb_substr($g, 0, 64) : null], $ids));
+        return $st->rowCount();
+    } catch (Throwable $e) { error_log('submw squadconf set_group: ' . $e->getMessage()); return 0; }
 }
 
 function squadconf_delete($id) {
@@ -122,14 +144,27 @@ function squadconf_toggle($id, $enabled) {
     catch (Throwable $e) { error_log('submw squadconf toggle: ' . $e->getMessage()); return false; }
 }
 
-function squadconf_update($id, $squad_uuids, $type, $name, $raw, $parsed) {
+function squadconf_update($id, $squad_uuids, $type, $name, $raw, $parsed, $grp = null) {
     squadconf_ensure();
     $id = (int) $id;
     $squad_uuids = array_values(array_filter(array_unique(array_map('strval', (array) $squad_uuids)), fn($s) => trim($s) !== ''));
     $raw = (string) $raw;
     if (!($p = db()) || $id <= 0 || !$squad_uuids || trim($raw) === '') return false;
     try {
-        $st = $p->prepare('UPDATE squad_configs SET squad_uuid = ?, squads = ?, type = ?, name = ?, raw = ?, parsed = ? WHERE id = ?');
+        if ($grp === null) {
+            $st = $p->prepare('UPDATE squad_configs SET squad_uuid = ?, squads = ?, type = ?, name = ?, raw = ?, parsed = ? WHERE id = ?');
+            return $st->execute([
+                $squad_uuids[0],
+                json_encode(array_values($squad_uuids), JSON_UNESCAPED_SLASHES),
+                mb_substr((string) $type, 0, 32),
+                ($name !== '' ? mb_substr((string) $name, 0, 191) : null),
+                $raw,
+                ($parsed !== '' ? (string) $parsed : null),
+                $id,
+            ]);
+        }
+        $g = trim((string) $grp);
+        $st = $p->prepare('UPDATE squad_configs SET squad_uuid = ?, squads = ?, type = ?, name = ?, raw = ?, parsed = ?, grp = ? WHERE id = ?');
         return $st->execute([
             $squad_uuids[0],
             json_encode(array_values($squad_uuids), JSON_UNESCAPED_SLASHES),
@@ -137,6 +172,7 @@ function squadconf_update($id, $squad_uuids, $type, $name, $raw, $parsed) {
             ($name !== '' ? mb_substr((string) $name, 0, 191) : null),
             $raw,
             ($parsed !== '' ? (string) $parsed : null),
+            ($g !== '' ? mb_substr($g, 0, 64) : null),
             $id,
         ]);
     } catch (Throwable $e) { error_log('submw squadconf update: ' . $e->getMessage()); return false; }

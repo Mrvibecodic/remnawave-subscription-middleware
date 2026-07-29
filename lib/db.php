@@ -335,6 +335,7 @@ function migrate_extra_ddl($drv) {
                 raw MEDIUMTEXT NOT NULL,
                 parsed MEDIUMTEXT NULL,
                 squads MEDIUMTEXT NULL,
+                grp VARCHAR(64) NULL,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id), KEY idx_squad (squad_uuid)
@@ -387,7 +388,7 @@ function migrate_extra_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS squad_configs (
             id INTEGER PRIMARY KEY AUTOINCREMENT, squad_uuid TEXT NOT NULL,
             type TEXT NOT NULL DEFAULT 'amneziawg', name TEXT NULL, enabled INTEGER NOT NULL DEFAULT 1,
-            raw TEXT NOT NULL, parsed TEXT NULL, squads TEXT NULL,
+            raw TEXT NOT NULL, parsed TEXT NULL, squads TEXT NULL, grp TEXT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )",
         "CREATE INDEX IF NOT EXISTS idx_squad_cfg ON squad_configs(squad_uuid)",

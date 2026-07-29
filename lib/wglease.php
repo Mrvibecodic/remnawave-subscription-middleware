@@ -140,24 +140,27 @@ function wglease_select($short_uuid, $hwid, array $u_squads, $types = null) {
     foreach ($u_squads as $sq) {
         $mode = wglease_mode($sq);
         if ($mode === 'shared') continue;
-        $by_type = [];
+        $by_group = [];
         foreach ($by_squad[$sq] ?? [] as $c) {
             $id = (int) $c['id'];
             if (isset($added[$id])) continue;
             $t = (string) ($c['type'] ?? '');
             if ($t === 'vless') { $added[$id] = true; $out[] = $c; continue; }
             if ($types !== null && !in_array($t, $types, true)) continue;
-            $by_type[$t][] = $c;
+            $g = trim((string) ($c['grp'] ?? ''));
+            // пустая группа → старый формат ключа (t:тип), чтобы уже выданные аренды не перевыдавались
+            $sub = ($g === '') ? ('t:' . $t) : ('t:' . $t . '|g:' . $g);
+            $by_group[$sub][] = $c;
         }
-        if (!$by_type) continue;
+        if (!$by_group) continue;
         if ($mode === 'devices') {
             if ($hwid === '') continue;
             $base = 'd:' . $short_uuid . '|' . $hwid;
         } else {
             $base = 's:' . $short_uuid;
         }
-        foreach ($by_type as $t => $cands) {
-            $pick = wglease_pick($sq, $base . '|t:' . $t, $short_uuid, ($mode === 'devices' ? $hwid : ''), $cands, $ua);
+        foreach ($by_group as $sub => $cands) {
+            $pick = wglease_pick($sq, $base . '|' . $sub, $short_uuid, ($mode === 'devices' ? $hwid : ''), $cands, $ua);
             if ($pick) { $added[(int) $pick['id']] = true; $out[] = $pick; }
         }
     }

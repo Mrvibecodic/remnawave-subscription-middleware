@@ -802,6 +802,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         $squads = array_values(array_filter(array_map('strval', (array) ($_POST['squads'] ?? [])), fn($s) => trim($s) !== ''));
         $raw   = (string) ($_POST['raw'] ?? '');
         $name  = trim($_POST['name'] ?? '');
+        $grp   = trim($_POST['grp'] ?? '');
         $kind  = (($_POST['kind'] ?? 'simple') === 'wg') ? 'wg' : 'simple';
         $ret   = (($_POST['ret'] ?? '') === 'wg_pool') ? 'wg_pool' : 'squad_configs';
         if (!$squads || $name === '' || trim($raw) === '') {
@@ -816,7 +817,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
             } elseif ($kind === 'simple' && $isWg) {
                 flash('Это WG/AWG — добавляйте во вкладке «WG / AWG»');
             } else {
-                squadconf_add($squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
+                squadconf_add($squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE), $grp);
                 flash('Конфиг добавлен (' . squadconf_summary($parsed) . ')');
             }
         }
@@ -826,6 +827,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'batch_wg_config') {
         $squads = array_values(array_filter(array_map('strval', (array) ($_POST['squads'] ?? [])), fn($s) => trim($s) !== ''));
         $prefix = trim($_POST['label_prefix'] ?? '');
+        $grp    = trim($_POST['grp'] ?? '');
         $items = [];
         if (!empty($_FILES['conf_files']) && is_array($_FILES['conf_files']['tmp_name'] ?? null)) {
             foreach ($_FILES['conf_files']['tmp_name'] as $i => $tmp) {
@@ -863,7 +865,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
                 if (!is_array($parsed) || empty($parsed['ok']) || !in_array($parsed['type'] ?? '', ['wireguard', 'amneziawg'], true)) { $skipped++; continue; }
                 if ($lbl === '') { $auto++; $lbl = (($parsed['type'] === 'amneziawg') ? 'AWG' : 'WG') . ' ' . $auto; }
                 if ($prefix !== '') $lbl = $prefix . ' · ' . $lbl;
-                squadconf_add($squads, $parsed['type'], mb_substr($lbl, 0, 191), $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
+                squadconf_add($squads, $parsed['type'], mb_substr($lbl, 0, 191), $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE), $grp);
                 $added++;
             }
             flash('Добавлено WG/AWG: ' . $added . ($skipped ? (', пропущено (не WG/AWG или ошибка): ' . $skipped) : ''));
@@ -876,6 +878,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         $squads = array_values(array_filter(array_map('strval', (array) ($_POST['squads'] ?? [])), fn($s) => trim($s) !== ''));
         $raw    = (string) ($_POST['raw'] ?? '');
         $name   = trim($_POST['name'] ?? '');
+        $grp    = trim($_POST['grp'] ?? '');
         if ($id <= 0 || !$squads || $name === '' || trim($raw) === '') {
             flash('Выберите хотя бы один сквад, укажите метку и конфиг');
         } else {
@@ -883,7 +886,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
             if (!$parsed['ok']) {
                 flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
             } else {
-                squadconf_update($id, $squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE));
+                squadconf_update($id, $squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE), $grp);
                 flash('Конфиг обновлён (' . squadconf_summary($parsed) . ')');
             }
         }
@@ -935,6 +938,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
             }
         }
         flash($n ? ('Изменён параметр у конфигов: ' . $n) : 'Ничего не изменено (проверьте параметр и выбор)');
+        header('Location: index.php?tab=wg_pool'); exit();
+    }
+
+    if ($action === 'bulk_set_group') {
+        $ids = array_values(array_filter(array_map('intval', explode(',', (string) ($_POST['ids'] ?? ''))), fn($i) => $i > 0));
+        $grp = trim((string) ($_POST['group'] ?? ''));
+        $n = $ids ? squadconf_set_group($ids, $grp) : 0;
+        flash($n ? ('Группа проставлена конфигам: ' . $n . ($grp === '' ? ' (очищена)' : ' → «' . $grp . '»')) : 'Ничего не изменено (выберите конфиги)');
         header('Location: index.php?tab=wg_pool'); exit();
     }
 

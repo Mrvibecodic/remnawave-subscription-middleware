@@ -85,6 +85,7 @@
                 var l = cb.closest('.sq-item'); if(l) l.classList.toggle('on', cb.checked);
             });
             document.getElementById('sqedit_name').value = d.name || '';
+            var g = document.getElementById('sqedit_grp'); if (g) g.value = d.grp || '';
             document.getElementById('sqedit_raw').value = d.raw || '';
             modal.classList.add('open');
         }
