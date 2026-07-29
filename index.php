@@ -129,10 +129,49 @@ curl_setopt_array($ch, [
         return $len;
     },
 ]);
-$response  = curl_exec($ch);
-$curl_err  = curl_error($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+// Параллельная загрузка второй подписки (тумблер, по умолчанию выкл):
+// адрес B известен из пути ещё до основного запроса, поэтому оба апстрима
+// можно скачать одновременно. Любая ошибка здесь -> $addsub_pre = null и
+// дальше всё идёт прежним последовательным путём.
+$addsub_pre = null;
+if (!$junk_path && addsub_enabled() && addsub_parallel_enabled()) {
+    $addsub_segs = path_segments($path);
+    if ($addsub_segs) {
+        try {
+            $addsub_pre = ['short' => $addsub_segs[0], 'src' => addsub_resolve($addsub_segs[0]),
+                           'ch' => null, 'st' => null, 'body' => null, 'info' => null];
+            if ($addsub_pre['src']) {
+                [$addsub_pre['ch'], $addsub_pre['st']] = addsub_fetch_prepare($addsub_pre['src']['url']);
+            }
+        } catch (Throwable $e) { error_log('submw addsub prefetch: ' . $e->getMessage()); $addsub_pre = null; }
+    }
+}
+
+if ($addsub_pre !== null && $addsub_pre['ch'] !== null) {
+    $mh = curl_multi_init();
+    curl_multi_add_handle($mh, $ch);
+    curl_multi_add_handle($mh, $addsub_pre['ch']);
+    do {
+        $mrc = curl_multi_exec($mh, $mactive);
+        if ($mactive && curl_multi_select($mh, 1.0) === -1) usleep(10000);
+    } while ($mactive && $mrc === CURLM_OK);
+    $response  = curl_multi_getcontent($ch);
+    if ($response === null) $response = false;
+    $curl_err  = curl_error($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    [$addsub_pre['body'], $addsub_pre['info']] = addsub_fetch_collect($addsub_pre['ch'], $addsub_pre['st'], curl_multi_getcontent($addsub_pre['ch']));
+    curl_multi_remove_handle($mh, $addsub_pre['ch']);
+    curl_close($addsub_pre['ch']);
+    $addsub_pre['ch'] = null;
+    curl_multi_remove_handle($mh, $ch);
+    curl_multi_close($mh);
+    curl_close($ch);
+} else {
+    $response  = curl_exec($ch);
+    $curl_err  = curl_error($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+}
 
 $ip     = client_ip();
 $ua     = $_SERVER['HTTP_USER_AGENT'] ?? '';
@@ -247,15 +286,20 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any
 
 if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enabled()) {
     try {
-        $addsub_src = addsub_resolve($short_uuid);
-        if ($addsub_src) {
-            [$addsub_body, $addsub_info] = addsub_fetch_body($addsub_src['url']);
-            if ($addsub_body !== null && $addsub_body !== '') {
-                if (addsub_traffic_exhausted($addsub_info)) {
-                    if (addsub_stub_on_traffic()) $response = addsub_inject_stub($response, $format, addsub_stub_label());
-                } else {
-                    $response = addsub_merge($response, $addsub_body, $format);
-                }
+        if ($addsub_pre !== null && $addsub_pre['short'] === $short_uuid) {
+            $addsub_src  = $addsub_pre['src'];
+            $addsub_body = $addsub_pre['body'];
+            $addsub_info = $addsub_pre['info'];
+        } else {
+            $addsub_src  = addsub_resolve($short_uuid);
+            $addsub_body = null; $addsub_info = null;
+            if ($addsub_src) [$addsub_body, $addsub_info] = addsub_fetch_body($addsub_src['url']);
+        }
+        if ($addsub_src && $addsub_body !== null && $addsub_body !== '') {
+            if (addsub_traffic_exhausted($addsub_info)) {
+                if (addsub_stub_on_traffic()) $response = addsub_inject_stub($response, $format, addsub_stub_label());
+            } else {
+                $response = addsub_merge($response, $addsub_body, $format);
             }
         }
     } catch (Throwable $e) { error_log('submw addsub: ' . $e->getMessage()); }

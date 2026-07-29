@@ -20,6 +20,8 @@ function addsub_stub_label() {
 
 function addsub_xray_enabled() { return setting('addsub_merge_xray', '0') === '1'; }
 
+function addsub_parallel_enabled() { return setting('addsub_parallel_fetch', '0') === '1'; }
+
 function addsub_ensure() {
     static $done = false;
     if ($done) return;
@@ -252,7 +254,7 @@ function addsub_traffic_exhausted($info) {
     return ((float) ($info['up'] ?? 0) + (float) ($info['down'] ?? 0)) >= $total;
 }
 
-function addsub_fetch_body($url) {
+function addsub_fetch_prepare($url) {
     $url = trim((string) $url);
     if ($url === '') return [null, null];
     $skip = [
@@ -287,7 +289,8 @@ function addsub_fetch_body($url) {
     }
     if (function_exists('client_ip')) $headers[] = 'x-remnawave-real-ip: ' . client_ip();
 
-    $info = null;
+    $st = new stdClass();
+    $st->info = null;
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL            => $url,
@@ -301,21 +304,32 @@ function addsub_fetch_body($url) {
         CURLOPT_ENCODING       => '',
         CURLOPT_HTTPHEADER     => $headers,
         CURLOPT_HEADER         => false,
-        CURLOPT_HEADERFUNCTION => function ($curl, $h) use (&$info) {
+        CURLOPT_HEADERFUNCTION => function ($curl, $h) use ($st) {
             $t = trim($h);
             $parts = explode(':', $t, 2);
             if (count($parts) === 2 && strtolower(trim($parts[0])) === 'subscription-userinfo') {
-                $info = addsub_parse_userinfo(trim($parts[1]));
+                $st->info = addsub_parse_userinfo(trim($parts[1]));
             }
             return strlen($h);
         },
     ]);
-    $body = curl_exec($ch);
+    return [$ch, $st];
+}
+
+function addsub_fetch_collect($ch, $st, $body) {
     $err  = curl_error($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if ($err || $code < 200 || $code >= 300 || !is_string($body)) return [null, null];
+    return [$body, ($st instanceof stdClass) ? $st->info : null];
+}
+
+function addsub_fetch_body($url) {
+    [$ch, $st] = addsub_fetch_prepare($url);
+    if (!$ch) return [null, null];
+    $body = curl_exec($ch);
+    $out  = addsub_fetch_collect($ch, $st, is_string($body) ? $body : null);
     curl_close($ch);
-    if ($err || $code < 200 || $code >= 300) return [null, null];
-    return [(string) $body, $info];
+    return $out;
 }
 
 function addsub_label_uri($line, $label) {

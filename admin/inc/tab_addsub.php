@@ -32,6 +32,10 @@
                 <div class="set-info"><div class="set-t">Слияние для xray-json</div><div class="set-d">Влить outbounds второй подписки в xray-json. По умолчанию выкл (как у доп-конфигов). base64 / Clash / sing-box работают всегда при включённом слиянии.</div></div>
                 <label class="switch"><input type="checkbox" name="addsub_merge_xray" <?= addsub_xray_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
+            <div class="set-row" style="margin-top:1.25rem">
+                <div class="set-info"><div class="set-t">Параллельная загрузка подписок</div><div class="set-d">Обе подписки скачиваются одновременно, а не по очереди — ответ заметно быстрее. Включите, если у мобильных клиентов серверы второй подписки появляются с задержкой или не каждый раз. Работает и для авто-, и для ручных привязок.</div></div>
+                <label class="switch"><input type="checkbox" name="addsub_parallel_fetch" <?= addsub_parallel_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
             <div style="margin-top:1.25rem"><button type="submit">💾 Сохранить</button></div>
         </form>
     </div>
