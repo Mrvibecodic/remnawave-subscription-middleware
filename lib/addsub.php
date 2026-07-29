@@ -149,12 +149,58 @@ function addsub_build_sub_url($short) {
     return $dom === '' ? '' : 'https://' . $dom . '/' . $enc;
 }
 
+function addsub_normalize_host($h) {
+    $h = strtolower(trim((string) $h));
+    if ($h === '' || $h[0] === '[') return $h; // IPv6 в скобках не трогаем
+    $pos = strpos($h, ':');
+    if ($pos !== false) $h = substr($h, 0, $pos);
+    return $h;
+}
+
+function addsub_self_hosts() {
+    $out = [];
+    foreach ([mirror_domain(), $_SERVER['HTTP_HOST'] ?? '', $_SERVER['SERVER_NAME'] ?? ''] as $h) {
+        $h = addsub_normalize_host($h);
+        if ($h !== '') $out[$h] = true;
+    }
+    return $out;
+}
+
+// Ручная привязка часто содержит публичную ссылку самой прослойки — тогда запрос
+// делал бы полный круг (клиент -> прослойка A -> прослойка B -> панель): второй
+// PHP-проход, лишний хоп и мусор в логах. Здесь такой адрес на лету переписывается
+// на прямой источник (панель/target), путь и query сохраняются. В БД и наружу
+// ничего не меняется.
+function addsub_rewrite_selfurl($url) {
+    $url = trim((string) $url);
+    if ($url === '') return $url;
+    $p = parse_url($url);
+    if (!is_array($p) || empty($p['host'])) return $url;
+    $host = addsub_normalize_host($p['host']);
+    if ($host === '' || !isset(addsub_self_hosts()[$host])) return $url;
+    $path = ltrim((string) ($p['path'] ?? ''), '/');
+    if (preg_match('~^api/sub/(.+)$~is', $path, $m)) $path = $m[1];
+    if ($path === '') return $url;
+    if (function_exists('subpage_active') && subpage_active()) {
+        $base = remnawave_url();
+        if ($base === '') return $url;
+        if (addsub_normalize_host((string) (parse_url($base)['host'] ?? '')) === $host) return $url;
+        $new = $base . '/api/sub/' . $path;
+    } else {
+        $dom = target_domain();
+        if ($dom === '' || addsub_normalize_host($dom) === $host) return $url;
+        $new = 'https://' . $dom . '/' . $path;
+    }
+    if (!empty($p['query'])) $new .= '?' . $p['query'];
+    return $new;
+}
+
 function addsub_resolve($short) {
     $short = trim((string) $short);
     if ($short === '') return null;
 
     $manual = addsub_map_get($short);
-    if ($manual !== '') return ['url' => $manual, 'mode' => 'manual'];
+    if ($manual !== '') return ['url' => addsub_rewrite_selfurl($manual), 'mode' => 'manual'];
 
     $c = addsub_cache_get($short);
     if ($c['hit']) return $c['url'] === null ? null : ['url' => $c['url'], 'mode' => 'auto'];
