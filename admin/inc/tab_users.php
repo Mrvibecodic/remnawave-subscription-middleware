@@ -117,7 +117,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
                 <button type="button" class="modal-x" onclick="addsubClose()">×</button>
             </div>
             <div class="modal-body">
-                <p class="muted" style="margin-top:0">Вставьте <b>адрес второй подписки</b> (URL) — её серверы подмешаются в основную ссылку этого пользователя. Основная ссылка не меняется. Работает, пока основная подписка активна.</p>
+                <p class="muted" style="margin-top:0">Вставьте <b>адрес второй подписки</b> (URL) — её серверы подмешаются в основную ссылку этого пользователя. Основная ссылка не меняется. Работает, пока основная подписка активна. Можно вставлять ссылку с этого же домена — при запросе прослойка сама сходит за ней напрямую к источнику, без круга через себя.</p>
                 <input type="text" id="addsubUrl" placeholder="https://…/sub/…" spellcheck="false" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box">
                 <div id="addsubErr" class="warn" style="display:none;margin-top:.7rem"></div>
                 <div style="display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap">
