@@ -261,6 +261,10 @@ function addsub_fetch_prepare($url) {
         'host', 'connection', 'content-length', 'content-type', 'accept-encoding',
         'cookie', 'authorization', 'x-forwarded-for', 'x-forwarded-proto',
         'x-remnawave-real-ip',
+        // Условные заголовки клиента относятся к телу ОСНОВНОЙ подписки —
+        // источнику B они чужие: панель может ответить 304 без тела
+        // (особенно на If-Modified-Since), и слияние молча не произойдёт.
+        'if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range',
     ];
     $client_headers = [];
     if (function_exists('getallheaders')) {

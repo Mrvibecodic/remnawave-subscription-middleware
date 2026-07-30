@@ -61,6 +61,15 @@ if ($to_panel) {
 }
 if ($query) $target_url .= '?' . $query;
 
+// Когда тело подписки может быть модифицировано (слияние доп-подписки или
+// подмешивание конфигов), условные заголовки клиента пробрасывать нельзя:
+// панель ответит 304 без тела, модификация не произойдёт, и клиент навсегда
+// останется со старым закэшированным списком (заметно на iOS — Happ шлёт
+// If-None-Match). Срезаем их — панель всегда отдаёт полное тело. Для чистого
+// зеркала (обе функции выключены) поведение остаётся байт-в-байт прежним.
+$strip_conditional = !$junk_path && (addsub_enabled() || squadconf_any());
+$conditional_hdrs = ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range'];
+
 $request_headers = [];
 $strip_fwd = $to_panel;
 if (function_exists('getallheaders')) {
@@ -68,6 +77,7 @@ if (function_exists('getallheaders')) {
         $lk = strtolower($key);
         if ($lk === 'host') continue;
         if ($strip_fwd && ($lk === 'x-forwarded-for' || $lk === 'x-forwarded-proto')) continue;
+        if ($strip_conditional && in_array($lk, $conditional_hdrs, true)) continue;
         $request_headers[] = "$key: $value";
     }
 } else {
@@ -77,6 +87,7 @@ if (function_exists('getallheaders')) {
             $lh = strtolower($hn);
             if ($lh === 'host') continue;
             if ($strip_fwd && ($lh === 'x-forwarded-for' || $lh === 'x-forwarded-proto')) continue;
+            if ($strip_conditional && in_array($lh, $conditional_hdrs, true)) continue;
             $request_headers[] = "$hn: $value";
         }
     }
@@ -276,6 +287,8 @@ if ($junk_path && $short_uuid !== '' && (squadconf_any() || addsub_enabled())) {
     junk_record($path);
 }
 
+$response_premod = $response;
+
 if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any()) {
     $u_squads = squadconf_user_squads($short_uuid);
     if ($u_squads) {
@@ -306,9 +319,15 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
 }
 
 $unsafe = ['host', 'connection', 'transfer-encoding', 'content-length', 'content-encoding'];
+// Если тело изменено, ETag/Last-Modified панели описывают уже другое тело —
+// их нельзя отдавать клиенту, иначе он снова начнёт слать условные запросы
+// и закэширует слитый список под чужим валидатором.
+$body_modified = ($response !== $response_premod);
 http_response_code($http_code ?: 200);
 foreach ($grabbed_headers as $name => $value) {
-    if (!in_array($name, $unsafe, true)) header($name . ': ' . $value);
+    if (in_array($name, $unsafe, true)) continue;
+    if ($body_modified && ($name === 'etag' || $name === 'last-modified')) continue;
+    header($name . ': ' . $value);
 }
 emit_response_headers();
 $is_grace = ($short_uuid !== '' && grace_is_active($short_uuid));
