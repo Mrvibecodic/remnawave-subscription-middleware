@@ -10,6 +10,8 @@ $si_pu = is_array($si_pc['users'] ?? null) ? $si_pc['users'] : [];
 $si_po = is_array($si_pc['online'] ?? null) ? $si_pc['online'] : [];
 $si_pn = is_array($si_pc['nodes'] ?? null) ? $si_pc['nodes'] : [];
 $si_pf = function ($v) { return ($v === null || $v === '') ? '—' : number_format((int) $v, 0, '.', ' '); };
+$si_pm  = panel_meta_cached();
+$si_pmv = trim((string) ($si_pm['version'] ?? ''));
 $si_non = (isset($si_pn['online']) && $si_pn['online'] !== null) ? (int) $si_pn['online'] : null;
 $si_ntot = (isset($si_pn['total']) && $si_pn['total'] !== null) ? (int) $si_pn['total'] : null;
 ?>
@@ -142,6 +144,11 @@ $si_ntot = (isset($si_pn['total']) && $si_pn['total'] !== null) ? (int) $si_pn['
                 <span>Данные из REST API панели, кешируются на сервере на 45 с.</span>
                 <span id="p_status" class="muted"></span>
             </div>
+            <div class="si-sub">Версия</div>
+            <div class="si-kv"><span class="k">Версия панели</span><span class="v" id="si_panel_ver" data-ver="<?= h($si_pmv) ?>"><?= $si_pmv !== '' ? h($si_pmv) : '—' ?><?php if ($si_pmv !== '' && !panel_version_supported()): ?> <span class="muted">(ниже поддерживаемой <?= h(panel_min_supported()) ?>)</span><?php endif; ?></span></div>
+            <?php if (!empty($si_pm['build_time'])): ?><div class="si-kv"><span class="k">Сборка</span><span class="v"><?= h((string) $si_pm['build_time']) ?><?= !empty($si_pm['build_number']) ? ' · №' . h((string) $si_pm['build_number']) : '' ?></span></div><?php endif; ?>
+            <?php if (!empty($si_pm['commit'])): ?><div class="si-kv"><span class="k">Коммит бэкенда</span><span class="v"><code><?= h(substr((string) $si_pm['commit'], 0, 7)) ?></code><?= !empty($si_pm['branch']) ? ' (' . h((string) $si_pm['branch']) . ')' : '' ?></span></div><?php endif; ?>
+            <?php if ($si_pmv === '' && !empty($si_pm['error'])): ?><div class="si-kv"><span class="k">Ошибка</span><span class="v muted"><?= h((string) $si_pm['error']) ?></span></div><?php endif; ?>
             <div class="si-sub">Пользователи</div>
             <div class="si-stat">
                 <div class="si-card"><div class="n" id="p_active"><?= $si_pf($si_pu['ACTIVE'] ?? null) ?></div><div class="l">активные</div></div>
@@ -246,6 +253,15 @@ $si_ntot = (isset($si_pn['total']) && $si_pn['total'] !== null) ? (int) $si_pn['
     function siPanelFetch(force){
         var st=document.getElementById('p_status'); if(force&&st) st.textContent='· обновление…';
         fetch('?ajax=panelstats'+(force?'&force=1':'')).then(function(r){return r.json();}).then(function(d){ if(d&&d.stats){ SI_PANEL=d.stats; siPanelApply(d.stats); } }).catch(function(){ if(st) st.textContent='· ошибка запроса'; });
+        // Мету (версия/сборка/коммит) обновляем только по кнопке: блок собирается на
+        // сервере, поэтому при реальном изменении версии проще перерисовать страницу.
+        if(force){
+            var cur=document.getElementById('si_panel_ver');
+            fetch('?ajax=panelmeta&force=1').then(function(r){return r.json();}).then(function(d){
+                if(!d||!d.meta||!cur)return;
+                if((d.meta.version||'').trim()!==(cur.dataset.ver||'')) location.reload();
+            }).catch(function(){});
+        }
     }
     function siSeg(name){
         var btns=document.querySelectorAll('#siSeg button'); for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on',btns[i].getAttribute('data-seg')===name);

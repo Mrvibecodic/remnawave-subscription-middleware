@@ -49,7 +49,11 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
                 $un  = $u['username'] ?? '';
                 $st  = $u['status'] ?? '';
                 $su  = $u['shortUuid'] ?? '';
-                $uuid = $u['uuid'] ?? '';
+                // Идентификатор пользователя: uuid на панели 2.x, числовой id на 3.x.
+                // На проводе остаётся один параметр — тип восстанавливается по значению
+                // (rw_ref_coerce), поэтому JS и ajax-контракт менять не нужно.
+                $uref = rw_user_ref($u);
+                $uuid = rw_ref_ok($uref) ? (string) $uref['val'] : '';
                 $lim  = (isset($u['hwidDeviceLimit']) && $u['hwidDeviceLimit'] !== null && $u['hwidDeviceLimit'] !== '') ? (string) $u['hwidDeviceLimit'] : '';
                 $exp_ts = !empty($u['expireAt']) ? strtotime((string) $u['expireAt']) : null;
                 if ($exp_ts === false) $exp_ts = null;
