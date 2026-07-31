@@ -77,9 +77,67 @@ function grace_squads_from_user($u) {
     return $out;
 }
 
+// --- Идентификатор пользователя в строке грейса ---
+//
+// В колонке user_uuid лежит идентификатор, которым панель пользовалась в момент
+// ухода в грейс: UUID (панель 2.x) или числовой id (панель 3.x). Что именно —
+// однозначно видно по самому значению, UUID никогда не состоит из одних цифр,
+// поэтому отдельная колонка под тип не нужна (см. rw_ref_coerce в lib/api.php).
+//
+// Между уходом в грейс и возвратом админ мог обновить панель до 3.x — тогда
+// сохранённый UUID протух. Такие строки чиним лениво: если точно знаем, что панель
+// мажора 3, перерезолвим id по short_uuid заранее; если версия неизвестна — ловим
+// 400/404 от PATCH и перерезолвим по факту (см. grace_patch).
+
+function grace_set_ref($short, $ref) {
+    if (!($p = db()) || (string) $short === '' || !rw_ref_ok($ref)) return;
+    try { $p->prepare('UPDATE grace_users SET user_uuid = ? WHERE short_uuid = ?')->execute([(string) $ref['val'], (string) $short]); }
+    catch (Throwable $e) { error_log('submw grace set ref: ' . $e->getMessage()); }
+}
+
+// Перезапрашивает пользователя по short_uuid и переписывает идентификатор в строке.
+function grace_ref_resolve($short, &$err = '') {
+    $err = '';
+    $short = (string) $short;
+    if ($short === '') { $err = 'Пустой shortUuid'; return null; }
+    $u = remnawave_get_user_by_short($short, $err);
+    if (!is_array($u)) return null;
+    $ref = rw_user_ref($u);
+    if (!rw_ref_ok($ref)) { $err = 'В ответе панели нет идентификатора пользователя'; return null; }
+    grace_set_ref($short, $ref);
+    return $ref;
+}
+
+function grace_ref($existing, &$err = '') {
+    $err = '';
+    $short = (string) ($existing['short_uuid'] ?? '');
+    $ref   = rw_ref_coerce((string) ($existing['user_uuid'] ?? ''));
+    if (rw_ref_ok($ref) && !($ref['key'] === 'uuid' && panel_api_v3())) return $ref;
+    $fresh = grace_ref_resolve($short, $err);
+    return $fresh ?: $ref;
+}
+
+// PATCH пользователя из строки грейса с одним авто-ретраем на протухший идентификатор.
+function grace_patch($existing, array $patch, &$err = '') {
+    $err = '';
+    $short = (string) ($existing['short_uuid'] ?? '');
+    $ref = grace_ref($existing, $err);
+    if (!rw_ref_ok($ref)) { $err = $err ?: 'Нет идентификатора пользователя'; return false; }
+
+    $code = 0; $err = '';
+    if (remnawave_update_user($ref, $patch, $err, $code)) return true;
+    if (!in_array((int) $code, [400, 404], true)) return false;
+
+    $re = '';
+    $ref2 = grace_ref_resolve($short, $re);
+    if (!$ref2 || $ref2['val'] === $ref['val']) return false;
+    error_log('submw grace: идентификатор ' . $short . ' перерезолвлен (' . $ref['key'] . ' -> ' . $ref2['key'] . '), повтор PATCH');
+    $err = '';
+    return remnawave_update_user($ref2, $patch, $err);
+}
+
 function grace_restore($existing) {
-    if (!is_array($existing) || empty($existing['user_uuid'])) return false;
-    $uuid   = (string) $existing['user_uuid'];
+    if (!is_array($existing)) return false;
     $short  = (string) ($existing['short_uuid'] ?? '');
     $squads = json_decode((string) ($existing['orig_squads'] ?? ''), true);
     if (!is_array($squads)) $squads = [];
@@ -98,11 +156,11 @@ function grace_restore($existing) {
     }
 
     $e = '';
-    if (remnawave_update_user($uuid, $full, $e)) { grace_delete($short); return true; }
+    if (grace_patch($existing, $full, $e)) { grace_delete($short); return true; }
     error_log('submw grace end: ' . $e . ' (short=' . $short . '), retrying squads-only');
 
     $e2 = '';
-    if (remnawave_update_user($uuid, ['activeInternalSquads' => $squads], $e2)) {
+    if (grace_patch($existing, ['activeInternalSquads' => $squads], $e2)) {
         error_log('submw grace end: squads-only restore ok for ' . $short);
         grace_delete($short);
         return true;
@@ -131,8 +189,9 @@ function grace_on_expired($short, $username = null) {
 
     $e = '';
     $u = remnawave_get_user_by_short($short, $e);
-    if (!is_array($u) || empty($u['uuid'])) { error_log('submw grace start get: ' . $e); return 'grace_err'; }
-    $uuid        = (string) $u['uuid'];
+    // Панель 3.x не отдаёт uuid — идентификатор берём через rw_user_ref (uuid или id).
+    $ref = rw_user_ref($u);
+    if (!is_array($u) || !rw_ref_ok($ref)) { error_log('submw grace start get: ' . $e); return 'grace_err'; }
     $squads      = grace_squads_from_user($u);
     if (!$squads) { error_log('submw grace start: empty squads for ' . $short . ', skipping grace'); return 'grace_off'; }
     if (count($squads) === 1 && $squads[0] === grace_squad_uuid()) { error_log('submw grace start: user already only in grace squad ' . $short . ', skipping grace'); return 'grace_off'; }
@@ -143,11 +202,11 @@ function grace_on_expired($short, $username = null) {
     $ext_orig    = grace_external_active() ? (string) ($u['externalSquadUuid'] ?? '') : null;
     $grace_until = time() + grace_days() * 86400;
 
-    grace_save($short, $uuid, $username, $squads, $bytes, $strategy, $orig_expire, $hwid_orig, $ext_orig, $grace_until);
+    grace_save($short, $ref['val'], $username, $squads, $bytes, $strategy, $orig_expire, $hwid_orig, $ext_orig, $grace_until);
 
     if (grace_traffic_bytes() > 0) {
         $re = '';
-        remnawave_reset_traffic($uuid, $re);
+        remnawave_reset_traffic($ref, $re);
         if ($re !== '') error_log('submw grace reset-traffic: ' . $re);
     }
 
@@ -162,7 +221,7 @@ function grace_on_expired($short, $username = null) {
     if ($gh !== '') $patch['hwidDeviceLimit'] = (int) $gh;
     if (grace_external_active()) $patch['externalSquadUuid'] = grace_external_squad_uuid();
     $e = '';
-    $ok = remnawave_update_user($uuid, $patch, $e);
+    $ok = remnawave_update_user($ref, $patch, $e);
     if (!$ok) { grace_delete($short); error_log('submw grace start patch: ' . $e); return 'grace_err'; }
     return 'grace_started';
 }
@@ -190,13 +249,38 @@ function grace_on_renew($short, $new_expire_str) {
         $patch['externalSquadUuid'] = ($existing['orig_external_squad'] === '' ? null : (string) $existing['orig_external_squad']);
     }
     $e = '';
-    $ok = remnawave_update_user((string) $existing['user_uuid'], $patch, $e);
+    $ok = grace_patch($existing, $patch, $e);
     if (!$ok) { error_log('submw grace renew: ' . $e); return false; }
     grace_delete($short);
     return true;
 }
 
 function grace_cleanup($short) { grace_delete($short); }
+
+// Разовый прогон по всем строкам грейса: перерезолвить идентификатор пользователя
+// через by-short-uuid. Нужен после обновления панели до 3.x, чтобы не ждать события
+// по каждому юзеру, и чтобы было видно строки, которых в панели уже нет.
+function grace_refresh_refs($limit = 500) {
+    ensure_grace_table();
+    $out = ['total' => 0, 'updated' => 0, 'same' => 0, 'missing' => 0, 'error' => ''];
+    if (remnawave_url() === '' || remnawave_token() === '') { $out['error'] = 'Не заданы URL панели или API-токен'; return $out; }
+    if (!($p = db())) { $out['error'] = 'Нет связи с БД'; return $out; }
+    try {
+        $st = $p->query('SELECT short_uuid, user_uuid FROM grace_users ORDER BY grace_until ASC LIMIT ' . (int) $limit);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) { $out['error'] = 'Ошибка чтения таблицы грейса'; return $out; }
+    foreach ($rows as $r) {
+        $out['total']++;
+        $short = (string) ($r['short_uuid'] ?? '');
+        $old   = (string) ($r['user_uuid'] ?? '');
+        $err = '';
+        $ref = grace_ref_resolve($short, $err);
+        if (!$ref) { $out['missing']++; continue; }
+        if ((string) $ref['val'] !== $old) $out['updated']++;
+        else $out['same']++;
+    }
+    return $out;
+}
 
 function grace_retry_pending($limit = 2) {
     if (remnawave_url() === '' || remnawave_token() === '') return;
