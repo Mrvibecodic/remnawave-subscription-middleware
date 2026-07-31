@@ -586,7 +586,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         } else {
             flash('Идентификаторы: обновлено ' . $r['updated'] . ' из ' . $r['total']
                 . ', без изменений ' . $r['same']
-                . ($r['missing'] > 0 ? ', не найдено в панели ' . $r['missing'] : ''));
+                . ($r['missing'] > 0 ? ', не найдено в панели ' . $r['missing'] : '')
+                . ($r['left'] > 0 ? '. Осталось ' . $r['left'] . ' — нажмите ещё раз' : ''));
         }
         form_saved('subst');
     }

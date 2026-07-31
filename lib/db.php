@@ -357,7 +357,7 @@ function migrate_extra_ddl($drv) {
             "CREATE TABLE IF NOT EXISTS hwid_devices (
                 user_uuid VARCHAR(64) NOT NULL, hwid VARCHAR(191) NOT NULL, short_uuid VARCHAR(64) NULL,
                 platform VARCHAR(64) NULL, seen_ts INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (user_uuid, hwid)
+                PRIMARY KEY (user_uuid, hwid), KEY idx_hwd_hwid (hwid)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "CREATE TABLE IF NOT EXISTS wg_user_cache (
                 short_uuid VARCHAR(64) NOT NULL, data TEXT NOT NULL, ts INT UNSIGNED NOT NULL DEFAULT 0,
@@ -407,6 +407,7 @@ function migrate_extra_ddl($drv) {
             user_uuid TEXT NOT NULL, hwid TEXT NOT NULL, short_uuid TEXT NULL, platform TEXT NULL,
             seen_ts INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_uuid, hwid)
         )",
+        "CREATE INDEX IF NOT EXISTS idx_hwd_hwid ON hwid_devices(hwid)",
         "CREATE TABLE IF NOT EXISTS wg_user_cache (short_uuid TEXT PRIMARY KEY, data TEXT NOT NULL, ts INTEGER NOT NULL DEFAULT 0)",
         "CREATE INDEX IF NOT EXISTS idx_wguc_ts ON wg_user_cache(ts)",
         "CREATE TABLE IF NOT EXISTS addsub_map (main_short TEXT NOT NULL PRIMARY KEY, add_url TEXT NOT NULL, note TEXT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
