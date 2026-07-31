@@ -68,10 +68,12 @@ if ($event === 'user_hwid_devices.added' || $event === 'user_hwid_devices.delete
     $hw_plat  = (string) ($hw_dev['platform'] ?? $data['platform'] ?? '');
     // Без идентификатора запись в hwid_devices не попадёт, а тихо потерянные события
     // выглядят как «дедикейт-режим просто перестал работать» — поэтому пишем в лог.
-    if ($hw_uuid === '' || $hw_hwid === '') {
-        error_log('submw webhook ' . $event . ': нет идентификатора пользователя или hwid, событие пропущено (short=' . $hw_short . ')');
+    // У удаления пустой hwid по-прежнему означает «снести все устройства юзера».
+    if ($hw_uuid === '') {
+        error_log('submw webhook ' . $event . ': нет идентификатора пользователя, событие пропущено (short=' . $hw_short . ')');
     } elseif ($event === 'user_hwid_devices.added') {
-        wglease_hwid_upsert($hw_uuid, $hw_hwid, $hw_short, $hw_plat);
+        if ($hw_hwid === '') error_log('submw webhook ' . $event . ': нет hwid, событие пропущено (short=' . $hw_short . ')');
+        else wglease_hwid_upsert($hw_uuid, $hw_hwid, $hw_short, $hw_plat);
     } else {
         wglease_hwid_delete($hw_uuid, $hw_hwid);
     }
@@ -151,6 +153,14 @@ try {
     forward_webhook($raw, $event);
 } catch (Throwable $e) {
     error_log('submw forward_webhook: ' . $e->getMessage());
+}
+// Освежаем кэш версии панели: ответ клиенту уже отправлен, так что задержки нет.
+// Без этого версия обновлялась бы только при заходе в админку, и грейс не мог бы
+// заранее понять, что панель перешла на числовые id.
+try {
+    if (remnawave_url() !== '' && remnawave_token() !== '') { $pm_err = ''; remnawave_panel_meta(3600, $pm_err); }
+} catch (Throwable $e) {
+    error_log('submw panel meta: ' . $e->getMessage());
 }
 try {
     grace_retry_pending();

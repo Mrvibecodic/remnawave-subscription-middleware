@@ -260,23 +260,35 @@ function grace_cleanup($short) { grace_delete($short); }
 // Разовый прогон по всем строкам грейса: перерезолвить идентификатор пользователя
 // через by-short-uuid. Нужен после обновления панели до 3.x, чтобы не ждать события
 // по каждому юзеру, и чтобы было видно строки, которых в панели уже нет.
-function grace_refresh_refs($limit = 500) {
+// $limit ограничивает число обращений к панели за один прогон, а не число строк:
+// записи, чей идентификатор уже нужного вида, пропускаются без запроса, поэтому
+// повторный прогон продвигается дальше, а не топчется на первых строках.
+function grace_refresh_refs($limit = 200) {
     ensure_grace_table();
-    $out = ['total' => 0, 'updated' => 0, 'same' => 0, 'missing' => 0, 'error' => ''];
+    $out = ['total' => 0, 'updated' => 0, 'same' => 0, 'missing' => 0, 'left' => 0, 'error' => ''];
     if (remnawave_url() === '' || remnawave_token() === '') { $out['error'] = 'Не заданы URL панели или API-токен'; return $out; }
     if (!($p = db())) { $out['error'] = 'Нет связи с БД'; return $out; }
     try {
-        $st = $p->query('SELECT short_uuid, user_uuid FROM grace_users ORDER BY grace_until ASC LIMIT ' . (int) $limit);
+        $st = $p->query('SELECT short_uuid, user_uuid FROM grace_users ORDER BY grace_until ASC');
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) { $out['error'] = 'Ошибка чтения таблицы грейса'; return $out; }
+
+    $major = panel_major();
+    $want  = $major >= 3 ? 'id' : ($major > 0 ? 'uuid' : '');
+    $calls = 0;
     foreach ($rows as $r) {
         $out['total']++;
         $short = (string) ($r['short_uuid'] ?? '');
         $old   = (string) ($r['user_uuid'] ?? '');
+        $ref   = rw_ref_coerce($old);
+        // Версия панели известна и идентификатор уже нужного вида — трогать нечего.
+        if ($want !== '' && rw_ref_ok($ref) && $ref['key'] === $want) { $out['same']++; continue; }
+        if ($calls >= $limit) { $out['left']++; continue; }
+        $calls++;
         $err = '';
-        $ref = grace_ref_resolve($short, $err);
-        if (!$ref) { $out['missing']++; continue; }
-        if ((string) $ref['val'] !== $old) $out['updated']++;
+        $fresh = grace_ref_resolve($short, $err);
+        if (!$fresh) { $out['missing']++; continue; }
+        if ((string) $fresh['val'] !== $old) $out['updated']++;
         else $out['same']++;
     }
     return $out;

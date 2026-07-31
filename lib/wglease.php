@@ -28,7 +28,8 @@ function wglease_ensure() {
                 short_uuid VARCHAR(64) NULL,
                 platform VARCHAR(64) NULL,
                 seen_ts INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (user_uuid, hwid)
+                PRIMARY KEY (user_uuid, hwid),
+                KEY idx_hwd_hwid (hwid)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         } else {
             $p->exec("CREATE TABLE IF NOT EXISTS wg_lease (
@@ -54,8 +55,16 @@ function wglease_ensure() {
                 seen_ts INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (user_uuid, hwid)
             )");
+            $p->exec("CREATE INDEX IF NOT EXISTS idx_hwd_hwid ON hwid_devices(hwid)");
         }
     } catch (Throwable $e) { error_log('submw wglease ensure: ' . $e->getMessage()); }
+    // Индекс по hwid нужен чистке дублей в wglease_hwid_upsert: PRIMARY KEY начинается
+    // с user_uuid, поэтому поиск по одному hwid без него шёл бы полным сканом.
+    // На уже созданных таблицах CREATE TABLE выше ничего не делает, добавляем отдельно.
+    try {
+        if (db_driver() === 'mysql') $p->exec('ALTER TABLE hwid_devices ADD INDEX idx_hwd_hwid (hwid)');
+        else $p->exec('CREATE INDEX IF NOT EXISTS idx_hwd_hwid ON hwid_devices(hwid)');
+    } catch (Throwable $e) {}
     wglease_ensure_cfg_uidx($p);
     if (setting('wgl_ua_col', '') !== '1') {
         try { $p->exec('ALTER TABLE wg_lease ADD COLUMN ua ' . (db_driver() === 'mysql' ? 'VARCHAR(255)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
