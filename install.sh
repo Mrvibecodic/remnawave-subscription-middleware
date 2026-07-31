@@ -246,7 +246,9 @@ server {
     gzip on;
     gzip_min_length 1024;
     gzip_proxied expired no-cache no-store private auth;
-    gzip_types text/css application/javascript application/json image/svg+xml text/plain;
+    # Панель Remnawave с 3.0 не сжимает тело ответа сама — сжатие делает прокси.
+    # text/plain и yaml здесь важны: в них отдаются base64- и clash-подписки.
+    gzip_types text/css application/javascript application/json image/svg+xml text/plain text/yaml application/yaml application/x-yaml;
     gzip_comp_level 5;
 
     location ^~ /.well-known/acme-challenge/ { root ${ACME_WEBROOT}; }
