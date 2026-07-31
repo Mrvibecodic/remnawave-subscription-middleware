@@ -78,6 +78,17 @@
             </div>
             <div style="margin-top:1.25rem"><button type="submit">💾 Сохранить</button></div>
         </form>
+        <div class="set-row" style="margin-top:1.1rem">
+            <div class="set-info">
+                <div class="set-t">Идентификаторы пользователей в грейсе</div>
+                <div class="set-d">Прослойка запоминает, каким идентификатором панель звала пользователя в момент ухода в грейс. Панель <b>3.0</b> перешла с <code>uuid</code> на числовой <code>id</code>, поэтому записи, сделанные до обновления панели, устарели. Прослойка чинит их сама при первом же обращении, но эта кнопка пересчитает всё разом — и покажет записи, которых в панели уже нет.</div>
+            </div>
+            <form method="post" style="flex:0 0 auto">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="grace_refresh_refs">
+                <button type="submit" class="btn ghost">🔁 Обновить идентификаторы</button>
+            </form>
+        </div>
     </div>
 
     <section class="<?= coll_cls('g_squad_help', true) ?>" data-coll="g_squad_help">

@@ -20,6 +20,7 @@
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Каталог заголовков</h2>
         <p class="muted">Посмотрите, что делает каждый заголовок, и нажмите «Добавить», чтобы перенести его в активный список выше. Заголовки, уже заданные в панели, помечены — <b>включение такого тут перезапишет значение панели</b>.</p>
+        <p class="muted">С панели <b>3.0</b> сюда попадает больше строк: настройки подписки <code>profile-title</code>, <code>profile-update-interval</code>, <code>support-url</code>, <code>profile-web-page-url</code>, <code>announce</code> и <code>routing</code> переехали в кастомные заголовки панели и мигрировали автоматически. Заодно панель перестала фильтровать <code>announce</code> и <code>routing</code> по User-Agent — теперь они уходят всем клиентам, а не только Happ.</p>
         <?php if ($panel_headers_err !== ''): ?><div class="warn" style="margin-bottom:.8rem">Не удалось получить заголовки панели: <?= h($panel_headers_err) ?></div><?php endif; ?>
         <div id="ahCatalog"></div>
     </div>

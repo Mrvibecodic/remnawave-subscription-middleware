@@ -277,6 +277,9 @@ if (isset($_GET['ajax']) && is_auth()) {
     header('Content-Type: application/json; charset=utf-8');
     $a = $_GET['ajax'];
 
+    // Параметр uuid здесь — идентификатор пользователя в любом из двух видов:
+    // UUID (панель 2.x) или числовой id (панель 3.x). Тип восстанавливается по
+    // значению внутри remnawave_* (rw_ref_coerce), формат запроса не менялся.
     if ($a === 'hwids') {
         $uuid = $_GET['uuid'] ?? '';
         $err = '';
@@ -387,6 +390,21 @@ if (isset($_GET['ajax']) && is_auth()) {
         $perr = '';
         $age = !empty($_GET['force']) ? 0 : 45;
         echo json_encode(['ok' => true, 'stats' => remnawave_system_stats($age, $perr)], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    // Версия панели для бейджа в шапке. Запрашивается отдельным ajax'ом, чтобы не
+    // добавлять обращение к панели в каждую загрузку админки.
+    if ($a === 'panelmeta') {
+        $merr = '';
+        $age = !empty($_GET['force']) ? 0 : 600;
+        $meta = remnawave_panel_meta($age, $merr);
+        echo json_encode([
+            'ok'        => true,
+            'meta'      => $meta,
+            'supported' => panel_version_supported(),
+            'min'       => panel_min_supported(),
+        ], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -501,9 +519,11 @@ if (isset($_GET['ajax']) && is_auth()) {
         $u = $q !== '' ? remnawave_get_user_by_short($q, $pe) : null;
         if (!is_array($u)) { $pe2 = ''; $u = $q !== '' ? remnawave_get_user_by_username($q, $pe2) : null; }
         if (!is_array($u)) { echo json_encode(['ok' => false, 'error' => 'Пользователь не найден']); exit(); }
-        $uuid = (string) ($u['uuid'] ?? '');
+        // uuid на панели 2.x, числовой id на 3.x — см. rw_user_ref в lib/api.php.
+        $uref = rw_user_ref($u);
+        $uuid = rw_ref_ok($uref) ? (string) $uref['val'] : '';
         $devs = [];
-        if ($uuid !== '') { $de = ''; $devs = remnawave_user_hwids($uuid, $de); }
+        if ($uuid !== '') { $de = ''; $devs = remnawave_user_hwids($uref, $de); }
         $sq = [];
         foreach (($u['activeInternalSquads'] ?? []) as $s) if (is_array($s)) $sq[] = ['uuid' => (string) ($s['uuid'] ?? ''), 'name' => (string) ($s['name'] ?? '')];
         $cu_su = (string) ($u['shortUuid'] ?? '');
@@ -552,6 +572,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('grace_external_squad_uuid', trim($_POST['grace_external_squad_uuid'] ?? ''));
         set_setting('grace_announce', grace_announce_normalize($_POST['grace_announce'] ?? ''));
         flash('Настройки грейс-сквада сохранены');
+        form_saved('subst');
+    }
+
+    // Разовый пересчёт идентификаторов в таблице грейса. Нужен после обновления
+    // панели до 3.x: в старых строках лежат UUID, которые панель больше не принимает.
+    if ($action === 'grace_refresh_refs') {
+        $r = grace_refresh_refs();
+        if ($r['error'] !== '') {
+            flash('Не удалось обновить идентификаторы: ' . $r['error']);
+        } elseif ($r['total'] === 0) {
+            flash('В грейсе сейчас никого — обновлять нечего');
+        } else {
+            flash('Идентификаторы: обновлено ' . $r['updated'] . ' из ' . $r['total']
+                . ', без изменений ' . $r['same']
+                . ($r['missing'] > 0 ? ', не найдено в панели ' . $r['missing'] : ''));
+        }
         form_saved('subst');
     }
 
@@ -1377,6 +1413,20 @@ function nav_link($key, $it, $active, $badge = false) {
             <div class="rw-hcontrols">
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
                 <a class="hbtn hbtn-ver" href="?tab=update" title="<?= update_available() ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if (update_available()): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
+<?php
+    // Бейдж версии панели. Рендерится из кэша — обращение к панели делает ajax
+    // panelmeta уже после загрузки страницы, чтобы не тормозить админку.
+    $pm_meta = panel_meta_cached();
+    $pm_ver  = trim((string) ($pm_meta['version'] ?? ''));
+    $pm_sup  = panel_version_supported();
+    $pm_ttl  = $pm_ver === ''
+        ? 'Версия панели пока не получена — проверьте URL и API-токен во вкладке «Подключение»'
+        : ('Версия панели Remnawave'
+            . (!empty($pm_meta['build_time']) ? ' · сборка ' . $pm_meta['build_time'] : '')
+            . (!empty($pm_meta['commit']) ? ' · ' . substr((string) $pm_meta['commit'], 0, 7) : '')
+            . (!$pm_sup ? ' · ниже минимально поддерживаемой ' . panel_min_supported() : ''));
+?>
+                <a class="hbtn hbtn-ver hbtn-panel" href="?tab=sysinfo" id="panelVerBadge" data-min="<?= h(panel_min_supported()) ?>" title="<?= h($pm_ttl) ?>">Панель <code id="panelVerText"><?= $pm_ver !== '' ? h($pm_ver) : '—' ?></code><?php if ($pm_ver !== '' && !$pm_sup): ?><span class="hbtn-dot" id="panelVerDot" title="Версия панели ниже поддерживаемой"></span><?php endif; ?></a>
                 <a class="hbtn" href="?logout=1" title="Выйти" aria-label="Выйти"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>
@@ -1566,6 +1616,29 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
     ok.addEventListener('click',function(){var f=cb; uiDlgClose(); if(f)f();});
     document.addEventListener('keydown',function(e){if(e.key==='Escape')uiDlgClose();});
     (function(){var el=document.getElementById('ghStarCount');if(!el)return;try{var c=JSON.parse(localStorage.getItem('gh_stars')||'null');if(c&&Date.now()-c.t<21600000){el.textContent=c.n;return;}}catch(e){}fetch('https://api.github.com/repos/Mrvibecodic/remnawave-subscription-middleware').then(function(r){return r.json();}).then(function(d){if(d&&typeof d.stargazers_count==='number'){el.textContent=d.stargazers_count;try{localStorage.setItem('gh_stars',JSON.stringify({n:d.stargazers_count,t:Date.now()}));}catch(e){}}}).catch(function(){});})();
+    // Версия панели: бейдж уже отрисован из кэша, здесь только освежаем значение.
+    (function(){
+        var badge=document.getElementById('panelVerBadge'), txt=document.getElementById('panelVerText');
+        if(!badge||!txt)return;
+        fetch('?ajax=panelmeta').then(function(r){return r.json();}).then(function(d){
+            if(!d||!d.meta)return;
+            var v=(d.meta.version||'').trim();
+            txt.textContent=v||'—';
+            var t;
+            if(!v){t='Версия панели пока не получена — проверьте URL и API-токен во вкладке «Подключение»';}
+            else{
+                t='Версия панели Remnawave';
+                if(d.meta.build_time)t+=' · сборка '+d.meta.build_time;
+                if(d.meta.commit)t+=' · '+String(d.meta.commit).slice(0,7);
+                if(d.meta.stale)t+=' · последнее известное значение, панель сейчас недоступна';
+                if(d.supported===false)t+=' · ниже минимально поддерживаемой '+(d.min||'');
+            }
+            badge.title=t;
+            var dot=document.getElementById('panelVerDot');
+            if(d.supported===false&&v&&!dot){dot=document.createElement('span');dot.className='hbtn-dot';dot.id='panelVerDot';dot.title='Версия панели ниже поддерживаемой';badge.appendChild(dot);}
+            else if((d.supported!==false||!v)&&dot){dot.remove();}
+        }).catch(function(){});
+    })();
 })();
 </script>
 </body></html>
