@@ -108,17 +108,20 @@ function grace_ref_resolve($short, &$err = '') {
     return $ref;
 }
 
-function grace_ref($existing, &$err = '') {
+// $existing по ссылке: свежий идентификатор кладём обратно в массив, иначе
+// следующий вызов для той же строки полез бы за ним в панель заново.
+function grace_ref(&$existing, &$err = '') {
     $err = '';
     $short = (string) ($existing['short_uuid'] ?? '');
     $ref   = rw_ref_coerce((string) ($existing['user_uuid'] ?? ''));
     if (rw_ref_ok($ref) && !($ref['key'] === 'uuid' && panel_api_v3())) return $ref;
     $fresh = grace_ref_resolve($short, $err);
+    if ($fresh) $existing['user_uuid'] = (string) $fresh['val'];
     return $fresh ?: $ref;
 }
 
 // PATCH пользователя из строки грейса с одним авто-ретраем на протухший идентификатор.
-function grace_patch($existing, array $patch, &$err = '') {
+function grace_patch(&$existing, array $patch, &$err = '') {
     $err = '';
     $short = (string) ($existing['short_uuid'] ?? '');
     $ref = grace_ref($existing, $err);
@@ -131,6 +134,7 @@ function grace_patch($existing, array $patch, &$err = '') {
     $re = '';
     $ref2 = grace_ref_resolve($short, $re);
     if (!$ref2 || $ref2['val'] === $ref['val']) return false;
+    $existing['user_uuid'] = (string) $ref2['val'];
     error_log('submw grace: идентификатор ' . $short . ' перерезолвлен (' . $ref['key'] . ' -> ' . $ref2['key'] . '), повтор PATCH');
     $err = '';
     return remnawave_update_user($ref2, $patch, $err);
@@ -150,7 +154,16 @@ function grace_restore($existing) {
         'trafficLimitStrategy'  => (string) $existing['orig_traffic_strategy'],
         'hwidDeviceLimit'       => ($existing['orig_hwid_limit'] === null ? null : (int) $existing['orig_hwid_limit']),
     ];
-    if (!empty($existing['orig_expire'])) $full['expireAt'] = (string) $existing['orig_expire'];
+    // Панель отклоняет expireAt в прошлом («Expiration date cannot be in the past» —
+    // проверка есть и в 2.x, и в 3.x). У истёкшего пользователя исходная дата почти
+    // всегда в прошлом, поэтому полный патч раньше всегда падал и восстановление
+    // сваливалось в фолбэк «только сквады» — лимиты трафика и устройств не
+    // возвращались. Просроченную дату просто не шлём: срок грейса к этому моменту
+    // тоже вышел, так что пользователь и без неё становится истёкшим.
+    if (!empty($existing['orig_expire'])) {
+        $oe = strtotime((string) $existing['orig_expire']);
+        if ($oe !== false && $oe > time() + 60) $full['expireAt'] = (string) $existing['orig_expire'];
+    }
     if (array_key_exists('orig_external_squad', $existing) && $existing['orig_external_squad'] !== null) {
         $full['externalSquadUuid'] = ($existing['orig_external_squad'] === '' ? null : (string) $existing['orig_external_squad']);
     }
