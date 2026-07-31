@@ -173,7 +173,7 @@ function remnawave_delete_hwid($ref, $hwid) {
 function remnawave_hwid_top_users(&$error = '') {
     $error = '';
     $all = [];
-    // Панель 3.x ограничивает size у top-users сотней; на 2.x меньший размер тоже валиден.
+    // У top-users предел size = 100 (и в 2.x, и в 3.x) — прежние 250 отклонялись.
     $start = 0; $size = 100; $guard = 0;
     do {
         [$ok, $code, $data, $e] = remnawave_api_get("/api/hwid/devices/top-users?size={$size}&start={$start}");
