@@ -106,27 +106,75 @@ function remnawave_api_request($method, $path, $body = null) {
     return [true, $code, $data, ''];
 }
 
-function remnawave_user_hwids($userUuid, &$error = '') {
+// --- Идентификатор пользователя: uuid (панель 2.x) или числовой id (панель 3.x) ---
+//
+// В панели 2.x у пользователя есть и uuid, и числовой id, но PATCH /api/users и
+// hwid-эндпоинты принимают там только uuid. В 3.x поле uuid удалено совсем, и всё
+// работает по числовому id. Поэтому правило — uuid вперёд: есть uuid, значит панель
+// 2.x и обращаемся по нему; нет uuid — панель 3.x, обращаемся по id. Знать версию
+// панели для этого не нужно, признак берётся из самого объекта пользователя.
+//
+// Формат ссылки: ['key' => 'uuid'|'id', 'val' => '...'].
+
+function rw_ref($key, $val) {
+    $key = ($key === 'id') ? 'id' : 'uuid';
+    $val = trim((string) $val);
+    if ($key === 'id' && !preg_match('/^\d+$/', $val)) $val = '';
+    return ['key' => $key, 'val' => $val];
+}
+
+function rw_ref_ok($ref) {
+    return is_array($ref) && isset($ref['val']) && (string) $ref['val'] !== '';
+}
+
+// Ссылка по объекту пользователя из ответа панели.
+function rw_user_ref($u) {
+    if (!is_array($u)) return rw_ref('uuid', '');
+    $uuid = isset($u['uuid']) ? trim((string) $u['uuid']) : '';
+    if ($uuid !== '') return rw_ref('uuid', $uuid);
+    $id = isset($u['id']) ? trim((string) $u['id']) : '';
+    if ($id !== '') return rw_ref('id', $id);
+    return rw_ref('uuid', '');
+}
+
+// Приведение «сырого» значения к ссылке: только цифры — это id, иначе uuid.
+// UUID никогда не состоит из одних цифр, так что догадка однозначна.
+function rw_ref_coerce($x) {
+    if (is_array($x)) return rw_ref($x['key'] ?? 'uuid', $x['val'] ?? '');
+    $s = trim((string) $x);
+    return preg_match('/^\d+$/', $s) ? rw_ref('id', $s) : rw_ref('uuid', $s);
+}
+
+// Значение для тела запроса: id уходит числом, uuid — строкой.
+function rw_ref_body_value($ref) {
+    return $ref['key'] === 'id' ? (int) $ref['val'] : (string) $ref['val'];
+}
+
+function remnawave_user_hwids($ref, &$error = '') {
     $error = '';
-    if ($userUuid === '') { $error = 'Пустой UUID'; return []; }
-    [$ok, $code, $data, $e] = remnawave_api_request('GET', '/api/hwid/devices/' . rawurlencode($userUuid));
+    $ref = rw_ref_coerce($ref);
+    if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return []; }
+    [$ok, $code, $data, $e] = remnawave_api_request('GET', '/api/hwid/devices/' . rawurlencode($ref['val']));
     if (!$ok) { $error = $e ?: ('HTTP ' . $code); return []; }
     $resp = $data['response'] ?? $data;
     $dev  = $resp['devices'] ?? (isset($resp[0]) ? $resp : []);
     return is_array($dev) ? $dev : [];
 }
 
-function remnawave_delete_hwid($userUuid, $hwid) {
+function remnawave_delete_hwid($ref, $hwid) {
+    $ref = rw_ref_coerce($ref);
+    if (!rw_ref_ok($ref)) return [false, 0, null, 'Пустой идентификатор пользователя'];
     return remnawave_api_request('POST', '/api/hwid/devices/delete', [
-        'userUuid' => $userUuid,
-        'hwid'     => $hwid,
+        ($ref['key'] === 'id' ? 'userId' : 'userUuid') => rw_ref_body_value($ref),
+        'hwid' => $hwid,
     ]);
 }
 
 function remnawave_hwid_top_users(&$error = '') {
     $error = '';
     $all = [];
-    $start = 0; $size = 250; $guard = 0;
+    // Панель 3.x ограничивает size у top-users сотней; на 2.x меньший размер тоже валиден.
+    $start = 0; $size = 100; $guard = 0;
     do {
         [$ok, $code, $data, $e] = remnawave_api_get("/api/hwid/devices/top-users?size={$size}&start={$start}");
         if (!$ok) { $error = $e ?: ('HTTP ' . $code); break; }
@@ -137,7 +185,7 @@ function remnawave_hwid_top_users(&$error = '') {
         foreach ($rows as $r) $all[] = $r;
         $start += $size;
         $guard++;
-    } while (count($all) < $total && $guard < 60 && count($rows) > 0);
+    } while (count($all) < $total && $guard < 150 && count($rows) > 0);
     return $all;
 }
 
@@ -208,22 +256,109 @@ function remnawave_get_user_by_username($username, &$error = '') {
     return is_array($resp) ? $resp : null;
 }
 
-function remnawave_update_user($uuid, array $fields, &$error = '') {
-    $error = '';
-    if ($uuid === '') { $error = 'Пустой UUID'; return false; }
-    [$ok, $code, $data, $e] = remnawave_api_request('PATCH', '/api/users', array_merge(['uuid' => $uuid], $fields));
+// $http_code возвращается по ссылке: грейсу нужно отличить 400/404 (протухший
+// идентификатор — стоит перерезолвить и повторить) от прочих ошибок.
+function remnawave_update_user($ref, array $fields, &$error = '', &$http_code = 0) {
+    $error = ''; $http_code = 0;
+    $ref = rw_ref_coerce($ref);
+    if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
+    $body = array_merge([$ref['key'] => rw_ref_body_value($ref)], $fields);
+    [$ok, $code, $data, $e] = remnawave_api_request('PATCH', '/api/users', $body);
+    $http_code = (int) $code;
     if (!$ok) { $error = $e ?: ('HTTP ' . $code . ' ' . json_encode($data, JSON_UNESCAPED_UNICODE)); return false; }
     return true;
 }
 
-function remnawave_reset_traffic($uuid, &$error = '') {
+function remnawave_reset_traffic($ref, &$error = '') {
     $error = '';
-    if ($uuid === '') { $error = 'Пустой UUID'; return false; }
-    [$ok, $code, $data, $e] = remnawave_api_request('POST', '/api/users/' . rawurlencode($uuid) . '/actions/reset-traffic');
+    $ref = rw_ref_coerce($ref);
+    if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
+    [$ok, $code, $data, $e] = remnawave_api_request('POST', '/api/users/' . rawurlencode($ref['val']) . '/actions/reset-traffic');
     if (!$ok) { $error = $e ?: ('HTTP ' . $code); return false; }
     return true;
 }
 
+
+// --- Версия панели ---
+//
+// GET /api/system/metadata есть в панели начиная с 2.5.0, то есть на всём
+// поддерживаемом диапазоне. Ответ кэшируется в настройках: версия нужна для бейджа
+// в шапке и как подсказка грейсу (см. grace_ref в lib/grace.php), но никогда не
+// должна блокировать выдачу подписки — при недоступности работаем по форме объекта
+// пользователя (rw_user_ref).
+function panel_min_supported() { return '2.7.4'; }
+
+function remnawave_panel_meta($maxAge = 600, &$error = '') {
+    $error = '';
+    $now = time();
+    $prev = json_decode((string) setting('panelmeta_json', ''), true);
+    if (!is_array($prev)) $prev = [];
+    if ($maxAge > 0) {
+        $ts = (int) setting('panelmeta_ts', '0');
+        if ($ts > 0 && ($now - $ts) <= $maxAge && $prev) {
+            $prev['cached'] = true;
+            $prev['age'] = $now - $ts;
+            return $prev;
+        }
+    }
+    $out = [
+        'ok' => false, 'ts' => $now, 'cached' => false, 'age' => 0, 'error' => '',
+        'version' => '', 'build_time' => '', 'build_number' => '',
+        'commit' => '', 'branch' => '', 'commit_url' => '',
+    ];
+    [$ok, $code, $data, $e] = remnawave_api_get('/api/system/metadata');
+    if (!$ok) {
+        $error = $e ?: ('HTTP ' . $code);
+        $out['error'] = $error;
+        // Последнюю известную версию не теряем — показываем её как устаревшую,
+        // это полезнее пустого прочерка при кратковременной недоступности панели.
+        $out['version'] = (string) ($prev['version'] ?? '');
+        $out['stale']   = $out['version'] !== '';
+    } else {
+        $resp = $data['response'] ?? $data;
+        if (is_array($resp)) {
+            $out['ok']           = true;
+            $out['version']      = trim((string) ($resp['version'] ?? ''));
+            $out['build_time']   = trim((string) ($resp['build']['time'] ?? ''));
+            $out['build_number'] = trim((string) ($resp['build']['number'] ?? ''));
+            $out['commit']       = trim((string) ($resp['git']['backend']['commitSha'] ?? ''));
+            $out['branch']       = trim((string) ($resp['git']['backend']['branch'] ?? ''));
+            $out['commit_url']   = trim((string) ($resp['git']['backend']['commitUrl'] ?? ''));
+        } else {
+            $error = 'Неожиданный ответ /api/system/metadata';
+            $out['error'] = $error;
+        }
+    }
+    set_setting('panelmeta_json', json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    set_setting('panelmeta_ts', (string) $now);
+    return $out;
+}
+
+// Чтение из кэша без обращения к панели — безопасно звать на горячем пути.
+function panel_meta_cached() {
+    $c = json_decode((string) setting('panelmeta_json', ''), true);
+    return is_array($c) ? $c : [];
+}
+
+function panel_version() {
+    $c = panel_meta_cached();
+    return trim((string) ($c['version'] ?? ''));
+}
+
+// 0 — версия неизвестна (нет связи, нет токена, панель ещё не опрашивалась).
+function panel_major() {
+    $v = panel_version();
+    return preg_match('/^\s*v?(\d+)/', $v, $m) ? (int) $m[1] : 0;
+}
+
+// true только когда точно знаем, что панель мажора 3+. Неизвестность — не «да».
+function panel_api_v3() { return panel_major() >= 3; }
+
+function panel_version_supported() {
+    $v = panel_version();
+    if ($v === '') return true;
+    return version_compare(ltrim($v, 'vV'), panel_min_supported(), '>=');
+}
 
 function remnawave_system_stats($maxAge = 45, &$error = '') {
     $error = '';
