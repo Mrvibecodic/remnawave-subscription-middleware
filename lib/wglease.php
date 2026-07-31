@@ -356,6 +356,12 @@ function wglease_hwid_upsert($user_uuid, $hwid, $short_uuid = '', $platform = ''
     if (!($p = db()) || $user_uuid === '' || $hwid === '') return;
     $now = time();
     try {
+        // Один hwid принадлежит одному пользователю. После обновления панели до 3.x тот
+        // же девайс приходит уже под числовым id, и без этой чистки в таблице остаётся
+        // дубль под старым UUID-ключом.
+        $p->prepare('DELETE FROM hwid_devices WHERE hwid = ? AND user_uuid <> ?')->execute([$hwid, $user_uuid]);
+    } catch (Throwable $e) { error_log('submw wglease hwid_dedupe: ' . $e->getMessage()); }
+    try {
         if (db_driver() === 'mysql') {
             $st = $p->prepare('INSERT INTO hwid_devices (user_uuid, hwid, short_uuid, platform, seen_ts) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE short_uuid = VALUES(short_uuid), platform = VALUES(platform), seen_ts = VALUES(seen_ts)');
         } else {
@@ -416,6 +422,8 @@ function wglease_sizing(&$err = '', &$warn = '', &$totals = null) {
     $te = '';
     $devices = remnawave_hwid_all_devices($te);
     $warn = $te;
+    // Ключ у устройства: userUuid на панели 2.x, userId на 3.x — считаем по обоим,
+    // ниже пользователь ищется сначала по id, потом по uuid.
     $dev_by_user = []; $uniq_hwid = [];
     foreach ($devices as $d) {
         if (!is_array($d)) continue;
