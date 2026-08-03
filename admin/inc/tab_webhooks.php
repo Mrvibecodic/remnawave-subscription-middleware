@@ -65,14 +65,6 @@ WEBHOOK_SECRET_HEADER=<?= h(webhook_secret() ?: '<секрет из «Подкл
         </form>
     </div>
 
-    <section class="<?= coll_cls('next_branding', true) ?>" data-coll="next_branding">
-        <button type="button" class="coll-head" onclick="collToggle(this)">← Вернуться в Брендинг
-            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="coll-body">
-            <div class="info">В разделе <a href="?tab=branding" style="color:var(--accent-text)">Брендинг</a> — имя и логотип сервиса из API панели идут в название, лого и фавикон админки; можно перебить вручную.</div>
-        </div>
-    </section>
     <script>
     var FWD_TARGETS = <?= json_encode(forward_targets(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     var FWD_CSRF = <?= json_encode($token) ?>;
