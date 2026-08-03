@@ -14,6 +14,11 @@ $si_pm  = panel_meta_cached();
 $si_pmv = trim((string) ($si_pm['version'] ?? ''));
 $si_non = (isset($si_pn['online']) && $si_pn['online'] !== null) ? (int) $si_pn['online'] : null;
 $si_ntot = (isset($si_pn['total']) && $si_pn['total'] !== null) ? (int) $si_pn['total'] : null;
+$si_cf = panel_config_cached();
+$si_cf_on = panel_supports_config();
+$si_cf_has = $si_cf_on && !empty($si_cf['ts']);
+$si_cb = function ($v) { return $v === null ? '—' : ($v ? 'да' : 'нет'); };
+$si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v === null ? '—' : 'выкл'); };
 ?>
     <style>
         .si-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-bottom:1rem}
@@ -165,6 +170,35 @@ $si_ntot = (isset($si_pn['total']) && $si_pn['total'] !== null) ? (int) $si_pn['
                 <div class="si-card"><div class="n"><span id="p_nodes_on"><?= $si_non === null ? '—' : $si_non ?></span> / <span id="p_nodes_tot"><?= $si_ntot === null ? '—' : $si_ntot ?></span></div><div class="l">ноды онлайн</div></div>
             </div>
         </div>
+
+        <section class="<?= coll_cls('sysinfo_panelconf', true) ?>" data-coll="sysinfo_panelconf" id="siPanelConf" data-sig="<?= h(panel_config_sig($si_cf)) ?>">
+            <button type="button" class="coll-head" onclick="collToggle(this)"><span>Конфигурация панели</span>
+                <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </button>
+            <div class="coll-body">
+                <?php if (!$si_cf_on): ?>
+                <p class="muted">Доступно с версии панели <?= h(panel_config_min()) ?> — она отдаёт свои настройки через <code>GET /api/system/configuration</code>. На более старых панелях эндпоинта нет, и прослойка его не запрашивает.</p>
+                <?php else: ?>
+                <p class="muted">Настройки самой панели из <code>GET /api/system/configuration</code>, кешируются на 10 минут и обновляются в фоне. Прослойка берёт отсюда домен подписки, состояние вебхуков и длину shortUuid; менять эти значения можно только в <code>.env</code> панели.</p>
+                <?php if (!$si_cf_has): ?><p class="muted">Значения ещё не получены — нажмите «Обновить» выше.</p><?php endif; ?>
+                <?php if (!empty($si_cf['error'])): ?><p class="muted">Последний запрос не удался: <?= h((string) $si_cf['error']) ?></p><?php endif; ?>
+                <div class="si-sub">Уведомления</div>
+                <div class="si-kv"><span class="k">Вебхуки</span><span class="v"><?= $si_cb($si_cf['webhook'] ?? null) ?></span></div>
+                <div class="si-kv"><span class="k">Пороги по трафику, %</span><span class="v"><?= h($si_cl($si_cf['bandwidth_usage'] ?? null)) ?></span></div>
+                <div class="si-kv"><span class="k">Давно не подключался, ч</span><span class="v"><?= h($si_cl($si_cf['not_connected_after'] ?? null)) ?></span></div>
+                <div class="si-kv"><span class="k">Напоминания об истечении, дн</span><span class="v"><?= h($si_cl($si_cf['expiration_notifications'] ?? null)) ?></span></div>
+                <div class="si-sub">Служебное</div>
+                <div class="si-kv"><span class="k">Чистить историю потребления</span><span class="v"><?= $si_cb($si_cf['clean_usage_history'] ?? null) ?></span></div>
+                <div class="si-kv"><span class="k">Не писать записи потребления</span><span class="v"><?= $si_cb($si_cf['disable_user_usage_records'] ?? null) ?></span></div>
+                <div class="si-kv"><span class="k">Не писать SRH-записи</span><span class="v"><?= $si_cb($si_cf['disable_srh_records'] ?? null) ?></span></div>
+                <div class="si-kv"><span class="k">Экспорт в Redis Stream</span><span class="v"><?= $si_cb($si_cf['export_to_redis_stream'] ?? null) ?></span></div>
+                <div class="si-sub">Прочее</div>
+                <div class="si-kv"><span class="k">Длина shortUuid</span><span class="v"><?= ((int) ($si_cf['short_uuid_length'] ?? 0)) ?: '—' ?></span></div>
+                <div class="si-kv"><span class="k">Игнорировать потребление ниже</span><span class="v"><?= ($si_cf['user_usage_ignore_below_bytes'] ?? null) === null ? '—' : h(metrics_fmt_bytes((int) $si_cf['user_usage_ignore_below_bytes'])) ?></span></div>
+                <div class="si-kv"><span class="k">Домен подписки панели</span><span class="v"><?= ($si_cf['sub_public_domain'] ?? '') !== '' ? '<code>' . h((string) $si_cf['sub_public_domain']) . '</code>' : '—' ?></span></div>
+                <?php endif; ?>
+            </div>
+        </section>
     </div>
 
     <div class="si-seg-panel" data-panel="env"<?= $si_seg === 'env' ? '' : ' hidden' ?>>
@@ -257,9 +291,11 @@ $si_ntot = (isset($si_pn['total']) && $si_pn['total'] !== null) ? (int) $si_pn['
         // сервере, поэтому при реальном изменении версии проще перерисовать страницу.
         if(force){
             var cur=document.getElementById('si_panel_ver');
+            var conf=document.getElementById('siPanelConf');
             fetch('?ajax=panelmeta&force=1').then(function(r){return r.json();}).then(function(d){
-                if(!d||!d.meta||!cur)return;
-                if((d.meta.version||'').trim()!==(cur.dataset.ver||'')) location.reload();
+                if(!d||!d.meta)return;
+                if(cur&&(d.meta.version||'').trim()!==(cur.dataset.ver||'')){location.reload();return;}
+                if(conf&&d.conf_sig&&d.conf_sig!==(conf.dataset.sig||'')) location.reload();
             }).catch(function(){});
         }
     }

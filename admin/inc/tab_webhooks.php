@@ -3,6 +3,12 @@
             <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
+            <?php $wh_panel_on = panel_webhook_enabled(); ?>
+            <?php if ($wh_panel_on === false): ?>
+            <div class="warn">В панели вебхуки сейчас <b>выключены</b> (<code>WEBHOOK_ENABLED=false</code>) — прослойка не получит ни одного события, поэтому блокировки и грейс будут срабатывать только по факту запроса подписки. Включите их в <code>.env</code> панели и перезапустите её.</div>
+            <?php elseif ($wh_panel_on === true): ?>
+            <p class="muted"><span class="tag normal">вкл</span> В панели вебхуки включены — по данным <code>/api/system/configuration</code>. Что события реально доходят, видно в «Логе вебхуков».</p>
+            <?php endif; ?>
             <p class="muted">Добавьте эти строки в <code>.env</code> панели и перезапустите её: <button type="button" class="qh" onclick="help('webhook_env')" aria-label="Справка">?</button></p>
             <pre>WEBHOOK_ENABLED=true
 WEBHOOK_URL=<?= h($wh_url) ?>

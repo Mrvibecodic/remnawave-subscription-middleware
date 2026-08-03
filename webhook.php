@@ -158,7 +158,13 @@ try {
 // Без этого версия обновлялась бы только при заходе в админку, и грейс не мог бы
 // заранее понять, что панель перешла на числовые id.
 try {
-    if (remnawave_url() !== '' && remnawave_token() !== '') { $pm_err = ''; remnawave_panel_meta(3600, $pm_err); }
+    if (remnawave_url() !== '' && remnawave_token() !== '') {
+        $pm_err = '';
+        $pm = remnawave_panel_meta(3600, $pm_err);
+        // Конфигурацию тянем только если панель сейчас отвечает: иначе воркер
+        // ждал бы два таймаута подряд уже после ответа на вебхук.
+        if (!empty($pm['ok'])) { $pc_err = ''; remnawave_panel_config(3600, $pc_err); }
+    }
 } catch (Throwable $e) {
     error_log('submw panel meta: ' . $e->getMessage());
 }

@@ -46,7 +46,8 @@ $skip_log =
     || preg_match('~\.(js|mjs|css|map|json|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot|txt|xml|html?|env|bak|old|orig|save|swp|swo|copy|backup|tmp|sql|ya?ml|ini|conf|cfg|config|log|pem|key|crt|pfx|p12|zip|tar|gz|tgz|rar|7z|asp|aspx|jsp|cgi|exe|sh|bat|php\d?)$~i', $path)
     || substr($path, -1) === '~'
     || preg_match('~^(app|api|backend|frontend|server|config|credentials|secrets|keyfile|phpinfo\.php|wp-login\.php|wp-admin|xmlrpc\.php)$~i', $path)
-    || preg_match('~(^|/)(favicon\.ico|robots\.txt|sitemap\.xml|browserconfig\.xml|apple-touch-icon[\w-]*\.png)$~i', $path);
+    || preg_match('~(^|/)(favicon\.ico|robots\.txt|sitemap\.xml|browserconfig\.xml|apple-touch-icon[\w-]*\.png)$~i', $path)
+    || junk_short_len_mismatch($path);
 
 // «Мусорный» путь (файлы, сканеры ботов): для таких не дёргаем API панели.
 // Реальная подписка (shortUuid) сюда не попадает; при ложном срабатывании путь
