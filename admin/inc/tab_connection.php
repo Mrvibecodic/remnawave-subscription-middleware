@@ -6,9 +6,15 @@
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_connection">
             <div class="row">
-                <div><label>Origin — домен подписки <button type="button" class="qh" onclick="help('origin')" aria-label="Справка">?</button></label><input type="text" name="target_domain" value="<?= h(target_domain()) ?>" placeholder="sub.example.com"></div>
+                <div><label>Origin — домен подписки <button type="button" class="qh" onclick="help('origin')" aria-label="Справка">?</button></label><input type="text" id="cnTarget" name="target_domain" value="<?= h(target_domain()) ?>" placeholder="sub.example.com"></div>
                 <div><label>Домен зеркала <button type="button" class="qh" onclick="help('mirror')" aria-label="Справка">?</button></label><input type="text" name="mirror_domain" value="<?= h($mirror) ?>" placeholder="mirror.example.com"></div>
             </div>
+            <?php $cn_spd = panel_sub_public_domain(); ?>
+            <?php if ($cn_spd !== '' && strcasecmp($cn_spd, target_domain()) !== 0): ?>
+            <div class="cn-spd">В панели домен подписки — <code><?= h($cn_spd) ?></code>. <button type="button" class="btn ghost cn-spd-btn" data-domain="<?= h($cn_spd) ?>" onclick="cnUseOrigin(this)">Подставить в origin</button></div>
+            <?php elseif ($cn_spd !== ''): ?>
+            <div class="cn-spd">Origin совпадает с доменом подписки в панели.</div>
+            <?php endif; ?>
             <div class="row">
                 <div><label>URL панели Remnawave <button type="button" class="qh" onclick="help('rwurl')" aria-label="Справка">?</button></label><input type="text" name="remnawave_url" value="<?= h(remnawave_url()) ?>" placeholder="https://panel.example.com" <?= submw_in_docker() ? 'readonly' : '' ?>></div>
                 <div><label>Cookie панели (eGames-защита) <button type="button" class="qh" onclick="help('cookie')" aria-label="Справка">?</button></label><input type="text" name="remnawave_cookie" value="<?= h(remnawave_cookie()) ?>" placeholder="aB3xK9pQ=Zt7mW2nR"></div>
@@ -69,6 +75,8 @@
         </form>
     </div>
     <style>
+        .cn-spd{font-size:.8rem;color:var(--muted);margin-top:.45rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+        .cn-spd-btn{width:auto;min-height:0;padding:.25rem .65rem;font-size:.78rem;line-height:1.3}
         .set-grid2{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem}
         .set-grid2 .set-row{margin-top:0}
         @media(max-width:720px){.set-grid2{grid-template-columns:1fr}}
@@ -82,6 +90,24 @@
         .uahk-txt .muted{font-size:.76rem}
     </style>
     <script>
+    function cnUseOrigin(btn){
+        var inp=document.getElementById('cnTarget'); if(!inp||!btn) return;
+        var f=inp.form; if(!f) return;
+        inp.value=btn.getAttribute('data-domain')||'';
+        btn.disabled=true;
+        var fd=new FormData(f); fd.append('xhr','1');
+        fetch('index.php',{method:'POST',credentials:'same-origin',body:fd})
+            .then(function(r){return r.json();})
+            .then(function(d){
+                if(d&&d.ok){location.reload();return;}
+                btn.disabled=false;
+                if(window.uiToast)uiToast('Не сохранено');
+            })
+            .catch(function(){
+                btn.disabled=false;
+                if(window.uiToast)uiToast('Ошибка сети — не сохранено');
+            });
+    }
     (function(){
         var sel=document.getElementById('subSourceSel');
         if(!sel) return;

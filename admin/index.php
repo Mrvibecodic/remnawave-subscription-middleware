@@ -399,9 +399,21 @@ if (isset($_GET['ajax']) && is_auth()) {
         $merr = '';
         $age = !empty($_GET['force']) ? 0 : 600;
         $meta = remnawave_panel_meta($age, $merr);
+        // Конфигурацию панели освежаем тем же ajax'ом: версия уже известна, а
+        // отдельный запрос из каждой вкладки был бы лишним обращением к панели.
+        // Если панель только что не ответила на мету — второй запрос не делаем,
+        // иначе ajax висел бы два таймаута подряд и держал сессию залоченной.
+        $cerr = '';
+        $conf = null;
+        if (!empty($meta['ok'])) $conf = remnawave_panel_config($age > 0 ? 600 : 0, $cerr);
         echo json_encode([
             'ok'        => true,
             'meta'      => $meta,
+            'conf'      => $conf,
+            // Отпечаток берётся из кэша настроек — ровно того же источника, из
+            // которого рендерится блок в «О системе»: иначе сравнение никогда
+            // не сойдётся и кнопка «Обновить» перезагружала бы страницу всегда.
+            'conf_sig'  => panel_config_sig(panel_config_cached()),
             'supported' => panel_version_supported(),
             'min'       => panel_min_supported(),
         ], JSON_UNESCAPED_UNICODE);
@@ -755,6 +767,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         ensure_metrics_tables();
         if ($pdo = db()) { try { $pdo->exec('DELETE FROM metrics_peak'); } catch (Throwable $e) {} flash('Лог пиков нагрузки очищен'); }
         header('Location: index.php?tab=sysinfo'); exit();
+    }
+
+    if ($action === 'save_junk_cfg') {
+        set_setting('junk_short_len', empty($_POST['junk_short_len']) ? '0' : '1');
+        flash('Правило по длине shortUuid сохранено');
+        form_saved('reqlog');
     }
 
     if ($action === 'save_metrics_cfg') {

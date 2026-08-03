@@ -360,6 +360,165 @@ function panel_version_supported() {
     return version_compare(ltrim($v, 'vV'), panel_min_supported(), '>=');
 }
 
+// --- Конфигурация панели ---
+//
+// GET /api/system/configuration появился только в 3.2.0, поэтому запрос делается
+// строго по версии из кэша меты: неизвестная версия — не «да», обращения нет.
+// Ответ кэшируется в настройках, на горячем пути читается panel_config_cached()
+// без похода в панель. Ничего критичного отсюда не берётся: любое поле может
+// остаться пустым, и прослойка обязана работать как раньше.
+function panel_config_min() { return '3.2.0'; }
+
+function panel_supports_config() {
+    $v = panel_version();
+    if ($v === '') return false;
+    return version_compare(ltrim($v, 'vV'), panel_config_min(), '>=');
+}
+
+function panel_config_cached() {
+    $c = json_decode((string) setting('panelconf_json', ''), true);
+    return is_array($c) ? $c : [];
+}
+
+function panel_config_num_list($v) {
+    if (!is_array($v)) return null;
+    $out = [];
+    foreach ($v as $x) if (is_numeric($x)) $out[] = 0 + $x;
+    return $out;
+}
+
+// Строковые "false"/"0"/"" от панели должны читаться как false, а не как
+// непустая строка: иначе выключенный вебхук показался бы включённым.
+function panel_config_bool($v) {
+    if ($v === null) return null;
+    if (is_string($v)) {
+        $s = strtolower(trim($v));
+        if ($s === '' || $s === 'false' || $s === '0' || $s === 'no' || $s === 'off') return false;
+        return true;
+    }
+    if (is_array($v) || is_object($v)) return null;
+    return (bool) $v;
+}
+
+// SUB_PUBLIC_DOMAIN панели может прийти со схемой и путём — прослойке нужен
+// голый домен, ровно в том виде, в каком он лежит в target_domain.
+function panel_config_domain($v) {
+    if (!is_string($v) && !is_numeric($v)) return '';
+    $s = strtolower(trim((string) $v));
+    if ($s === '') return '';
+    $s = preg_replace('~^[a-z][a-z0-9+.-]*://~', '', $s);
+    $p = strpos($s, '/');
+    if ($p !== false) $s = substr($s, 0, $p);
+    return trim($s, '/');
+}
+
+function panel_config_value_keys() {
+    return ['webhook', 'bandwidth_usage', 'not_connected_after', 'expiration_notifications',
+            'clean_usage_history', 'disable_user_usage_records', 'disable_srh_records',
+            'export_to_redis_stream', 'short_uuid_length', 'user_usage_ignore_below_bytes',
+            'sub_public_domain'];
+}
+
+function panel_config_from_response($resp, array $out) {
+    $nt = is_array($resp['notifications'] ?? null) ? $resp['notifications'] : [];
+    $sv = is_array($resp['service'] ?? null) ? $resp['service'] : [];
+    $ms = is_array($resp['misc'] ?? null) ? $resp['misc'] : [];
+    $out['ok']                            = true;
+    $out['webhook']                       = panel_config_bool($nt['webhook'] ?? null);
+    $out['bandwidth_usage']               = panel_config_num_list($nt['bandwidthUsage'] ?? null);
+    $out['not_connected_after']           = panel_config_num_list($nt['notConnectedAfter'] ?? null);
+    $out['expiration_notifications']      = panel_config_num_list($nt['expirationNotifications'] ?? null);
+    $out['clean_usage_history']           = panel_config_bool($sv['cleanUsageHistory'] ?? null);
+    $out['disable_user_usage_records']    = panel_config_bool($sv['disableUserUsageRecords'] ?? null);
+    $out['disable_srh_records']           = panel_config_bool($sv['disableSrhRecords'] ?? null);
+    $out['export_to_redis_stream']        = panel_config_bool($sv['exportToRedisStream'] ?? null);
+    $out['short_uuid_length']             = (int) ($ms['shortUuidLength'] ?? 0);
+    $out['user_usage_ignore_below_bytes'] = isset($ms['userUsageIgnoreBelowBytes']) ? (int) $ms['userUsageIgnoreBelowBytes'] : null;
+    $out['sub_public_domain']             = panel_config_domain($ms['subPublicDomain'] ?? '');
+    return $out;
+}
+
+function remnawave_panel_config($maxAge = 600, &$error = '') {
+    $error = '';
+    $now = time();
+    $prev = panel_config_cached();
+    $out = [
+        'ok' => false, 'ts' => $now, 'cached' => false, 'age' => 0, 'error' => '',
+        'supported' => panel_supports_config(),
+        'webhook' => null,
+        'bandwidth_usage' => null,
+        'not_connected_after' => null,
+        'expiration_notifications' => null,
+        'clean_usage_history' => null,
+        'disable_user_usage_records' => null,
+        'disable_srh_records' => null,
+        'export_to_redis_stream' => null,
+        'short_uuid_length' => 0,
+        'user_usage_ignore_below_bytes' => null,
+        'sub_public_domain' => '',
+    ];
+    if (!$out['supported']) {
+        // Панель ниже 3.2.0 либо версия ещё не получена — запроса не делаем и
+        // прежний кэш не трогаем: он пригодится, если версию просто не успели узнать.
+        return $out;
+    }
+    if ($maxAge > 0) {
+        $ts = (int) setting('panelconf_ts', '0');
+        if ($ts > 0 && ($now - $ts) <= $maxAge && $prev) {
+            $prev['cached'] = true;
+            $prev['age'] = $now - $ts;
+            return $prev;
+        }
+    }
+    [$ok, $code, $data, $e] = remnawave_api_get('/api/system/configuration');
+    $resp = $ok ? ($data['response'] ?? $data) : null;
+    if ($ok && is_array($resp)) {
+        $out = panel_config_from_response($resp, $out);
+    } else {
+        // Ни ошибка сети, ни мусор вместо JSON не должны стирать уже известные
+        // значения: домен подписки и длина shortUuid переезжают из прошлого кэша.
+        $error = $ok ? 'Неожиданный ответ /api/system/configuration' : ($e ?: ('HTTP ' . $code));
+        $out['error'] = $error;
+        foreach (panel_config_value_keys() as $k) {
+            if (array_key_exists($k, $prev)) $out[$k] = $prev[$k];
+        }
+        $out['stale'] = (bool) $prev;
+    }
+    set_setting('panelconf_json', json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    set_setting('panelconf_ts', (string) $now);
+    return $out;
+}
+
+// Отпечаток значимых полей: по нему админка понимает, что настройки панели
+// изменились, и перерисовывает блок. Время запроса в отпечаток не входит.
+function panel_config_sig($c) {
+    if (!is_array($c) || !$c) return '';
+    $v = [];
+    foreach (panel_config_value_keys() as $k) $v[$k] = $c[$k] ?? null;
+    return md5(json_encode($v, JSON_UNESCAPED_UNICODE));
+}
+
+// Домен подписки панели (SUB_PUBLIC_DOMAIN) — пусто, если панель старая или молчит.
+function panel_sub_public_domain() {
+    $c = panel_config_cached();
+    return panel_config_domain($c['sub_public_domain'] ?? '');
+}
+
+// Длина shortUuid в панели. 0 — неизвестна; значения вне разумного диапазона
+// игнорируются, чтобы кривой ответ не превратил живые подписки в «мусор».
+function panel_short_uuid_len() {
+    $c = panel_config_cached();
+    $n = (int) ($c['short_uuid_length'] ?? 0);
+    return ($n >= 8 && $n <= 64) ? $n : 0;
+}
+
+// true/false — вебхуки в панели включены/выключены, null — неизвестно.
+function panel_webhook_enabled() {
+    $c = panel_config_cached();
+    $v = $c['webhook'] ?? null;
+    return $v === null ? null : (bool) $v;
+}
+
 function remnawave_system_stats($maxAge = 45, &$error = '') {
     $error = '';
     $now = time();

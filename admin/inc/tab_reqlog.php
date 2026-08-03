@@ -44,6 +44,23 @@
     <div class="card">
         <h2>Мусорные запросы <span class="muted" style="font-weight:400;font-size:.76rem">(сканеры/боты — панель не опрашивается)</span></h2>
         <p class="muted">Запросы на несуществующие адреса (файлы, <code>/wp-login.php</code>, <code>/.env</code> и т.п.). Для них прослойка не обращается к API панели, чтобы не нагружать её. Обычная подписка (shortUuid) сюда не попадает. Если в списке оказался нужный адрес — нажмите «Исключить», и он снова будет обрабатываться как подписка.</p>
+        <?php $jl_len = panel_short_uuid_len(); ?>
+        <form method="post" data-autosave style="margin:.9rem 0 0">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="save_junk_cfg">
+            <div class="set-row">
+                <div class="set-info">
+                    <div class="set-t">Считать мусором пути не той длины</div>
+                    <div class="set-d">
+                        Длина shortUuid берётся из панели (<code>GET /api/system/configuration</code>, панель 3.2.0 и выше).
+                        <?php if ($jl_len > 0): ?>Сейчас в панели — <b><?= (int) $jl_len ?></b>.<?php else: ?>Сейчас длина неизвестна — правило не действует, даже если включено.<?php endif; ?>
+                        Первый сегмент пути другой длины считается сканером, и панель по нему не опрашивается.
+                        <b>Включайте, только если все выданные ссылки одной длины:</b> смена длины в панели не перевыпускает уже созданные shortUuid, и по старым ссылкам перестанут подмешиваться доп. конфиги и вторая подписка, а сами запросы пропадут из лога. Блокировки, грейс и оверрайды продолжат работать в любом случае.
+                    </div>
+                </div>
+                <label class="switch"><input type="checkbox" name="junk_short_len" <?= junk_short_len_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
+        </form>
         <?php if (!empty($junk_wl)): ?>
         <p class="muted" style="margin-top:.7rem;margin-bottom:.3rem">Исключены из мусорных:</p>
         <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem">

@@ -45,6 +45,25 @@ function junk_excluded($path) {
     return false;
 }
 
+function junk_short_len_enabled() { return setting('junk_short_len', '0') === '1'; }
+
+// Первый сегмент пути не той длины, что shortUuid в панели, — подпиской быть не
+// может, к API панели за ним не ходим. Работает только когда длина известна из
+// GET /api/system/configuration (панель 3.2.0+) и правило включено вручную:
+// смена длины в панели не перевыпускает уже созданные shortUuid, поэтому
+// включать стоит, только если все ссылки одной длины.
+function junk_short_len_mismatch($path) {
+    if (!junk_short_len_enabled()) return false;
+    if (!function_exists('panel_short_uuid_len')) return false;
+    $len = panel_short_uuid_len();
+    if ($len <= 0) return false;
+    $seg = (string) $path;
+    $p = strpos($seg, '/');
+    if ($p !== false) $seg = substr($seg, 0, $p);
+    if ($seg === '' || !preg_match('/^[A-Za-z0-9_-]+$/', $seg)) return false;
+    return strlen($seg) !== $len;
+}
+
 function junk_record($path) {
     $path = mb_substr((string) $path, 0, 191);
     if ($path === '') return;
