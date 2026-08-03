@@ -235,10 +235,13 @@ function remnawave_external_squads(&$error = '') {
     return $out;
 }
 
-function remnawave_get_user_by_short($shortUuid, &$error = '') {
-    $error = '';
+// $http_code по ссылке: вызывающему нужно отличать 404 (пользователя больше
+// нет) от сетевой ошибки или 5xx (панель недоступна, запись живая).
+function remnawave_get_user_by_short($shortUuid, &$error = '', &$http_code = 0) {
+    $error = ''; $http_code = 0;
     if ($shortUuid === '') { $error = 'Пустой shortUuid'; return null; }
     [$ok, $code, $data, $e] = remnawave_api_request('GET', '/api/users/by-short-uuid/' . rawurlencode($shortUuid));
+    $http_code = (int) $code;
     if (!$ok) { $error = $e ?: ('HTTP ' . $code); return null; }
     $resp = $data['response'] ?? $data;
     return is_array($resp) ? $resp : null;

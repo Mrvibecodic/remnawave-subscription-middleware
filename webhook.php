@@ -75,7 +75,7 @@ if ($event === 'user_hwid_devices.added' || $event === 'user_hwid_devices.delete
         if ($hw_hwid === '') error_log('submw webhook ' . $event . ': нет hwid, событие пропущено (short=' . $hw_short . ')');
         else wglease_hwid_upsert($hw_uuid, $hw_hwid, $hw_short, $hw_plat);
     } else {
-        wglease_hwid_delete($hw_uuid, $hw_hwid);
+        wglease_hwid_delete($hw_uuid, $hw_hwid, $hw_short);
     }
     if ($hw_short !== '') squadconf_cache_drop($hw_short);
     log_webhook($event, ($hw_short !== '' ? $hw_short : null), $username, null, true, $event === 'user_hwid_devices.added' ? 'hwid_add' : 'hwid_del');
