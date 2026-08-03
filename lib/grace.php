@@ -96,11 +96,11 @@ function grace_set_ref($short, $ref) {
 }
 
 // Перезапрашивает пользователя по short_uuid и переписывает идентификатор в строке.
-function grace_ref_resolve($short, &$err = '') {
-    $err = '';
+function grace_ref_resolve($short, &$err = '', &$http_code = 0) {
+    $err = ''; $http_code = 0;
     $short = (string) $short;
     if ($short === '') { $err = 'Пустой shortUuid'; return null; }
-    $u = remnawave_get_user_by_short($short, $err);
+    $u = remnawave_get_user_by_short($short, $err, $http_code);
     if (!is_array($u)) return null;
     $ref = rw_user_ref($u);
     if (!rw_ref_ok($ref)) { $err = 'В ответе панели нет идентификатора пользователя'; return null; }
@@ -278,7 +278,7 @@ function grace_cleanup($short) { grace_delete($short); }
 // повторный прогон продвигается дальше, а не топчется на первых строках.
 function grace_refresh_refs($limit = 200) {
     ensure_grace_table();
-    $out = ['total' => 0, 'updated' => 0, 'same' => 0, 'missing' => 0, 'left' => 0, 'error' => ''];
+    $out = ['total' => 0, 'updated' => 0, 'same' => 0, 'missing' => 0, 'errors' => 0, 'left' => 0, 'error' => '', 'error_net' => ''];
     if (remnawave_url() === '' || remnawave_token() === '') { $out['error'] = 'Не заданы URL панели или API-токен'; return $out; }
     if (!($p = db())) { $out['error'] = 'Нет связи с БД'; return $out; }
     try {
@@ -288,7 +288,7 @@ function grace_refresh_refs($limit = 200) {
 
     $major = panel_major();
     $want  = $major >= 3 ? 'id' : ($major > 0 ? 'uuid' : '');
-    $calls = 0;
+    $calls = 0; $err_streak = 0;
     foreach ($rows as $r) {
         $out['total']++;
         $short = (string) ($r['short_uuid'] ?? '');
@@ -296,13 +296,28 @@ function grace_refresh_refs($limit = 200) {
         $ref   = rw_ref_coerce($old);
         // Версия панели известна и идентификатор уже нужного вида — трогать нечего.
         if ($want !== '' && rw_ref_ok($ref) && $ref['key'] === $want) { $out['same']++; continue; }
-        if ($calls >= $limit) { $out['left']++; continue; }
+        // Три сетевые ошибки подряд — панель лежит: дальше не долбимся, остаток
+        // уходит в left, повторный клик продолжит с этого же места.
+        if ($calls >= $limit || $err_streak >= 3) { $out['left']++; continue; }
         $calls++;
-        $err = '';
-        $fresh = grace_ref_resolve($short, $err);
-        if (!$fresh) { $out['missing']++; continue; }
-        if ((string) $fresh['val'] !== $old) $out['updated']++;
-        else $out['same']++;
+        $err = ''; $code = 0;
+        $fresh = grace_ref_resolve($short, $err, $code);
+        if ($fresh) {
+            $err_streak = 0;
+            if ((string) $fresh['val'] !== $old) $out['updated']++;
+            else $out['same']++;
+            continue;
+        }
+        // «Не найдено» — только честный 404. Таймаут, 5xx и обрыв связи — это
+        // недоступность панели, а не мёртвая запись: считаем отдельно.
+        if ($code === 404) {
+            $out['missing']++;
+            $err_streak = 0;
+        } else {
+            $out['errors']++;
+            $err_streak++;
+            if ($out['error_net'] === '') $out['error_net'] = $err;
+        }
     }
     return $out;
 }

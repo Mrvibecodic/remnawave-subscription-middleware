@@ -380,16 +380,22 @@ function wglease_hwid_upsert($user_uuid, $hwid, $short_uuid = '', $platform = ''
     } catch (Throwable $e) { error_log('submw wglease hwid_upsert: ' . $e->getMessage()); }
 }
 
-function wglease_hwid_delete($user_uuid, $hwid) {
+function wglease_hwid_delete($user_uuid, $hwid, $short_uuid = '') {
     wglease_ensure();
-    $user_uuid = trim((string) $user_uuid); $hwid = trim((string) $hwid);
+    $user_uuid = trim((string) $user_uuid); $hwid = trim((string) $hwid); $short_uuid = trim((string) $short_uuid);
     if (!($p = db())) return;
+    // Записи одного юзера могут лежать под двумя ключами: uuid (панель 2.x)
+    // и числовой id (после обновления на 3.x событие удаления приходит уже с ним).
+    // Удаление по одному ключу оставляло бы старые uuid-строки навсегда, поэтому
+    // shortUuid — он стабилен между версиями панели — накрывает оба ключа.
+    $key_sql  = $short_uuid !== '' ? '(user_uuid = ? OR short_uuid = ?)' : 'user_uuid = ?';
+    $key_args = $short_uuid !== '' ? [$user_uuid, $short_uuid] : [$user_uuid];
     try {
         if ($hwid !== '') {
-            $p->prepare('DELETE FROM hwid_devices WHERE user_uuid = ? AND hwid = ?')->execute([$user_uuid, $hwid]);
+            $p->prepare('DELETE FROM hwid_devices WHERE hwid = ? AND ' . $key_sql)->execute(array_merge([$hwid], $key_args));
             $p->prepare('DELETE FROM wg_lease WHERE manual = 0 AND hwid = ?')->execute([$hwid]);
         } else {
-            $p->prepare('DELETE FROM hwid_devices WHERE user_uuid = ?')->execute([$user_uuid]);
+            $p->prepare('DELETE FROM hwid_devices WHERE ' . $key_sql)->execute($key_args);
         }
     } catch (Throwable $e) {}
 }
