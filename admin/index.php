@@ -168,10 +168,10 @@ if (!is_installed()) {
         </div>
         <div class="card">
             <h2>Доступ в админку</h2>
-            <label>Логин *</label><input name="admin_user" value="<?= h($_POST['admin_user'] ?? 'admin') ?>">
+            <label for="admin_user">Логин *</label><input id="admin_user" name="admin_user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['admin_user'] ?? 'admin') ?>">
             <div class="row">
-                <div><label>Пароль *</label><input name="admin_pass" type="password"></div>
-                <div><label>Повтор пароля *</label><input name="admin_pass2" type="password"></div>
+                <div><label for="admin_pass">Пароль *</label><input id="admin_pass" name="admin_pass" type="password" autocomplete="new-password"></div>
+                <div><label for="admin_pass2">Повтор пароля *</label><input id="admin_pass2" name="admin_pass2" type="password" autocomplete="new-password"></div>
             </div>
         </div>
         <button type="submit">🚀 Установить</button>
@@ -249,6 +249,7 @@ if (!is_auth()) {
     ?>
     <!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
     <title>Админка · вход</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%2322b8cf'%3E%3Cpath%20d='M12%202l8%203v6c0%205-3.5%208.5-8%2010-4.5-1.5-8-5-8-10V5z'/%3E%3C/svg%3E">
     <style>
@@ -257,6 +258,8 @@ if (!is_auth()) {
         h1{font-size:1.1rem;margin:0 0 1.25rem}
         label{display:block;font-size:.8rem;margin:.75rem 0 .25rem;color:#94a3b8}
         input{width:100%;padding:.6rem;border:1px solid #334155;background:#0f172a;color:#e2e8f0;border-radius:.4rem;box-sizing:border-box}
+        input:focus{outline:none;border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,.35)}
+        input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus{-webkit-text-fill-color:#e2e8f0;-webkit-box-shadow:0 0 0 1000px #0f172a inset;caret-color:#e2e8f0}
         button{width:100%;margin-top:1.25rem;padding:.7rem;background:#4f46e5;color:#fff;border:0;border-radius:.4rem;font-weight:600;cursor:pointer}
         .err{color:#f87171;font-size:.85rem;margin-top:.75rem;min-height:1rem}
         .ok{color:#4ade80;font-size:.85rem;margin-bottom:.75rem}
@@ -264,8 +267,8 @@ if (!is_auth()) {
     <form class="card" method="post">
         <h1>Прослойка подписки · вход</h1>
         <?php if ($just_installed): ?><div class="ok">Установка завершена. Войдите.</div><?php endif; ?>
-        <label>Логин</label><input name="user" autofocus>
-        <label>Пароль</label><input name="pass" type="password">
+        <label for="username">Логин</label><input id="username" name="user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
+        <label for="password">Пароль</label><input id="password" name="pass" type="password" autocomplete="current-password" required>
         <button type="submit">🔑 Войти</button>
         <div class="err"><?= h($err) ?></div>
     </form></body></html>
