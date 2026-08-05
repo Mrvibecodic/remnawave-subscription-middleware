@@ -189,7 +189,13 @@ function grace_restore_due($short) {
     return grace_restore($existing);
 }
 
-function grace_on_expired($short, $username = null) {
+// $allow_start — можно ли ЗАВОДИТЬ новый грейс. Существующую строку (grace_active /
+// grace_ended) обрабатываем на любом событии, а старт разрешён только на настоящем
+// user.expired. Иначе петля: restore-PATCH в конце грейса порождает user.modified
+// со status=EXPIRED, строка grace_users уже удалена — и юзеру, только что вышедшему
+// из грейса, тут же выдавался новый. Панель шлёт user.modified на PATCH и в 2.x,
+// и в 3.x, так что без флага цикл повторялся бы каждые grace_days бесконечно.
+function grace_on_expired($short, $username = null, $allow_start = true) {
     if ($short === '') return 'grace_off';
     $existing = grace_find($short);
 
@@ -198,6 +204,7 @@ function grace_on_expired($short, $username = null) {
         return grace_restore($existing) ? 'grace_ended' : 'grace_err';
     }
 
+    if (!$allow_start) return 'grace_off';
     if (!grace_squad_active()) return 'grace_off';
 
     $e = '';
@@ -332,7 +339,9 @@ function grace_retry_pending($limit = 2) {
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) { return; }
     foreach ($rows as $r) {
-        $g = grace_on_expired((string) $r['short_uuid'], $r['username'] ?? null);
+        // allow_start=false: ретрай только ДОВОДИТ зависшие грейсы до восстановления;
+        // если строка исчезла между SELECT и вызовом — новый грейс отсюда не заводим.
+        $g = grace_on_expired((string) $r['short_uuid'], $r['username'] ?? null, false);
         if ($g === 'grace_ended') delete_override('shortuuid', (string) $r['short_uuid'], 'webhook');
     }
 }
