@@ -1136,18 +1136,52 @@ $reqlog = [];
 if ($db_ok && $tab === 'reqlog') { ensure_reqlog_hwid(); foreach ($pdo->query('SELECT *, ' . sql_epoch('ts') . ' AS ts_epoch FROM request_log WHERE decision <> \'browser\' ORDER BY id DESC LIMIT 300') as $r) $reqlog[] = $r; $reqlog = reqlog_collapse($reqlog); }
 $whlog = [];
 $wh_user_cond = "(event LIKE 'user.%' OR short_uuid IS NOT NULL OR username IS NOT NULL)";
-$wh_flt = trim((string) ($_GET['wh_user'] ?? ''));
-if ($db_ok && $tab === 'whlog') {
-    if ($wh_flt !== '') {
+$wh_flt   = trim((string) ($_GET['wh_user'] ?? ''));
+$wh_event = trim((string) ($_GET['wh_event'] ?? ''));
+$wh_act   = trim((string) ($_GET['wh_act'] ?? ''));
+$wh_sig   = (string) ($_GET['wh_sig'] ?? '');
+$wh_hours = (int) ($_GET['wh_hours'] ?? 0);
+if (!in_array($wh_hours, [0, 1, 24, 168], true)) $wh_hours = 0;
+$wh_events = []; $wh_actions = []; $wh_total = 0; $wh_matched = 0;
+if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
+    // Обе вкладки — один код: у «прочих» просто нет фильтров по юзеру/действию.
+    $wh_scope = $tab === 'whlog' ? $wh_user_cond : "NOT $wh_user_cond";
+    $wh_conds = [$wh_scope]; $wh_args = [];
+    if ($wh_event !== '') { $wh_conds[] = 'event = ?'; $wh_args[] = $wh_event; }
+    if ($wh_sig === '1' || $wh_sig === '0') { $wh_conds[] = 'sig_ok = ?'; $wh_args[] = (int) $wh_sig; }
+    if ($wh_hours > 0) { $wh_conds[] = sql_epoch('ts') . ' >= ?'; $wh_args[] = time() - $wh_hours * 3600; }
+    if ($tab === 'whlog' && $wh_act !== '') { $wh_conds[] = 'action = ?'; $wh_args[] = $wh_act; }
+    if ($tab === 'whlog' && $wh_flt !== '') {
         $wh_like = '%' . strtr($wh_flt, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
-        $wh_st = $pdo->prepare("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE $wh_user_cond AND (short_uuid LIKE ? ESCAPE '!' OR username LIKE ? ESCAPE '!') ORDER BY id DESC LIMIT 300");
-        $wh_st->execute([$wh_like, $wh_like]);
-        $whlog = $wh_st->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        foreach ($pdo->query("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
+        $wh_conds[] = "(short_uuid LIKE ? ESCAPE '!' OR username LIKE ? ESCAPE '!')";
+        $wh_args[] = $wh_like; $wh_args[] = $wh_like;
     }
+    $wh_where = implode(' AND ', $wh_conds);
+    try {
+        // Селект «Событие» строится по фактическим типам в хранимом логе (со счётчиками).
+        foreach ($pdo->query("SELECT event, COUNT(*) AS c FROM webhook_log WHERE $wh_scope GROUP BY event ORDER BY c DESC, event") as $r) $wh_events[(string) $r['event']] = (int) $r['c'];
+        $wh_total = array_sum($wh_events);
+        if ($tab === 'whlog') foreach ($pdo->query("SELECT DISTINCT action FROM webhook_log WHERE $wh_scope AND action IS NOT NULL ORDER BY action") as $r) $wh_actions[] = (string) $r['action'];
+        $wh_st = $pdo->prepare("SELECT COUNT(*) FROM webhook_log WHERE $wh_where");
+        $wh_st->execute($wh_args);
+        $wh_matched = (int) $wh_st->fetchColumn();
+        if (isset($_GET['wh_csv'])) {
+            // Выгрузка текущей выборки целиком (по SQL-фильтру, не по видимой странице).
+            $wh_st = $pdo->prepare("SELECT ts, event, short_uuid, username, status, sig_ok, action FROM webhook_log WHERE $wh_where ORDER BY id DESC LIMIT 20000");
+            $wh_st->execute($wh_args);
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="webhook_log_' . ($tab === 'whlog' ? 'users' : 'other') . '_' . date('Ymd_His') . '.csv"');
+            $wh_out = fopen('php://output', 'w');
+            fwrite($wh_out, "\xEF\xBB\xBF"); // BOM, чтобы Excel понял UTF-8
+            fputcsv($wh_out, ['ts', 'event', 'short_uuid', 'username', 'status', 'sig_ok', 'action'], ';', '"', '\\');
+            foreach ($wh_st as $r) fputcsv($wh_out, [$r['ts'], $r['event'], $r['short_uuid'], $r['username'], $r['status'], $r['sig_ok'], $r['action']], ';', '"', '\\');
+            exit();
+        }
+        $wh_st = $pdo->prepare("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE $wh_where ORDER BY id DESC LIMIT 3000");
+        $wh_st->execute($wh_args);
+        $whlog = $wh_st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) { error_log('submw whlog: ' . $e->getMessage()); }
 }
-if ($db_ok && $tab === 'whlog_other') foreach ($pdo->query("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE NOT $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
 $fwdlog = [];
 if ($db_ok && $tab === 'fwdlog') {
     ensure_forward_log();

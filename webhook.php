@@ -66,6 +66,10 @@ if ($event === 'user_hwid_devices.added' || $event === 'user_hwid_devices.delete
     $hw_hwid  = (string) ($hw_dev['hwid'] ?? $data['hwid'] ?? '');
     $hw_short = (string) ($hw_usr['shortUuid'] ?? $data['shortUuid'] ?? $short_uuid);
     $hw_plat  = (string) ($hw_dev['platform'] ?? $data['platform'] ?? '');
+    // Имя и статус юзера лежат внутри объекта user, а не на верхнем уровне payload —
+    // без этого юзер-лог показывал hwid-события с пустой колонкой «Пользователь».
+    $hw_name  = trim((string) ($hw_usr['username'] ?? '')) !== '' ? (string) $hw_usr['username'] : $username;
+    $hw_stat  = trim((string) ($hw_usr['status'] ?? '')) !== '' ? (string) $hw_usr['status'] : null;
     // Без идентификатора запись в hwid_devices не попадёт, а тихо потерянные события
     // выглядят как «дедикейт-режим просто перестал работать» — поэтому пишем в лог.
     // У удаления пустой hwid по-прежнему означает «снести все устройства юзера».
@@ -78,7 +82,7 @@ if ($event === 'user_hwid_devices.added' || $event === 'user_hwid_devices.delete
         wglease_hwid_delete($hw_uuid, $hw_hwid, $hw_short);
     }
     if ($hw_short !== '') squadconf_cache_drop($hw_short);
-    log_webhook($event, ($hw_short !== '' ? $hw_short : null), $username, null, true, $event === 'user_hwid_devices.added' ? 'hwid_add' : 'hwid_del');
+    log_webhook($event, ($hw_short !== '' ? $hw_short : null), $hw_name, $hw_stat, true, $event === 'user_hwid_devices.added' ? 'hwid_add' : 'hwid_del');
     http_response_code(200);
     echo 'OK';
     if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
