@@ -1158,6 +1158,31 @@ if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
     }
     $wh_where = implode(' AND ', $wh_conds);
     try {
+        // Дозаполнение старых hwid-строк, записанных до фикса имени: берём последнее
+        // известное имя по тому же shortUuid из соседних записей лога.
+        $wh_bf_cond = "event LIKE 'user_hwid%' AND (username IS NULL OR username = '') AND short_uuid IS NOT NULL AND short_uuid <> ''";
+        if ((int) $pdo->query("SELECT COUNT(*) FROM webhook_log WHERE $wh_bf_cond")->fetchColumn() > 0) {
+            $wh_nm = $pdo->prepare("SELECT username FROM webhook_log WHERE short_uuid = ? AND username IS NOT NULL AND username <> '' ORDER BY id DESC LIMIT 1");
+            $wh_up = $pdo->prepare("UPDATE webhook_log SET username = ? WHERE short_uuid = ? AND (username IS NULL OR username = '')");
+            $wh_miss = [];
+            foreach ($pdo->query("SELECT DISTINCT short_uuid FROM webhook_log WHERE $wh_bf_cond LIMIT 200") as $r) {
+                $wh_bs = (string) $r['short_uuid'];
+                $wh_nm->execute([$wh_bs]);
+                $wh_bn = $wh_nm->fetchColumn();
+                if (is_string($wh_bn) && $wh_bn !== '') $wh_up->execute([$wh_bn, $wh_bs]);
+                else $wh_miss[] = $wh_bs;
+            }
+            foreach (array_slice($wh_miss, 0, 10) as $wh_bs) {
+                $wh_be = ''; $wh_bc = 0;
+                $wh_bu = remnawave_get_user_by_short($wh_bs, $wh_be, $wh_bc);
+                if (is_array($wh_bu)) {
+                    $wh_bn = trim((string) ($wh_bu['username'] ?? ''));
+                    if ($wh_bn !== '') $wh_up->execute([$wh_bn, $wh_bs]);
+                } elseif ($wh_bc < 200 || $wh_bc >= 500) {
+                    break;
+                }
+            }
+        }
         // Селект «Событие» строится по фактическим типам в хранимом логе (со счётчиками).
         foreach ($pdo->query("SELECT event, COUNT(*) AS c FROM webhook_log WHERE $wh_scope GROUP BY event ORDER BY c DESC, event") as $r) $wh_events[(string) $r['event']] = (int) $r['c'];
         $wh_total = array_sum($wh_events);
