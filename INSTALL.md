@@ -21,13 +21,13 @@ git clone https://github.com/Mrvibecodic/remnawave-subscription-middleware.git
 cd remnawave-subscription-middleware
 sudo bash install.sh    # выбрать "2) Рядом с панелью — Docker"
 ```
-Спросит: домен подписки, имя docker-сети панели (`remnawave-network`), внутренний URL панели (`http://remnawave:3000`), URL контейнера subpage (`http://remnawave-subscription-page:3010`), локальный порт (`8080`), тег образа (`dev`/`main`). Поставит Docker (если нет), создаст `docker-compose.yml`, скачает образ из GHCR и поднимет контейнер.
+Спросит: домен подписки, имя docker-сети панели (`remnawave-network`), внутренний URL панели (`http://remnawave:3000`), URL контейнера subpage (`http://remnawave-subscription-page:3010`), локальный порт (`8080`), тег образа (`v1` по умолчанию). Поставит Docker (если нет), создаст `docker-compose.yml`, скачает образ из GHCR и поднимет контейнер.
 
 Либо вручную — положите `docker-compose.example.yml` рядом со стеком панели, поправьте env и:
 ```bash
 docker compose up -d remnawave-subscription-middleware
 ```
-Образ: `ghcr.io/mrvibecodic/remnawave-subscription-middleware:dev` (внутри nginx+php-fpm, код запечён; данные — в volume `submw-data`).
+Образ: `ghcr.io/mrvibecodic/remnawave-subscription-middleware:v1` (внутри nginx+php-fpm, код запечён; данные — в volume `submw-data`).
 
 ### Шаг 2. Направить домен подписки на прослойку (правка nginx ПАНЕЛИ)
 **eGames (nginx):** в конфиге nginx панели (обычно `/opt/remnawave/nginx.conf`) — одна строка:
