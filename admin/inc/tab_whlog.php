@@ -1,10 +1,20 @@
     <?php $wh_full = ($tab === 'whlog'); ?>
     <div class="card">
         <div class="loghead">
-            <h2><?= $wh_full ? 'Юзер-лог вебхуков' : 'Прочие события' ?> (последние 300)</h2>
-            <div class="loghead-r"><div id="wh_pgrTop" class="pgr"></div></div>
+            <h2><?= $wh_full ? 'Юзер-лог вебхуков' : 'Прочие события' ?> (последние 300<?= $wh_full && $wh_flt !== '' ? ' по фильтру' : '' ?>)</h2>
+            <div class="loghead-r">
+                <?php if ($wh_full): ?>
+                <form method="get" style="gap:.4rem">
+                    <input type="hidden" name="tab" value="whlog">
+                    <input type="text" name="wh_user" value="<?= h($wh_flt) ?>" placeholder="имя / shortUuid" style="max-width:200px">
+                    <button class="btn ghost" type="submit">Найти</button>
+                    <?php if ($wh_flt !== ''): ?><button class="btn ghost" type="submit" name="wh_user" value="" title="Сбросить фильтр">✕</button><?php endif; ?>
+                </form>
+                <?php endif; ?>
+                <div id="wh_pgrTop" class="pgr"></div>
+            </div>
         </div>
-        <p class="muted"><?= $wh_full ? 'События, связанные с пользователями: user.*, либо с shortUuid/именем.' : 'Всё остальное: служебные/прочие события и хуки без привязки к пользователю (включая неверную подпись).' ?></p>
+        <p class="muted"><?= $wh_full ? 'События, связанные с пользователями: user.*, либо с shortUuid/именем. Фильтр ищет по имени и shortUuid по всему хранимому логу.' : 'Всё остальное: служебные/прочие события и хуки без привязки к пользователю (включая неверную подпись).' ?></p>
         <table class="logtbl">
             <tr><th>Время</th><th>Событие</th><th>Подпись</th><th>Действие</th><?php if ($wh_full): ?><th>shortUuid</th><th>Пользователь</th><th>Статус</th><?php endif; ?></tr>
             <tbody id="whBody" class="lp-cap">
