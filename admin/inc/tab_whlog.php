@@ -55,11 +55,11 @@
                 <option value="168" <?= $wh_hours === 168 ? 'selected' : '' ?>>Неделя</option>
             </select>
             <?php if ($wh_full): ?>
-            <input type="text" name="wh_user" value="<?= h($wh_flt) ?>" placeholder="имя / shortUuid" style="max-width:180px">
-            <button class="btn ghost" type="submit">Найти</button>
+            <input type="text" name="wh_user" value="<?= h($wh_flt) ?>" placeholder="имя / shortUuid">
+            <button class="btn ghost" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Найти</button>
             <?php endif; ?>
-            <?php if ($wh_has_flt): ?><a class="btn ghost" href="?tab=<?= h($wh_tabkey) ?>" title="Сбросить все фильтры">✕ Сброс</a><?php endif; ?>
-            <button class="btn ghost" type="submit" name="wh_csv" value="1" title="Выгрузить текущую выборку целиком (по фильтру, не только видимую страницу)">⬇ CSV</button>
+            <?php if ($wh_has_flt): ?><a class="btn ghost" href="?tab=<?= h($wh_tabkey) ?>" title="Сбросить все фильтры"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Сброс</a><?php endif; ?>
+            <button class="btn ghost wh-csv" type="submit" name="wh_csv" value="1" title="Выгрузить текущую выборку целиком (по фильтру, не только видимую страницу)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Скачать CSV</button>
         </form>
         <p class="muted"><?= $wh_full
             ? 'События, связанные с пользователями: user.*, либо с shortUuid/именем. Клик по событию, пользователю, shortUuid или действию в таблице ставит фильтр по этому значению.'
@@ -86,10 +86,20 @@
         </table>
         <div id="wh_pgrBot" class="pgr-bot"></div>
         <style>
-        .wh-flt{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;margin:.2rem 0 .7rem}
-        .wh-flt select{width:auto;max-width:280px}
-        .wh-flt .btn.ghost{display:inline-flex;align-items:center;white-space:nowrap}
+        .wh-flt{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.2rem 0 .8rem}
+        .wh-flt select,.wh-flt input[type=text],.wh-flt .btn{height:38px;min-height:38px;box-sizing:border-box;padding-top:0;padding-bottom:0;font-size:.84rem;border-radius:var(--radius)}
+        .wh-flt select{width:auto;max-width:300px;flex:0 1 auto;text-overflow:ellipsis;font-weight:500}
+        .wh-flt select:hover{border-color:var(--accent)}
+        .wh-flt input[type=text]{width:190px;flex:0 1 auto}
+        .wh-flt .btn{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;line-height:1;font-weight:600}
+        .wh-flt .btn svg{width:15px;height:15px;flex:0 0 auto}
+        .wh-csv{margin-left:auto}
         .logtbl a:hover .tag,.logtbl a:hover code{outline:1px solid var(--accent);outline-offset:1px}
+        @media(max-width:760px){
+            .wh-flt select,.wh-flt input[type=text]{flex:1 1 46%;max-width:none;width:auto}
+            .wh-flt .btn{flex:1 0 auto;justify-content:center}
+            .wh-csv{margin-left:0;flex:1 1 100%}
+        }
         </style>
         <script>
         (function(){
