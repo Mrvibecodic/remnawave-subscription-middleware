@@ -111,7 +111,10 @@ if ($short_uuid !== '') {
         wglease_purge_user($short_uuid);
         $action = 'clear';
     } elseif ($status === 'EXPIRED' || $event === 'user.expired') {
-        $g = grace_on_expired($short_uuid, $username);
+        // Новый грейс стартует только на настоящем user.expired: событие user.modified
+        // со status=EXPIRED прилетает и от нашего же restore-PATCH в конце грейса —
+        // без этого ограничения грейс тут же выдавался заново (вечная петля).
+        $g = grace_on_expired($short_uuid, $username, $event === 'user.expired');
         if ($g === 'grace_started' || $g === 'grace_ended' || $g === 'grace_active') {
             delete_override('shortuuid', $short_uuid, 'webhook');
             $action = $g;
