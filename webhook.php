@@ -70,6 +70,28 @@ if ($event === 'user_hwid_devices.added' || $event === 'user_hwid_devices.delete
     // без этого юзер-лог показывал hwid-события с пустой колонкой «Пользователь».
     $hw_name  = trim((string) ($hw_usr['username'] ?? '')) !== '' ? (string) $hw_usr['username'] : $username;
     $hw_stat  = trim((string) ($hw_usr['status'] ?? '')) !== '' ? (string) $hw_usr['status'] : null;
+    // Страховка для панелей, не кладущих объект user в hwid-payload: имя сначала
+    // ищем в своём же логе по shortUuid, и только если его там нет — спрашиваем панель.
+    if (trim((string) $hw_name) === '' && $hw_short !== '') {
+        if ($p = db()) {
+            try {
+                $st = $p->prepare("SELECT username FROM webhook_log WHERE short_uuid = ? AND username IS NOT NULL AND username <> '' ORDER BY id DESC LIMIT 1");
+                $st->execute([$hw_short]);
+                $v = $st->fetchColumn();
+                if (is_string($v) && $v !== '') $hw_name = $v;
+            } catch (Throwable $e) {
+                error_log('submw webhook hwid name lookup: ' . $e->getMessage());
+            }
+        }
+        if (trim((string) $hw_name) === '') {
+            $hw_u = remnawave_get_user_by_short($hw_short);
+            if (is_array($hw_u)) {
+                if (trim((string) ($hw_u['username'] ?? '')) !== '') $hw_name = (string) $hw_u['username'];
+                if ($hw_stat === null && trim((string) ($hw_u['status'] ?? '')) !== '') $hw_stat = (string) $hw_u['status'];
+            }
+        }
+    }
+    if (trim((string) $hw_name) === '') $hw_name = null;
     // Без идентификатора запись в hwid_devices не попадёт, а тихо потерянные события
     // выглядят как «дедикейт-режим просто перестал работать» — поэтому пишем в лог.
     // У удаления пустой hwid по-прежнему означает «снести все устройства юзера».
