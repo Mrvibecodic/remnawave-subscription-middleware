@@ -23,7 +23,7 @@ if [ "$SCENARIO" = "2" ]; then
   PANEL_URL="$(ask 'Внутренний URL панели (имя контейнера)' 'http://remnawave:3000')"
   SUBPAGE_URL="$(ask 'Внутренний URL контейнера subscription-page' 'http://remnawave-subscription-page:3010')"
   LOCAL_PORT="$(ask 'Локальный порт прослойки за nginx панели' '8080')"
-  IMG_TAG="$(ask 'Тег образа: latest — стабильный, dev — тестовый' 'latest')"
+  IMG_TAG="$(ask 'Тег образа: v1 — стабильный релиз, dev — тестовый' 'v1')"
   [ -n "$DOMAIN" ] || { echo "Не задан домен подписки."; exit 1; }
   if ! command -v docker >/dev/null 2>&1; then
     echo "-> Docker не найден, устанавливаю..."; curl -fsSL https://get.docker.com | sh
