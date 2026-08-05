@@ -1136,7 +1136,17 @@ $reqlog = [];
 if ($db_ok && $tab === 'reqlog') { ensure_reqlog_hwid(); foreach ($pdo->query('SELECT *, ' . sql_epoch('ts') . ' AS ts_epoch FROM request_log WHERE decision <> \'browser\' ORDER BY id DESC LIMIT 300') as $r) $reqlog[] = $r; $reqlog = reqlog_collapse($reqlog); }
 $whlog = [];
 $wh_user_cond = "(event LIKE 'user.%' OR short_uuid IS NOT NULL OR username IS NOT NULL)";
-if ($db_ok && $tab === 'whlog') foreach ($pdo->query("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
+$wh_flt = trim((string) ($_GET['wh_user'] ?? ''));
+if ($db_ok && $tab === 'whlog') {
+    if ($wh_flt !== '') {
+        $wh_like = '%' . strtr($wh_flt, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
+        $wh_st = $pdo->prepare("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE $wh_user_cond AND (short_uuid LIKE ? ESCAPE '!' OR username LIKE ? ESCAPE '!') ORDER BY id DESC LIMIT 300");
+        $wh_st->execute([$wh_like, $wh_like]);
+        $whlog = $wh_st->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        foreach ($pdo->query("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
+    }
+}
 if ($db_ok && $tab === 'whlog_other') foreach ($pdo->query("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE NOT $wh_user_cond ORDER BY id DESC LIMIT 300") as $r) $whlog[] = $r;
 $fwdlog = [];
 if ($db_ok && $tab === 'fwdlog') {
