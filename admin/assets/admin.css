@@ -244,7 +244,7 @@
 .loghead>h2{margin:0;font-size:1rem}
 .loghead-r{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;justify-content:flex-end}
 .loghead-r form{margin:0;display:inline-flex;align-items:center}
-.pgr{display:flex;align-items:center;gap:.5rem}
+.pgr{display:flex;align-items:center;gap:.5rem;min-height:36px}
 .pgr-size{display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:var(--muted);white-space:nowrap;margin:0}
 .loghead-r button:not(.pgr-b),.pgr-size select,.pgr-nav{height:36px;min-height:36px;box-sizing:border-box;display:inline-flex;align-items:center;vertical-align:top;font-size:.82rem;line-height:1}
 .loghead-r button:not(.pgr-b){justify-content:center;padding:0 .9rem}
