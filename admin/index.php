@@ -363,17 +363,29 @@ if (isset($_GET['ajax']) && is_auth()) {
     }
 
     if ($a === 'reqlog') {
-        $rows = [];
-        ensure_reqlog_hwid();
-        if ($pdo = db()) {
-            try {
-                foreach ($pdo->query('SELECT ts, ip, short_uuid, user_agent, decision, expire_ts, hwid, ' . sql_epoch('ts') . ' AS ts_epoch FROM request_log WHERE decision <> \'browser\' ORDER BY id DESC LIMIT 300') as $r) {
-                    $rows[] = $r;
-                }
-            } catch (Throwable $e) {}
+        require_once __DIR__ . '/inc/_reqlog_rows.php';
+        [$rl_f, $rl_rows, $rl_ctx] = reqlog_prepare();
+        $st   = reqlog_today_stats();
+        $ov   = reqlog_overview();
+        $peak = max(1, (int) $ov['peak']);
+        $spark = '';
+        $hbase = intdiv(time(), 3600) - 23;
+        foreach ($ov['hourly'] as $hi => $hv) {
+            $spark .= '<i class="' . ($hv >= $peak * .75 ? 'hi' : '') . '" style="height:' . max(6, (int) round(pow($hv / $peak, .62) * 100)) . '%" title="'
+                    . h(date('H:i', ($hbase + $hi) * 3600)) . ' — ' . (int) $hv . '"></i>';
         }
-        $rows = reqlog_collapse($rows);
-        echo json_encode(['ok' => true, 'rows' => $rows, 'stats' => reqlog_today_stats()], JSON_UNESCAPED_UNICODE);
+        echo json_encode([
+            'ok'    => true,
+            'html'  => reqlog_render_rows($rl_rows, $rl_ctx),
+            'count' => count($rl_rows),
+            'spark' => $spark,
+            'kpi'   => [
+                'users'   => (int) $st['today_users'],
+                'devices' => (int) $st['today_devices'],
+                'total'   => (int) $ov['total'],
+                'blocked' => (int) $ov['blocked'],
+            ],
+        ], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -775,7 +787,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 
     if ($action === 'save_junk_cfg') {
         set_setting('junk_short_len', empty($_POST['junk_short_len']) ? '0' : '1');
-        flash('Правило по длине shortUuid сохранено');
+        set_setting('reqlog_log_pages', empty($_POST['reqlog_log_pages']) ? '0' : '1');
+        flash('Настройки лога сохранены');
         form_saved('reqlog');
     }
 
@@ -1133,7 +1146,14 @@ $panel_headers = []; $panel_headers_err = '';
 if ($tab === 'headers') $panel_headers = remnawave_panel_headers($panel_headers_err);
 
 $reqlog = [];
-if ($db_ok && $tab === 'reqlog') { ensure_reqlog_hwid(); foreach ($pdo->query('SELECT *, ' . sql_epoch('ts') . ' AS ts_epoch FROM request_log WHERE decision <> \'browser\' ORDER BY id DESC LIMIT 300') as $r) $reqlog[] = $r; $reqlog = reqlog_collapse($reqlog); }
+$rl_over = ['total' => 0, 'blocked' => 0, 'blocked_users' => 0, 'hourly' => array_fill(0, 24, 0), 'peak' => 0, 'peak_h' => 0];
+$rl_ctx  = [];
+$rl_f = reqlog_filters();
+if ($db_ok && $tab === 'reqlog') {
+    require_once __DIR__ . '/inc/_reqlog_rows.php';
+    [$rl_f, $reqlog, $rl_ctx] = reqlog_prepare();
+    $rl_over = reqlog_overview();
+}
 $whlog = [];
 $wh_user_cond = "(event LIKE 'user.%' OR short_uuid IS NOT NULL OR username IS NOT NULL)";
 $wh_flt   = trim((string) ($_GET['wh_user'] ?? ''));
@@ -1222,18 +1242,10 @@ $junk_top = []; $junk_wl = [];
 if ($tab === 'reqlog') {
     $junk_top = junk_top(100);
     $junk_wl  = junk_whitelist();
-    $tmp_e = '';
-    $all_u = remnawave_all_users($tmp_e);
-    $rl_total_users = count($all_u);
-    foreach ($all_u as $u) {
-        if (!empty($u['shortUuid'])) $short2name[$u['shortUuid']] = (string) ($u['username'] ?? '');
-    }
-    foreach ($overrides as $o) {
-        if (($o['match_type'] ?? '') === 'hwid') {
-            $lbl = trim((string) ($o['username'] ?? '')); if ($lbl === '') $lbl = trim((string) ($o['note'] ?? ''));
-            $hwid2info[mb_strtolower((string) $o['match_value'])] = $lbl;
-        }
-    }
+    require_once __DIR__ . '/inc/_reqlog_rows.php';
+    [, , $rl_pctx, $rl_total_users] = reqlog_prepare();
+    $short2name = $rl_pctx['names'];
+    $hwid2info  = $rl_pctx['ov'];
     if ($db_ok) {
         $rl_stats = reqlog_today_stats();
         $rl_today_users   = $rl_stats['today_users'];
