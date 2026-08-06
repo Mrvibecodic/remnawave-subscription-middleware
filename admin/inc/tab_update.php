@@ -74,7 +74,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
 
     <section class="<?= coll_cls('update_perms') ?>" data-coll="update_perms">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>🔑 Шаг 1 — права на запись (нужно для кнопки «Обновить»)</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <?php if ($u_writable): ?><div class="info" style="margin-top:0">✓ Права на запись уже есть — шаг выполнен, можно сворачивать.</div><?php endif; ?>
@@ -187,7 +187,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
 
     <section class="<?= coll_cls('update_help', true) ?>" data-coll="update_help">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>❓ Как это работает и на что обратить внимание</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <p class="muted" style="margin-top:0;line-height:1.7">Версия фиксируется как SHA коммита (<code>installed_commit</code>). Сравнение с веткой идёт через GitHub API (<code>compare</code>), скачиваются только изменённые файлы. Защищены и не трогаются: <code>config.php</code>, <code>config.example.php</code>, <code>.git</code>, <code>.backups/</code>.</p>

@@ -1,6 +1,6 @@
     <section class="<?= coll_cls('wh_env') ?>" data-coll="wh_env">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Как включить вебхук в Remnawave</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <?php $wh_panel_on = panel_webhook_enabled(); ?>

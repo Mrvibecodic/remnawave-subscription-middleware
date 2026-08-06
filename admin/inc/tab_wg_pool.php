@@ -52,7 +52,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
     </style>
     <section class="<?= coll_cls('wgpool_help') ?>" data-coll="wgpool_help">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Как работает пул и почему так</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <p class="muted" style="margin-top:0">WireGuard/AmneziaWG используют публичный ключ как идентификатор пира: у пира один текущий endpoint, и при одновременной работе двух устройств с <b>одним</b> ключом endpoint перетирается на «последнего» — соединения флапают. Поэтому одно одновременное устройство = один ключ = один peer на сервере.</p>
@@ -68,7 +68,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
 
     <section class="<?= coll_cls('wgpool_upload') ?>" data-coll="wgpool_upload">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Загрузка WG / AWG конфигов</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <?php if ($sqcfg_squads_err !== ''): ?>
@@ -125,7 +125,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
 
     <section class="<?= coll_cls('wgpool_modes') ?>" data-coll="wgpool_modes">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Режим пула по сквадам</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <p class="muted" style="margin-top:0">Как раздаются WG/AWG-конфиги каждого сквада. «Потребность» считается по панели: фактические устройства из базы hwid.</p>
@@ -175,7 +175,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
 
     <section class="<?= coll_cls('wgpool_uarules') ?>" data-coll="wgpool_uarules">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Правила отдачи по UA</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <p class="muted" style="margin-top:0">Клиент определяется по подстроке в его User-Agent. Если UA подходит под правило, отмеченный тип конфигов ему <b>не отдаётся и не занимает слот пула</b>. AmneziaWG умеют только клиенты на ядре <b>mihomo (Clash)</b> и нативные wg://-клиенты (Throne); на ядрах <b>xray</b> и <b>sing-box</b> обфускации нет — таким идёт обычный WireGuard. Галочки можно менять, правила — дописывать своими UA.</p>
@@ -244,7 +244,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
 
     <section class="<?= coll_cls('wgpool_manual') ?>" data-coll="wgpool_manual">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Ручная привязка конфига</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <p class="muted" style="margin-top:0">Выбери пользователя и конфиг из группы <b>«Ручная привязка»</b> (загруженные выше с галочкой «Ручная привязка» — в обход сквадов). Закрепить можно на пользователя целиком или на конкретное устройство (hwid). Привязка одна на пользователя/устройство — новая заменяет прежнюю. <b>Важно:</b> один WG/AWG-конфиг не привязывай разным юзерам/устройствам — это два устройства на одном ключе и флап.</p>

@@ -163,7 +163,7 @@
                 return '<div class="catrow'+(it.req?' req':'')+(inPanel?' inpanel':'')+'"><div class="ci"><div class="cn">'+ahEsc(it.name)+reqBadge+panelBadge+'</div><div class="cd">'+ahEsc(it.note)+'</div>'+exLine+panelLine+'</div>'+
                     '<button type="button" class="catadd" data-name="'+ahEsc(it.name)+'" data-note="'+ahEsc(it.note)+'" data-ex="'+ahEsc(it.ex||'')+'">➕ Добавить</button></div>';
             }).join('');
-            return '<div class="catgrp'+(g.gold?' gold':'')+'" id="catg'+gi+'"><button type="button" class="cathead" onclick="catToggle('+gi+')"><span style="display:flex;align-items:center;gap:.55rem">'+catIcon(g)+'<span>'+ahEsc(g.group)+' <span class="muted" style="font-weight:400">('+g.items.length+')</span></span></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="catbody">'+rows+'</div></div>';
+            return '<div class="catgrp'+(g.gold?' gold':'')+'" id="catg'+gi+'"><button type="button" class="cathead" onclick="catToggle('+gi+')"><span style="display:flex;align-items:center;gap:.55rem">'+catIcon(g)+'<span>'+ahEsc(g.group)+' <span class="muted" style="font-weight:400">('+g.items.length+')</span></span></span><svg width="16" height="16" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button><div class="catbody">'+rows+'</div></div>';
         }).join('');
         c.querySelectorAll('.catadd').forEach(function(b){b.addEventListener('click',function(){catAdd(b);});});
         catSyncButtons();

@@ -1,6 +1,6 @@
     <section class="<?= coll_cls('addsub_intro') ?>" data-coll="addsub_intro">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Слияние подписок</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <p class="muted">Прослойка подмешивает узлы <b>второй подписки</b> в тело основной — клиенту отдаётся одна ссылка, а серверы из обеих подписок лежат вместе под общими группами. Вторая подписка — отдельный пользователь со <b>своим лимитом трафика</b>, поэтому лимит «на доп-сервер» независим от основного.</p>
@@ -42,7 +42,7 @@
 
     <section class="<?= coll_cls('addsub_help', true) ?>" data-coll="addsub_help">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>📘 Как собрать вторую подписку с доп-заглушками</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <div class="subwrap">

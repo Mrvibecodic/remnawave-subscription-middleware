@@ -21,7 +21,7 @@
     </style>
     <section class="<?= coll_cls('sqcfg_about') ?>" data-coll="sqcfg_about">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Что это и как настраивать</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <p class="muted" style="margin-top:0">Прослойка дописывает в подписку дополнительные конфиги, привязанные к внутреннему скваду Remnawave: пользователь сквада получает свои узлы плюс эти. Конфиги отдаются <b>только пока подписка активна</b> — при истечении или блокировке они исчезают из подписки (остаются заглушки).</p>
@@ -46,7 +46,7 @@
 
     <section class="<?= coll_cls('sqcfg_add') ?>" data-coll="sqcfg_add">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Добавить простой конфиг (VLESS)</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <?php if ($sqcfg_squads_err !== ''): ?>
@@ -91,7 +91,7 @@
 
     <section class="<?= coll_cls('sqcfg_manual') ?>" data-coll="sqcfg_manual">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Закрепить конфиг за пользователем</span>
-            <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
             <p class="muted" style="margin-top:0">Выбери пользователя и конфиг из группы <b>«Ручная привязка»</b> (конфиги, добавленные выше с галочкой «Ручная привязка» — они идут в обход сквадов, только привязанным юзерам). Привязка <b>одна на пользователя</b>: новая заменяет прежнюю. Действует, пока подписка активна.</p>

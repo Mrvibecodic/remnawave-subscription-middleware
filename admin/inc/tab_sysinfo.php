@@ -100,7 +100,7 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
 
         <section class="<?= coll_cls('sysinfo_peaks', true) ?>" data-coll="sysinfo_peaks">
             <button type="button" class="coll-head" onclick="collToggle(this)"><span>Аномальные пики нагрузки</span>
-                <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </button>
             <div class="coll-body">
                 <p class="muted">Минута помечается пиком, если запросов в неё ≥ <b><?= h(number_format($si_factor, 1)) ?>×</b> от средней за предыдущий час И не меньше порога <b><?= (int) $si_floor ?></b> запр/мин.</p>
@@ -173,7 +173,7 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
 
         <section class="<?= coll_cls('sysinfo_panelconf', true) ?>" data-coll="sysinfo_panelconf" id="siPanelConf" data-sig="<?= h(panel_config_sig($si_cf)) ?>">
             <button type="button" class="coll-head" onclick="collToggle(this)"><span>Конфигурация панели</span>
-                <span class="coll-hr"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </button>
             <div class="coll-body">
                 <?php if (!$si_cf_on): ?>
