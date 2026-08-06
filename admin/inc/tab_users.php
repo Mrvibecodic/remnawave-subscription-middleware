@@ -118,7 +118,7 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
                 <th>Действия</th>
             </tr>
             </thead>
-            <tbody>
+            <tbody class="lp-cap">
             <?php
             $grace_sq = grace_squad_uuid();
             foreach ($users as $u):
@@ -372,6 +372,7 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
     }
     window.addEventListener('resize',fitUtbl);
     var UTBL=(function(){
+        document.documentElement.classList.remove('lp');
         var sizes=[10,25,50], size=50, page=1;
         try{var s=parseInt(localStorage.getItem('utbl_size'),10); if(sizes.indexOf(s)>-1) size=s;}catch(e){}
         function allRows(){ var t=document.getElementById('utbl'); if(!t||!t.tBodies.length) return []; return Array.prototype.slice.call(t.tBodies[0].rows); }

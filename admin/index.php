@@ -1321,11 +1321,31 @@ $emoji_favicon = ($brand_icon === '' && $brand_emoji !== '')
     : '';
 $fav_href = $brand_icon !== '' ? $brand_icon : ($emoji_favicon !== '' ? $emoji_favicon : $default_logo);
 ?>
-<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
+<!DOCTYPE html><html lang="ru" class="lp"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($brand['name']) ?> · админка</title>
 <link rel="icon" href="<?= $brand_icon !== '' ? h($brand_icon) : $fav_href ?>">
 <script>(function(){try{var t=localStorage.getItem('submw_theme');if(!t||t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();document.documentElement.classList.add('lp');</script>
+<?php
+$lp_map = [
+    'users'       => ['utbl_size', 50],
+    'reqlog'      => ['pg_reqlog', 25],
+    'whlog'       => ['pg_whlog_user', 25],
+    'whlog_other' => ['pg_whlog_other', 25],
+    'fwdlog'      => ['pg_fwdlog', 25],
+    'grace_users' => ['pg_grace', 25],
+];
+$lp_cfg = $lp_map[$tab] ?? null;
+?>
+<?php if ($lp_cfg): ?>
+<script>(function(){var d=document.documentElement,n=<?= (int) $lp_cfg[1] ?>;
+try{var v=parseInt(localStorage.getItem(<?= json_encode($lp_cfg[0]) ?>),10);if(!isNaN(v)&&v>=0&&[0,10,25,50].indexOf(v)>-1)n=v;}catch(e){}
+if(n===0){d.classList.remove('lp');return;}
+var st=document.createElement('style');st.textContent='html.lp tbody.lp-cap>tr:nth-child(n+'+(n+1)+'){display:none}';document.head.appendChild(st);
+document.addEventListener('DOMContentLoaded',function(){d.classList.remove('lp');});})();</script>
+<?php else: ?>
+<script>document.documentElement.classList.remove('lp')</script>
+<?php endif; ?>
 <script>
 window.phEsc=function(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;};
 window.phLines=function(id){var el=document.getElementById(id);if(!el)return [];return el.value.split('\n').map(function(s){return s.trim();}).filter(function(s){return s.length;});};
