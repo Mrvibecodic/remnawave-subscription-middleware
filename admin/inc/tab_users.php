@@ -1,7 +1,7 @@
 <?php
-$ico_dev    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="18" x2="15" y2="18"/></svg>';
-$ico_eye    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
-$ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.2A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a13 13 0 0 1-2.2 3M6.6 6.6A13 13 0 0 0 2 11s3.5 7 10 7a9 9 0 0 0 4.5-1.2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
+$ico_dev    = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="18" x2="15" y2="18"/></svg>';
+$ico_eye    = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+$ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.2A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a13 13 0 0 1-2.2 3M6.6 6.6A13 13 0 0 0 2 11s3.5 7 10 7a9 9 0 0 0 4.5-1.2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
 ?>
     <div class="card utbl-card">
         <div class="utbl-head">
@@ -17,8 +17,8 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
                 </label>
                 <input type="text" id="flt" placeholder="фильтр по имени / статусу / shortUuid" oninput="filterRows()">
                 <div class="dens" title="Плотность строк">
-                    <button type="button" class="on" onclick="utblDens(0,this)" aria-label="Комфортная плотность"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></button>
-                    <button type="button" onclick="utblDens(1,this)" aria-label="Компактная плотность"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="5" x2="20" y2="5"/><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="13" x2="20" y2="13"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+                    <button type="button" class="on" onclick="utblDens(0,this)" aria-label="Комфортная плотность"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></button>
+                    <button type="button" onclick="utblDens(1,this)" aria-label="Компактная плотность"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="5" x2="20" y2="5"/><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="13" x2="20" y2="13"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
                 </div>
                 <button type="button" class="qh" onclick="help('userflags')" aria-label="Справка по колонкам «Статус» и «Конфиг»">?</button>
             </div>
@@ -79,7 +79,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
                     <div class="actcell">
                         <?php if ($uuid !== ''): ?><button class="btn-sm hw-btn" type="button" data-uuid="<?= h($uuid) ?>" data-name="<?= h($un) ?>" data-limit="<?= h($lim) ?>"><?= $ico_dev ?>HWID</button><?php if ($has_hwid_block): ?><span class="tip hw-warn" data-tip="Есть активный блок HWID">!</span><?php endif; ?><?php endif; ?>
                         <?php if ($su !== ''): ?><button class="btn-sm nolog-btn<?= $nl ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>" title="<?= $nl ? 'Скрыт из лога — нажмите, чтобы вернуть' : 'В логе — нажмите, чтобы скрыть' ?>"><?= $nl ? $ico_eyeoff . 'Скрыт' : $ico_eye . 'В логе' ?></button><?php endif; ?>
-                        <?php if ($su !== ''): $alink = (isset($addsub_links) && isset($addsub_links[$su])) ? $addsub_links[$su] : ''; ?><button class="btn-sm addsub-btn<?= $alink !== '' ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>" data-url="<?= h($alink) ?>" title="Прикрепить дополнительную подписку"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><?= $alink !== '' ? 'Доп ✓' : 'Доп' ?></button><?php endif; ?>
+                        <?php if ($su !== ''): $alink = (isset($addsub_links) && isset($addsub_links[$su])) ? $addsub_links[$su] : ''; ?><button class="btn-sm addsub-btn<?= $alink !== '' ? ' on' : '' ?>" type="button" data-su="<?= h($su) ?>" data-name="<?= h($un) ?>" data-url="<?= h($alink) ?>" title="Прикрепить дополнительную подписку"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><?= $alink !== '' ? 'Доп ✓' : 'Доп' ?></button><?php endif; ?>
                     </div>
                     <?php else: ?><span class="muted">—</span><?php endif; ?>
                 </td>
@@ -91,7 +91,7 @@ $ico_eyeoff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
         <div class="pgr-bot" id="utblPager"></div>
         <?php elseif (!$users_err): ?>
         <div class="uempty">
-            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span>
+            <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span>
             <b>Пользователей пока нет</b>
             <span>Список тянется из API панели Remnawave. Проверьте URL панели и токен во вкладке «Подключение».</span>
         </div>

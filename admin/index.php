@@ -1458,7 +1458,7 @@ function pager_cookie_size($store_key, $default = 25) {
     return in_array($v, [25, 50, 100, 200], true) ? $v : $default;
 }
 function nav_link($key, $it, $active, $badge = false) {
-    $svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
+    $svg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
     $dot = $badge ? '<span class="nav-dot" title="Доступно обновление"></span>' : '';
     return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '">' . $svg . '<span>' . h($it[0]) . '</span>' . $dot . '</a>';
 }
@@ -1477,7 +1477,7 @@ function nav_link($key, $it, $active, $badge = false) {
                     <div class="<?= navacc_cls($sec['k'], $active_in) ?>" data-acc="<?= h($sec['k']) ?>">
                         <button type="button" class="navacc-h" onclick="navAcc(this)">
                             <span><?= h($sec['l']) ?></span>
-                            <svg class="navacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                            <svg width="12" height="12" class="navacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                         </button>
                         <div class="navacc-b">
                             <?php foreach ($sec['items'] as $key): ?>
@@ -1490,9 +1490,9 @@ function nav_link($key, $it, $active, $badge = false) {
         </nav>
         <div class="rw-foot">
             <div class="theme-seg" role="group" aria-label="Тема оформления">
-                <button type="button" data-theme-set="light" onclick="setTheme('light')" aria-label="Светлая тема" title="Светлая"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Свет</span></button>
-                <button type="button" data-theme-set="system" onclick="setTheme('system')" aria-label="Системная тема" title="Как в системе"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>Авто</span></button>
-                <button type="button" data-theme-set="dark" onclick="setTheme('dark')" aria-label="Тёмная тема" title="Тёмная"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span>Тьма</span></button>
+                <button type="button" data-theme-set="light" onclick="setTheme('light')" aria-label="Светлая тема" title="Светлая"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Свет</span></button>
+                <button type="button" data-theme-set="system" onclick="setTheme('system')" aria-label="Системная тема" title="Как в системе"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>Авто</span></button>
+                <button type="button" data-theme-set="dark" onclick="setTheme('dark')" aria-label="Тёмная тема" title="Тёмная"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span>Тьма</span></button>
             </div>
         </div>
     </aside>
@@ -1503,7 +1503,7 @@ function nav_link($key, $it, $active, $badge = false) {
                 <h1 class="pagetitle"><?= h($tab_title) ?></h1>
             </div>
             <div class="rw-hcontrols">
-                <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
+                <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg width="20" height="20" class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
                 <a class="hbtn hbtn-ver" href="?tab=update" title="<?= update_available() ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if (update_available()): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
 <?php
     // Бейдж версии панели. Рендерится из кэша — обращение к панели делает ajax
@@ -1519,7 +1519,7 @@ function nav_link($key, $it, $active, $badge = false) {
             . (!$pm_sup ? ' · ниже минимально поддерживаемой ' . panel_min_supported() : ''));
 ?>
                 <a class="hbtn hbtn-ver hbtn-panel" href="?tab=sysinfo" id="panelVerBadge" data-min="<?= h(panel_min_supported()) ?>" title="<?= h($pm_ttl) ?>">Панель <code id="panelVerText"><?= $pm_ver !== '' ? h($pm_ver) : '—' ?></code><?php if ($pm_ver !== '' && !$pm_sup): ?><span class="hbtn-dot" id="panelVerDot" title="Версия панели ниже поддерживаемой"></span><?php endif; ?></a>
-                <a class="hbtn" href="?logout=1" title="Выйти" aria-label="Выйти"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+                <a class="hbtn" href="?logout=1" title="Выйти" aria-label="Выйти"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>
         <div class="rw-content">

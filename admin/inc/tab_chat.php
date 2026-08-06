@@ -60,7 +60,7 @@ $c_color  = chat_widget_color();
 
     <section class="<?= coll_cls('chat_settings', true) ?>" data-coll="chat_settings">
         <button type="button" class="coll-head" onclick="collToggle(this)">Настройки чата поддержки
-            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="coll-body">
         <p class="muted" style="margin-bottom:.6rem">Встроенный в страницу-заглушку чат. Сообщения посетителей переотправляются в Telegram и/или на вебхук; отвечать можно отсюда, из Telegram (ответом на пересланное сообщение) или через вебхук.</p>

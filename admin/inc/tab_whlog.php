@@ -56,10 +56,10 @@
             </select>
             <?php if ($wh_full): ?>
             <input type="text" name="wh_user" value="<?= h($wh_flt) ?>" placeholder="имя / shortUuid">
-            <button class="btn ghost" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Найти</button>
+            <button class="btn ghost" type="submit"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Найти</button>
             <?php endif; ?>
-            <?php if ($wh_has_flt): ?><a class="btn ghost" href="?tab=<?= h($wh_tabkey) ?>" title="Сбросить все фильтры"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Сброс</a><?php endif; ?>
-            <button class="btn ghost wh-csv" type="submit" name="wh_csv" value="1" title="Выгрузить текущую выборку целиком (по фильтру, не только видимую страницу)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Скачать CSV</button>
+            <?php if ($wh_has_flt): ?><a class="btn ghost" href="?tab=<?= h($wh_tabkey) ?>" title="Сбросить все фильтры"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Сброс</a><?php endif; ?>
+            <button class="btn ghost wh-csv" type="submit" name="wh_csv" value="1" title="Выгрузить текущую выборку целиком (по фильтру, не только видимую страницу)"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Скачать CSV</button>
         </form>
         <p class="muted"><?= $wh_full
             ? 'События, связанные с пользователями: user.*, либо с shortUuid/именем. Клик по событию, пользователю, shortUuid или действию в таблице ставит фильтр по этому значению.'
