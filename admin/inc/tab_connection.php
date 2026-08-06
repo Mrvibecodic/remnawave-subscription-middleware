@@ -1,3 +1,18 @@
+    <style>
+        .cn-spd{font-size:.8rem;color:var(--muted);margin-top:.45rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+        .cn-spd-btn{width:auto;min-height:0;padding:.25rem .65rem;font-size:.78rem;line-height:1.3}
+        .set-grid2{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem}
+        .set-grid2 .set-row{margin-top:0}
+        @media(max-width:720px){.set-grid2{grid-template-columns:1fr}}
+        .uahk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.5rem}
+        .uahk{display:flex;align-items:center;gap:.65rem;border:1px solid var(--line);background:var(--bg2);border-radius:10px;padding:.6rem .8rem;cursor:pointer;transition:border-color .15s}
+        .uahk:hover{border-color:var(--accent)}
+        .uahk input{appearance:none;-webkit-appearance:none;width:18px;height:18px;border:2px solid var(--line);border-radius:50%;flex:0 0 auto;margin:0;cursor:pointer;position:relative;transition:border-color .15s,background .15s}
+        .uahk input:checked{border-color:var(--accent);background:var(--accent)}
+        .uahk input:checked::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;border-radius:50%;background:var(--accent-text);transform:translate(-50%,-50%)}
+        .uahk-txt{min-width:0;display:flex;flex-direction:column;gap:.1rem;line-height:1.3}
+        .uahk-txt .muted{font-size:.76rem}
+    </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Подключение</h2>
         <p class="muted" style="margin-bottom:.4rem">Нажмите <b>?</b> у любого поля — справа откроется справка с примером. Формат: <b>домены — без</b> <code>https://</code>, а <b>URL панели — со схемой</b> <code>https://</code>.</p>
@@ -74,21 +89,6 @@
             <div style="margin-top:1.25rem"><button type="submit">💾 Сохранить подключение</button></div>
         </form>
     </div>
-    <style>
-        .cn-spd{font-size:.8rem;color:var(--muted);margin-top:.45rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-        .cn-spd-btn{width:auto;min-height:0;padding:.25rem .65rem;font-size:.78rem;line-height:1.3}
-        .set-grid2{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem}
-        .set-grid2 .set-row{margin-top:0}
-        @media(max-width:720px){.set-grid2{grid-template-columns:1fr}}
-        .uahk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.5rem}
-        .uahk{display:flex;align-items:center;gap:.65rem;border:1px solid var(--line);background:var(--bg2);border-radius:10px;padding:.6rem .8rem;cursor:pointer;transition:border-color .15s}
-        .uahk:hover{border-color:var(--accent)}
-        .uahk input{appearance:none;-webkit-appearance:none;width:18px;height:18px;border:2px solid var(--line);border-radius:50%;flex:0 0 auto;margin:0;cursor:pointer;position:relative;transition:border-color .15s,background .15s}
-        .uahk input:checked{border-color:var(--accent);background:var(--accent)}
-        .uahk input:checked::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;border-radius:50%;background:var(--accent-text);transform:translate(-50%,-50%)}
-        .uahk-txt{min-width:0;display:flex;flex-direction:column;gap:.1rem;line-height:1.3}
-        .uahk-txt .muted{font-size:.76rem}
-    </style>
     <script>
     function cnUseOrigin(btn){
         var inp=document.getElementById('cnTarget'); if(!inp||!btn) return;

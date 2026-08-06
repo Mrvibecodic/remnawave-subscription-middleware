@@ -1,3 +1,33 @@
+    <style>
+        .rr-group{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-text);font-weight:700;margin:1.1rem 0 .5rem;padding-bottom:.25rem;border-bottom:1px solid var(--line)}
+        .rr-group:first-child{margin-top:.2rem}
+        .rr-rule{border:1px solid var(--line);border-radius:12px;padding:.8rem .9rem;margin-bottom:.55rem;background:var(--bg2)}
+        .rr-rule.off{opacity:.55}
+        .rr-top{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+        .rr-top .nm{font-weight:600;color:var(--text-strong);flex:1;min-width:120px}
+        .rr-chk{display:flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--muted)}
+        .rr-chk input{width:auto;margin:0}
+        .rr-iconbtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:.3rem .55rem;cursor:pointer;line-height:1}
+        .rr-iconbtn:hover{border-color:var(--accent);color:var(--text)}
+        .rr-iconbtn.del{color:#ff8787}
+        .rr-fields{display:grid;grid-template-columns:1.3fr 1fr;gap:.6rem;margin:.7rem 0}
+        .rr-fields label,.rr-hlbl{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin-bottom:.25rem}
+        .rr-ua{margin:.4rem 0 .2rem}
+        .rr-hdrs{margin-top:.5rem;border-top:1px dashed var(--line);padding-top:.6rem}
+        .rr-hrow{display:grid;grid-template-columns:1.2fr 1.3fr 36px;gap:.45rem;align-items:center;margin:.45rem 0 .15rem}
+        .rr-hrow select,.rr-hrow input{margin:0}
+        .rr-hint{font-size:.76rem;color:var(--muted);margin:0 0 .5rem;min-height:1em;line-height:1.4}
+        .rr-hint b{color:var(--text-strong);font-family:monospace}
+        .rr-addh{background:transparent;border:1px solid var(--line);color:var(--accent-text);border-radius:7px;padding:.32rem .7rem;font-size:.78rem;font-weight:600;cursor:pointer}
+        .rr-addh:hover{border-color:var(--accent)}
+        .rr-test{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+        .rr-test input{flex:1;min-width:220px;margin:0}
+        .rr-test select{margin:0}
+        .rr-test-out{margin-top:.8rem;border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;line-height:1.6;word-break:break-word}
+        .rr-test-out b{color:var(--text-strong)}
+        .rr-test-out code{font-size:.86em}
+        @media(max-width:760px){.rr-fields{grid-template-columns:1fr}.rr-hrow{grid-template-columns:1fr 1fr 32px}}
+    </style>
     <div class="info">
         Отдавайте заголовки клиентам подписки. Правило <b>«Все клиенты»</b> уходит всем; правило под конкретное приложение <b>добавляет</b> свои заголовки поверх для него. Заголовки выбираются из списка с описанием — вписывать ничего не нужно.
     </div>
@@ -62,36 +92,6 @@
         <div id="rrTestOut" class="rr-test-out muted" style="display:none"></div>
     </div>
 
-    <style>
-        .rr-group{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-text);font-weight:700;margin:1.1rem 0 .5rem;padding-bottom:.25rem;border-bottom:1px solid var(--line)}
-        .rr-group:first-child{margin-top:.2rem}
-        .rr-rule{border:1px solid var(--line);border-radius:12px;padding:.8rem .9rem;margin-bottom:.55rem;background:var(--bg2)}
-        .rr-rule.off{opacity:.55}
-        .rr-top{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
-        .rr-top .nm{font-weight:600;color:var(--text-strong);flex:1;min-width:120px}
-        .rr-chk{display:flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--muted)}
-        .rr-chk input{width:auto;margin:0}
-        .rr-iconbtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:.3rem .55rem;cursor:pointer;line-height:1}
-        .rr-iconbtn:hover{border-color:var(--accent);color:var(--text)}
-        .rr-iconbtn.del{color:#ff8787}
-        .rr-fields{display:grid;grid-template-columns:1.3fr 1fr;gap:.6rem;margin:.7rem 0}
-        .rr-fields label,.rr-hlbl{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin-bottom:.25rem}
-        .rr-ua{margin:.4rem 0 .2rem}
-        .rr-hdrs{margin-top:.5rem;border-top:1px dashed var(--line);padding-top:.6rem}
-        .rr-hrow{display:grid;grid-template-columns:1.2fr 1.3fr 36px;gap:.45rem;align-items:center;margin:.45rem 0 .15rem}
-        .rr-hrow select,.rr-hrow input{margin:0}
-        .rr-hint{font-size:.76rem;color:var(--muted);margin:0 0 .5rem;min-height:1em;line-height:1.4}
-        .rr-hint b{color:var(--text-strong);font-family:monospace}
-        .rr-addh{background:transparent;border:1px solid var(--line);color:var(--accent-text);border-radius:7px;padding:.32rem .7rem;font-size:.78rem;font-weight:600;cursor:pointer}
-        .rr-addh:hover{border-color:var(--accent)}
-        .rr-test{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-        .rr-test input{flex:1;min-width:220px;margin:0}
-        .rr-test select{margin:0}
-        .rr-test-out{margin-top:.8rem;border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;line-height:1.6;word-break:break-word}
-        .rr-test-out b{color:var(--text-strong)}
-        .rr-test-out code{font-size:.86em}
-        @media(max-width:760px){.rr-fields{grid-template-columns:1fr}.rr-hrow{grid-template-columns:1fr 1fr 32px}}
-    </style>
 
     <script>
     var RR_RULES   = <?= json_encode(response_rules_all(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;

@@ -11,6 +11,16 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
 }
 ?>
     <style>
+        .ua-rules-wrap{overflow-x:auto}
+        .ua-rules-tbl td{vertical-align:middle}
+        .ua-rules-tbl input[type="text"]{width:100%;box-sizing:border-box;font-size:.82rem;padding:.35rem .5rem;background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--text)}
+        .ua-rules-tbl .ua-mono{font-family:monospace}
+        .ua-rules-tbl .ua-core{max-width:8rem}
+        .ua-rules-tbl .ua-c{text-align:center;white-space:nowrap;width:1%}
+        .ua-rules-tbl .ua-del{padding:.3rem .55rem}
+        .ua-rules-tbl .ua-ck{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;margin:0}
+    </style>
+    <style>
         .wg-up-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
         .mc-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
         @media(max-width:720px){.wg-up-grid,.mc-grid{grid-template-columns:1fr}}
@@ -207,16 +217,6 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
             </form>
         </div>
     </section>
-    <style>
-        .ua-rules-wrap{overflow-x:auto}
-        .ua-rules-tbl td{vertical-align:middle}
-        .ua-rules-tbl input[type="text"]{width:100%;box-sizing:border-box;font-size:.82rem;padding:.35rem .5rem;background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--text)}
-        .ua-rules-tbl .ua-mono{font-family:monospace}
-        .ua-rules-tbl .ua-core{max-width:8rem}
-        .ua-rules-tbl .ua-c{text-align:center;white-space:nowrap;width:1%}
-        .ua-rules-tbl .ua-del{padding:.3rem .55rem}
-        .ua-rules-tbl .ua-ck{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;margin:0}
-    </style>
     <script>
     (function(){
         var tbl=document.getElementById('uaRulesTbl'); if(!tbl) return;

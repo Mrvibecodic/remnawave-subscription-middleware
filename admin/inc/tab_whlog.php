@@ -22,6 +22,22 @@
     };
     $wh_cols = $wh_full ? 7 : 4;
     ?>
+    <style>
+    .wh-flt{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.2rem 0 .8rem}
+    .wh-flt select,.wh-flt input[type=text],.wh-flt .btn{height:38px;min-height:38px;box-sizing:border-box;padding-top:0;padding-bottom:0;font-size:.84rem;border-radius:var(--radius)}
+    .wh-flt select{width:auto;max-width:300px;flex:0 1 auto;text-overflow:ellipsis;font-weight:500}
+    .wh-flt select:hover{border-color:var(--accent)}
+    .wh-flt input[type=text]{width:190px;flex:0 1 auto}
+    .wh-flt .btn{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;line-height:1;font-weight:600}
+    .wh-flt .btn svg{width:15px;height:15px;flex:0 0 auto}
+    .wh-csv{margin-left:auto}
+    .logtbl a:hover .tag,.logtbl a:hover code{outline:1px solid var(--accent);outline-offset:1px}
+    @media(max-width:760px){
+        .wh-flt select,.wh-flt input[type=text]{flex:1 1 46%;max-width:none;width:auto}
+        .wh-flt .btn{flex:1 0 auto;justify-content:center}
+        .wh-csv{margin-left:0;flex:1 1 100%}
+    }
+    </style>
     <div class="card">
         <div class="loghead">
             <h2><?= $wh_full ? 'Юзер-лог вебхуков' : 'Прочие события' ?> <span class="muted" style="font-weight:500;font-size:.8rem">хранится: <?= (int) $wh_total ?> · в выборке: <?= (int) $wh_matched ?><?= $wh_matched > 3000 ? ' (показаны последние 3000)' : '' ?></span></h2>
@@ -85,22 +101,6 @@
             </tbody>
         </table>
         <div id="wh_pgrBot" class="pgr-bot"></div>
-        <style>
-        .wh-flt{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.2rem 0 .8rem}
-        .wh-flt select,.wh-flt input[type=text],.wh-flt .btn{height:38px;min-height:38px;box-sizing:border-box;padding-top:0;padding-bottom:0;font-size:.84rem;border-radius:var(--radius)}
-        .wh-flt select{width:auto;max-width:300px;flex:0 1 auto;text-overflow:ellipsis;font-weight:500}
-        .wh-flt select:hover{border-color:var(--accent)}
-        .wh-flt input[type=text]{width:190px;flex:0 1 auto}
-        .wh-flt .btn{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;line-height:1;font-weight:600}
-        .wh-flt .btn svg{width:15px;height:15px;flex:0 0 auto}
-        .wh-csv{margin-left:auto}
-        .logtbl a:hover .tag,.logtbl a:hover code{outline:1px solid var(--accent);outline-offset:1px}
-        @media(max-width:760px){
-            .wh-flt select,.wh-flt input[type=text]{flex:1 1 46%;max-width:none;width:auto}
-            .wh-flt .btn{flex:1 0 auto;justify-content:center}
-            .wh-csv{margin-left:0;flex:1 1 100%}
-        }
-        </style>
         <script>
         (function(){
             function whLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);if(isNaN(d.getTime()))return '';function p(n){return(n<10?'0':'')+n;}return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}

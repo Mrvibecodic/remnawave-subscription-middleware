@@ -1,3 +1,9 @@
+    <style>
+    .codeblk{position:relative;margin:.5rem 0}
+    .codeblk pre{margin:0;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:2.3rem .9rem .85rem;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.5;white-space:pre;color:var(--text)}
+    .codeblk .copybtn{position:absolute;top:.45rem;right:.45rem;padding:.28rem .62rem;font-size:.72rem;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--text);cursor:pointer;font-weight:600;line-height:1}
+    .codeblk .copybtn:hover{filter:brightness(1.1)}
+    </style>
     <section class="<?= coll_cls('addsub_intro') ?>" data-coll="addsub_intro">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Слияние подписок</span>
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
@@ -126,12 +132,6 @@
         <?php endif; ?>
     </div>
 
-    <style>
-    .codeblk{position:relative;margin:.5rem 0}
-    .codeblk pre{margin:0;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:2.3rem .9rem .85rem;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.5;white-space:pre;color:var(--text)}
-    .codeblk .copybtn{position:absolute;top:.45rem;right:.45rem;padding:.28rem .62rem;font-size:.72rem;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--text);cursor:pointer;font-weight:600;line-height:1}
-    .codeblk .copybtn:hover{filter:brightness(1.1)}
-    </style>
     <script>
     var ADDSUB_CSRF = <?= json_encode($token) ?>;
     function copyAddsubCfg(btn){
