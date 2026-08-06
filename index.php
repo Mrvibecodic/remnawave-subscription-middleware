@@ -150,8 +150,10 @@ if (!$junk_path && addsub_enabled() && addsub_parallel_enabled()) {
     $addsub_segs = path_segments($path);
     if ($addsub_segs) {
         try {
-            $addsub_pre = ['short' => $addsub_segs[0], 'src' => addsub_resolve($addsub_segs[0]),
-                           'ch' => null, 'st' => null, 'body' => null, 'info' => null];
+            $addsub_pre = ['short' => $addsub_segs[0],
+                           'cached' => addsub_map_get($addsub_segs[0]) === '' && addsub_cache_get($addsub_segs[0])['hit'],
+                           'src' => addsub_resolve($addsub_segs[0]),
+                           'ch' => null, 'st' => null, 'body' => null, 'info' => null, 'ms' => 0];
             if ($addsub_pre['src']) {
                 [$addsub_pre['ch'], $addsub_pre['st']] = addsub_fetch_prepare($addsub_pre['src']['url']);
             }
@@ -172,6 +174,7 @@ if ($addsub_pre !== null && $addsub_pre['ch'] !== null) {
     $curl_err  = curl_error($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     [$addsub_pre['body'], $addsub_pre['info']] = addsub_fetch_collect($addsub_pre['ch'], $addsub_pre['st'], curl_multi_getcontent($addsub_pre['ch']));
+    $addsub_pre['ms'] = (int) round(((float) curl_getinfo($addsub_pre['ch'], CURLINFO_TOTAL_TIME)) * 1000);
     curl_multi_remove_handle($mh, $addsub_pre['ch']);
     curl_close($addsub_pre['ch']);
     $addsub_pre['ch'] = null;
@@ -276,10 +279,16 @@ if ($do_substitute) {
     }
 
     emit_response_headers();
-    echo build_override_body($decision, $format);
+    $sub_body = build_override_body($decision, $format);
+    echo $sub_body;
     if (!$skip_log && !$is_page && reqlog_is_real($grabbed_headers, $decision, $short_ov)) {
         $GLOBALS['submw_real_sub'] = true;
-        log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts, $current_hwid);
+        log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts, $current_hwid, [
+            'fmt'   => reqlog_detect_fmt($grabbed_headers['content-type'] ?? '', $path, $ua),
+            'ctype' => $grabbed_headers['content-type'] ?? '',
+            'bytes' => strlen($sub_body),
+            'as'    => ['s' => 'skip'],
+        ]);
     }
     exit();
 }
@@ -290,33 +299,59 @@ if ($junk_path && $short_uuid !== '' && (squadconf_any() || addsub_enabled())) {
 
 $response_premod = $response;
 
+$log_wg = 0;
+$log_as = ['s' => 'off'];
 if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any()) {
     $u_squads = squadconf_user_squads($short_uuid);
     if ($u_squads) {
         $u_cfgs = wglease_select($short_uuid, $current_hwid, $u_squads, squadconf_supported_types($response, $format));
-        if ($u_cfgs) $response = squadconf_inject($response, $format, $u_cfgs);
+        if ($u_cfgs) { $response = squadconf_inject($response, $format, $u_cfgs); $log_wg = count($u_cfgs); }
     }
 }
 
 if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enabled()) {
+    $log_as = ['s' => 'no'];
     try {
+        $as_cached = false;
         if ($addsub_pre !== null && $addsub_pre['short'] === $short_uuid) {
             $addsub_src  = $addsub_pre['src'];
             $addsub_body = $addsub_pre['body'];
             $addsub_info = $addsub_pre['info'];
+            $as_ms = (int) ($addsub_pre['ms'] ?? 0);
+            $as_cached = !empty($addsub_pre['cached']);
         } else {
+            $as_cached = addsub_map_get($short_uuid) === '' && addsub_cache_get($short_uuid)['hit'];
             $addsub_src  = addsub_resolve($short_uuid);
-            $addsub_body = null; $addsub_info = null;
-            if ($addsub_src) [$addsub_body, $addsub_info] = addsub_fetch_body($addsub_src['url']);
+            $addsub_body = null; $addsub_info = null; $as_ms = 0;
+            if ($addsub_src) {
+                $as_t0 = microtime(true);
+                [$addsub_body, $addsub_info] = addsub_fetch_body($addsub_src['url']);
+                $as_ms = (int) round((microtime(true) - $as_t0) * 1000);
+            }
+        }
+        if ($addsub_src) {
+            $as_seg = path_segments((string) parse_url($addsub_src['url'], PHP_URL_PATH));
+            $log_as = [
+                's'  => 'err',
+                'm'  => (string) ($addsub_src['mode'] ?? ''),
+                'h'  => (string) parse_url($addsub_src['url'], PHP_URL_HOST),
+                'su' => (string) ($as_seg ? end($as_seg) : ''),
+                'ms' => $as_ms,
+                'c'  => $as_cached ? 1 : 0,
+            ];
         }
         if ($addsub_src && $addsub_body !== null && $addsub_body !== '') {
             if (addsub_traffic_exhausted($addsub_info)) {
+                $log_as['s'] = 'stub';
                 if (addsub_stub_on_traffic()) $response = addsub_inject_stub($response, $format, addsub_stub_label());
             } else {
                 $response = addsub_merge($response, $addsub_body, $format);
+                $log_as['s'] = 'on';
+                $log_as['n'] = reqlog_addsub_count($addsub_body, $format);
+                $log_as['b'] = strlen($addsub_body);
             }
         }
-    } catch (Throwable $e) { error_log('submw addsub: ' . $e->getMessage()); }
+    } catch (Throwable $e) { $log_as['s'] = 'err'; error_log('submw addsub: ' . $e->getMessage()); }
 }
 
 $unsafe = ['host', 'connection', 'transfer-encoding', 'content-length', 'content-encoding'];
@@ -338,9 +373,19 @@ if ($is_grace && !grace_external_active() && ($ga = grace_announce()) !== '') {
 echo $response;
 if (!$skip_log) {
     $log_decision = $is_grace ? 'grace' : $decision;
+    $log_meta = [
+        'fmt'   => reqlog_detect_fmt($grabbed_headers['content-type'] ?? '', $path, $ua),
+        'ctype' => $grabbed_headers['content-type'] ?? '',
+        'bytes' => strlen($response),
+        'as'    => $log_as,
+        'wg'    => $log_wg,
+        'grace' => $is_grace ? 1 : 0,
+    ];
     if (!$is_page && reqlog_is_real($grabbed_headers, $log_decision, $short_ov)) {
         $GLOBALS['submw_real_sub'] = true;
-        log_request($ip, $short_uuid, $path, $ua, $log_decision, $expire_ts, $current_hwid);
+        log_request($ip, $short_uuid, $path, $ua, $log_decision, $expire_ts, $current_hwid, $log_meta);
+    } elseif ($is_page && $short_uuid !== '' && !$junk_path && reqlog_pages_enabled()) {
+        log_request($ip, $short_uuid, $path, $ua, $log_decision, $expire_ts, $current_hwid, $log_meta);
     }
 }
 

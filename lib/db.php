@@ -112,7 +112,8 @@ function install_statements_sqlite() {
             ts TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             ip TEXT NULL, short_uuid TEXT NULL, path TEXT NULL, user_agent TEXT NULL,
             decision TEXT NOT NULL DEFAULT 'normal', expire_ts INTEGER NULL, hwid TEXT NULL,
-            is_app INTEGER NOT NULL DEFAULT 1
+            is_app INTEGER NOT NULL DEFAULT 1,
+            fmt TEXT NULL, ctype TEXT NULL, bytes INTEGER NULL, meta TEXT NULL
         )",
         "CREATE INDEX IF NOT EXISTS idx_rl_ts ON request_log(ts)",
         "CREATE INDEX IF NOT EXISTS idx_rl_short ON request_log(short_uuid)",
@@ -173,6 +174,7 @@ function install_statements_mysql() {
             ip VARCHAR(45) NULL, short_uuid VARCHAR(191) NULL, path VARCHAR(255) NULL, user_agent VARCHAR(255) NULL,
             decision VARCHAR(16) NOT NULL DEFAULT 'normal', expire_ts INT NULL, hwid VARCHAR(191) NULL,
             is_app TINYINT(1) NOT NULL DEFAULT 1,
+            fmt VARCHAR(16) NULL, ctype VARCHAR(128) NULL, bytes INT UNSIGNED NULL, meta TEXT NULL,
             PRIMARY KEY (id), KEY idx_rl_ts (ts), KEY idx_rl_short (short_uuid), KEY idx_rl_hwid (hwid)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE IF NOT EXISTS webhook_log (
