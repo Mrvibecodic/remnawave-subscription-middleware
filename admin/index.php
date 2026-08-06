@@ -1396,6 +1396,23 @@ window.LogPager=function(opts){
 </script>
 <link rel="stylesheet" href="assets/fonts.css?v=<?= substr(@md5_file(__DIR__ . '/assets/fonts.css') ?: '0', 0, 10) ?>">
 <link rel="stylesheet" href="assets/admin.css?v=<?= substr(@md5_file(__DIR__ . '/assets/admin.css') ?: '0', 0, 10) ?>">
+<style>
+    .qh{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--line);color:var(--muted);font-size:.7rem;font-weight:700;cursor:pointer;background:transparent;vertical-align:middle;margin-left:.3rem;padding:0;line-height:1}
+    .qh:hover{border-color:var(--accent);color:var(--accent-text)}
+    .hint{display:block;font-weight:400;color:var(--muted);font-size:.84rem;margin-top:.25rem;line-height:1.5}
+    .hint code{font-size:.92em}
+    .help-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:140}
+    .help-ov.open{display:block}
+    .help-drawer{position:fixed;top:0;right:0;height:100vh;width:390px;max-width:92vw;background:var(--card);border-left:1px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .2s}
+    .help-ov.open .help-drawer{transform:none}
+    .help-h{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;border-bottom:1px solid var(--line);color:var(--text-strong);font-weight:700}
+    .help-b{padding:1rem 1.1rem;overflow:auto;font-size:.88rem;line-height:1.6;flex:1}
+    .help-b h4{color:var(--text-strong);margin:1rem 0 .3rem;font-size:.9rem}
+    .help-b p{margin:.5rem 0}
+    .help-b ul{margin:.4rem 0;padding-left:1.15rem}
+    .help-b li{margin:.25rem 0}
+    .help-b code{background:var(--bg2);padding:.1rem .35rem;border-radius:5px;border:1px solid var(--line);font-size:.85em;overflow-wrap:break-word;word-break:normal}
+</style>
 </head><body>
 <?php
 $nav = [
@@ -1589,23 +1606,6 @@ function nav_link($key, $it, $active, $badge = false) {
         <div style="padding:.8rem 1.1rem;border-top:1px solid var(--line)"><button type="button" class="btn ghost" style="width:100%" onclick="helpClose()">Закрыть</button></div>
     </aside>
 </div>
-<style>
-    .qh{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--line);color:var(--muted);font-size:.7rem;font-weight:700;cursor:pointer;background:transparent;vertical-align:middle;margin-left:.3rem;padding:0;line-height:1}
-    .qh:hover{border-color:var(--accent);color:var(--accent-text)}
-    .hint{display:block;font-weight:400;color:var(--muted);font-size:.84rem;margin-top:.25rem;line-height:1.5}
-    .hint code{font-size:.92em}
-    .help-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:140}
-    .help-ov.open{display:block}
-    .help-drawer{position:fixed;top:0;right:0;height:100vh;width:390px;max-width:92vw;background:var(--card);border-left:1px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .2s}
-    .help-ov.open .help-drawer{transform:none}
-    .help-h{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;border-bottom:1px solid var(--line);color:var(--text-strong);font-weight:700}
-    .help-b{padding:1rem 1.1rem;overflow:auto;font-size:.88rem;line-height:1.6;flex:1}
-    .help-b h4{color:var(--text-strong);margin:1rem 0 .3rem;font-size:.9rem}
-    .help-b p{margin:.5rem 0}
-    .help-b ul{margin:.4rem 0;padding-left:1.15rem}
-    .help-b li{margin:.25rem 0}
-    .help-b code{background:var(--bg2);padding:.1rem .35rem;border-radius:5px;border:1px solid var(--line);font-size:.85em;overflow-wrap:break-word;word-break:normal}
-</style>
 <div id="uiToast" class="toast"></div>
 
 <div id="uiDlg" class="modal-overlay" onclick="if(event.target===this)uiDlgClose()">

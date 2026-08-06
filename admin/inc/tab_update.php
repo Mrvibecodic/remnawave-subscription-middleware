@@ -22,6 +22,19 @@ $u_stbadge   = function ($s) {
 $u_branch    = update_branch();
 $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch])));
 ?>
+    <style>
+        .up-sha{font-family:monospace;font-size:.86em;background:var(--bg2);padding:.05rem .35rem;border-radius:5px}
+        .up-block{margin-top:.8rem}
+        .up-hl{font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;margin-bottom:.4rem}
+        .up-commit{padding:.25rem 0;line-height:1.5;border-bottom:1px dashed var(--line)}
+        .up-file{padding:.22rem 0;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+        .up-st{font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;font-weight:700;padding:.1rem .4rem;border-radius:6px;flex:0 0 auto}
+        .up-add{background:rgba(34,197,94,.18);color:var(--c-ok-fg)}
+        .up-mod{background:rgba(245,181,10,.18);color:var(--amber)}
+        .up-del{background:rgba(239,68,68,.18);color:var(--c-bad-fg)}
+        .up-ren{background:rgba(59,130,246,.18);color:var(--c-info-fg)}
+        .up-logbox{font-family:monospace;font-size:.82rem;line-height:1.6;max-height:320px;overflow:auto;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;word-break:break-word}
+    </style>
 <?php if (submw_in_docker()): ?>
     <div class="info">
         Прослойка запущена в <b>Docker</b>. Обновление — через <code>docker pull</code> образа в консоли сервера; записи файлов и git здесь нет.
@@ -198,19 +211,6 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
     </section>
 <?php endif; ?>
 
-    <style>
-        .up-sha{font-family:monospace;font-size:.86em;background:var(--bg2);padding:.05rem .35rem;border-radius:5px}
-        .up-block{margin-top:.8rem}
-        .up-hl{font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;margin-bottom:.4rem}
-        .up-commit{padding:.25rem 0;line-height:1.5;border-bottom:1px dashed var(--line)}
-        .up-file{padding:.22rem 0;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-        .up-st{font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;font-weight:700;padding:.1rem .4rem;border-radius:6px;flex:0 0 auto}
-        .up-add{background:rgba(34,197,94,.18);color:var(--c-ok-fg)}
-        .up-mod{background:rgba(245,181,10,.18);color:var(--amber)}
-        .up-del{background:rgba(239,68,68,.18);color:var(--c-bad-fg)}
-        .up-ren{background:rgba(59,130,246,.18);color:var(--c-info-fg)}
-        .up-logbox{font-family:monospace;font-size:.82rem;line-height:1.6;max-height:320px;overflow:auto;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;word-break:break-word}
-    </style>
     <script>
     (function(){function p(n){return (n<10?'0':'')+n;}document.querySelectorAll('.up-localtime[data-ts]').forEach(function(el){var ep=parseInt(el.getAttribute('data-ts'),10);if(!ep)return;var d=new Date(ep*1000);if(isNaN(d.getTime()))return;el.textContent=p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());});})();
     </script>

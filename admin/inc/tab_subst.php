@@ -1,4 +1,18 @@
 <?php $gsq_name = ''; foreach ($grace_squads as $__s) { if ($__s['uuid'] === grace_squad_uuid()) { $gsq_name = $__s['name']; break; } } ?>
+    <style>
+    .ga-wrap{display:grid;grid-template-columns:1fr 280px;gap:1.1rem;align-items:start}
+    @media(max-width:720px){.ga-wrap{grid-template-columns:1fr}}
+    .ga-edit textarea{width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;font-size:.9rem;line-height:1.5;padding:.6rem .75rem;border:1px solid var(--line);border-radius:9px;background:var(--bg2);color:var(--text)}
+    .ga-edit textarea:focus{outline:none;border-color:var(--accent)}
+    .ga-client{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg2);box-shadow:var(--shadow)}
+    .ga-c-head{display:flex;align-items:center;gap:.45rem;padding:.55rem .85rem;font-weight:600;font-size:.82rem;background:var(--accent);color:var(--accent-text)}
+    .ga-c-body{padding:.75rem .9rem;font-size:.87rem;line-height:1.6;color:var(--text);min-height:3.4rem;word-break:break-word}
+    .ga-c-empty{color:var(--muted);font-style:italic}
+    .codeblk{position:relative;margin:.5rem 0}
+    .codeblk pre{margin:0;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:2.3rem .9rem .85rem;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.5;white-space:pre;color:var(--text)}
+    .codeblk .copybtn{position:absolute;top:.45rem;right:.45rem;padding:.28rem .62rem;font-size:.72rem;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--text);cursor:pointer;font-weight:600;line-height:1}
+    .codeblk .copybtn:hover{filter:brightness(1.1)}
+    </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Грейс-сквад для истёкших</h2>
         <p class="muted">На хук <code>user.expired</code> прослойка переносит юзера в выбранный сквад панели (например only-Telegram), ставит лимит трафика/устройств и держит активным на грейс-период — конфиг отдаёт сама панель. После грейса — возврат исходного сквада и истечение; при оплате — возврат и коррекция даты «от сегодня».</p>
@@ -156,20 +170,6 @@
             </div>
         </div>
     </section>
-    <style>
-    .ga-wrap{display:grid;grid-template-columns:1fr 280px;gap:1.1rem;align-items:start}
-    @media(max-width:720px){.ga-wrap{grid-template-columns:1fr}}
-    .ga-edit textarea{width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;font-size:.9rem;line-height:1.5;padding:.6rem .75rem;border:1px solid var(--line);border-radius:9px;background:var(--bg2);color:var(--text)}
-    .ga-edit textarea:focus{outline:none;border-color:var(--accent)}
-    .ga-client{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg2);box-shadow:var(--shadow)}
-    .ga-c-head{display:flex;align-items:center;gap:.45rem;padding:.55rem .85rem;font-weight:600;font-size:.82rem;background:var(--accent);color:var(--accent-text)}
-    .ga-c-body{padding:.75rem .9rem;font-size:.87rem;line-height:1.6;color:var(--text);min-height:3.4rem;word-break:break-word}
-    .ga-c-empty{color:var(--muted);font-style:italic}
-    .codeblk{position:relative;margin:.5rem 0}
-    .codeblk pre{margin:0;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:2.3rem .9rem .85rem;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.5;white-space:pre;color:var(--text)}
-    .codeblk .copybtn{position:absolute;top:.45rem;right:.45rem;padding:.28rem .62rem;font-size:.72rem;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--text);cursor:pointer;font-weight:600;line-height:1}
-    .codeblk .copybtn:hover{filter:brightness(1.1)}
-    </style>
     <script>
     (function(){
         var inp = document.getElementById('ga-input'), pv = document.getElementById('ga-prev');

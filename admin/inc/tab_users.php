@@ -3,6 +3,82 @@ $ico_dev    = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
 $ico_eye    = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
 $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.2A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a13 13 0 0 1-2.2 3M6.6 6.6A13 13 0 0 0 2 11s3.5 7 10 7a9 9 0 0 0 4.5-1.2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
 ?>
+    <style>
+        .utbl-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+        .utbl-head h2{margin:0;font-size:1rem}
+        .utbl-card{margin-bottom:0}
+        .utbl-tools{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+        .utbl-tools input#flt{width:280px;max-width:48vw}
+        .dens{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+        .dens button{background:transparent;border:0;color:var(--muted);padding:.45rem .55rem;cursor:pointer;display:flex;align-items:center}
+        .dens button.on{background:var(--accent-light);color:var(--accent-text)}
+        .dens button:hover{color:var(--text)}
+        .dens svg{width:15px;height:15px}
+        .utbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:.9rem;max-height:calc(100vh - 230px);scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+        .utbl-wrap::-webkit-scrollbar{width:8px;height:8px}
+        .utbl-wrap::-webkit-scrollbar-track{background:transparent}
+        .utbl-wrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+        .utbl-wrap:hover::-webkit-scrollbar-thumb{background:var(--muted)}
+        #utbl{width:100%;border-collapse:separate;border-spacing:0;font-size:.88rem}
+        #utbl thead th{position:sticky;top:0;z-index:2;background:var(--bg2);color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
+        #utbl thead th.srt{cursor:pointer;user-select:none}
+        #utbl thead th.srt:hover{color:var(--accent-text)}
+        #utbl thead th .sar{font-size:.7rem;opacity:.85;margin-left:.2rem}
+        #utbl tbody td{padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);vertical-align:middle}
+        #utbl tbody tr:last-child td{box-shadow:none}
+        #utbl tbody tr:hover td{background:var(--hover2)}
+        #utbl.compact tbody td{padding:.42rem .8rem}
+        #utbl .u-name{color:var(--text-strong);font-weight:600}
+        #utbl .tag{display:inline-flex;align-items:center;gap:.3rem}
+        #utbl .tag .d{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+        #utbl .u-name.u-copy{cursor:copy}
+        #utbl .u-name.u-copy:hover{color:var(--accent-text);text-decoration:underline}
+        #utbl .sublink-copy{font-family:monospace;cursor:copy;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;color:var(--text)}
+        #utbl .sublink-copy:hover{color:var(--accent-text);text-decoration:underline}
+        #utbl .u-actions{white-space:nowrap}
+        .actcell{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+        .nolog-btn.on{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
+        .hw-warn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:.72rem;font-weight:700;cursor:help;flex:0 0 auto}
+        .uempty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.6rem;padding:2.4rem 1rem;color:var(--muted)}
+        .uempty .ic{width:46px;height:46px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+        .uempty .ic svg{width:22px;height:22px;opacity:.7}
+        .uempty b{color:var(--text);font-size:.95rem}
+        @media(max-width:900px){
+            .utbl-wrap{max-height:none;overflow:visible;border:0;margin-top:.6rem}
+            #utbl{display:block}
+            #utbl thead{display:none}
+            #utbl tbody,#utbl tbody tr,#utbl tbody td{display:block;width:100%}
+            #utbl tbody tr{border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:.85rem;margin-bottom:.7rem}
+            #utbl tbody td{box-shadow:none;padding:.28rem 0;display:flex;justify-content:space-between;align-items:center;gap:1rem;white-space:normal}
+            #utbl tbody td::before{content:attr(data-label);color:var(--muted);font-size:.8rem;flex:0 0 auto}
+            #utbl tbody td.u-name{font-size:1rem;padding-bottom:.45rem}
+            #utbl tbody td.u-name::before{display:none}
+            #utbl tbody td[data-label="Ссылка подписки"]{display:block}
+            #utbl tbody td[data-label="Ссылка подписки"]::before{display:block;margin-bottom:.3rem}
+            #utbl .sublink-copy{display:block;max-width:100%}
+            #utbl tbody td.u-actions{justify-content:flex-start}
+        }
+        .btn-sm{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.42rem .8rem;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap}
+        .btn-sm:hover{border-color:var(--accent);color:var(--accent-text)}
+        .btn-sm svg{width:14px;height:14px;flex:0 0 auto}
+        .hw-count{font-size:.9rem;color:var(--muted);margin-bottom:.75rem}
+        .hw-item{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem .9rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);margin-bottom:.6rem}
+        .hw-item:last-child{margin-bottom:0}
+        .hw-l{display:flex;align-items:center;gap:.85rem;min-width:0}
+        .hw-os{flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+        .osico{display:inline-block;width:28px;height:28px;background:var(--text-strong);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
+        .hw-info{min-width:0}
+        .hw-model{color:var(--text-strong);font-weight:600;font-size:.95rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+        .hw-client{color:var(--muted);font-size:.82rem;margin-top:.12rem;overflow-wrap:anywhere;word-break:normal}
+        .hw-hwid{font-size:.76rem;color:var(--muted);overflow-wrap:anywhere;word-break:normal;margin-top:.28rem;font-family:monospace}
+        .hw-act{display:flex;gap:.5rem;flex:0 0 auto}
+        .btn-block{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
+        .btn-block.on{border-color:var(--accent);color:var(--accent-text)}
+        .btn-del{border-color:var(--red);color:var(--c-bad-fg)}
+        .btn-del:hover{border-color:var(--red);color:var(--c-bad-fg);background:var(--c-bad-bg)}
+        .tip{position:relative;cursor:help}
+        .tip:hover::after{content:attr(data-tip);position:absolute;left:50%;transform:translateX(-50%);bottom:135%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.45rem .7rem;font-size:.78rem;font-weight:500;white-space:nowrap;box-shadow:var(--shadow);z-index:10}
+    </style>
     <div class="card utbl-card">
         <div class="utbl-head">
             <h2>Пользователи панели (<?= count($users) ?>)</h2>
@@ -133,82 +209,6 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         </div>
     </div>
 
-    <style>
-        .utbl-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
-        .utbl-head h2{margin:0;font-size:1rem}
-        .utbl-card{margin-bottom:0}
-        .utbl-tools{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-        .utbl-tools input#flt{width:280px;max-width:48vw}
-        .dens{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-        .dens button{background:transparent;border:0;color:var(--muted);padding:.45rem .55rem;cursor:pointer;display:flex;align-items:center}
-        .dens button.on{background:var(--accent-light);color:var(--accent-text)}
-        .dens button:hover{color:var(--text)}
-        .dens svg{width:15px;height:15px}
-        .utbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:.9rem;max-height:calc(100vh - 230px);scrollbar-width:thin;scrollbar-color:var(--line) transparent}
-        .utbl-wrap::-webkit-scrollbar{width:8px;height:8px}
-        .utbl-wrap::-webkit-scrollbar-track{background:transparent}
-        .utbl-wrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
-        .utbl-wrap:hover::-webkit-scrollbar-thumb{background:var(--muted)}
-        #utbl{width:100%;border-collapse:separate;border-spacing:0;font-size:.88rem}
-        #utbl thead th{position:sticky;top:0;z-index:2;background:var(--bg2);color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
-        #utbl thead th.srt{cursor:pointer;user-select:none}
-        #utbl thead th.srt:hover{color:var(--accent-text)}
-        #utbl thead th .sar{font-size:.7rem;opacity:.85;margin-left:.2rem}
-        #utbl tbody td{padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);vertical-align:middle}
-        #utbl tbody tr:last-child td{box-shadow:none}
-        #utbl tbody tr:hover td{background:var(--hover2)}
-        #utbl.compact tbody td{padding:.42rem .8rem}
-        #utbl .u-name{color:var(--text-strong);font-weight:600}
-        #utbl .tag{display:inline-flex;align-items:center;gap:.3rem}
-        #utbl .tag .d{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
-        #utbl .u-name.u-copy{cursor:copy}
-        #utbl .u-name.u-copy:hover{color:var(--accent-text);text-decoration:underline}
-        #utbl .sublink-copy{font-family:monospace;cursor:copy;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;color:var(--text)}
-        #utbl .sublink-copy:hover{color:var(--accent-text);text-decoration:underline}
-        #utbl .u-actions{white-space:nowrap}
-        .actcell{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
-        .nolog-btn.on{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
-        .hw-warn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:.72rem;font-weight:700;cursor:help;flex:0 0 auto}
-        .uempty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.6rem;padding:2.4rem 1rem;color:var(--muted)}
-        .uempty .ic{width:46px;height:46px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
-        .uempty .ic svg{width:22px;height:22px;opacity:.7}
-        .uempty b{color:var(--text);font-size:.95rem}
-        @media(max-width:900px){
-            .utbl-wrap{max-height:none;overflow:visible;border:0;margin-top:.6rem}
-            #utbl{display:block}
-            #utbl thead{display:none}
-            #utbl tbody,#utbl tbody tr,#utbl tbody td{display:block;width:100%}
-            #utbl tbody tr{border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:.85rem;margin-bottom:.7rem}
-            #utbl tbody td{box-shadow:none;padding:.28rem 0;display:flex;justify-content:space-between;align-items:center;gap:1rem;white-space:normal}
-            #utbl tbody td::before{content:attr(data-label);color:var(--muted);font-size:.8rem;flex:0 0 auto}
-            #utbl tbody td.u-name{font-size:1rem;padding-bottom:.45rem}
-            #utbl tbody td.u-name::before{display:none}
-            #utbl tbody td[data-label="Ссылка подписки"]{display:block}
-            #utbl tbody td[data-label="Ссылка подписки"]::before{display:block;margin-bottom:.3rem}
-            #utbl .sublink-copy{display:block;max-width:100%}
-            #utbl tbody td.u-actions{justify-content:flex-start}
-        }
-        .btn-sm{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.42rem .8rem;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap}
-        .btn-sm:hover{border-color:var(--accent);color:var(--accent-text)}
-        .btn-sm svg{width:14px;height:14px;flex:0 0 auto}
-        .hw-count{font-size:.9rem;color:var(--muted);margin-bottom:.75rem}
-        .hw-item{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem .9rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);margin-bottom:.6rem}
-        .hw-item:last-child{margin-bottom:0}
-        .hw-l{display:flex;align-items:center;gap:.85rem;min-width:0}
-        .hw-os{flex:0 0 auto;display:flex;align-items:center;justify-content:center}
-        .osico{display:inline-block;width:28px;height:28px;background:var(--text-strong);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
-        .hw-info{min-width:0}
-        .hw-model{color:var(--text-strong);font-weight:600;font-size:.95rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
-        .hw-client{color:var(--muted);font-size:.82rem;margin-top:.12rem;overflow-wrap:anywhere;word-break:normal}
-        .hw-hwid{font-size:.76rem;color:var(--muted);overflow-wrap:anywhere;word-break:normal;margin-top:.28rem;font-family:monospace}
-        .hw-act{display:flex;gap:.5rem;flex:0 0 auto}
-        .btn-block{border-color:var(--c-warn-fg);color:var(--c-warn-fg)}
-        .btn-block.on{border-color:var(--accent);color:var(--accent-text)}
-        .btn-del{border-color:var(--red);color:var(--c-bad-fg)}
-        .btn-del:hover{border-color:var(--red);color:var(--c-bad-fg);background:var(--c-bad-bg)}
-        .tip{position:relative;cursor:help}
-        .tip:hover::after{content:attr(data-tip);position:absolute;left:50%;transform:translateX(-50%);bottom:135%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.45rem .7rem;font-size:.78rem;font-weight:500;white-space:nowrap;box-shadow:var(--shadow);z-index:10}
-    </style>
     <script>
     var HW_CSRF = <?= json_encode($token) ?>;
     var NL_VIS = <?= json_encode($ico_eye) ?> + 'В логе';
