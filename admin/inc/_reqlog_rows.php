@@ -176,6 +176,17 @@ function reqlog_render_rows(array $rows, array $ctx) {
         if (!empty($meta['grace'])) $done[] = 'грейс-сквад';
         if (($as['s'] ?? '') === 'on') $done[] = 'доп. подписка';
 
+        $as_s    = (string) ($as['s'] ?? '');
+        $as_full = in_array($as_s, ['on', 'stub', 'err'], true);
+        $as_rows = '';
+        if ($as_full) {
+            $as_rows = '<div class="xr"><span class="l">Режим</span><span class="v">' . (($as['m'] ?? '') === 'manual' ? 'ручная привязка' : (($as['m'] ?? '') === 'auto' ? 'авто (по суффиксу)' : '—')) . '</span></div>'
+                     . '<div class="xr"><span class="l">Вторая пара</span><span class="v mono">' . ((string) ($as['su'] ?? '') !== '' ? h((string) $as['su']) : '—') . '</span></div>'
+                     . '<div class="xr"><span class="l">Источник</span><span class="v mono">' . ((string) ($as['h'] ?? '') !== '' ? h((string) $as['h']) : '—') . '</span></div>'
+                     . '<div class="xr"><span class="l">Слито</span><span class="v">' . ($asn > 0 ? $asn . ' конфиг(ов)' : ($asb > 0 ? rl_size($asb) : '—')) . ($asm > 0 ? ' · ' . $asm . ' мс' : '') . '</span></div>'
+                     . '<div class="xr"><span class="l">Кэш</span><span class="v">' . (!isset($as['c']) ? '—' : ((int) $as['c'] === 1 ? 'ответ из кэша' : 'загружено при запросе')) . '</span></div>';
+        }
+
         $out .= '<tr class="row-x" data-x="' . $i . '"><td colspan="' . $cols . '"><div class="xin">'
               . '<div class="xcol"><div class="xh">Запрос</div>'
               . '<div class="xr"><span class="l">Время</span><span class="v mono rl-full" data-ts="' . (int) ($r['ts_epoch'] ?? 0) . '">' . h((string) ($r['ts'] ?? '')) . '</span></div>'
@@ -204,11 +215,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '</div>'
               . '<div class="xcol"><div class="xh">Доп. подписка</div>'
               . '<div class="xr"><span class="l">Состояние</span><span class="v">' . rl_as_badge($as) . '</span></div>'
-              . '<div class="xr"><span class="l">Режим</span><span class="v">' . (($as['m'] ?? '') === 'manual' ? 'ручная привязка' : (($as['m'] ?? '') === 'auto' ? 'авто (по суффиксу)' : '—')) . '</span></div>'
-              . '<div class="xr"><span class="l">Вторая пара</span><span class="v mono">' . ((string) ($as['su'] ?? '') !== '' ? h((string) $as['su']) : '—') . '</span></div>'
-              . '<div class="xr"><span class="l">Источник</span><span class="v mono">' . ((string) ($as['h'] ?? '') !== '' ? h((string) $as['h']) : '—') . '</span></div>'
-              . '<div class="xr"><span class="l">Слито</span><span class="v">' . ($asn > 0 ? $asn . ' конфиг(ов)' : ($asb > 0 ? rl_size($asb) : '—')) . ($asm > 0 ? ' · ' . $asm . ' мс' : '') . '</span></div>'
-              . '<div class="xr"><span class="l">Кэш</span><span class="v">' . (!isset($as['c']) ? '—' : ((int) $as['c'] === 1 ? 'ответ из кэша' : 'загружено при запросе')) . '</span></div>'
+              . $as_rows
               . '</div>'
               . '<div class="xcol"><div class="xh">История</div>'
               . '<div class="xr"><span class="l">Последние</span><span class="v">' . rl_hist_bar($hist[$su] ?? []) . '</span></div>'
@@ -218,9 +225,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '</div>'
               . ($su !== '' ? '<div class="xacts">'
                   . '<a class="btn ghost" href="' . h(rl_link(['rl_q' => $su], $base)) . '">Фильтр по этому пользователю</a>'
-                  . '<a class="btn ghost" href="?tab=users">Открыть во вкладке «Пользователи»</a>'
                   . ($hwid !== '' ? '<button type="button" class="btn ghost rl-copy" data-copy="' . h($hwid) . '">Копировать HWID</button>' : '')
-                  . '<a class="btn ghost" href="?tab=addsub">Привязка доп. подписки</a>'
                   . '</div>' : '')
               . '</div></td></tr>';
     }

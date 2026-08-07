@@ -64,6 +64,7 @@
     .row-x{display:none}
     .row-x.show{display:table-row}
     .row-x>td{padding:0;background:var(--bg2);box-shadow:inset 0 -1px 0 var(--line);overflow:visible}
+    .rl-tbl tr.row-x:hover>td{background:var(--bg2)}
     .xin{padding:.9rem 1rem 1rem;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.15rem 1.6rem;align-items:start}
     @media(max-width:1100px){.xin{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:700px){.xin{grid-template-columns:1fr}}
