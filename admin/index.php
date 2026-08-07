@@ -371,7 +371,7 @@ if (isset($_GET['ajax']) && is_auth()) {
         $spark = '';
         $hbase = intdiv(time(), 3600) - 23;
         foreach ($ov['hourly'] as $hi => $hv) {
-            $spark .= '<i class="' . ($hv >= $peak * .75 ? 'hi' : '') . '" style="height:' . max(6, (int) round(pow($hv / $peak, .62) * 100)) . '%" title="'
+            $spark .= '<i class="' . ($hv >= $peak * .75 ? 'hi' : '') . '" style="height:' . max(6, (int) round(pow($hv / $peak, .62) * 100)) . '%" data-ts="' . (($hbase + $hi) * 3600) . '" data-c="' . (int) $hv . '" title="'
                     . h(date('H:i', ($hbase + $hi) * 3600)) . ' — ' . (int) $hv . '"></i>';
         }
         echo json_encode([
@@ -384,6 +384,8 @@ if (isset($_GET['ajax']) && is_auth()) {
                 'devices' => (int) $st['today_devices'],
                 'total'   => (int) $ov['total'],
                 'blocked' => (int) $ov['blocked'],
+                'peak'    => (int) $ov['peak'],
+                'peak_h'  => (int) $ov['peak_h'],
             ],
         ], JSON_UNESCAPED_UNICODE);
         exit();
