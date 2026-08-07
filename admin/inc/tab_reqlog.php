@@ -115,7 +115,7 @@
     <div class="rl-kpis">
         <div class="rl-kpi"><div class="k">Обновили подписку</div><div class="v" id="rlKpiUsers"><?= (int) $rl_today_users ?><?= $rl_total_users ? '<small> / ' . (int) $rl_total_users . '</small>' : '' ?></div><div class="d">сегодня, <?= h($rl_today_label) ?></div></div>
         <div class="rl-kpi"><div class="k">Устройств (HWID)</div><div class="v" id="rlKpiDev"><?= (int) $rl_today_devices ?></div><div class="d"><?= $rl_total_devices ? 'из ' . (int) $rl_total_devices . ' известных в логе' : 'за сегодня' ?></div></div>
-        <div class="rl-kpi"><div class="k">Запросов за сутки</div><div class="v" id="rlKpiTotal"><?= (int) $rl_over['total'] ?></div><div class="d" id="rlKpiPeak"><?= $rl_over['peak'] ? 'пик в ' . h(date('H:i', (int) $rl_over['peak_h'])) . ' — ' . (int) $rl_over['peak'] . ' за час' : 'за последние 24 часа' ?></div></div>
+        <div class="rl-kpi"><div class="k">Запросов за сутки</div><div class="v" id="rlKpiTotal"><?= (int) $rl_over['total'] ?></div><div class="d" id="rlKpiPeak" data-ts="<?= (int) $rl_over['peak_h'] ?>" data-c="<?= (int) $rl_over['peak'] ?>"><?= $rl_over['peak'] ? 'пик в ' . h(date('H:i', (int) $rl_over['peak_h'])) . ' — ' . (int) $rl_over['peak'] . ' за час' : 'за последние 24 часа' ?></div></div>
         <div class="rl-kpi"><div class="k">Блокировок HWID</div><div class="v" id="rlKpiBlocked"><?= (int) $rl_over['blocked'] ?></div><div class="d<?= $rl_over['blocked_users'] ? ' alert' : '' ?>" id="rlKpiBlockedU"><?= $rl_over['blocked_users'] ? 'у ' . (int) $rl_over['blocked_users'] . ' пользователей' : 'за последние 24 часа' ?></div></div>
     </div>
 
@@ -124,8 +124,8 @@
             <h2>Активность по часам <span class="muted" style="font-weight:400;font-size:.78rem">последние 24 часа</span></h2>
             <div class="loghead-r"><button type="button" class="btn ghost" onclick="rlRefresh()">Обновить</button></div>
         </div>
-        <div class="spark" id="rlSpark"><?php $rl_peak = max(1, (int) $rl_over['peak']); foreach ($rl_over['hourly'] as $rl_hi => $rl_hv): ?><i class="<?= $rl_hv >= $rl_peak * .75 ? 'hi' : '' ?>" style="height:<?= max(6, (int) round(pow($rl_hv / $rl_peak, .62) * 100)) ?>%" title="<?= h(date('H:i', (intdiv(time(), 3600) - 23 + $rl_hi) * 3600)) ?> — <?= (int) $rl_hv ?>"></i><?php endforeach; ?></div>
-        <div class="sparkx"><span><?= h(date('H:i', (intdiv(time(), 3600) - 23) * 3600)) ?></span><span><?= h(date('H:i', (intdiv(time(), 3600) - 16) * 3600)) ?></span><span><?= h(date('H:i', (intdiv(time(), 3600) - 8) * 3600)) ?></span><span><?= h(date('H:i', intdiv(time(), 3600) * 3600)) ?></span></div>
+        <div class="spark" id="rlSpark"><?php $rl_peak = max(1, (int) $rl_over['peak']); foreach ($rl_over['hourly'] as $rl_hi => $rl_hv): ?><i class="<?= $rl_hv >= $rl_peak * .75 ? 'hi' : '' ?>" style="height:<?= max(6, (int) round(pow($rl_hv / $rl_peak, .62) * 100)) ?>%" data-ts="<?= (intdiv(time(), 3600) - 23 + $rl_hi) * 3600 ?>" data-c="<?= (int) $rl_hv ?>" title="<?= h(date('H:i', (intdiv(time(), 3600) - 23 + $rl_hi) * 3600)) ?> — <?= (int) $rl_hv ?>"></i><?php endforeach; ?></div>
+        <div class="sparkx" id="rlSparkX"><span><?= h(date('H:i', (intdiv(time(), 3600) - 23) * 3600)) ?></span><span><?= h(date('H:i', (intdiv(time(), 3600) - 16) * 3600)) ?></span><span><?= h(date('H:i', (intdiv(time(), 3600) - 8) * 3600)) ?></span><span><?= h(date('H:i', intdiv(time(), 3600) * 3600)) ?></span></div>
     </div>
 
     <div class="card">
@@ -257,6 +257,32 @@
             var t = p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds());
             return withDate ? (d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' '+t) : t;
         }
+        function locHM(ep){
+            ep = parseInt(ep,10); if(!ep) return '';
+            var d = new Date(ep*1000); if(isNaN(d.getTime())) return '';
+            return p2(d.getHours())+':'+p2(d.getMinutes());
+        }
+        function localizeSpark(){
+            var sp = document.getElementById('rlSpark'); if(!sp) return;
+            var bars = sp.querySelectorAll('i[data-ts]');
+            bars.forEach(function(b){
+                var v = locHM(b.getAttribute('data-ts')); if(!v) return;
+                b.setAttribute('title', v+' — '+(b.getAttribute('data-c')||'0'));
+            });
+            var ax = document.getElementById('rlSparkX');
+            if(ax && bars.length === 24){
+                var idx = [0,7,15,23];
+                ax.querySelectorAll('span').forEach(function(sn, i){
+                    if(i >= idx.length) return;
+                    var v = locHM(bars[idx[i]].getAttribute('data-ts')); if(v) sn.textContent = v;
+                });
+            }
+            var pk = document.getElementById('rlKpiPeak');
+            if(pk){
+                var c = parseInt(pk.getAttribute('data-c'),10)||0, t = locHM(pk.getAttribute('data-ts'));
+                pk.textContent = (c && t) ? ('пик в '+t+' — '+c+' за час') : 'за последние 24 часа';
+            }
+        }
         function localize(root){
             (root||document).querySelectorAll('.rl-time[data-ts]').forEach(function(td){
                 var rep = td.querySelector('.rep'), v = loc(td.getAttribute('data-ts'), false);
@@ -295,12 +321,16 @@
                     kpi('rlKpiUsers', d.kpi.users); kpi('rlKpiDev', d.kpi.devices);
                     kpi('rlKpiTotal', d.kpi.total); kpi('rlKpiBlocked', d.kpi.blocked);
                     var sp = document.getElementById('rlSpark'); if(sp && d.spark) sp.innerHTML = d.spark;
+                    var pk = document.getElementById('rlKpiPeak');
+                    if(pk && d.kpi){ pk.setAttribute('data-ts', d.kpi.peak_h || 0); pk.setAttribute('data-c', d.kpi.peak || 0); }
+                    localizeSpark();
                     if(rlPager) rlPager.refresh();
                 }
                 if(a) a.textContent = '· обновлено в ' + new Date().toLocaleTimeString();
             }).catch(function(){ if(a) a.textContent = '· ошибка обновления'; });
         };
         localize(document);
+        localizeSpark();
         setInterval(function(){ if(!document.hidden && !anyOpen()) rlRefresh(); }, 10000);
         document.addEventListener('visibilitychange', function(){ if(!document.hidden && !anyOpen()) rlRefresh(); });
     })();
