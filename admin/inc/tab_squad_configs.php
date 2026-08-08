@@ -12,6 +12,7 @@
         .sqcfg-hint b{color:var(--accent-text)}
         .sqcfg-hint ul{margin:.4rem 0 0;padding-left:1.1rem}
         .sqcfg-hint .warn-line{color:var(--c-warn-fg)}
+        .sqcfg-hint .note-line{color:var(--muted)}
         #sqEditModal label:not(.sq-item){display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
         .card label{display:block;margin-bottom:.35rem;font-weight:600;font-size:.85rem}
         .sq-tag{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:.08rem .45rem;font-size:.74rem;margin:.1rem .25rem .1rem 0;white-space:nowrap}
@@ -29,6 +30,7 @@
                 <li><b>Простые (VLESS)</b> — <b>эта вкладка</b>. Конфиг дописывается всем подписчикам сквада одинаково. Без раздельных настроек: вставил <code>vless://</code>, выбрал сквады — готово. Можно и закрепить конфиг за конкретным пользователем (ниже).</li>
                 <li><b>WG / AmneziaWG</b> — вкладка <b>«WG / AWG»</b>. Там ограничение «один ключ = одно одновременное устройство», поэтому пул, выдача на пользователя/устройство, пакетная загрузка.</li>
             </ul>
+            <p class="muted" style="margin:.2rem 0">Транспорты ядра поддерживают по-разному, поэтому конфиг может уйти не во все форматы сразу. В base64-подписку попадает любая ссылка. В YAML/JSON собираются: <code>tcp</code>, <code>ws</code>, <code>grpc</code>, <code>httpupgrade</code> — везде; <code>xhttp</code> — Xray и Mihomo; HTTP/2 (<code>type=http</code>) — Mihomo и sing-box; <code>tcp</code> с <code>headerType=http</code> — Xray и Mihomo; <code>kcp</code> — только Xray; <code>quic</code> — только sing-box. После вставки ссылки прослойка сама пишет, куда конфиг уйдёт и почему.</p>
             <p class="muted" style="margin-bottom:0">Порядок: сначала во вкладке «Подключение» укажи URL панели и токен — без этого сквады не подтянутся; затем выбери сквады и добавь конфиг.</p>
         </div>
     </section>
@@ -38,7 +40,7 @@
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_sqcfg_settings">
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Инжект для xray-json</div><div class="set-d">Вливать WG/VLESS-конфиги сквада в подписки формата xray-json (напр. Happ). По умолчанию выкл. base64 / Clash / sing-box работают всегда при наличии конфигов. AmneziaWG в xray-json не вливается — ядро не умеет обфускацию.</div></div>
+                <div class="set-info"><div class="set-t">Инжект для xray-json</div><div class="set-d">Вливать WG/VLESS-конфиги сквада в подписки формата xray-json (напр. Happ). По умолчанию выкл. base64 / Clash / sing-box работают всегда при наличии конфигов. AmneziaWG в xray-json не вливается — ядро не умеет обфускацию. Если панель отдаёт xray-json списком профилей, на каждый конфиг копируется её шаблон: из копии убираются балансировщики и observatory, а правила с balancerTag переводятся на прямой выход — поэтому по умолчанию выключено.</div></div>
                 <label class="switch"><input type="checkbox" name="squad_xray_json_inject" <?= squadconf_xray_json_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
         </form>
