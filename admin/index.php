@@ -334,6 +334,7 @@ if (isset($_GET['ajax']) && is_auth()) {
             'summary'  => squadconf_summary($parsed),
             'clients'  => $parsed['clients'],
             'warnings' => $parsed['warnings'],
+            'notes'    => $parsed['notes'] ?? [],
         ], JSON_UNESCAPED_UNICODE);
         exit();
     }

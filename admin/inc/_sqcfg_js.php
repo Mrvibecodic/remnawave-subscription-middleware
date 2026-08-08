@@ -11,10 +11,13 @@
                 ? ('Распознан конфиг <b>'+esc(d.summary)+'</b>.')
                 : ('<span class="warn-line">Конфиг не распознан.</span>');
             if(d.ok && d.clients && d.clients.length){
-                html += ' Работает в клиентах: '+d.clients.map(esc).join(', ')+'. Будет доступен после обновления подписки.';
+                html += ' Попадёт в: '+d.clients.map(esc).join(', ')+'. Будет доступен после обновления подписки.';
             }
             if(d.warnings && d.warnings.length){
                 html += '<ul>'+d.warnings.map(function(w){return '<li class="warn-line">'+esc(w)+'</li>';}).join('')+'</ul>';
+            }
+            if(d.notes && d.notes.length){
+                html += '<ul>'+d.notes.map(function(w){return '<li class="note-line">'+esc(w)+'</li>';}).join('')+'</ul>';
             }
             hint.className='sqcfg-hint '+cls; hint.innerHTML=html; hint.style.display='';
         }
