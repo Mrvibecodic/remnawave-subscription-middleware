@@ -15,7 +15,19 @@ $chan_marks = implode("\n", chan_hard_remarks());
         <table class="logtbl">
             <tbody>
             <tr><td style="width:2.2rem"><?= $chan_ok ? '✅' : '❌' ?></td>
-                <td>Расширение <b>sodium</b><?= $chan_ok ? '' : ' — не установлено, канал выключен принудительно. В Debian и Ubuntu sodium вкомпилен в сам PHP, отдельного пакета там нет: обычно помогает обновить PHP. Там, где расширение вынесено, пакет называется по версии — <code>php8.3-sodium</code>. В докере — пересобрать образ.' ?></td></tr>
+                <td>Расширение <b>sodium</b> в PHP <?= h(PHP_VERSION) ?> · <?= h(PHP_SAPI) ?>
+                    <?php if (!$chan_ok): ?>
+                        — нет в этой сборке, канал выключен принудительно.
+                        <div class="muted" style="margin-top:.35rem">
+                            Проверять надо именно эту сборку: консольный <code>php -m</code> на том же сервере
+                            часто показывает совсем другой PHP, и его вывод тут ни о чём не говорит.
+                            В штатных PHP из Debian и Ubuntu sodium вкомпилен внутрь, и отдельного пакета
+                            <code>php-sodium</code> там не существует. Если PHP ставила панель управления
+                            (FastPanel, ISPmanager, cPanel) — включите расширение в её списке модулей PHP
+                            для версии <?= h(PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION) ?>. В докере — пересобрать образ.
+                        </div>
+                    <?php endif; ?>
+                </td></tr>
             <tr><td><?= $chan_fp !== '' ? '✅' : '❌' ?></td>
                 <td>Ключ прослойки<?= $chan_fp !== '' ? ' — отпечаток <code>' . h($chan_fp) . '</code>' : ' — ещё не создан, появится при первом защищённом запросе' ?></td></tr>
             <tr><td><?= $chan_api ? '✅' : '❌' ?></td>
