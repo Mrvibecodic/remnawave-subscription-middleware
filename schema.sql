@@ -35,7 +35,12 @@ INSERT INTO settings (k, v) VALUES
     ('addsub_stub_on_traffic','1'),
     ('addsub_stub_label',     'Трафик доп-сервера истёк'),
     ('addsub_merge_xray',     '0'),
-    ('squad_xray_json_inject','0')
+    ('squad_xray_json_inject','0'),
+    ('chan_enabled',          '0'),
+    ('chan_pad',              '1'),
+    ('chan_hard_default',     '0'),
+    ('chan_page_404',         '0'),
+    ('chan_index_ttl',        '900')
 ON CONFLICT(k) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS overrides (
@@ -146,4 +151,39 @@ CREATE TABLE IF NOT EXISTS addsub_cache (
     main_short TEXT NOT NULL PRIMARY KEY,
     add_url TEXT NULL,
     ts INTEGER NOT NULL DEFAULT 0
+);
+
+-- Защищённый канал c1 (клиент ↔ прослойка).
+-- chan_kid — метки подписок на трое суток: вчера, сегодня, завтра.
+CREATE TABLE IF NOT EXISTS chan_kid (
+    kid TEXT NOT NULL PRIMARY KEY,
+    short_uuid TEXT NOT NULL,
+    epoch INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chan_kid_epoch ON chan_kid(epoch);
+
+-- chan_nonce — защита от повтора перехваченного запроса, живёт 10 минут.
+CREATE TABLE IF NOT EXISTS chan_nonce (
+    n TEXT NOT NULL PRIMARY KEY,
+    ts INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_chan_nonce_ts ON chan_nonce(ts);
+
+-- chan_key — ключи прослойки: текущий и предыдущий на время ротации.
+CREATE TABLE IF NOT EXISTS chan_key (
+    spid TEXT NOT NULL PRIMARY KEY,
+    secret TEXT NOT NULL,
+    created INTEGER NOT NULL DEFAULT 0,
+    is_current INTEGER NOT NULL DEFAULT 0
+);
+
+-- chan_state — кто уже ходит защищённо: для вкладки и для жёсткого режима.
+CREATE TABLE IF NOT EXISTS chan_state (
+    short_uuid TEXT NOT NULL PRIMARY KEY,
+    first_seen INTEGER NOT NULL DEFAULT 0,
+    last_seen INTEGER NOT NULL DEFAULT 0,
+    hits INTEGER NOT NULL DEFAULT 0,
+    downgrades INTEGER NOT NULL DEFAULT 0,
+    hard INTEGER NOT NULL DEFAULT 0,
+    ua TEXT NULL
 );

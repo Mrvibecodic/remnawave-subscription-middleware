@@ -1,4 +1,7 @@
 FROM php:8.3-fpm-bookworm
+# sodium нужен защищённому каналу (протокол c1). В официальном образе он уже
+# встроен, поэтому ниже он собирается только если его вдруг нет: вторая копия
+# расширения дала бы «module already loaded» на каждом запросе.
 ARG SUBMW_VERSION=dev
 ENV SUBMW_DOCKER=1 SUBMW_VERSION=${SUBMW_VERSION}
 RUN set -eux; \
@@ -6,6 +9,10 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         nginx libcurl4-openssl-dev libsqlite3-dev libonig-dev libxml2-dev; \
     docker-php-ext-install -j"$(nproc)" pdo_sqlite pdo_mysql curl mbstring dom; \
+    if ! php -m | grep -qi '^sodium$'; then \
+        apt-get install -y --no-install-recommends libsodium-dev; \
+        docker-php-ext-install -j"$(nproc)" sodium; \
+    fi; \
     rm -rf /var/lib/apt/lists/*
 COPY . /var/www/html
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf

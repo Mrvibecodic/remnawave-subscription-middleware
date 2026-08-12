@@ -122,6 +122,13 @@ $action = 'ignored';
 if ($short_uuid !== '') squadconf_cache_drop($short_uuid);
 if ($short_uuid !== '') addsub_cache_drop($short_uuid);
 
+// Метки защищённого канала для новой подписки. Индекс пересобирается раз в
+// сутки, и без этого человек, созданный сразу после обхода, не смог бы
+// подключиться защищённо до следующего.
+if ($short_uuid !== '' && $event !== 'user.deleted' && function_exists('chan_index_add') && chan_enabled()) {
+    try { chan_index_add($short_uuid); } catch (Throwable $e) { error_log('submw chan index add: ' . $e->getMessage()); }
+}
+
 if ($short_uuid !== '') {
     $expire_future = false;
     if (!empty($data['expireAt'])) {

@@ -91,6 +91,11 @@ function install_seed_values() {
         'landing_fp_ack'        => '',
         'chat_enabled'          => '0',
         'chat_tg_api_base'      => '',
+        'chan_enabled'          => '0',
+        'chan_pad'              => '1',
+        'chan_hard_default'     => '0',
+        'chan_page_404'         => '0',
+        'chan_index_ttl'        => '900',
     ];
 }
 
@@ -383,6 +388,27 @@ function migrate_extra_ddl($drv) {
                 path VARCHAR(191) NOT NULL, hits BIGINT UNSIGNED NOT NULL DEFAULT 0,
                 last_ts INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (path)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS chan_kid (
+                kid VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                short_uuid VARCHAR(64) NOT NULL, epoch INT NOT NULL,
+                PRIMARY KEY (kid), KEY idx_chan_kid_epoch (epoch)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS chan_nonce (
+                n VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                ts INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (n), KEY idx_chan_nonce_ts (ts)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS chan_key (
+                spid VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                secret VARCHAR(64) NOT NULL, created INT UNSIGNED NOT NULL DEFAULT 0,
+                is_current TINYINT(1) NOT NULL DEFAULT 0, PRIMARY KEY (spid)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS chan_state (
+                short_uuid VARCHAR(64) NOT NULL, first_seen INT UNSIGNED NOT NULL DEFAULT 0,
+                last_seen INT UNSIGNED NOT NULL DEFAULT 0, hits BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                downgrades BIGINT UNSIGNED NOT NULL DEFAULT 0, hard TINYINT(1) NOT NULL DEFAULT 0,
+                ua VARCHAR(255) NULL, PRIMARY KEY (short_uuid)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "ALTER TABLE grace_users ADD COLUMN orig_external_squad VARCHAR(191) NULL",
         ];
     }
@@ -418,6 +444,12 @@ function migrate_extra_ddl($drv) {
         "CREATE INDEX IF NOT EXISTS idx_la_ip ON login_attempts(ip)",
         "CREATE INDEX IF NOT EXISTS idx_la_ts ON login_attempts(ts)",
         "CREATE TABLE IF NOT EXISTS junk_hits (path TEXT NOT NULL PRIMARY KEY, hits INTEGER NOT NULL DEFAULT 0, last_ts INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE IF NOT EXISTS chan_kid (kid TEXT NOT NULL PRIMARY KEY, short_uuid TEXT NOT NULL, epoch INTEGER NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_chan_kid_epoch ON chan_kid(epoch)",
+        "CREATE TABLE IF NOT EXISTS chan_nonce (n TEXT NOT NULL PRIMARY KEY, ts INTEGER NOT NULL DEFAULT 0)",
+        "CREATE INDEX IF NOT EXISTS idx_chan_nonce_ts ON chan_nonce(ts)",
+        "CREATE TABLE IF NOT EXISTS chan_key (spid TEXT NOT NULL PRIMARY KEY, secret TEXT NOT NULL, created INTEGER NOT NULL DEFAULT 0, is_current INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE IF NOT EXISTS chan_state (short_uuid TEXT NOT NULL PRIMARY KEY, first_seen INTEGER NOT NULL DEFAULT 0, last_seen INTEGER NOT NULL DEFAULT 0, hits INTEGER NOT NULL DEFAULT 0, downgrades INTEGER NOT NULL DEFAULT 0, hard INTEGER NOT NULL DEFAULT 0, ua TEXT NULL)",
         "ALTER TABLE grace_users ADD COLUMN orig_external_squad TEXT NULL",
     ];
 }

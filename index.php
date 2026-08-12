@@ -5,6 +5,13 @@ error_reporting(E_ALL);
 
 require __DIR__ . '/lib.php';
 
+// Защищённый канал c1. Врезка обязана стоять здесь, до разбора адреса: ниже на
+// $request_uri висят лендинг, страница подписки, детектор мусора и адрес
+// апстрима. Расшифрованный запрос дальше выглядит как обычный, поэтому весь
+// конвейер — оверрайды, HWID, squadconf_inject, addsub_merge, правила ответа —
+// работает без единой правки. Шифрование ответа висит на завершении скрипта.
+chan_intercept();
+
 $target_domain = target_domain();
 
 $request_uri = $_SERVER['REQUEST_URI'] ?? '/';
@@ -73,7 +80,14 @@ $conditional_hdrs = ['if-none-match', 'if-modified-since', 'if-match', 'if-unmod
 
 $request_headers = [];
 $strip_fwd = $to_panel;
-if (function_exists('getallheaders')) {
+if (!empty($GLOBALS['chan_headers'])) {
+    // Защищённый запрос: снаружи заголовков опознания нет вовсе — они приехали
+    // внутри шифра. Берём только их и ничего больше: всё, что добавил по дороге
+    // посредник, панели видеть незачем.
+    foreach ($GLOBALS['chan_headers'] as $key => $value) {
+        $request_headers[] = $key . ': ' . $value;
+    }
+} elseif (function_exists('getallheaders')) {
     foreach (getallheaders() as $key => $value) {
         $lk = strtolower($key);
         if ($lk === 'host') continue;
@@ -281,6 +295,45 @@ $passthrough = ['profile-title', 'support-url', 'profile-update-interval',
 $is_page = stripos($grabbed_headers['content-type'] ?? '', 'text/html') === 0;
 if ($is_page || preg_match('~^(assets|\.well-known|cdn-cgi)(/|$)~i', $path)) $GLOBALS['submw_skip_metric'] = true;
 
+// Страница подписки в браузере для той, что уже ходит защищённо: провайдер
+// может её закрыть. Открытая страница показывает посреднику адрес подписки
+// целиком, то есть отменяет весь смысл канала.
+if (!chan_active() && $is_page && chan_page_404() && $short_uuid !== '' && !$junk_path
+    && chan_state_get($short_uuid) !== null) {
+    header_remove('X-Powered-By');
+    http_response_code(404);
+    die();
+}
+
+// Жёсткий режим: подписка уже ходила защищённо, а этот запрос пришёл открытым.
+// Сам клиент на открытый HTTP не откатывается — значит откат сделали за него,
+// и отдавать по такому запросу рабочий конфиг нельзя. Каждый случай считается
+// отдельно: это единственный способ увидеть посредника, режущего /c1/.
+if (!chan_active() && $decision === 'normal' && $short_uuid !== '' && !$junk_path
+    && chan_hard($short_uuid)) {
+    chan_state_downgrade($short_uuid);
+    http_response_code(200);
+    header('Content-Type: ' . ($grabbed_headers['content-type'] ?? 'text/plain; charset=utf-8'));
+    foreach ($passthrough as $h) {
+        if (isset($grabbed_headers[$h])) header($h . ': ' . $grabbed_headers[$h]);
+    }
+    emit_response_headers();
+    $chan_stub = chan_stub_body($format);
+    echo $chan_stub;
+    if (!$skip_log && !$is_page) {
+        $GLOBALS['submw_real_sub'] = true;
+        log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts, $current_hwid, [
+            'fmt'   => reqlog_detect_fmt($grabbed_headers['content-type'] ?? '', $path, $ua),
+            'ctype' => $grabbed_headers['content-type'] ?? '',
+            'bytes' => strlen($chan_stub),
+            'as'    => ['s' => 'skip'],
+            'dv'    => reqlog_device($ua_hwid_vals),
+            'chan'  => 'down',
+        ]);
+    }
+    die();
+}
+
 $do_substitute = ($decision === 'blocked');
 if ($do_substitute) {
     header('HTTP/1.1 200 OK');
@@ -405,6 +458,7 @@ if (!$skip_log) {
         'wg'    => $log_wg,
         'grace' => $is_grace ? 1 : 0,
         'dv'    => reqlog_device($ua_hwid_vals),
+        'chan'  => chan_active() ? 1 : 0,
     ];
     if (!$is_page && reqlog_is_real($grabbed_headers, $log_decision, $short_ov)) {
         $GLOBALS['submw_real_sub'] = true;
