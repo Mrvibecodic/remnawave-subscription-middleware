@@ -143,6 +143,8 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $meta = reqlog_meta($r);
         $as   = is_array($meta['as'] ?? null) ? $meta['as'] : [];
         $cl   = reqlog_client((string) ($r['user_agent'] ?? ''));
+        $dvl  = reqlog_device_label($meta['dv'] ?? null);
+        if ($dvl !== '') $cl['dev'] = $dvl;
         $name = $su !== '' && isset($names[$su]) ? (string) $names[$su] : '';
         $u    = $users[$su] ?? [];
         $day  = (int) ($idx[$su]['day'] ?? 0);

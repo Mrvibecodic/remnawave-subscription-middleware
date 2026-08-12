@@ -79,8 +79,8 @@ function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null,
     if (!($p = db())) return;
     ensure_reqlog_hwid();
     $extra = [];
-    foreach (['as', 'wg', 'grace', 'sub'] as $k) {
-        if (isset($meta[$k]) && $meta[$k] !== '' && $meta[$k] !== null) $extra[$k] = $meta[$k];
+    foreach (['as', 'wg', 'grace', 'sub', 'dv'] as $k) {
+        if (isset($meta[$k]) && $meta[$k] !== '' && $meta[$k] !== null && $meta[$k] !== []) $extra[$k] = $meta[$k];
     }
     try {
         $stmt = $p->prepare(
@@ -159,6 +159,37 @@ function reqlog_fmt_label($fmt, $short = false) {
         'other'   => 'другой',
     ];
     return $map[(string) $fmt] ?? '';
+}
+
+// Модель и ОС клиент шлёт отдельными заголовками (панель показывает их в списке
+// устройств), а в User-Agent их кладут далеко не все — поэтому берём из заголовков,
+// а разбор UA оставляем запасным вариантом.
+function reqlog_device($ua_vals = []) {
+    $pick = function ($key, $limit) use ($ua_vals) {
+        $sk = 'HTTP_' . strtoupper(str_replace('-', '_', $key));
+        $v = trim((string) ($_SERVER[$sk] ?? ''));
+        if ($v === '') $v = trim((string) ($ua_vals[$key] ?? ''));
+        $v = trim(preg_replace('/[\x00-\x1F\x7F]/', '', $v));
+        return $v === '' ? '' : mb_substr($v, 0, $limit);
+    };
+    $out = [];
+    $m = $pick('x-device-model', 40);
+    $o = $pick('x-device-os', 24);
+    $v = $pick('x-ver-os', 16);
+    if ($m !== '') $out['m'] = $m;
+    if ($o !== '') $out['o'] = $o;
+    if ($v !== '') $out['v'] = $v;
+    return $out;
+}
+
+function reqlog_device_label($dv) {
+    if (!is_array($dv)) return '';
+    $os = trim((string) ($dv['o'] ?? ''));
+    $ver = trim((string) ($dv['v'] ?? ''));
+    if ($os !== '' && $ver !== '' && stripos($os, $ver) === false) $os .= ' ' . $ver;
+    elseif ($os === '' && $ver !== '') $os = $ver;
+    $parts = array_values(array_filter([trim((string) ($dv['m'] ?? '')), $os], fn($x) => $x !== ''));
+    return implode(' · ', $parts);
 }
 
 function reqlog_client($ua) {
