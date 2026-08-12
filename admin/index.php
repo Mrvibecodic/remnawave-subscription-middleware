@@ -592,6 +592,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         form_saved('clod');
     }
 
+    if ($action === 'save_clod_debug') {
+        set_setting('chan_debug', isset($_POST['chan_debug']) ? '1' : '0');
+        set_setting('chan_debug_keep', (string) max(5, min(500, (int) ($_POST['chan_debug_keep'] ?? 50))));
+        flash(isset($_POST['chan_debug']) ? 'Диагностический журнал включён — не забудьте выключить после разбора' : 'Диагностический журнал выключен');
+        form_saved('clod');
+    }
+
+    if ($action === 'clod_debug_clear') {
+        chan_debug_clear();
+        flash('Диагностический журнал очищен');
+        form_saved('clod');
+    }
+
     if ($action === 'clod_rotate') {
         flash(chan_rotate() ? 'Ключ прослойки сменён, отпечаток: ' . chan_fingerprint() : 'Сменить ключ не удалось, подробности в логе');
         form_saved('clod');

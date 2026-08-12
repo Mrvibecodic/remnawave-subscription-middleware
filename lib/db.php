@@ -96,6 +96,8 @@ function install_seed_values() {
         'chan_hard_default'     => '0',
         'chan_page_404'         => '0',
         'chan_index_ttl'        => '900',
+        'chan_debug'            => '0',
+        'chan_debug_keep'       => '50',
     ];
 }
 

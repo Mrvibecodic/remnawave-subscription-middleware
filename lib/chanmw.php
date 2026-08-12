@@ -31,6 +31,16 @@ function chan_hard_default() { return setting('chan_hard_default', '0') === '1';
 
 function chan_page_404() { return setting('chan_page_404', '0') === '1'; }
 
+// Диагностический журнал. Выключен по умолчанию не из осторожности вообще,
+// а по делу: в записи попадает расшифрованное тело подписки и карточка
+// устройства, то есть ровно то, что канал и прячет от посредника.
+function chan_debug_on() { return setting('chan_debug', '0') === '1'; }
+
+function chan_debug_keep() { return max(5, min(500, (int) (setting('chan_debug_keep', '50') ?: 50))); }
+
+// Потолок на каждое длинное поле записи: диагностика не должна раздувать базу.
+const CHAN_DEBUG_CUT = 8192;
+
 // Пересбор индекса меток по промаху — не чаще, чем раз в столько секунд.
 // Промах вызывает полный обход пользователей панели, и без дросселя мусорный
 // трафик по /c1/ превратился бы в постоянный опрос API.
@@ -81,6 +91,15 @@ function chan_ensure() {
                 ua VARCHAR(255) NULL,
                 PRIMARY KEY (short_uuid)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+            $p->exec("CREATE TABLE IF NOT EXISTS chan_debug (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, ts INT UNSIGNED NOT NULL DEFAULT 0,
+                ok TINYINT(1) NOT NULL DEFAULT 0, why VARCHAR(32) NULL, short_uuid VARCHAR(64) NULL,
+                kid VARCHAR(16) NULL, spid VARCHAR(16) NULL, req_path TEXT NULL, req_head TEXT NULL,
+                req_json TEXT NULL, req_fwd TEXT NULL, res_st INT NULL, res_meta TEXT NULL,
+                res_body MEDIUMTEXT NULL, res_wire MEDIUMTEXT NULL, res_outer TEXT NULL,
+                body_bytes INT UNSIGNED NULL, wire_bytes INT UNSIGNED NULL,
+                PRIMARY KEY (id), KEY idx_chan_debug_ts (ts)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         } else {
             $p->exec("CREATE TABLE IF NOT EXISTS chan_kid (kid TEXT NOT NULL PRIMARY KEY, short_uuid TEXT NOT NULL, epoch INTEGER NOT NULL)");
             $p->exec("CREATE INDEX IF NOT EXISTS idx_chan_kid_epoch ON chan_kid(epoch)");
@@ -88,6 +107,15 @@ function chan_ensure() {
             $p->exec("CREATE INDEX IF NOT EXISTS idx_chan_nonce_ts ON chan_nonce(ts)");
             $p->exec("CREATE TABLE IF NOT EXISTS chan_key (spid TEXT NOT NULL PRIMARY KEY, secret TEXT NOT NULL, created INTEGER NOT NULL DEFAULT 0, is_current INTEGER NOT NULL DEFAULT 0)");
             $p->exec("CREATE TABLE IF NOT EXISTS chan_state (short_uuid TEXT NOT NULL PRIMARY KEY, first_seen INTEGER NOT NULL DEFAULT 0, last_seen INTEGER NOT NULL DEFAULT 0, hits INTEGER NOT NULL DEFAULT 0, downgrades INTEGER NOT NULL DEFAULT 0, hard INTEGER NOT NULL DEFAULT 0, ua TEXT NULL)");
+            $p->exec("CREATE TABLE IF NOT EXISTS chan_debug (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL DEFAULT 0,
+                ok INTEGER NOT NULL DEFAULT 0, why TEXT NULL, short_uuid TEXT NULL,
+                kid TEXT NULL, spid TEXT NULL, req_path TEXT NULL, req_head TEXT NULL,
+                req_json TEXT NULL, req_fwd TEXT NULL, res_st INTEGER NULL, res_meta TEXT NULL,
+                res_body TEXT NULL, res_wire TEXT NULL, res_outer TEXT NULL,
+                body_bytes INTEGER NULL, wire_bytes INTEGER NULL
+            )");
+            $p->exec("CREATE INDEX IF NOT EXISTS idx_chan_debug_ts ON chan_debug(ts)");
         }
         return true;
     } catch (Throwable $e) { error_log('submw chan tables: ' . $e->getMessage()); return false; }
@@ -386,6 +414,99 @@ function chan_stats() {
     return $out;
 }
 
+// ------------------------------------------------- диагностический журнал ---
+
+/** Длинное поле — к хранимому виду, с честной пометкой об обрезке. */
+function chan_debug_cut($value) {
+    $value = (string) $value;
+    if (strlen($value) <= CHAN_DEBUG_CUT) return $value;
+
+    return substr($value, 0, CHAN_DEBUG_CUT) . "\n… обрезано, всего " . strlen($value) . " байт";
+}
+
+/**
+ * Заголовки, пришедшие снаружи, — то есть от посредника и клиента вместе.
+ *
+ * Снимаются ДО подмены: дальше по коду `$_SERVER` уже переписан содержимым
+ * шифра, и настоящего входящего запроса в нём не остаётся.
+ */
+function chan_debug_incoming_headers() {
+    $out = [];
+    if (function_exists('getallheaders')) {
+        foreach (getallheaders() as $k => $v) $out[strtolower((string) $k)] = (string) $v;
+    } else {
+        foreach ($_SERVER as $k => $v) {
+            if (strpos($k, 'HTTP_') !== 0) continue;
+            $out[strtolower(str_replace('_', '-', substr($k, 5)))] = (string) $v;
+        }
+    }
+    ksort($out);
+
+    return $out;
+}
+
+function chan_debug_record(array $r) {
+    if (!chan_ensure() || !($p = db())) return;
+    $j = static fn($v) => is_string($v) ? $v : (string) json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    try {
+        $st = $p->prepare('INSERT INTO chan_debug
+            (ts, ok, why, short_uuid, kid, spid, req_path, req_head, req_json, req_fwd, res_st, res_meta, res_body, res_wire, res_outer, body_bytes, wire_bytes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $st->execute([
+            (int) ($r['ts'] ?? time()),
+            !empty($r['ok']) ? 1 : 0,
+            (string) ($r['why'] ?? ''),
+            (string) ($r['short_uuid'] ?? ''),
+            (string) ($r['kid'] ?? ''),
+            (string) ($r['spid'] ?? ''),
+            chan_debug_cut($r['req_path'] ?? ''),
+            chan_debug_cut($j($r['req_head'] ?? [])),
+            chan_debug_cut($r['req_json'] ?? ''),
+            chan_debug_cut($j($r['req_fwd'] ?? [])),
+            isset($r['res_st']) ? (int) $r['res_st'] : null,
+            chan_debug_cut($j($r['res_meta'] ?? [])),
+            chan_debug_cut($r['res_body'] ?? ''),
+            chan_debug_cut($r['res_wire'] ?? ''),
+            chan_debug_cut($j($r['res_outer'] ?? [])),
+            isset($r['body_bytes']) ? (int) $r['body_bytes'] : null,
+            isset($r['wire_bytes']) ? (int) $r['wire_bytes'] : null,
+        ]);
+        // Кольцо: журнал не должен расти. Мусорный трафик по /c1/ тоже сюда
+        // попадает, иначе непонятно, что вообще стучится.
+        $keep = chan_debug_keep();
+        $p->exec('DELETE FROM chan_debug WHERE id <= (SELECT MAX(id) - ' . (int) $keep . ' FROM (SELECT id FROM chan_debug) t)');
+    } catch (Throwable $e) { error_log('submw chan debug: ' . $e->getMessage()); }
+}
+
+function chan_debug_list($limit = 50) {
+    if (!chan_ensure() || !($p = db())) return [];
+    try {
+        return $p->query('SELECT * FROM chan_debug ORDER BY id DESC LIMIT ' . (int) $limit)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) { return []; }
+}
+
+function chan_debug_clear() {
+    if (!chan_ensure() || !($p = db())) return;
+    try { $p->exec('DELETE FROM chan_debug'); } catch (Throwable $e) {}
+}
+
+/** Причина отказа — человеческим языком. */
+function chan_debug_why($why) {
+    $map = [
+        'blob'   => 'блок в адресе не разбирается — не наш клиент или мусор',
+        'kid'    => 'метки нет в индексе — подписка неизвестна либо индекс не пересобран',
+        'spid'   => 'клиент закрепил ключ, которого у прослойки уже нет',
+        'dh'     => 'вырожденный эфемерный ключ в запросе',
+        'aead'   => 'не расшифровалось: другой адрес подписки или подмена по дороге',
+        'json'   => 'внутри не тот формат или версия протокола',
+        'time'   => 'время запроса вне окна ±300 секунд — разъехались часы',
+        'nonce'  => 'плохая метка запроса',
+        'replay' => 'повтор: эта метка запроса уже принималась',
+    ];
+
+    return $map[(string) $why] ?? (string) $why;
+}
+
 // ------------------------------------------------------------- заглушка ---
 
 /**
@@ -436,9 +557,30 @@ function chan_intercept() {
 
     [$prefix, $kid, $spid, $blob] = $route;
 
-    $ctx = chan_open($kid, $spid, $blob, 'chan_lookup_token', chan_keys());
-    if ($ctx === null) return null;
-    if (!chan_nonce_take($ctx['nonce'])) return null;
+    // Журнал снимает входящее ДО подмены: после неё настоящего запроса
+    // в $_SERVER уже не остаётся.
+    $dbg  = chan_debug_on();
+    $head = $dbg ? chan_debug_incoming_headers() : [];
+
+    $why = null;
+    $ctx = chan_open($kid, $spid, $blob, 'chan_lookup_token', chan_keys(), null, $why);
+    if ($ctx === null) {
+        if ($dbg) {
+            chan_debug_record(['ok' => 0, 'why' => $why, 'kid' => $kid, 'spid' => $spid,
+                               'req_path' => $uri, 'req_head' => $head]);
+        }
+
+        return null;
+    }
+    if (!chan_nonce_take($ctx['nonce'])) {
+        if ($dbg) {
+            chan_debug_record(['ok' => 0, 'why' => 'replay', 'kid' => $kid, 'spid' => $spid,
+                               'short_uuid' => $ctx['token'], 'req_path' => $uri,
+                               'req_head' => $head, 'req_json' => $ctx['plain']]);
+        }
+
+        return null;
+    }
 
     // Дальше запрос обязан выглядеть как обычный: подменяем путь, строку
     // запроса и заголовки опознания. Иначе половина конвейера — формат клиента,
@@ -455,6 +597,19 @@ function chan_intercept() {
     // поэтому одной подменой $_SERVER не обойтись: index.php берёт этот массив.
     $GLOBALS['chan_headers'] = $headers;
     $GLOBALS['chan_ctx']     = $ctx;
+
+    if ($dbg) {
+        $GLOBALS['chan_dbg'] = [
+            'ts'         => time(),
+            'kid'        => $kid,
+            'spid'       => $spid,
+            'short_uuid' => $ctx['token'],
+            'req_path'   => $uri,
+            'req_head'   => $head,
+            'req_json'   => $ctx['plain'],
+            'req_fwd'    => ['request_uri' => $_SERVER['REQUEST_URI'], 'headers' => $headers],
+        ];
+    }
 
     // Всё, что скрипт напишет дальше, — включая ветки с die() и exit() —
     // осядет здесь и уедет внутрь шифра.
@@ -527,4 +682,18 @@ function chan_flush() {
     echo $sealed;
 
     chan_state_hit($ctx['token'], (string) ($ctx['req']['ua'] ?? ''));
+
+    if (!empty($GLOBALS['chan_dbg'])) {
+        $rec = $GLOBALS['chan_dbg'];
+        $GLOBALS['chan_dbg'] = null;
+        $rec['ok']         = 1;
+        $rec['res_st']     = $status;
+        $rec['res_meta']   = $meta;
+        $rec['res_body']   = $body;
+        $rec['res_wire']   = $sealed;
+        $rec['res_outer']  = ['status' => 200, 'headers' => headers_list()];
+        $rec['body_bytes'] = strlen($body);
+        $rec['wire_bytes'] = strlen($sealed);
+        chan_debug_record($rec);
+    }
 }

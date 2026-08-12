@@ -8,7 +8,20 @@ $chan_rows  = chan_state_list(500);
 $chan_len   = function_exists('panel_short_uuid_len') ? (int) panel_short_uuid_len() : 0;
 $chan_api   = remnawave_url() !== '' && remnawave_token() !== '';
 $chan_marks = implode("\n", chan_hard_remarks());
+$chan_dbg   = chan_debug_on() ? chan_debug_list(chan_debug_keep()) : [];
 ?>
+    <style>
+    .cdbg{font-size:.78rem}
+    .cdbg details{border-top:1px solid var(--line)}
+    .cdbg details:first-of-type{border-top:0}
+    .cdbg summary{cursor:pointer;padding:.34rem .2rem;display:flex;gap:.55rem;align-items:center;list-style:none;overflow:hidden;white-space:nowrap}
+    .cdbg summary::-webkit-details-marker{display:none}
+    .cdbg summary:hover{background:var(--accent-light)}
+    .cdbg .n{font-variant-numeric:tabular-nums;flex:0 0 auto}
+    .cdbg .g{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
+    .cdbg .lbl{font-weight:600;margin:.5rem 0 .15rem;font-size:.74rem}
+    .cdbg pre{margin:0;padding:.45rem .55rem;font-size:.7rem;line-height:1.35;max-height:13rem;overflow:auto;white-space:pre-wrap;word-break:break-all;background:var(--bg2);border:1px solid var(--line)}
+    </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Работает только с Clod Clash</h2>
         <p class="muted">Это протокол двух конкретных приложений и этой прослойки, а не стандарт подписок: никакой другой клиент про него не знает и по нему работать не будет. Обычные подписки идут прежним путём, канал их не касается.</p>
@@ -151,8 +164,69 @@ $chan_marks = implode("\n", chan_hard_remarks());
         </table>
     </div>
 
-    <div class="card">
-        <h2 style="margin-top:0;font-size:1rem">Как это устроено</h2>
+    <section class="<?= coll_cls('chan_debug', true) ?>" data-coll="chan_debug">
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>🔬 Диагностика<?= $chan_dbg ? ' · ' . count($chan_dbg) : '' ?></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="coll-body">
+            <form method="post" data-autosave style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="save_clod_debug">
+                <label class="chk" style="margin:0"><input type="checkbox" name="chan_debug" <?= chan_debug_on() ? 'checked' : '' ?>> <span>Писать журнал</span></label>
+                <label style="margin:0;display:flex;gap:.4rem;align-items:center">хранить <input type="number" name="chan_debug_keep" min="5" max="500" value="<?= (int) chan_debug_keep() ?>" style="width:5.5rem"> записей</label>
+                <button type="submit">💾</button>
+            </form>
+            <p class="muted" style="margin:.6rem 0 0;font-size:.8rem">В записи попадает <b>расшифрованное тело подписки</b> и карточка устройства — то самое, что канал прячет от посредника. Включайте на время разбора и выключайте после. Пишутся и удачные запросы, и отказы, включая чужие: по ним видно, что вообще стучится по <code>/c1/…</code>.</p>
+            <?php if (chan_debug_on()): ?>
+                <form method="post" style="margin:.6rem 0 0">
+                    <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                    <input type="hidden" name="action" value="clod_debug_clear">
+                    <button type="submit" class="ghost">🗑 Очистить</button>
+                </form>
+            <?php endif; ?>
+            <?php if (!$chan_dbg): ?>
+                <p class="muted" style="margin:.8rem 0 0;font-size:.8rem"><?= chan_debug_on() ? 'Пока пусто — журнал ждёт первого запроса по каналу.' : 'Журнал выключен.' ?></p>
+            <?php else: ?>
+            <div class="cdbg" style="margin-top:.7rem">
+                <?php foreach ($chan_dbg as $d): $ok = (int) $d['ok'] === 1; ?>
+                <details>
+                    <summary>
+                        <span class="n ct-time muted" data-ts="<?= (int) $d['ts'] ?>"><?= h(date('H:i:s', (int) $d['ts'])) ?></span>
+                        <span class="n"><?= $ok ? '✅' : '⛔' ?></span>
+                        <span class="g"><?php if ($ok): ?><code><?= h((string) $d['short_uuid']) ?></code> · ответ <?= (int) $d['res_st'] ?> · тело <?= (int) $d['body_bytes'] ?> б → шифр <?= (int) $d['wire_bytes'] ?> симв<?php else: ?><span class="muted"><?= h(chan_debug_why($d['why'])) ?></span><?php endif; ?></span>
+                    </summary>
+                    <div class="lbl">1. Запрос снаружи — что видит посредник</div>
+                    <pre><?= h((string) $d['req_path']) ?></pre>
+                    <div class="lbl">2. Заголовки запроса снаружи</div>
+                    <pre><?= h((string) $d['req_head']) ?></pre>
+                    <?php if ((string) $d['req_json'] !== ''): ?>
+                    <div class="lbl">3. Запрос расшифрованный</div>
+                    <pre><?= h((string) $d['req_json']) ?></pre>
+                    <?php endif; ?>
+                    <?php if ($ok): ?>
+                    <div class="lbl">4. Каким запрос ушёл в конвейер и в панель</div>
+                    <pre><?= h((string) $d['req_fwd']) ?></pre>
+                    <div class="lbl">5. Ответ до шифрования — заголовки панели</div>
+                    <pre><?= h((string) $d['res_meta']) ?></pre>
+                    <div class="lbl">6. Ответ до шифрования — тело</div>
+                    <pre><?= h((string) $d['res_body']) ?></pre>
+                    <div class="lbl">7. Ответ снаружи — заголовки и код, как их увидит клиент</div>
+                    <pre><?= h((string) $d['res_outer']) ?></pre>
+                    <div class="lbl">8. Ответ снаружи — шифротекст, байт в байт как ушёл клиенту</div>
+                    <pre><?= h((string) $d['res_wire']) ?></pre>
+                    <?php endif; ?>
+                </details>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+    </section>
+
+    <section class="<?= coll_cls('chan_how', true) ?>" data-coll="chan_how">
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Как это устроено</span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="coll-body">
         <p class="muted">Общий секрет — <b>сам адрес подписки</b>. В сеть он не уходит ни разу: из него выводится ключ <code>psk = HKDF-SHA256(адрес, соль «clod-chan-v1», метка «psk»)</code>, 32 байта. Криптография одна и не согласуется: X25519, HKDF-SHA256, ChaCha20-Poly1305.</p>
 
         <div class="set-t" style="margin-top:1rem">Запрос</div>
@@ -177,10 +251,14 @@ $chan_marks = implode("\n", chan_hard_remarks());
         <p class="muted">На входе проверяются две вещи: время запроса в пределах ±300 секунд и метка запроса, которая принимается один раз и помнится 10 минут. Любая неудача — не расшифровалось, метка чужая, запрос повторён — выглядит снаружи одинаково: ровно тем же ответом, что и обращение по любому несуществующему адресу.</p>
         <p class="muted">Подписей в протоколе нет и не нужно: <code>psk</code> выведен из адреса подписки, который знают только клиент и прослойка, поэтому расшифровавшийся ответ сам по себе доказывает, что отвечала именно она. Смена ключа прослойки едет тем же путём — внутри очередного ответа.</p>
         <p class="muted">Чего канал не прячет: сам факт, что запрос защищённый — это видно по форме адреса; размер конфигурации с точностью до 4096 символов; и то, общался ли этот клиент раньше — по отпечатку вместо нуля.</p>
-    </div>
+        </div>
+    </section>
 
-    <div class="card">
-        <h2 style="margin-top:0;font-size:1rem">Как включать</h2>
+    <section class="<?= coll_cls('chan_start', true) ?>" data-coll="chan_start">
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Как включать</span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="coll-body">
         <ol class="muted" style="line-height:1.7;padding-left:1.2rem">
             <li>Прослойка обновлена, тумблер выключен — не изменилось ничего, появилась эта вкладка.</li>
             <li>Вышли клиенты с галочкой «Защищённое соединение».</li>
@@ -189,7 +267,8 @@ $chan_marks = implode("\n", chan_hard_remarks());
             <li>Дальше по одному. Когда защищённых станет большинство — включаете «Закрыть HTML-страницу» и «Жёсткий режим».</li>
         </ol>
         <p class="muted">Откат: выключить тумблер. Релиз клиента для этого не нужен.</p>
-    </div>
+        </div>
+    </section>
     <script>
     (function(){function p(n){return(n<10?'0':'')+n;}document.querySelectorAll('.ct-time[data-ts]').forEach(function(el){var ep=parseInt(el.getAttribute('data-ts'),10);if(!ep)return;var d=new Date(ep*1000);if(isNaN(d.getTime()))return;el.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());});})();
     </script>
