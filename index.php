@@ -104,6 +104,7 @@ if ($to_panel) {
 }
 
 $ua_hwid_value = '';
+$ua_hwid_vals = [];
 $ua_string = $_SERVER['HTTP_USER_AGENT'] ?? '';
 if (ua_hwid_parse() && $ua_string !== '') {
     foreach (ua_hwid_keys() as $uk) {
@@ -112,6 +113,7 @@ if (ua_hwid_parse() && $ua_string !== '') {
         $uv = ua_hwid_extract($ua_string, $uk);
         if ($uv === '') continue;
         $request_headers[] = $uk . ': ' . $uv;
+        $ua_hwid_vals[$uk] = $uv;
         if ($uk === 'x-hwid') $ua_hwid_value = $uv;
     }
 }
@@ -302,6 +304,7 @@ if ($do_substitute) {
             'ctype' => $grabbed_headers['content-type'] ?? '',
             'bytes' => strlen($sub_body),
             'as'    => ['s' => 'skip'],
+            'dv'    => reqlog_device($ua_hwid_vals),
         ]);
     }
     exit();
@@ -401,6 +404,7 @@ if (!$skip_log) {
         'as'    => $log_as,
         'wg'    => $log_wg,
         'grace' => $is_grace ? 1 : 0,
+        'dv'    => reqlog_device($ua_hwid_vals),
     ];
     if (!$is_page && reqlog_is_real($grabbed_headers, $log_decision, $short_ov)) {
         $GLOBALS['submw_real_sub'] = true;
