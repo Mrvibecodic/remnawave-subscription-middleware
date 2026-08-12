@@ -1340,6 +1340,20 @@ $fav_href = $brand_icon !== '' ? $brand_icon : ($emoji_favicon !== '' ? $emoji_f
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($brand['name']) ?> · админка</title>
 <link rel="icon" href="<?= $brand_icon !== '' ? h($brand_icon) : $fav_href ?>">
+<?php
+// Шрифты объявлены с font-display:optional: если файл не пришёл за отведённые
+// браузером ~100 мс, страница до конца загрузки останется на системном шрифте.
+// Без preload запрос стартует только после загрузки и разбора fonts.css — это
+// лишний круг до сервера, в который уложиться почти нельзя, и начертание
+// прыгает от перезагрузки к перезагрузке. Пути обязаны совпадать с url()
+// внутри fonts.css (без ?v=), иначе файл скачается дважды.
+foreach (['cyrillic', 'latin'] as $f_sub) {
+    foreach ([400, 500, 600, 700] as $f_w) {
+        echo '<link rel="preload" as="font" type="font/woff2" crossorigin href="assets/fonts/inter-'
+            . $f_sub . '-' . $f_w . ".woff2\">\n";
+    }
+}
+?>
 <script>(function(){try{var t=localStorage.getItem('submw_theme');if(!t||t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();document.documentElement.classList.add('lp');</script>
 <?php
 $lp_map = [
