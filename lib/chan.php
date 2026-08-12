@@ -159,24 +159,33 @@ function chan_scrub($value): string
  * $keys — [spid => secretKey] известные ключи прослойки: текущий и, при
  * ротации, предыдущий.
  *
- * Возвращает контекст для ответа либо null. **Причину не возвращаем сознательно**:
- * снаружи любая неудача обязана выглядеть одинаково — как мусорный путь.
+ * Возвращает контекст для ответа либо null. Наружу причина не уходит никогда:
+ * любая неудача обязана выглядеть одинаково — как мусорный путь. Короткая
+ * машинная метка кладётся в $why и нужна ровно одному месту — диагностическому
+ * журналу в админке, который провайдер включает руками на время разбора.
  */
-function chan_open(string $kid, string $spid, string $blob, callable $lookup, array $keys, ?int $now = null): ?array
+function chan_open(string $kid, string $spid, string $blob, callable $lookup, array $keys, ?int $now = null, ?string &$why = null): ?array
 {
     $now = $now ?? time();
+    $why = null;
 
     if (strlen($blob) > CHAN_MAX_BLOB || strlen($kid) !== 12) {
+        $why = 'blob';
+
         return null;
     }
 
     $raw = chan_unb64($blob);
     if ($raw === null || strlen($raw) < 32 + 16 + 1) {
+        $why = 'blob';
+
         return null;
     }
 
     $token = $lookup($kid);
     if ($token === null || $token === '') {
+        $why = 'kid';
+
         return null;
     }
 
@@ -188,10 +197,14 @@ function chan_open(string $kid, string $spid, string $blob, callable $lookup, ar
     $dh = '';
     if ($spid !== '0') {
         if (!isset($keys[$spid])) {
+            $why = 'spid';
+
             return null;
         }
         $dh = chan_x25519($keys[$spid], $ephPub);
         if ($dh === null) {
+            $why = 'dh';
+
             return null;
         }
     }
@@ -207,20 +220,28 @@ function chan_open(string $kid, string $spid, string $blob, callable $lookup, ar
             $key
         );
     } catch (Throwable $e) {
+        $why = 'aead';
+
         return null;
     }
     if ($plain === false) {
+        $why = 'aead';
+
         return null;
     }
 
     $req = json_decode($plain, true);
     if (!is_array($req) || ($req['v'] ?? 0) !== CHAN_VERSION) {
+        $why = 'json';
+
         return null;
     }
 
     // Метка времени: окно симметричное, потому что врут часы обеих сторон.
     $ts = (int)($req['t'] ?? 0);
     if ($ts <= 0 || abs($now - $ts) > CHAN_SKEW) {
+        $why = 'time';
+
         return null;
     }
 
@@ -229,6 +250,8 @@ function chan_open(string $kid, string $spid, string $blob, callable $lookup, ar
     // хотя дальше эта строка уходит в таблицу повторов как первичный ключ.
     $nonce = is_string($req['n'] ?? null) ? $req['n'] : '';
     if (strlen($nonce) !== CHAN_NONCE_LEN || preg_match('~[^A-Za-z0-9_-]~', $nonce)) {
+        $why = 'nonce';
+
         return null;
     }
 
@@ -245,6 +268,10 @@ function chan_open(string $kid, string $spid, string $blob, callable $lookup, ar
         'ephPub' => $ephPub,
         'nonce'  => $nonce,
         'req'    => $req,
+        // Открытый текст запроса как он был внутри шифра, до всякой чистки.
+        // Нужен диагностическому журналу: пересобранный из массива JSON — это
+        // уже не то, что прислал клиент, и разбирать по нему нечего.
+        'plain'  => $plain,
     ];
 }
 

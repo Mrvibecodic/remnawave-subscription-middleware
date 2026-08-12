@@ -40,7 +40,9 @@ INSERT INTO settings (k, v) VALUES
     ('chan_pad',              '1'),
     ('chan_hard_default',     '0'),
     ('chan_page_404',         '0'),
-    ('chan_index_ttl',        '900')
+    ('chan_index_ttl',        '900'),
+    ('chan_debug',            '0'),
+    ('chan_debug_keep',       '50')
 ON CONFLICT(k) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS overrides (
@@ -187,3 +189,27 @@ CREATE TABLE IF NOT EXISTS chan_state (
     hard INTEGER NOT NULL DEFAULT 0,
     ua TEXT NULL
 );
+
+-- chan_debug — диагностический журнал канала. Пишется, только когда включён
+-- руками в админке: в записи попадает расшифрованное тело подписки.
+CREATE TABLE IF NOT EXISTS chan_debug (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL DEFAULT 0,
+    ok INTEGER NOT NULL DEFAULT 0,
+    why TEXT NULL,
+    short_uuid TEXT NULL,
+    kid TEXT NULL,
+    spid TEXT NULL,
+    req_path TEXT NULL,
+    req_head TEXT NULL,
+    req_json TEXT NULL,
+    req_fwd TEXT NULL,
+    res_st INTEGER NULL,
+    res_meta TEXT NULL,
+    res_body TEXT NULL,
+    res_wire TEXT NULL,
+    res_outer TEXT NULL,
+    body_bytes INTEGER NULL,
+    wire_bytes INTEGER NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chan_debug_ts ON chan_debug(ts);
