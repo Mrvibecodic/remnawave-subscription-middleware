@@ -102,7 +102,7 @@ fi
 echo "-> Установка зависимостей (если ещё нет)..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-PKGS="php-fpm php-cli php-sqlite3 php-mysql php-curl php-mbstring php-xml git openssl curl gnupg2 ca-certificates lsb-release certbot"
+PKGS="php-fpm php-cli php-sqlite3 php-mysql php-curl php-mbstring php-xml php-sodium git openssl curl gnupg2 ca-certificates lsb-release certbot"
 [ "$DB_MODE" = "2" ] && PKGS="$PKGS mariadb-server"
 [ "$CERT_MODE" = "2" ] && PKGS="$PKGS python3-certbot-dns-cloudflare"
 apt-get install -y $PKGS >/dev/null

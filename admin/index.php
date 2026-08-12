@@ -581,6 +581,35 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if (!csrf_ok()) { http_response_code(400); die('CSRF'); }
     $action = $_POST['action'] ?? '';
 
+    if ($action === 'save_clod') {
+        set_setting('chan_enabled',      isset($_POST['chan_enabled']) ? '1' : '0');
+        set_setting('chan_pad',          isset($_POST['chan_pad']) ? '1' : '0');
+        set_setting('chan_hard_default', isset($_POST['chan_hard_default']) ? '1' : '0');
+        set_setting('chan_page_404',     isset($_POST['chan_page_404']) ? '1' : '0');
+        $split = fn($v) => array_values(array_filter(array_map('trim', explode("\n", str_replace("\r", '', (string) $v))), fn($s) => $s !== ''));
+        set_setting('chan_hard_remarks', json_encode($split($_POST['chan_hard_remarks'] ?? ''), JSON_UNESCAPED_UNICODE));
+        flash('Настройки защищённого канала сохранены');
+        form_saved('clod');
+    }
+
+    if ($action === 'clod_rotate') {
+        flash(chan_rotate() ? 'Ключ прослойки сменён, отпечаток: ' . chan_fingerprint() : 'Сменить ключ не удалось, подробности в логе');
+        form_saved('clod');
+    }
+
+    if ($action === 'clod_reindex') {
+        $ok = chan_index_rebuild(true);
+        $ci = chan_index_info();
+        flash($ok ? 'Индекс меток пересобран: ' . (int) $ci['count'] . ' подписок' : 'Пересобрать индекс не удалось — проверьте URL панели и API-токен');
+        form_saved('clod');
+    }
+
+    if ($action === 'clod_hard') {
+        chan_hard_set((string) ($_POST['short'] ?? ''), ($_POST['on'] ?? '0') === '1');
+        flash(($_POST['on'] ?? '0') === '1' ? 'Жёсткий режим включён' : 'Жёсткий режим выключен');
+        form_saved('clod');
+    }
+
     if ($action === 'save_hwid') {
         $split = fn($v) => array_values(array_filter(array_map('trim', explode("\n", str_replace("\r", '', (string) $v))), fn($s) => $s !== ''));
         set_setting('blocked_remarks', json_encode($split($_POST['blocked_remarks'] ?? ''), JSON_UNESCAPED_UNICODE));
@@ -1316,7 +1345,7 @@ if ($tab === 'addsub') $addsub_list = addsub_map_all();
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'clod' => 'Защищённый канал (Clod Clash)'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -1477,6 +1506,7 @@ $nav = [
     'squad_configs' => ['Доп. конфиги', '<path d="M4 5h16v4H4z"/><path d="M4 13h16v6H4z"/><path d="M7 16h4"/><circle cx="17" cy="16" r="1"/>'],
     'wg_pool'   => ['WG / AWG', '<path d="M3 12h3l2-6 4 12 2-6h7"/>'],
     'addsub'    => ['Слияние подписок', '<path d="M8 7a5 5 0 1 0 0 10"/><path d="M16 7a5 5 0 1 1 0 10"/><line x1="8" y1="12" x2="16" y2="12"/>'],
+    'clod'      => ['Защищённый канал', '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.4"/>'],
     'reqlog'    => ['Лог запросов', '<line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'],
     'whlog'       => ['Юзер-лог', '<path d="M13 2L3 14h7l-1 8 10-12h-7z"/>'],
     'whlog_other' => ['Прочие события', '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>'],
@@ -1494,7 +1524,7 @@ $nav_sections = [
     ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog', 'whlog_other'] : ['webhooks', 'whlog', 'whlog_other']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
-    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides', 'squad_configs', 'wg_pool', 'addsub']],
+    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides', 'squad_configs', 'wg_pool', 'addsub', 'clod']],
     ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => ['sysinfo', 'update', 'migrate']],
 ];
 function submw_ui_cookie() {
@@ -1622,6 +1652,8 @@ function nav_link($key, $it, $active, $badge = false) {
     <?php include __DIR__ . '/inc/tab_wg_pool.php'; ?>
 <?php elseif ($tab === 'addsub'): ?>
     <?php include __DIR__ . '/inc/tab_addsub.php'; ?>
+<?php elseif ($tab === 'clod'): ?>
+    <?php include __DIR__ . '/inc/tab_clod.php'; ?>
 
 <?php elseif ($tab === 'reqlog'): ?>
     <?php include __DIR__ . '/inc/tab_reqlog.php'; ?>
