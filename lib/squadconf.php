@@ -339,6 +339,7 @@ function squadconf_cache_ensure() {
             $p->exec("CREATE TABLE IF NOT EXISTS squad_cache (
                 su VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
                 squads TEXT NULL,
+                st VARCHAR(32) NULL,
                 ts INT UNSIGNED NOT NULL DEFAULT 0,
                 PRIMARY KEY (su)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
@@ -346,8 +347,13 @@ function squadconf_cache_ensure() {
             $p->exec("CREATE TABLE IF NOT EXISTS squad_cache (
                 su TEXT NOT NULL PRIMARY KEY,
                 squads TEXT NULL,
+                st TEXT NULL,
                 ts INTEGER NOT NULL DEFAULT 0
             )");
+        }
+        if (setting('sqcache_st_col', '') !== '1') {
+            try { $p->exec('ALTER TABLE squad_cache ADD COLUMN st ' . (db_driver() === 'mysql' ? 'VARCHAR(32)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
+            set_setting('sqcache_st_col', '1');
         }
     } catch (Throwable $e) { error_log('submw squad_cache ensure: ' . $e->getMessage()); }
 }
@@ -360,39 +366,57 @@ function squadconf_cache_drop($short) {
     catch (Throwable $e) {}
 }
 
-function squadconf_user_squads($short) {
+function squadconf_user_state($short) {
+    static $memo = [];
     $short = trim((string) $short);
-    if ($short === '') return [];
-    if (remnawave_url() === '' || remnawave_token() === '') return [];
+    if ($short === '') return ['squads' => [], 'status' => ''];
+    if (isset($memo[$short])) return $memo[$short];
+    $none = ['squads' => [], 'status' => ''];
+    if (remnawave_url() === '' || remnawave_token() === '') return $none;
     squadconf_cache_ensure();
-    if (!($p = db())) return [];
+    if (!($p = db())) return $none;
     $now = time();
     $row = null;
     try {
-        $st = $p->prepare('SELECT squads, ts FROM squad_cache WHERE su = ?');
+        $st = $p->prepare('SELECT squads, st, ts FROM squad_cache WHERE su = ?');
         $st->execute([$short]);
         $row = $st->fetch();
     } catch (Throwable $e) {}
-    if ($row && ($now - (int) $row['ts'] < 300)) {
-        $a = json_decode((string) $row['squads'], true);
-        return is_array($a) ? $a : [];
-    }
+    $from_row = function ($r) {
+        $a = json_decode((string) ($r['squads'] ?? ''), true);
+        return ['squads' => is_array($a) ? $a : [], 'status' => strtoupper(trim((string) ($r['st'] ?? '')))];
+    };
+    if ($row && ($now - (int) $row['ts'] < 300)) return $memo[$short] = $from_row($row);
     $e = '';
     $u = remnawave_get_user_by_short($short, $e);
-    if (!is_array($u)) {
-        if ($row) { $a = json_decode((string) $row['squads'], true); return is_array($a) ? $a : []; }
-        return [];
-    }
+    if (!is_array($u)) return $memo[$short] = ($row ? $from_row($row) : $none);
     $squads = function_exists('grace_squads_from_user') ? grace_squads_from_user($u) : [];
+    $status = strtoupper(trim((string) ($u['status'] ?? '')));
     try {
         if (db_driver() === 'mysql') {
-            $st = $p->prepare('INSERT INTO squad_cache (su, squads, ts) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE squads = VALUES(squads), ts = VALUES(ts)');
+            $st = $p->prepare('INSERT INTO squad_cache (su, squads, st, ts) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE squads = VALUES(squads), st = VALUES(st), ts = VALUES(ts)');
         } else {
-            $st = $p->prepare('INSERT INTO squad_cache (su, squads, ts) VALUES (?, ?, ?) ON CONFLICT(su) DO UPDATE SET squads = excluded.squads, ts = excluded.ts');
+            $st = $p->prepare('INSERT INTO squad_cache (su, squads, st, ts) VALUES (?, ?, ?, ?) ON CONFLICT(su) DO UPDATE SET squads = excluded.squads, st = excluded.st, ts = excluded.ts');
         }
-        $st->execute([$short, json_encode(array_values($squads)), $now]);
+        $st->execute([$short, json_encode(array_values($squads)), $status, $now]);
     } catch (Throwable $e2) {}
-    return $squads;
+    return $memo[$short] = ['squads' => $squads, 'status' => $status];
+}
+
+function squadconf_user_squads($short) {
+    return squadconf_user_state($short)['squads'];
+}
+
+// Панель не шлёт вебхук мгновенно (а при упоре в лимит устройств не меняет статус
+// вообще), поэтому перед подмешиванием конфигов статус сверяем с самой панелью.
+// Ответ уже кэшируется в squad_cache на 300 с и сбрасывается вебхуком, так что
+// лишних запросов к API это не добавляет. Панель недоступна -> статус пустой и
+// прежнее поведение сохраняется.
+function squadconf_user_inactive($short) {
+    if (trim((string) $short) === '') return false;
+    if (!squadconf_any() && !addsub_enabled()) return false;
+    $st = squadconf_user_state($short)['status'];
+    return $st !== '' && $st !== 'ACTIVE';
 }
 
 function squadconf_inject_clash($body, array $configs) {
