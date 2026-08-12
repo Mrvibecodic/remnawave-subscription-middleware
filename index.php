@@ -227,6 +227,15 @@ if ($short_ov) {
     if ($short_ov['reason'] === 'blocked') $blocked = true;
 }
 
+if ($short_uuid === '' && $segs) $short_uuid = $segs[0];
+
+// Упор в лимит устройств панель не отражает ни в статусе юзера, ни вебхуком —
+// только этими заголовками ответа, поэтому других способов узнать о нём нет.
+$panel_hwid_block = isset($grabbed_headers['x-hwid-limit'])
+    || isset($grabbed_headers['x-hwid-max-devices-reached'])
+    || isset($grabbed_headers['x-hwid-not-supported']);
+$gate_short = $junk_path ? '' : $short_uuid;
+
 $expired = false;
 $header_says_expired = ($expire_ts !== null && $expire_ts < $now);
 $header_says_valid   = ($expire_ts !== null && $expire_ts >= $now);
@@ -242,19 +251,24 @@ if ($trust_header) {
     $expired = $db_says_expired;
 }
 
-if ($db_says_expired && $header_says_valid && $short_ov['source'] === 'webhook') {
+// Блокировка и лимит трафика прилетают вебхуком как reason=expired, но дата
+// окончания у такого юзера часто ещё в будущем: без сверки с панелью оверрайд
+// снимался бы сам, и подписка снова считалась бы нормальной.
+if ($db_says_expired && $header_says_valid && $short_ov['source'] === 'webhook' && !squadconf_user_inactive($gate_short)) {
     delete_override('shortuuid', $short_ov['match_value'], 'webhook');
 }
 
+if (!$expired && $db_says_expired && squadconf_user_inactive($gate_short)) {
+    $expired = true;
+}
+
 $ov_created = is_array($short_ov) ? ($short_ov['created_at'] ?? null) : null;
-if ($expired && expired_grace_passed($expire_ts, $ov_created, $now)) {
+if ($expired && expired_grace_passed($expire_ts, $ov_created, $now) && !squadconf_user_inactive($gate_short)) {
     $expired = false;
 }
 
 if ($blocked)      $decision = 'blocked';
 elseif ($expired)  $decision = 'expired';
-
-if ($short_uuid === '' && $segs) $short_uuid = $segs[0];
 
 if (!$skip_log && nolog_is_set($short_uuid)) $skip_log = true;
 
@@ -301,7 +315,11 @@ $response_premod = $response;
 
 $log_wg = 0;
 $log_as = ['s' => 'off'];
-if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any()) {
+// Панель заблокированному юзеру, юзеру с исчерпанным трафиком и юзеру, упёршемуся
+// в лимит устройств, отдаёт тело-заглушку без единого рабочего хоста. Дописывать
+// в такое тело свои конфиги нельзя — иначе доступ остаётся ровно через них.
+if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any()
+    && !$panel_hwid_block && !squadconf_user_inactive($gate_short)) {
     $u_squads = squadconf_user_squads($short_uuid);
     if ($u_squads) {
         $u_cfgs = wglease_select($short_uuid, $current_hwid, $u_squads, squadconf_supported_types($response, $format));
@@ -309,7 +327,10 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any
     }
 }
 
-if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enabled()) {
+if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enabled()
+    && ($panel_hwid_block || squadconf_user_inactive($gate_short))) {
+    $log_as = ['s' => 'skip'];
+} elseif ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enabled()) {
     $log_as = ['s' => 'no'];
     try {
         $as_cached = false;
