@@ -102,10 +102,26 @@ fi
 echo "-> Установка зависимостей (если ещё нет)..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-PKGS="php-fpm php-cli php-sqlite3 php-mysql php-curl php-mbstring php-xml php-sodium git openssl curl gnupg2 ca-certificates lsb-release certbot"
+PKGS="php-fpm php-cli php-sqlite3 php-mysql php-curl php-mbstring php-xml git openssl curl gnupg2 ca-certificates lsb-release certbot"
 [ "$DB_MODE" = "2" ] && PKGS="$PKGS mariadb-server"
 [ "$CERT_MODE" = "2" ] && PKGS="$PKGS python3-certbot-dns-cloudflare"
 apt-get install -y $PKGS >/dev/null
+
+# sodium нужен защищённому каналу подписки. В Debian и Ubuntu он вкомпилен
+# в сам PHP, и отдельного пакета там нет: `apt install php-sodium` уронил бы
+# установку целиком. Пакет с таким именем бывает только в стороннем
+# репозитории и называется по версии — phpX.Y-sodium. Поэтому сначала
+# смотрим, есть ли расширение, и лишь потом пробуем доставить, не роняя
+# установку, если и это не вышло: без sodium канал просто выключен.
+if ! php -m 2>/dev/null | grep -qi "^sodium$"; then
+    PHP_MM="$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;' 2>/dev/null || true)"
+    if [ -n "$PHP_MM" ]; then
+        apt-get install -y "php${PHP_MM}-sodium" >/dev/null 2>&1 || true
+    fi
+    if ! php -m 2>/dev/null | grep -qi "^sodium$"; then
+        echo "   ! расширение sodium недоступно — защищённый канал подписки работать не будет"
+    fi
+fi
 
 echo "-> Установка актуального nginx из официального репозитория nginx.org..."
 if dpkg -l 2>/dev/null | grep -qE '^ii[[:space:]]+nginx' || command -v nginx >/dev/null 2>&1; then
