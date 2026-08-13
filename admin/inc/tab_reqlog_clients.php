@@ -27,7 +27,7 @@
     </style>
     <div class="seg">
         <a href="?tab=reqlog">Запросы</a>
-        <a class="on" href="?tab=reqlog&amp;view=clients">Клиенты<?= $rl_outdated ? ' · ' . (int) $rl_outdated . ' устаревших' : '' ?></a>
+        <a class="on" href="?tab=reqlog&amp;view=clients">Клиенты</a>
     </div>
 
     <div class="card">
