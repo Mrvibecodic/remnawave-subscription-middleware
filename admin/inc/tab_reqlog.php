@@ -136,7 +136,7 @@
     })();
     </script>
     <div class="rl-kpis">
-        <div class="rl-kpi"><div class="k">Обновили подписку</div><div class="v" id="rlKpiUsers"><?= (int) $rl_today_users ?><?= $rl_total_users ? '<small> / ' . (int) $rl_total_users . '</small>' : '' ?></div><div class="d">сегодня, <?= h($rl_today_label) ?></div></div>
+        <div class="rl-kpi"><div class="k">Обновили подписку</div><div class="v"><span id="rlKpiUsers"><?= (int) $rl_today_users ?></span><small id="rlKpiUsersTot"><?= $rl_total_users ? ' / ' . (int) $rl_total_users : '' ?></small></div><div class="d">сегодня, <?= h($rl_today_label) ?></div></div>
         <div class="rl-kpi"><div class="k">Устройств (HWID)</div><div class="v" id="rlKpiDev"><?= (int) $rl_today_devices ?></div><div class="d"><?= $rl_total_devices ? 'из ' . (int) $rl_total_devices . ' известных в логе' : 'за сегодня' ?></div></div>
         <div class="rl-kpi"><div class="k">Запросов за сутки</div><div class="v" id="rlKpiTotal"><?= (int) $rl_over['total'] ?></div><div class="d" id="rlKpiPeak" data-ts="<?= (int) $rl_over['peak_h'] ?>" data-c="<?= (int) $rl_over['peak'] ?>"><?= $rl_over['peak'] ? 'пик в ' . h(date('H:i', (int) $rl_over['peak_h'])) . ' — ' . (int) $rl_over['peak'] . ' за час' : 'за последние 24 часа' ?></div></div>
         <div class="rl-kpi"><div class="k">Блокировок HWID</div><div class="v" id="rlKpiBlocked"><?= (int) $rl_over['blocked'] ?></div><div class="d<?= $rl_over['blocked_users'] ? ' alert' : '' ?>" id="rlKpiBlockedU"><?= $rl_over['blocked_users'] ? 'у ' . (int) $rl_over['blocked_users'] . ' пользователей' : 'за последние 24 часа' ?></div></div>
@@ -342,6 +342,7 @@
                     localize(body);
                     var c = document.getElementById('rlCount'); if(c) c.textContent = d.count;
                     kpi('rlKpiUsers', d.kpi.users); kpi('rlKpiDev', d.kpi.devices);
+                    if(d.kpi.utotal) kpi('rlKpiUsersTot', ' / ' + d.kpi.utotal);
                     kpi('rlKpiTotal', d.kpi.total); kpi('rlKpiBlocked', d.kpi.blocked);
                     var sp = document.getElementById('rlSpark'); if(sp && d.spark) sp.innerHTML = d.spark;
                     var pk = document.getElementById('rlKpiPeak');
