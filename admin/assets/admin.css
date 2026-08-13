@@ -1,7 +1,9 @@
     :root,html[data-theme="dark"]{
         --bg:#0b1020;--bg2:#111827;--card:#151c2c;--line:#293348;
         --text:#dbe4f0;--text-strong:#f8fafc;--muted:#95a3b8;
-        --accent:#14b8a6;--accent-h:#0f9f90;--accent-light:rgba(20,184,166,.16);--accent-text:#5eead4;--red:#f04452;--amber:#f59e0b;
+        /* --on-accent: текст на бирюзовой заливке. Белый на #14b8a6 — 2,5:1 (ниже AA),
+           тёмный #06231f на той же бирюзе — 7,6:1. Цвет кнопок не меняется. */
+        --accent:#14b8a6;--accent-h:#0f9f90;--accent-light:rgba(20,184,166,.16);--accent-text:#5eead4;--on-accent:#06231f;--red:#f04452;--amber:#f59e0b;
         --hover:rgba(255,255,255,.07);--hover2:rgba(255,255,255,.045);
         --c-ok-bg:rgba(16,185,129,.16);--c-ok-fg:#6ee7b7;--c-warn-bg:rgba(245,158,11,.16);--c-warn-fg:#fbbf24;
         --c-bad-bg:rgba(240,68,82,.14);--c-bad-fg:#fda4af;--c-info-bg:rgba(56,189,248,.14);--c-info-fg:#7dd3fc;
@@ -11,8 +13,10 @@
     }
     html[data-theme="light"]{
         --bg:#f4f7fb;--bg2:#edf2f7;--card:#ffffff;--line:#d8e0ea;
-        --text:#263241;--text-strong:#0f172a;--muted:#66758a;
-        --accent:#0f9f90;--accent-h:#0b8277;--accent-light:rgba(15,159,144,.11);--accent-text:#04776c;--red:#d92d3b;--amber:#d97706;
+        /* --muted поднят с #66758a (4,4:1 — ниже AA) до #58657a (5,9:1).
+           --accent затемнён до #0f766e: белый текст на нём 5,5:1 (на #0f9f90 было 3,3:1). */
+        --text:#263241;--text-strong:#0f172a;--muted:#58657a;
+        --accent:#0f766e;--accent-h:#0d5f59;--accent-light:rgba(15,118,110,.11);--accent-text:#0f766e;--on-accent:#ffffff;--red:#d92d3b;--amber:#d97706;
         --hover:rgba(15,23,42,.055);--hover2:rgba(15,23,42,.035);
         --c-ok-bg:rgba(5,150,105,.12);--c-ok-fg:#047857;--c-warn-bg:rgba(217,119,6,.12);--c-warn-fg:#b45309;
         --c-bad-bg:rgba(217,45,59,.11);--c-bad-fg:#be123c;--c-info-bg:rgba(2,132,199,.11);--c-info-fg:#0369a1;
@@ -20,6 +24,21 @@
         --shadow:0 18px 42px rgba(15,23,42,.10),0 1px 0 rgba(255,255,255,.75) inset;
         --focus:0 0 0 3px rgba(15,159,144,.18);--radius:8px;
     }
+    html[data-theme="black"]{
+        /* Чёрная (OLED): тень на чистом чёрном не читается, поэтому --shadow:none,
+           а --line заметно светлее — граница остаётся единственным сигналом слоя. */
+        --bg:#000000;--bg2:#0a0e17;--card:#0b0f18;--line:#232c40;
+        --text:#e6edf6;--text-strong:#ffffff;--muted:#9aa6ba;
+        --accent:#14b8a6;--accent-h:#0f9f90;--accent-light:rgba(20,184,166,.17);--accent-text:#5eead4;--on-accent:#04120f;--red:#f87171;--amber:#fbbf24;
+        --hover:rgba(255,255,255,.08);--hover2:rgba(255,255,255,.05);
+        --c-ok-bg:rgba(16,185,129,.17);--c-ok-fg:#6ee7b7;--c-warn-bg:rgba(245,158,11,.17);--c-warn-fg:#fbbf24;
+        --c-bad-bg:rgba(248,113,113,.15);--c-bad-fg:#fda4af;--c-info-bg:rgba(56,189,248,.15);--c-info-fg:#7dd3fc;
+        --c-violet-bg:rgba(139,92,246,.17);--c-violet-fg:#c4b5fd;--c-yellow-fg:#fde68a;
+        --shadow:none;
+        --focus:0 0 0 3px rgba(45,212,191,.30);--radius:8px;
+    }
+    html[data-theme="black"] .card,html[data-theme="black"] .coll{box-shadow:none}
+    html[data-theme="black"] pre,html[data-theme="black"] code{background:#05070c}
     html[data-theme="light"] .card,html[data-theme="light"] .coll,html[data-theme="light"] .rw-side{background:var(--card)}
     html[data-theme="light"] pre,html[data-theme="light"] code{background:#eef1f6}
     html{font-size:16px;overflow-y:scroll}
@@ -47,7 +66,9 @@
     .rw-nav a{display:flex;align-items:center;gap:.7rem;padding:.62rem .7rem;border-radius:10px;color:var(--muted);font-size:.9rem;font-weight:500}
     .rw-nav a svg{width:18px;height:18px;flex:0 0 auto;opacity:.9}
     .rw-nav a:hover{background:var(--hover);color:var(--text)}
-    .rw-nav a.active{background:var(--accent-light);color:var(--accent-text)}
+    .rw-nav a.active{position:relative;background:var(--hover);color:var(--text-strong)}
+    .rw-nav a.active::before{content:'';position:absolute;left:-2px;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+    .rw-nav a.active svg{color:var(--accent-text)}
     .rw-nav a .nav-dot{margin-left:auto;width:9px;height:9px;border-radius:50%;background:var(--amber);flex:0 0 auto;box-shadow:0 0 0 0 rgba(245,181,10,.6);animation:navpulse 1.8s ease-out infinite}
     .navacc-h{display:flex;align-items:center;justify-content:space-between;gap:.5rem;width:100%;background:transparent;border:0;cursor:pointer;text-align:left;font-family:inherit;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;padding:.9rem .7rem .35rem;opacity:.85}
     .navacc-h:hover,.navacc-h:focus{background:transparent;outline:none}
@@ -65,7 +86,10 @@
     .rw-ver-check button:hover{border-color:var(--accent);color:var(--text)}
     .rw-foot{padding:.85rem 1rem;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:.65rem}
     .theme-seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-    .theme-seg button{flex:1;background:transparent;color:var(--muted);border:0;border-radius:0;padding:.4rem .2rem;font-size:.72rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.25rem}
+    .theme-seg button{flex:1;min-width:0;background:transparent;color:var(--muted);border:0;border-radius:0;padding:.4rem .1rem;font-size:.72rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.2rem}
+    .theme-seg button span{white-space:nowrap}
+    /* С четырьмя кнопками иконки не влезают — подписи важнее */
+    .theme-seg button svg{display:none}
     .theme-seg button.on{background:var(--accent-light);color:var(--accent-text)}
     .theme-seg button svg{width:14px;height:14px}
     .rw-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:auto}
@@ -130,12 +154,20 @@
         select:open{border-color:var(--accent)}
     }
     textarea{min-height:90px;resize:vertical}
-    button,.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:.55rem 1.1rem;font-weight:600;cursor:pointer;font-size:.88rem}
+    button,.btn{background:var(--accent);color:var(--on-accent,#fff);border:0;border-radius:8px;padding:.55rem 1.1rem;font-weight:600;cursor:pointer;font-size:.88rem}
     button:hover,.btn:hover{background:var(--accent-h)}
-    button.danger{background:var(--red)}
+    button.danger{background:var(--red);color:#fff}
     table{width:100%;border-collapse:collapse;font-size:.85rem}
     th,td{text-align:left;padding:.6rem .65rem;border-bottom:1px solid var(--line);vertical-align:middle}
     th{color:var(--muted);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.03em}
+    td{font-variant-numeric:tabular-nums}
+    @media(min-width:901px){
+        /* Шапка таблицы не уезжает при прокрутке длинных логов. top = высота .rw-header.
+           Внутри overflow-обёрток sticky липнет к самой обёртке и наезжает на строки,
+           поэтому там шапка остаётся обычной. */
+        thead th{position:sticky;top:64px;z-index:5;background:var(--card)}
+        .rl-wrap thead th,.cv-wrap thead th,.ua-rules-wrap thead th{position:static}
+    }
     tr:hover td{background:var(--hover2)}
     .logtbl{font-size:.9rem}
     .logtbl th{font-size:.74rem}
@@ -177,7 +209,7 @@
     .subprev{width:300px;flex:0 0 auto}
     .seg{display:inline-flex;border:1px solid var(--line);border-radius:.5rem;overflow:hidden;margin-bottom:.9rem}
     .seg button{background:transparent;color:var(--muted);border:0;padding:.45rem .9rem;font-size:.85rem;cursor:pointer;font-weight:600}
-    .seg button.on{background:var(--accent);color:#fff}
+    .seg button.on{background:var(--accent);color:var(--on-accent,#fff)}
     @keyframes btnspin{to{transform:rotate(360deg)}}
     button.busy,.btn.busy{pointer-events:none;opacity:.8}
     button.busy::before,.btn.busy::before{content:"";display:inline-block;width:13px;height:13px;margin-right:.45rem;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:btnspin .7s linear infinite}
@@ -185,7 +217,7 @@
     .tipbox.on{opacity:1;transform:translateY(0)}
     .seg a{display:inline-flex;align-items:center;background:transparent;color:var(--muted);border:0;padding:.45rem .9rem;font-size:.85rem;font-weight:600;text-decoration:none;white-space:nowrap}
     .seg a:hover{background:var(--hover);color:var(--text)}
-    .seg a.on,.seg a.on:hover{background:var(--accent);color:#fff}
+    .seg a.on,.seg a.on:hover{background:var(--accent);color:var(--on-accent,#fff)}
     .phone{background:#000;border:8px solid #1b2433;border-radius:1.6rem;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.5)}
     .ph-top{background:#0b1220;color:#e2e8f0;padding:.9rem 1rem .7rem;border-bottom:1px solid #1f2a3a}
     .ph-app{font-size:.72rem;color:#64748b;letter-spacing:.04em;text-transform:uppercase}
@@ -221,7 +253,7 @@
     .dlg-actions{display:flex;justify-content:flex-end;gap:.6rem;margin-top:1.25rem}
     .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
     .btn.ghost:hover{background:var(--hover);border-color:var(--muted)}
-    .btn.danger{background:var(--red)}
+    .btn.danger{background:var(--red);color:#fff}
     .btn.danger:hover{filter:brightness(.93)}
     .sqcfg-btn{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.4rem .75rem;font-size:.82rem;font-weight:600;cursor:pointer}
     .sqcfg-btn.off{opacity:.65}
