@@ -1326,6 +1326,7 @@ if ($tab === 'reqlog') {
 }
 if ($rl_view === 'clients') {
     require_once __DIR__ . '/inc/_reqlog_rows.php';
+    clientver_firstrun();
     $cv_rows    = clientver_catalog();
     $cv_builtin = clientver_builtin();
     $cv_seen    = $db_ok ? clientver_unknown_seen(168) : [];

@@ -25,7 +25,8 @@ function clientver_builtin() {
         ['k' => 'incy',                 'n' => 'INCY (десктоп)',          'os' => 'desktop', 'src' => 'gh',  'ref' => 'INCY-DEV/incy-platforms',   'how' => 'tag:desktop-v',             'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'incy',                 'n' => 'INCY (Android)',          'os' => 'android', 'src' => 'man', 'ref' => '',                          'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'flclashx',             'n' => 'FlClashX',                'os' => '',        'src' => 'gh',  'ref' => 'pluralplay/FlClashX',       'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
-        ['k' => 'koala-clash',          'n' => 'Koala Clash',             'os' => '',        'src' => 'gh',  'ref' => 'coolcoala/koala-clash',     'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
+        ['k' => 'koala-clash',          'n' => 'Koala Clash (десктоп)',   'os' => '',        'src' => 'gh',  'ref' => 'coolcoala/koala-clash',     'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
+        ['k' => 'koala-clash',          'n' => 'Koala Clash (Android)',   'os' => 'android', 'src' => 'man', 'ref' => '',                          'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'clodclash',            'n' => 'Clod Clash (десктоп)',    'os' => '',        'src' => 'gh',  'ref' => 'Mrvibecodic/clod-clash',    'how' => 'json:updater/latest.json',  'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'clodclash',            'n' => 'Clod Clash (Android)',    'os' => 'android', 'src' => 'gh',  'ref' => 'Mrvibecodic/clod-clash-android', 'how' => 'json:updater/latest.json', 'cmp' => 'auto', 'man' => '', 'on' => 1],
         ['k' => 'clash-meta/rabbithole', 'n' => 'RabbitHole',             'os' => '',        'src' => 'as',  'ref' => '6683309629',                'how' => 'latest',                    'cmp' => 'build', 'man' => '', 'on' => 1],
@@ -69,6 +70,11 @@ function clientver_options($map, $cur) {
 
 function clientver_row_id($r) {
     return strtolower(trim((string) ($r['k'] ?? ''))) . '|' . strtolower(trim((string) ($r['os'] ?? '')));
+}
+
+function clientver_anchor($key, $os = '') {
+    $a = preg_replace('~[^a-z0-9-]+~', '-', strtolower((string) $key) . '-' . strtolower((string) $os));
+    return 'k-' . trim((string) $a, '-');
 }
 
 function clientver_clean_row($r) {
@@ -310,17 +316,33 @@ function clientver_refresh_all() {
     return [$ok, $bad];
 }
 
-function clientver_autocheck() {
-    if (!clientver_enabled()) return;
-    $st = clientver_state();
+function clientver_autocheck($budget = 1) {
+    if (!clientver_enabled()) return 0;
     $now = time();
+    $n = 0;
     foreach (clientver_catalog() as $r) {
+        if ($n >= $budget) break;
         if (empty($r['on']) || ($r['cmp'] ?? '') === 'dead' || ($r['src'] ?? '') === 'man') continue;
+        $st = clientver_state();
         $id = clientver_row_id($r);
         if ($now - (int) ($st['rows'][$id]['t'] ?? 0) < clientver_ttl()) continue;
         clientver_refresh_row($r);
-        return;
+        $n++;
     }
+    return $n;
+}
+
+function clientver_firstrun($limit = 15) {
+    if (!clientver_enabled()) return 0;
+    $n = 0;
+    foreach (clientver_catalog() as $r) {
+        if ($n >= $limit) break;
+        if (empty($r['on']) || ($r['cmp'] ?? '') === 'dead' || ($r['src'] ?? '') === 'man') continue;
+        if (clientver_row_checked($r) > 0) continue;
+        clientver_refresh_row($r);
+        $n++;
+    }
+    return $n;
 }
 
 function clientver_latest($r) {
@@ -354,15 +376,20 @@ function clientver_find($key, $os) {
 }
 
 function clientver_status($key, $ver, $os = '') {
-    $out = ['s' => 'none', 'latest' => '', 'name' => '', 'cur' => (string) $ver];
+    $out = ['s' => 'none', 'latest' => '', 'name' => '', 'cur' => (string) $ver, 'anchor' => ''];
     if (!clientver_enabled()) return $out;
     $r = clientver_find($key, $os);
     if ($r === null || empty($r['on'])) return $out;
     $out['name'] = (string) $r['n'];
+    $out['anchor'] = clientver_anchor($r['k'], $r['os']);
     if (($r['cmp'] ?? '') === 'dead') { $out['s'] = 'dead'; return $out; }
     $out['latest'] = clientver_latest($r);
     if (($r['cmp'] ?? '') === 'build' || $ver === '' || clientver_is_build($ver)) { $out['s'] = 'nover'; return $out; }
-    if ($out['latest'] === '') { $out['s'] = 'unknown'; return $out; }
+    if ($out['latest'] === '') {
+        if (($r['src'] ?? '') === 'man') { $out['s'] = 'manual'; return $out; }
+        $out['s'] = clientver_row_checked($r) ? 'unknown' : 'wait';
+        return $out;
+    }
     $out['s'] = clientver_diff($ver, $out['latest']);
     return $out;
 }
@@ -375,7 +402,9 @@ function clientver_label($s) {
         'minor'   => 'версия сильно отстала',
         'dead'    => 'проект не обновляется',
         'nover'   => 'версия не определяется',
-        'unknown' => 'актуальная версия неизвестна',
+        'wait'    => 'источник ещё не опрошен',
+        'manual'  => 'версия не задана вручную',
+        'unknown' => 'актуальную версию узнать не удалось',
     ];
     return $map[$s] ?? '';
 }
@@ -384,7 +413,7 @@ function clientver_seen($hours = 168, $limit = 300) {
     $out = [];
     if (!($p = db())) return $out;
     try {
-        $st = $p->prepare("SELECT user_agent, COUNT(*) c, MAX(" . sql_epoch('ts') . ") last FROM request_log WHERE user_agent IS NOT NULL AND user_agent <> '' AND decision <> 'browser' AND " . sql_epoch('ts') . " >= ? GROUP BY user_agent ORDER BY c DESC");
+        $st = $p->prepare("SELECT user_agent, MAX(meta) m, COUNT(*) c, MAX(" . sql_epoch('ts') . ") last FROM request_log WHERE user_agent IS NOT NULL AND user_agent <> '' AND decision <> 'browser' AND " . sql_epoch('ts') . " >= ? GROUP BY user_agent ORDER BY c DESC");
         $st->execute([time() - max(1, (int) $hours) * 3600]);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) { return $out; }
@@ -393,9 +422,14 @@ function clientver_seen($hours = 168, $limit = 300) {
         if ($i >= $limit) break;
         $cl = reqlog_client((string) $row['user_agent']);
         if (($cl['key'] ?? '') === '') continue;
-        $id = $cl['key'] . '|' . $cl['os'];
+        $os = (string) $cl['os'];
+        if ($os === '') {
+            $mt = json_decode((string) ($row['m'] ?? ''), true);
+            if (is_array($mt)) $os = reqlog_os_norm((string) ($mt['dv']['o'] ?? ''));
+        }
+        $id = $cl['key'] . '|' . $os;
         if (!isset($out[$id])) {
-            $out[$id] = ['key' => $cl['key'], 'os' => $cl['os'], 'app' => $cl['app'], 'vers' => [], 'n' => 0, 'last' => 0];
+            $out[$id] = ['key' => $cl['key'], 'os' => $os, 'app' => $cl['app'], 'vers' => [], 'n' => 0, 'last' => 0];
             $i++;
         }
         $out[$id]['n'] += (int) $row['c'];

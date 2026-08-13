@@ -34,7 +34,7 @@
         <div class="loghead">
             <h2>Версии клиентов <span class="muted" style="font-weight:400;font-size:.78rem">строк в каталоге: <?= count($cv_rows) ?></span></h2>
             <div class="loghead-r">
-                <span class="muted" style="font-size:.78rem"><?= $cv_checked ? 'последняя проверка: ' . h(date('d.m.Y H:i', $cv_checked)) : 'проверок ещё не было' ?></span>
+                <span class="muted" style="font-size:.78rem"><?= $cv_checked ? 'последняя проверка: <span class="cv-ts" data-ts="' . (int) $cv_checked . '" data-f="1">' . h(gmdate('d.m.Y H:i', $cv_checked)) . '</span>' : 'проверок ещё не было' ?></span>
                 <form method="post" style="margin:0">
                     <input type="hidden" name="csrf" value="<?= h($token) ?>">
                     <input type="hidden" name="action" value="clientver_refresh">
@@ -61,7 +61,7 @@
                     <thead><tr><th>Вкл</th><th>Ключ UA</th><th>Имя</th><th>Платформа</th><th>Источник</th><th>Адрес</th><th>Способ</th><th>Сравнение</th><th>Актуальная</th><th></th></tr></thead>
                     <tbody id="cvBody">
                     <?php foreach ($cv_rows as $cv_i => $cv_r): $cv_err = clientver_row_err($cv_r); $cv_t = clientver_row_checked($cv_r); ?>
-                        <tr id="k-<?= h(preg_replace('~[^a-z0-9-]+~', '-', $cv_r['k'] . '-' . $cv_r['os'])) ?>">
+                        <tr id="<?= h(clientver_anchor($cv_r['k'], $cv_r['os'])) ?>">
                             <td><label class="chk" style="margin:0"><input type="checkbox" name="cv_on[<?= (int) $cv_i ?>]" <?= $cv_r['on'] ? 'checked' : '' ?>></label></td>
                             <td><input type="text" name="cv_k[<?= (int) $cv_i ?>]" value="<?= h($cv_r['k']) ?>" spellcheck="false"></td>
                             <td><input type="text" name="cv_n[<?= (int) $cv_i ?>]" value="<?= h($cv_r['n']) ?>"></td>
@@ -77,7 +77,7 @@
                                     <input type="hidden" name="cv_man[<?= (int) $cv_i ?>]" value="<?= h($cv_r['man']) ?>">
                                     <span class="cv-cur">
                                         <b><?= clientver_latest($cv_r) !== '' ? h(clientver_latest($cv_r)) : '—' ?></b>
-                                        <span class="<?= $cv_err !== '' ? 'bad' : '' ?>"><?= $cv_err !== '' ? h(mb_substr($cv_err, 0, 60)) : ($cv_t ? h(date('d.m H:i', $cv_t)) : 'не проверялась') ?></span>
+                                        <span class="<?= $cv_err !== '' ? 'bad' : '' ?>"><?= $cv_err !== '' ? h(mb_substr($cv_err, 0, 60)) : ($cv_t ? '<span class="cv-ts" data-ts="' . (int) $cv_t . '">' . h(gmdate('d.m H:i', $cv_t)) . '</span>' : 'не проверялась') ?></span>
                                     </span>
                                 <?php endif; ?>
                             </td>
@@ -199,6 +199,15 @@
                 var tr = d.closest('tr');
                 if(tr) tr.parentNode.removeChild(tr);
             }
+        });
+        function p2(n){ return (n < 10 ? '0' : '') + n; }
+        document.querySelectorAll('.cv-ts[data-ts]').forEach(function(el){
+            var ep = parseInt(el.getAttribute('data-ts'), 10);
+            if(!ep) return;
+            var d = new Date(ep * 1000);
+            if(isNaN(d.getTime())) return;
+            var s = p2(d.getDate())+'.'+p2(d.getMonth()+1)+(el.getAttribute('data-f') ? '.'+d.getFullYear() : '')+' '+p2(d.getHours())+':'+p2(d.getMinutes());
+            el.textContent = s;
         });
         if(location.hash && location.hash.length > 1){
             var t = document.getElementById(location.hash.slice(1));
