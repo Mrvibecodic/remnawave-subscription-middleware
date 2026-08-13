@@ -35,7 +35,7 @@
             <h2>Версии клиентов <span class="muted" style="font-weight:400;font-size:.78rem">строк в каталоге: <?= count($cv_rows) ?></span></h2>
             <div class="loghead-r">
                 <span class="muted" style="font-size:.78rem"><?= $cv_checked ? 'последняя проверка: <span class="cv-ts" data-ts="' . (int) $cv_checked . '" data-f="1">' . h(gmdate('d.m.Y H:i', $cv_checked)) . '</span>' : 'проверок ещё не было' ?></span>
-                <form method="post" style="margin:0">
+                <form method="post" style="margin:0" onsubmit="return cvBusy(this,'Проверяю источники…')">
                     <input type="hidden" name="csrf" value="<?= h($token) ?>">
                     <input type="hidden" name="action" value="clientver_refresh">
                     <button class="btn ghost" type="submit">Проверить сейчас</button>
@@ -146,6 +146,15 @@
         <?php endif; ?>
     </div>
     <script>
+    window.cvBusy = function(f, label){
+        var b = f.querySelector('button[type=submit]');
+        if(b){
+            b.classList.add('busy');
+            b.textContent = label || 'Работаю…';
+            setTimeout(function(){ b.disabled = true; }, 0);
+        }
+        return true;
+    };
     (function(){
         var body = document.getElementById('cvBody');
         if(!body) return;

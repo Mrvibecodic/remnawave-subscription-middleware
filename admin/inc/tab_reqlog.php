@@ -40,9 +40,10 @@
     .u-cell .nm{color:var(--text-strong);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .u-cell .su{font-family:ui-monospace,monospace;font-size:.75rem;color:var(--muted)}
     .cl{display:flex;flex-direction:column;line-height:1.3;min-width:0}
-    .cl .c1{color:var(--text)}
+    .cl .c1{color:var(--text);display:flex;align-items:center;gap:.4rem;min-width:0}
+    .cl .c1 .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
     .cl .c2{color:var(--muted);font-size:.75rem}
-    .cv{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:.4rem;vertical-align:middle}
+    .cv{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
     .cv-p{background:var(--amber)}
     .cv-m{background:var(--red)}
     .cvl{color:var(--muted)}
