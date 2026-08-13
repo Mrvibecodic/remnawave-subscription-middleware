@@ -307,13 +307,15 @@ function clientver_refresh_row($r) {
     return $res !== null;
 }
 
-function clientver_refresh_all() {
-    $ok = 0; $bad = 0;
+function clientver_refresh_all($deadline = 25) {
+    $ok = 0; $bad = 0; $left = 0;
+    $t0 = time();
     foreach (clientver_catalog() as $r) {
         if (empty($r['on']) || ($r['cmp'] ?? '') === 'dead' || ($r['src'] ?? '') === 'man') continue;
+        if (time() - $t0 >= $deadline) { $left++; continue; }
         if (clientver_refresh_row($r)) $ok++; else $bad++;
     }
-    return [$ok, $bad];
+    return [$ok, $bad, $left];
 }
 
 function clientver_autocheck($budget = 1) {

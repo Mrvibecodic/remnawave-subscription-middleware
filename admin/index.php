@@ -829,8 +829,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     }
 
     if ($action === 'clientver_refresh') {
-        [$cv_ok, $cv_bad] = clientver_refresh_all();
-        flash($cv_bad ? ('Проверено источников: ' . $cv_ok . ', с ошибкой: ' . $cv_bad) : ('Проверено источников: ' . $cv_ok));
+        [$cv_ok, $cv_bad, $cv_left] = clientver_refresh_all();
+        $cv_msg = 'Проверено источников: ' . $cv_ok;
+        if ($cv_bad)  $cv_msg .= ', с ошибкой: ' . $cv_bad;
+        if ($cv_left) $cv_msg .= '. Осталось на следующий раз: ' . $cv_left . ' — проверка прервана по времени';
+        flash($cv_msg);
         header('Location: index.php?tab=reqlog&view=clients'); exit();
     }
 

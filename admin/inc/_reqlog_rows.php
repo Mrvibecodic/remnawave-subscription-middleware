@@ -185,7 +185,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '<td data-label="Тип ответа">' . rl_fmt_tag($fmt, true) . '</td>'
               . '<td data-label="Доп. подписка">' . rl_as_badge($as) . '</td>'
               . '<td data-label="Пользователь"><span class="u-cell"><span class="nm">' . $who . '</span>' . $sub . '</span></td>'
-              . '<td data-label="Клиент"><span class="cl"><span class="c1">' . ($cl['app'] !== '' ? h($cl['app']) : '<span class="dim">—</span>') . rl_cv_dot($cv) . '</span>'
+              . '<td data-label="Клиент"><span class="cl"><span class="c1"><span class="nm">' . ($cl['app'] !== '' ? h($cl['app']) : '<span class="dim">—</span>') . '</span>' . rl_cv_dot($cv) . '</span>'
               . ($cl['dev'] !== '' ? '<span class="c2">' . h($cl['dev']) . '</span>' : '') . '</span></td>'
               . '<td data-label="Запросов / сутки"><span class="cnt"><b>' . $day . '</b><span class="bar"><i style="width:' . (int) round($day / $max * 100) . '%"></i></span></span></td>'
               . '</tr>';
