@@ -1858,6 +1858,38 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
     window.navAcc=function(b){var s=b.closest('.navacc');if(!s)return;s.classList.toggle('closed');var k=s.dataset.acc||'';uiCookieSet('n_'+k,s.classList.contains('closed'));};
     document.addEventListener('click',function(e){var app=document.querySelector('.rw-app');if(app&&app.classList.contains('nav-open')&&!e.target.closest('.rw-side')&&!e.target.closest('.navtoggle'))app.classList.remove('nav-open');});
     try{document.cookie='tzoff='+(-new Date().getTimezoneOffset())+';path=/;max-age=31536000;samesite=Lax';}catch(e){}
+    (function(){
+        var box=null,cur=null;
+        function place(el){
+            var t=el.getAttribute('data-tip');
+            if(!t)return;
+            if(!box){box=document.createElement('div');box.className='tipbox';document.body.appendChild(box);}
+            box.textContent=t;
+            box.style.left='0px';box.style.top='0px';
+            box.classList.add('on');
+            var r=el.getBoundingClientRect(),b=box.getBoundingClientRect();
+            var x=r.left+r.width/2-b.width/2,y=r.top-b.height-8;
+            if(y<6)y=r.bottom+8;
+            x=Math.max(6,Math.min(x,window.innerWidth-b.width-6));
+            box.style.left=x+'px';box.style.top=y+'px';
+            cur=el;
+        }
+        function hide(){if(box)box.classList.remove('on');cur=null;}
+        document.addEventListener('mouseover',function(e){
+            if(!e.target||!e.target.closest)return;
+            var el=e.target.closest('[data-tip]');
+            if(el&&el!==cur)place(el); else if(!el&&cur)hide();
+        });
+        document.addEventListener('mouseout',function(e){
+            if(!cur||!e.target||!e.target.closest)return;
+            var el=e.target.closest('[data-tip]');
+            if(el===cur&&(!e.relatedTarget||!cur.contains(e.relatedTarget)))hide();
+        });
+        document.addEventListener('focusin',function(e){if(e.target&&e.target.closest){var el=e.target.closest('[data-tip]');if(el)place(el);}});
+        document.addEventListener('focusout',hide);
+        window.addEventListener('scroll',hide,true);
+        window.addEventListener('resize',hide);
+    })();
     ok.addEventListener('click',function(){var f=cb; uiDlgClose(); if(f)f();});
     document.addEventListener('keydown',function(e){if(e.key==='Escape')uiDlgClose();});
     (function(){var el=document.getElementById('ghStarCount');if(!el)return;try{var c=JSON.parse(localStorage.getItem('gh_stars')||'null');if(c&&Date.now()-c.t<21600000){el.textContent=c.n;return;}}catch(e){}fetch('https://api.github.com/repos/Mrvibecodic/remnawave-subscription-middleware').then(function(r){return r.json();}).then(function(d){if(d&&typeof d.stargazers_count==='number'){el.textContent=d.stargazers_count;try{localStorage.setItem('gh_stars',JSON.stringify({n:d.stargazers_count,t:Date.now()}));}catch(e){}}}).catch(function(){});})();

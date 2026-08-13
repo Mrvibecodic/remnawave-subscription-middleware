@@ -135,7 +135,7 @@
             <h2>Активность по часам <span class="muted" style="font-weight:400;font-size:.78rem">последние 24 часа</span></h2>
             <div class="loghead-r"><button type="button" class="btn ghost" onclick="rlRefresh()">Обновить</button></div>
         </div>
-        <div class="spark" id="rlSpark"><?php $rl_peak = max(1, (int) $rl_over['peak']); foreach ($rl_over['hourly'] as $rl_hi => $rl_hv): ?><i class="<?= $rl_hv >= $rl_peak * .75 ? 'hi' : '' ?>" style="height:<?= max(6, (int) round(pow($rl_hv / $rl_peak, .62) * 100)) ?>%" data-ts="<?= (intdiv(time(), 3600) - 23 + $rl_hi) * 3600 ?>" data-c="<?= (int) $rl_hv ?>" title="<?= h(date('H:i', (intdiv(time(), 3600) - 23 + $rl_hi) * 3600)) ?> — <?= (int) $rl_hv ?>"></i><?php endforeach; ?></div>
+        <div class="spark" id="rlSpark"><?php $rl_peak = max(1, (int) $rl_over['peak']); foreach ($rl_over['hourly'] as $rl_hi => $rl_hv): ?><i class="<?= $rl_hv >= $rl_peak * .75 ? 'hi' : '' ?>" style="height:<?= max(6, (int) round(pow($rl_hv / $rl_peak, .62) * 100)) ?>%" data-ts="<?= (intdiv(time(), 3600) - 23 + $rl_hi) * 3600 ?>" data-c="<?= (int) $rl_hv ?>" data-tip="<?= h(date('H:i', (intdiv(time(), 3600) - 23 + $rl_hi) * 3600)) ?> — <?= (int) $rl_hv ?>"></i><?php endforeach; ?></div>
         <div class="sparkx" id="rlSparkX"><span><?= h(date('H:i', (intdiv(time(), 3600) - 23) * 3600)) ?></span><span><?= h(date('H:i', (intdiv(time(), 3600) - 16) * 3600)) ?></span><span><?= h(date('H:i', (intdiv(time(), 3600) - 8) * 3600)) ?></span><span><?= h(date('H:i', intdiv(time(), 3600) * 3600)) ?></span></div>
     </div>
 
@@ -178,7 +178,7 @@
             </select>
             <button class="btn ghost" type="submit">Найти</button>
             <?php if ($rl_f['q'] !== '' || $rl_f['dec'] !== '' || $rl_f['fmt'] !== '' || $rl_f['hours'] !== 24): ?>
-            <a class="btn ghost" href="?tab=reqlog" title="Сбросить фильтры">Сброс</a>
+            <a class="btn ghost" href="?tab=reqlog" data-tip="Сбросить фильтры">Сброс</a>
             <?php endif; ?>
         </form>
         <div class="rl-wrap">
@@ -227,7 +227,7 @@
                 <input type="hidden" name="csrf" value="<?= h($token) ?>">
                 <input type="hidden" name="action" value="junk_include">
                 <input type="hidden" name="path" value="<?= h($w) ?>">
-                <button class="btn ghost" type="submit" title="Вернуть в мусорные">✓ <?= h($w) ?> &nbsp;✕</button>
+                <button class="btn ghost" type="submit" data-tip="Вернуть в мусорные">✓ <?= h($w) ?> &nbsp;✕</button>
             </form>
             <?php endforeach; ?>
         </div>
@@ -278,7 +278,7 @@
             var bars = sp.querySelectorAll('i[data-ts]');
             bars.forEach(function(b){
                 var v = locHM(b.getAttribute('data-ts')); if(!v) return;
-                b.setAttribute('title', v+' — '+(b.getAttribute('data-c')||'0'));
+                b.setAttribute('data-tip', v+' — '+(b.getAttribute('data-c')||'0'));
             });
             var ax = document.getElementById('rlSparkX');
             if(ax && bars.length === 24){

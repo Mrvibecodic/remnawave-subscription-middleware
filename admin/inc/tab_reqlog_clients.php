@@ -81,7 +81,7 @@
                                     </span>
                                 <?php endif; ?>
                             </td>
-                            <td><button type="button" class="cv-del" title="Удалить строку">✕</button></td>
+                            <td><button type="button" class="cv-del" data-tip="Удалить строку" aria-label="Удалить строку">✕</button></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
@@ -174,7 +174,7 @@
                 '<td><input type="text" name="cv_how['+i+']" value="'+esc(r.how || 'latest')+'" spellcheck="false"></td>'+
                 '<td><select name="cv_cmp['+i+']">'+opts(CMP, r.cmp || 'auto')+'</select></td>'+
                 '<td><input type="text" name="cv_man['+i+']" value="'+esc(r.man)+'" spellcheck="false" placeholder="вписать вручную"></td>'+
-                '<td><button type="button" class="cv-del" title="Удалить строку">✕</button></td>';
+                '<td><button type="button" class="cv-del" data-tip="Удалить строку" aria-label="Удалить строку">✕</button></td>';
             body.insertBefore(tr, body.firstChild);
             tr.classList.add('cv-hl');
             setTimeout(function(){ tr.classList.remove('cv-hl'); }, 1200);
