@@ -122,7 +122,7 @@ function rl_cv_dot($cv) {
 function rl_cv_row($cv) {
     $s = (string) ($cv['s'] ?? '');
     if ($s === '' || $s === 'none') return '';
-    $link = '?tab=reqlog&view=clients#k-' . rawurlencode(preg_replace('~[^a-z0-9-]+~', '-', (string) ($cv['key'] ?? '')));
+    $link = '?tab=reqlog&view=clients#' . (string) ($cv['anchor'] ?? '');
     if ($s === 'ok' || $s === 'ahead') $v = '<span class="cvl">актуальная <b>' . h($cv['latest']) . '</b></span>';
     elseif ($s === 'patch')            $v = '<span class="cvl old">' . h($cv['cur']) . ' → <b>' . h($cv['latest']) . '</b></span>';
     elseif ($s === 'minor')            $v = '<span class="cvl far">' . h($cv['cur']) . ' → <b>' . h($cv['latest']) . '</b></span>';
@@ -161,8 +161,9 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $meta = reqlog_meta($r);
         $as   = is_array($meta['as'] ?? null) ? $meta['as'] : [];
         $cl   = reqlog_client((string) ($r['user_agent'] ?? ''));
-        $cv   = clientver_status($cl['key'] ?? '', $cl['ver'] ?? '', $cl['os'] ?? '');
-        $cv['key'] = (string) ($cl['key'] ?? '') . '-' . (string) ($cl['os'] ?? '');
+        $cos  = (string) ($cl['os'] ?? '');
+        if ($cos === '') $cos = reqlog_os_norm((string) ($meta['dv']['o'] ?? ''));
+        $cv   = clientver_status($cl['key'] ?? '', $cl['ver'] ?? '', $cos);
         $dvl  = reqlog_device_label($meta['dv'] ?? null);
         if ($dvl !== '') $cl['dev'] = $dvl;
         $name = $su !== '' && isset($names[$su]) ? (string) $names[$su] : '';

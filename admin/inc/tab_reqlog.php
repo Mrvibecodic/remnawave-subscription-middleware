@@ -42,7 +42,7 @@
     .cl{display:flex;flex-direction:column;line-height:1.3;min-width:0}
     .cl .c1{color:var(--text)}
     .cl .c2{color:var(--muted);font-size:.75rem}
-    .cv{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:.4rem;vertical-align:baseline}
+    .cv{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:.4rem;vertical-align:middle}
     .cv-p{background:var(--amber)}
     .cv-m{background:var(--red)}
     .cvl{color:var(--muted)}
