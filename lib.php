@@ -24,3 +24,4 @@ require_once __DIR__ . '/lib/addsub.php';
 require_once __DIR__ . '/lib/junk.php';
 require_once __DIR__ . '/lib/chan.php';
 require_once __DIR__ . '/lib/chanmw.php';
+require_once __DIR__ . '/lib/clientver.php';

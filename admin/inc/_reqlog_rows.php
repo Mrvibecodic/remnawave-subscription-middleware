@@ -112,6 +112,24 @@ function rl_hist_bar($list) {
     return '<span class="hist">' . $out . '</span>';
 }
 
+function rl_cv_dot($cv) {
+    $s = (string) ($cv['s'] ?? '');
+    if ($s !== 'patch' && $s !== 'minor') return '';
+    $t = ($cv['cur'] !== '' ? $cv['cur'] . ' → ' : '') . $cv['latest'] . ' · ' . clientver_label($s);
+    return '<i class="cv ' . ($s === 'patch' ? 'cv-p' : 'cv-m') . '" title="' . h($t) . '"></i>';
+}
+
+function rl_cv_row($cv) {
+    $s = (string) ($cv['s'] ?? '');
+    if ($s === '' || $s === 'none') return '';
+    $link = '?tab=reqlog&view=clients#k-' . rawurlencode(preg_replace('~[^a-z0-9-]+~', '-', (string) ($cv['key'] ?? '')));
+    if ($s === 'ok' || $s === 'ahead') $v = '<span class="cvl">актуальная <b>' . h($cv['latest']) . '</b></span>';
+    elseif ($s === 'patch')            $v = '<span class="cvl old">' . h($cv['cur']) . ' → <b>' . h($cv['latest']) . '</b></span>';
+    elseif ($s === 'minor')            $v = '<span class="cvl far">' . h($cv['cur']) . ' → <b>' . h($cv['latest']) . '</b></span>';
+    else                               $v = '<span class="cvl">' . h(clientver_label($s)) . '</span>';
+    return '<div class="xr"><span class="l">Версия</span><span class="v"><a href="' . h($link) . '">' . $v . '</a></span></div>';
+}
+
 function rl_link(array $over, array $base) {
     $q = array_filter(array_merge($base, $over), fn($v) => $v !== '' && $v !== null);
     return '?' . http_build_query($q);
@@ -143,6 +161,8 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $meta = reqlog_meta($r);
         $as   = is_array($meta['as'] ?? null) ? $meta['as'] : [];
         $cl   = reqlog_client((string) ($r['user_agent'] ?? ''));
+        $cv   = clientver_status($cl['key'] ?? '', $cl['ver'] ?? '', $cl['os'] ?? '');
+        $cv['key'] = (string) ($cl['key'] ?? '') . '-' . (string) ($cl['os'] ?? '');
         $dvl  = reqlog_device_label($meta['dv'] ?? null);
         if ($dvl !== '') $cl['dev'] = $dvl;
         $name = $su !== '' && isset($names[$su]) ? (string) $names[$su] : '';
@@ -164,7 +184,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '<td data-label="Тип ответа">' . rl_fmt_tag($fmt, true) . '</td>'
               . '<td data-label="Доп. подписка">' . rl_as_badge($as) . '</td>'
               . '<td data-label="Пользователь"><span class="u-cell"><span class="nm">' . $who . '</span>' . $sub . '</span></td>'
-              . '<td data-label="Клиент"><span class="cl"><span class="c1">' . ($cl['app'] !== '' ? h($cl['app']) : '<span class="dim">—</span>') . '</span>'
+              . '<td data-label="Клиент"><span class="cl"><span class="c1">' . ($cl['app'] !== '' ? h($cl['app']) : '<span class="dim">—</span>') . rl_cv_dot($cv) . '</span>'
               . ($cl['dev'] !== '' ? '<span class="c2">' . h($cl['dev']) . '</span>' : '') . '</span></td>'
               . '<td data-label="Запросов / сутки"><span class="cnt"><b>' . $day . '</b><span class="bar"><i style="width:' . (int) round($day / $max * 100) . '%"></i></span></span></td>'
               . '</tr>';
@@ -199,6 +219,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '</div>'
               . '<div class="xcol"><div class="xh">Клиент</div>'
               . '<div class="xr"><span class="l">Приложение</span><span class="v">' . ($cl['app'] !== '' ? h($cl['app']) : '—') . '</span></div>'
+              . rl_cv_row($cv)
               . '<div class="xr"><span class="l">Устройство</span><span class="v">' . ($cl['dev'] !== '' ? h($cl['dev']) : '<span class="dim">клиент не прислал</span>') . '</span></div>'
               . '<div class="xr"><span class="l">HWID</span><span class="v mono">' . ($hwid !== '' ? h($hwid) . ($ovl !== '' ? ' <span class="dim">· ' . h($ovl) . '</span>' : '') : '—') . '</span></div>'
               . '<div class="xr"><span class="l">User-Agent</span><span class="v mono">' . ((string) ($r['user_agent'] ?? '') !== '' ? h((string) $r['user_agent']) : '—') . '</span></div>'
