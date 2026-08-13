@@ -116,6 +116,19 @@
     input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
     select{appearance:none;-webkit-appearance:none;-moz-appearance:none;padding-right:2.3rem;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .75rem center;background-size:1rem}
     select::-ms-expand{display:none}
+    select option{background:var(--card);color:var(--text)}
+    select option:checked{background:var(--accent-light);color:var(--accent-text)}
+    @supports (appearance:base-select){
+        select{appearance:base-select;background-image:none;padding-right:.7rem;display:inline-flex;align-items:center;gap:.5rem}
+        select::picker(select){appearance:base-select;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:.3rem;margin-top:.35rem;max-height:20rem;overflow:auto}
+        select::picker-icon{color:transparent;width:1rem;height:1rem;flex:0 0 auto;margin-left:auto;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:center;background-size:1rem;transition:transform .16s ease}
+        select:open::picker-icon{transform:rotate(180deg)}
+        select option{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:8px;background:transparent;color:var(--text);cursor:pointer}
+        select option:hover,select option:focus{background:var(--hover)}
+        select option:checked{background:var(--accent-light);color:var(--accent-text);font-weight:600}
+        select option::checkmark{display:none}
+        select:open{border-color:var(--accent)}
+    }
     textarea{min-height:90px;resize:vertical}
     button,.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:.55rem 1.1rem;font-weight:600;cursor:pointer;font-size:.88rem}
     button:hover,.btn:hover{background:var(--accent-h)}
