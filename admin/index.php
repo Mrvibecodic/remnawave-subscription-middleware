@@ -365,7 +365,7 @@ if (isset($_GET['ajax']) && is_auth()) {
 
     if ($a === 'reqlog') {
         require_once __DIR__ . '/inc/_reqlog_rows.php';
-        [$rl_f, $rl_rows, $rl_ctx] = reqlog_prepare();
+        [$rl_f, $rl_rows, $rl_ctx, $rl_tusers] = reqlog_prepare();
         $st   = reqlog_today_stats();
         $ov   = reqlog_overview();
         $peak = max(1, (int) $ov['peak']);
@@ -382,6 +382,7 @@ if (isset($_GET['ajax']) && is_auth()) {
             'spark' => $spark,
             'kpi'   => [
                 'users'   => (int) $st['today_users'],
+                'utotal'  => (int) $rl_tusers,
                 'devices' => (int) $st['today_devices'],
                 'total'   => (int) $ov['total'],
                 'blocked' => (int) $ov['blocked'],
