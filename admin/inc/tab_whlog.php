@@ -38,6 +38,10 @@
         .wh-csv{margin-left:0;flex:1 1 100%}
     }
     </style>
+    <div class="seg">
+        <a class="<?= $wh_full ? 'on' : '' ?>" href="?tab=whlog">Юзер-лог</a>
+        <a class="<?= $wh_full ? '' : 'on' ?>" href="?tab=whlog_other">Прочие события</a>
+    </div>
     <div class="card">
         <div class="loghead">
             <h2><?= $wh_full ? 'Юзер-лог вебхуков' : 'Прочие события' ?> <span class="muted" style="font-weight:500;font-size:.8rem">хранится: <?= (int) $wh_total ?> · в выборке: <?= (int) $wh_matched ?><?= $wh_matched > 3000 ? ' (показаны последние 3000)' : '' ?></span></h2>

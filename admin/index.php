@@ -1431,7 +1431,7 @@ if ($tab === 'addsub') $addsub_list = addsub_map_all();
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков · юзеры', 'whlog_other' => 'Лог вебхуков · прочее', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'clod' => 'Защищённый канал (Clod Clash)'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'clod' => 'Защищённый канал (Clod Clash)'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -1594,8 +1594,7 @@ $nav = [
     'addsub'    => ['Слияние подписок', '<path d="M8 7a5 5 0 1 0 0 10"/><path d="M16 7a5 5 0 1 1 0 10"/><line x1="8" y1="12" x2="16" y2="12"/>'],
     'clod'      => ['Защищённый канал', '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.4"/>'],
     'reqlog'    => ['Лог запросов', '<line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'],
-    'whlog'       => ['Юзер-лог', '<path d="M13 2L3 14h7l-1 8 10-12h-7z"/>'],
-    'whlog_other' => ['Прочие события', '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/>'],
+    'whlog'       => ['Лог вебхуков', '<path d="M13 2L3 14h7l-1 8 10-12h-7z"/>'],
     'fwdlog'    => ['Лог пересылки', '<path d="M4 12h12"/><path d="M12 6l6 6-6 6"/><path d="M20 4v16"/>'],
     'grace_users' => ['Грейс-юзеры', '<circle cx="9" cy="7" r="3"/><path d="M3 21v-1a5 5 0 0 1 5-5h2.5"/><circle cx="17" cy="16" r="4"/><path d="M17 14.4V16l1.2 1"/>'],
     'sysinfo'   => ['О системе', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'],
@@ -1608,7 +1607,7 @@ $nav = [
 $nav_sections = [
     ['l' => 'Главное',          'coll' => false, 'k' => 'main',   'items' => ['users', 'chat', 'reqlog']],
     ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
-    ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog', 'whlog_other'] : ['webhooks', 'whlog', 'whlog_other']],
+    ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog'] : ['webhooks', 'whlog']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
     ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides', 'squad_configs', 'wg_pool', 'addsub', 'clod']],
     ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => ['sysinfo', 'update', 'migrate']],
@@ -1649,11 +1648,12 @@ function nav_link($key, $it, $active, $badge = false) {
     <aside class="rw-side">
         <div class="rw-brand"><?php if ($brand_icon !== ''): ?><img src="<?= h($brand_icon) ?>" alt=""><?php elseif ($brand_emoji !== ''): ?><span class="rw-emoji"><?= $brand_emoji ?></span><?php else: ?><img src="<?= $default_logo ?>" alt=""><?php endif; ?><b><?= h($brand['name']) ?></b></div>
         <nav class="rw-nav">
-            <?php foreach ($nav_sections as $sec): $active_in = in_array($tab, $sec['items'], true); ?>
+            <?php $tab_nav = $tab === 'whlog_other' ? 'whlog' : $tab; // под-вкладка живёт внутри пункта «Лог вебхуков» ?>
+            <?php foreach ($nav_sections as $sec): $active_in = in_array($tab_nav, $sec['items'], true); ?>
                 <?php if (empty($sec['coll'])): ?>
                     <div class="navgroup"><?= h($sec['l']) ?></div>
                     <?php foreach ($sec['items'] as $key): ?>
-                        <?= nav_link($key, $nav[$key], $tab === $key, $key === 'update' && update_available()) ?>
+                        <?= nav_link($key, $nav[$key], $tab_nav === $key, $key === 'update' && update_available()) ?>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="<?= navacc_cls($sec['k'], $active_in) ?>" data-acc="<?= h($sec['k']) ?>">
@@ -1663,7 +1663,7 @@ function nav_link($key, $it, $active, $badge = false) {
                         </button>
                         <div class="navacc-b">
                             <?php foreach ($sec['items'] as $key): ?>
-                                <?= nav_link($key, $nav[$key], $tab === $key, $key === 'update' && update_available()) ?>
+                                <?= nav_link($key, $nav[$key], $tab_nav === $key, $key === 'update' && update_available()) ?>
                             <?php endforeach; ?>
                         </div>
                     </div>
