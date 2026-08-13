@@ -121,8 +121,8 @@
     }
     </style>
     <div class="seg">
-        <a class="on" href="?tab=reqlog">Запросы</a>
-        <a href="?tab=reqlog&amp;view=clients">Клиенты<?= $rl_outdated ? ' · ' . (int) $rl_outdated . ' устаревших' : '' ?></a>
+        <a class="on" href="?tab=reqlog">Запросы<?= $rl_outdated ? ' (' . (int) $rl_outdated . ' устаревших)' : '' ?></a>
+        <a href="?tab=reqlog&amp;view=clients">Клиенты</a>
     </div>
     <div class="rl-kpis">
         <div class="rl-kpi"><div class="k">Обновили подписку</div><div class="v" id="rlKpiUsers"><?= (int) $rl_today_users ?><?= $rl_total_users ? '<small> / ' . (int) $rl_total_users . '</small>' : '' ?></div><div class="d">сегодня, <?= h($rl_today_label) ?></div></div>
