@@ -46,9 +46,9 @@ function reqlog_prepare() {
 }
 
 function rl_dec_tag($dec, $short = false) {
-    if ($dec === 'blocked') return '<span class="tag blocked" title="запрос от неразрешённого устройства">' . ($short ? 'blocked' : 'HWID blocked') . '</span>';
+    if ($dec === 'blocked') return '<span class="tag blocked" data-tip="запрос от неразрешённого устройства">' . ($short ? 'blocked' : 'HWID blocked') . '</span>';
     if ($dec === 'grace')   return $short
-        ? '<span class="tag grace" title="выдан грейс-сквад">грейс</span>'
+        ? '<span class="tag grace" data-tip="выдан грейс-сквад">грейс</span>'
         : '<span class="tag normal">normal <span style="opacity:.6">(грейс)</span></span>';
     if ($dec === 'expired') return '<span class="tag expired">expired</span>';
     if ($dec === 'error')   return '<span class="tag error">error</span>';
@@ -68,7 +68,7 @@ function rl_fmt_tag($fmt, $short = false) {
     $label = reqlog_fmt_label($fmt, $short);
     if ($label === '') return '<span class="dim">—</span>';
     $cls = ['base64' => 'base64', 'json' => 'json', 'clash' => 'clash', 'singbox' => 'singbox', 'wg' => 'wg', 'page' => 'page'];
-    $ttl = $short && $fmt === 'page' ? ' title="страница подписки"' : '';
+    $ttl = $short && $fmt === 'page' ? ' data-tip="страница подписки"' : '';
     return '<span class="ft ' . h($cls[$fmt] ?? 'other') . '"' . $ttl . '><span class="dt"></span>' . h($label) . '</span>';
 }
 
@@ -107,7 +107,7 @@ function rl_hist_bar($list) {
     $out = '';
     foreach ($list as $d) {
         $c = $d === 'blocked' ? ' b' : ($d === 'grace' ? ' g' : ($d === 'expired' || $d === 'error' ? ' e' : ''));
-        $out .= '<i class="h' . $c . '" title="' . h($d) . '"></i>';
+        $out .= '<i class="h' . $c . '" data-tip="' . h($d) . '"></i>';
     }
     return '<span class="hist">' . $out . '</span>';
 }
@@ -116,7 +116,7 @@ function rl_cv_dot($cv) {
     $s = (string) ($cv['s'] ?? '');
     if ($s !== 'patch' && $s !== 'minor') return '';
     $t = ($cv['cur'] !== '' ? $cv['cur'] . ' → ' : '') . $cv['latest'] . ' · ' . clientver_label($s);
-    return '<i class="cv ' . ($s === 'patch' ? 'cv-p' : 'cv-m') . '" title="' . h($t) . '"></i>';
+    return '<i class="cv ' . ($s === 'patch' ? 'cv-p' : 'cv-m') . '" data-tip="' . h($t) . '" aria-label="' . h($t) . '"></i>';
 }
 
 function rl_cv_row($cv) {

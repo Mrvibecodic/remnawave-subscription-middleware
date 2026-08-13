@@ -165,6 +165,8 @@
     .seg{display:inline-flex;border:1px solid var(--line);border-radius:.5rem;overflow:hidden;margin-bottom:.9rem}
     .seg button{background:transparent;color:var(--muted);border:0;padding:.45rem .9rem;font-size:.85rem;cursor:pointer;font-weight:600}
     .seg button.on{background:var(--accent);color:#fff}
+    .tipbox{position:fixed;left:0;top:0;z-index:200;max-width:18rem;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:var(--radius);padding:.4rem .6rem;font-size:.78rem;line-height:1.45;box-shadow:var(--shadow);pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s ease,transform .12s ease}
+    .tipbox.on{opacity:1;transform:translateY(0)}
     .seg a{display:inline-flex;align-items:center;background:transparent;color:var(--muted);border:0;padding:.45rem .9rem;font-size:.85rem;font-weight:600;text-decoration:none;white-space:nowrap}
     .seg a:hover{background:var(--hover);color:var(--text)}
     .seg a.on,.seg a.on:hover{background:var(--accent);color:#fff}
