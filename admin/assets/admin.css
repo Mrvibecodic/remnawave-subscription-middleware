@@ -240,6 +240,9 @@
     .sq-n{flex:1;font-weight:600;color:var(--text-strong);font-size:.9rem;word-break:break-word}
     @media(max-width:760px){.subprev{width:100%}.sq-grid{grid-template-columns:1fr}}
     code{background:var(--bg2);padding:.1rem .4rem;border-radius:5px;overflow-wrap:break-word;word-break:normal;font-size:.82em;border:1px solid var(--line)}
+    /* Внутри кнопки с заливкой чип кода нечитаем (тёмный фон чипа + --on-accent-текст),
+       поэтому там код — просто жирный моноширинный тем же цветом, что и текст кнопки. */
+    button:not(.btn) code,.btn:not(.ghost) code{background:transparent;border:0;padding:0;color:inherit;font-weight:700;font-size:.95em}
     .sublink{width:100%;font-size:.78rem}
     pre{background:var(--bg2);padding:1rem;border-radius:8px;overflow:auto;font-size:.8rem;white-space:pre-wrap;border:1px solid var(--line)}
     .modal-overlay{display:none;position:fixed;inset:0;background:rgba(1,4,9,.55);backdrop-filter:blur(2px);z-index:100;align-items:flex-start;justify-content:center;padding:6vh 1rem}
