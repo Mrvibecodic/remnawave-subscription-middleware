@@ -26,7 +26,7 @@
     @media(max-width:900px){.cv-item{flex-wrap:wrap}.cv-item .i-n{flex:1 1 100%}}
     </style>
     <div class="seg">
-        <a href="?tab=reqlog">Запросы</a>
+        <a href="?tab=reqlog">Запросы<?= $rl_outdated ? ' (' . (int) $rl_outdated . ' устаревших)' : '' ?></a>
         <a class="on" href="?tab=reqlog&amp;view=clients">Клиенты</a>
     </div>
 
