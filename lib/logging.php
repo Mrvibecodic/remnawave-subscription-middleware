@@ -192,9 +192,18 @@ function reqlog_device_label($dv) {
     return implode(' · ', $parts);
 }
 
+function reqlog_os_norm($s) {
+    $s = strtolower(trim((string) $s));
+    if ($s === '') return '';
+    if (preg_match('~^(ios|iphone|ipad|ipados|tvos|visionos)~', $s)) return 'ios';
+    if (strpos($s, 'android') !== false) return 'android';
+    if (preg_match('~(windows|win32|win64|macos|mac os|darwin|linux|desktop)~', $s) || $s === 'pc' || $s === 'win' || $s === 'mac') return 'desktop';
+    return '';
+}
+
 function reqlog_client($ua) {
     $ua = trim((string) $ua);
-    $out = ['app' => '', 'dev' => ''];
+    $out = ['app' => '', 'dev' => '', 'key' => '', 'ver' => '', 'os' => ''];
     if ($ua === '') return $out;
     if (is_browser_ua($ua)) {
         $names = ['Edg' => 'Edge', 'OPR' => 'Opera', 'YaBrowser' => 'Яндекс.Браузер', 'Firefox' => 'Firefox', 'Chrome' => 'Chrome', 'Safari' => 'Safari'];
@@ -211,24 +220,48 @@ function reqlog_client($ua) {
         $out['dev'] = trim($os . ($os !== '' ? ' · ' : '') . 'браузер');
         return $out;
     }
-    $pretty = ['happ' => 'Happ', 'v2rayng' => 'v2rayNG', 'sing-box' => 'sing-box', 'mihomo' => 'Mihomo', 'clash-verge' => 'Clash Verge',
-               'flclash' => 'FlClash', 'flclashx' => 'FlClashX', 'hiddify' => 'Hiddify', 'streisand' => 'Streisand',
-               'shadowrocket' => 'Shadowrocket', 'stash' => 'Stash', 'nekobox' => 'NekoBox', 'nekoray' => 'NekoRay',
-               'karing' => 'Karing', 'throne' => 'Throne', 'exclave' => 'Exclave', 'v2box' => 'V2Box', 'foxray' => 'FoXray',
-               'loon' => 'Loon', 'surge' => 'Surge', 'quantumult' => 'Quantumult', 'husi' => 'Husi', 'matsuri' => 'Matsuri',
-               'outline' => 'Outline', 'wireguard' => 'WireGuard', 'sfa' => 'sing-box (Android)', 'sfi' => 'sing-box (iOS)'];
-    if (preg_match('~^([A-Za-z0-9._-]+)/v?([0-9][0-9A-Za-z._-]*)~', $ua, $m)) {
-        $key = strtolower($m[1]);
-        $out['app'] = ($pretty[$key] ?? $m[1]) . ' ' . $m[2];
+    $pretty = ['happ' => 'Happ', 'incy' => 'INCY', 'v2rayng' => 'v2rayNG', 'v2rayn' => 'v2rayN', 'sing-box' => 'sing-box',
+               'mihomo' => 'Mihomo', 'clash.meta' => 'mihomo', 'clash-verge' => 'Clash Verge', 'clash-nyanpasu' => 'Clash Nyanpasu',
+               'flclash' => 'FlClash', 'flclashx' => 'FlClashX', 'hiddify' => 'Hiddify', 'hiddifynext' => 'Hiddify',
+               'hiddifynextx' => 'Hiddify (Xray)', 'streisand' => 'Streisand', 'shadowrocket' => 'Shadowrocket',
+               'stash' => 'Stash', 'nekobox' => 'NekoBox', 'nekoray' => 'NekoRay', 'karing' => 'Karing', 'throne' => 'Throne',
+               'exclave' => 'Exclave', 'v2box' => 'V2Box', 'foxray' => 'FoXray', 'loon' => 'Loon', 'surge' => 'Surge',
+               'quantumult' => 'Quantumult', 'husi' => 'Husi', 'matsuri' => 'Matsuri', 'outline' => 'Outline',
+               'wireguard' => 'WireGuard', 'sfa' => 'sing-box (Android)', 'sfi' => 'sing-box (iOS)', 'sfm' => 'sing-box (macOS)',
+               'sft' => 'sing-box (tvOS)', 'koala-clash' => 'Koala Clash', 'clodclash' => 'Clod Clash',
+               'clashmetaforandroid' => 'Clash Meta for Android', 'clashx' => 'ClashX Meta', 'v2raya' => 'v2rayA',
+               'clash-meta/rabbithole' => 'RabbitHole'];
+    $name = ''; $key = ''; $ver = ''; $os = '';
+    if (preg_match('~^FlClash ?X/v?([0-9][0-9A-Za-z._-]*)~i', $ua, $m)) {
+        $name = 'FlClashX'; $key = 'flclashx'; $ver = $m[1];
+    } elseif (preg_match('~^([A-Za-z0-9._-]+)/([A-Za-z][A-Za-z0-9]{1,14})/v?([0-9][0-9A-Za-z._-]*)~', $ua, $m)) {
+        $name = $m[1]; $key = strtolower($m[1]); $ver = $m[3]; $os = reqlog_os_norm($m[2]);
+    } elseif (preg_match('~^([A-Za-z0-9._-]+)/v?([0-9][0-9A-Za-z._-]*)/([A-Za-z][A-Za-z0-9]{1,14})~', $ua, $m)) {
+        $name = $m[1]; $key = strtolower($m[1]); $ver = $m[2]; $os = reqlog_os_norm($m[3]);
+    } elseif (preg_match('~^([A-Za-z0-9._-]+)/([A-Za-z][A-Za-z0-9._-]{1,29})\s*\(~', $ua, $m)) {
+        $name = $m[2]; $key = strtolower($m[1]) . '/' . strtolower($m[2]);
+    } elseif (preg_match('~^([A-Za-z0-9._-]+)/v?([0-9][0-9A-Za-z._-]*)~', $ua, $m)) {
+        $name = $m[1]; $key = strtolower($m[1]); $ver = $m[2];
     } elseif (preg_match('~^([A-Za-z0-9._-]+)~', $ua, $m)) {
-        $key = strtolower($m[1]);
-        $out['app'] = $pretty[$key] ?? $m[1];
+        $name = $m[1]; $key = strtolower($m[1]);
     }
-    if (preg_match('~\(([^)]{2,120})\)~', $ua, $m)) {
-        $parts = array_values(array_filter(array_map('trim', explode(';', $m[1])), fn($x) => $x !== ''));
-        $parts = array_filter($parts, fn($x) => !preg_match('~^Scale/|^[a-z-]+_[A-Z]{2}$~', $x));
-        $out['dev'] = implode(' · ', array_slice($parts, 0, 2));
+    if ($os === '' && preg_match('~\bplatform/([A-Za-z]{2,15})~i', $ua, $m)) $os = reqlog_os_norm($m[1]);
+    $parts = [];
+    if (preg_match('~\(([^)]{2,160})\)~', $ua, $m)) {
+        foreach (explode(';', $m[1]) as $p) {
+            $p = trim($p);
+            if ($p === '' || preg_match('~^\d+$~', $p)) continue;
+            if (preg_match('~^(build|language|locale|scale|sing-box|mihomo|clash|prefer|com\.)~i', $p)) continue;
+            if (preg_match('~^[a-z-]+_[A-Z]{2}$~', $p)) continue;
+            $parts[] = mb_substr($p, 0, 40);
+        }
     }
+    if ($os === '' && $parts) $os = reqlog_os_norm($parts[0]);
+    $out['key'] = $key;
+    $out['ver'] = $ver;
+    $out['os']  = $os;
+    $out['dev'] = implode(' · ', array_slice($parts, 0, 2));
+    if ($name !== '') $out['app'] = trim(($pretty[$key] ?? $name) . ($ver !== '' ? ' ' . $ver : ''));
     return $out;
 }
 

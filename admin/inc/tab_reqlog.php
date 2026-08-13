@@ -42,6 +42,13 @@
     .cl{display:flex;flex-direction:column;line-height:1.3;min-width:0}
     .cl .c1{color:var(--text)}
     .cl .c2{color:var(--muted);font-size:.75rem}
+    .cv{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:.4rem;vertical-align:baseline}
+    .cv-p{background:var(--amber)}
+    .cv-m{background:var(--red)}
+    .cvl{color:var(--muted)}
+    .cvl b{color:var(--text-strong);font-weight:600}
+    .cvl.old b{color:var(--c-warn-fg)}
+    .cvl.far b{color:var(--c-bad-fg)}
     .rep{display:inline-block;min-width:20px;text-align:center;background:var(--bg2);border:1px solid var(--line);border-radius:20px;padding:0 .35rem;font-size:.72rem;color:var(--muted);margin-left:.35rem}
     .cnt{display:flex;align-items:center;gap:.55rem}
     .cnt b{color:var(--text-strong);font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:right}
@@ -112,6 +119,10 @@
         .xacts .btn{flex:1 1 auto;justify-content:center}
     }
     </style>
+    <div class="seg">
+        <a class="on" href="?tab=reqlog">Запросы</a>
+        <a href="?tab=reqlog&amp;view=clients">Клиенты<?= $rl_outdated ? ' · ' . (int) $rl_outdated . ' устаревших' : '' ?></a>
+    </div>
     <div class="rl-kpis">
         <div class="rl-kpi"><div class="k">Обновили подписку</div><div class="v" id="rlKpiUsers"><?= (int) $rl_today_users ?><?= $rl_total_users ? '<small> / ' . (int) $rl_total_users . '</small>' : '' ?></div><div class="d">сегодня, <?= h($rl_today_label) ?></div></div>
         <div class="rl-kpi"><div class="k">Устройств (HWID)</div><div class="v" id="rlKpiDev"><?= (int) $rl_today_devices ?></div><div class="d"><?= $rl_total_devices ? 'из ' . (int) $rl_total_devices . ' известных в логе' : 'за сегодня' ?></div></div>

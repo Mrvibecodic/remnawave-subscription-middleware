@@ -165,6 +165,9 @@
     .seg{display:inline-flex;border:1px solid var(--line);border-radius:.5rem;overflow:hidden;margin-bottom:.9rem}
     .seg button{background:transparent;color:var(--muted);border:0;padding:.45rem .9rem;font-size:.85rem;cursor:pointer;font-weight:600}
     .seg button.on{background:var(--accent);color:#fff}
+    .seg a{display:inline-flex;align-items:center;background:transparent;color:var(--muted);border:0;padding:.45rem .9rem;font-size:.85rem;font-weight:600;text-decoration:none;white-space:nowrap}
+    .seg a:hover{background:var(--hover);color:var(--text)}
+    .seg a.on,.seg a.on:hover{background:var(--accent);color:#fff}
     .phone{background:#000;border:8px solid #1b2433;border-radius:1.6rem;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.5)}
     .ph-top{background:#0b1220;color:#e2e8f0;padding:.9rem 1rem .7rem;border-bottom:1px solid #1f2a3a}
     .ph-app{font-size:.72rem;color:#64748b;letter-spacing:.04em;text-transform:uppercase}

@@ -807,6 +807,39 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         header('Location: index.php?tab=overrides'); exit();
     }
 
+    if ($action === 'save_clientver') {
+        set_setting('clientver_enabled', empty($_POST['cv_enabled']) ? '0' : '1');
+        $cv_in = is_array($_POST['cv_k'] ?? null) ? $_POST['cv_k'] : [];
+        $cv_new = [];
+        foreach ($cv_in as $cv_i => $cv_k) {
+            $cv_new[] = [
+                'k'   => (string) $cv_k,
+                'n'   => (string) ($_POST['cv_n'][$cv_i] ?? ''),
+                'os'  => (string) ($_POST['cv_os'][$cv_i] ?? ''),
+                'src' => (string) ($_POST['cv_src'][$cv_i] ?? 'man'),
+                'ref' => (string) ($_POST['cv_ref'][$cv_i] ?? ''),
+                'how' => (string) ($_POST['cv_how'][$cv_i] ?? 'latest'),
+                'cmp' => (string) ($_POST['cv_cmp'][$cv_i] ?? 'auto'),
+                'man' => (string) ($_POST['cv_man'][$cv_i] ?? ''),
+                'on'  => empty($_POST['cv_on'][$cv_i]) ? 0 : 1,
+            ];
+        }
+        flash('Каталог версий сохранён, строк: ' . clientver_save_catalog($cv_new));
+        header('Location: index.php?tab=reqlog&view=clients'); exit();
+    }
+
+    if ($action === 'clientver_refresh') {
+        [$cv_ok, $cv_bad] = clientver_refresh_all();
+        flash($cv_bad ? ('Проверено источников: ' . $cv_ok . ', с ошибкой: ' . $cv_bad) : ('Проверено источников: ' . $cv_ok));
+        header('Location: index.php?tab=reqlog&view=clients'); exit();
+    }
+
+    if ($action === 'clientver_reset') {
+        clientver_reset_catalog();
+        flash('Каталог версий возвращён к встроенному');
+        header('Location: index.php?tab=reqlog&view=clients'); exit();
+    }
+
     if ($action === 'clear_reqlog') {
         if ($pdo = db()) { $pdo->exec('DELETE FROM request_log'); flash('Лог запросов очищен'); }
         header('Location: index.php?tab=reqlog'); exit();
@@ -1158,6 +1191,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 $tab   = $_GET['tab'] ?? 'users';
 if ($tab === 'settings') $tab = 'connection';
 if ($tab === 'headers') $tab = 'rules';
+$rl_view = ($tab === 'reqlog' && ($_GET['view'] ?? '') === 'clients') ? 'clients' : '';
 rules_migrate_legacy();
 update_autocheck();
 $token = csrf_token();
@@ -1194,7 +1228,7 @@ $reqlog = [];
 $rl_over = ['total' => 0, 'blocked' => 0, 'blocked_users' => 0, 'hourly' => array_fill(0, 24, 0), 'peak' => 0, 'peak_h' => 0];
 $rl_ctx  = [];
 $rl_f = reqlog_filters();
-if ($db_ok && $tab === 'reqlog') {
+if ($db_ok && $tab === 'reqlog' && $rl_view === '') {
     require_once __DIR__ . '/inc/_reqlog_rows.php';
     [$rl_f, $reqlog, $rl_ctx] = reqlog_prepare();
     $rl_over = reqlog_overview();
@@ -1284,7 +1318,31 @@ $short2name = [];
 $hwid2info  = [];
 $rl_total_users = 0; $rl_today_users = 0; $rl_today_devices = 0; $rl_total_devices = 0; $rl_today_label = date('d.m.Y');
 $junk_top = []; $junk_wl = [];
+$rl_outdated = 0;
+$cv_rows = []; $cv_builtin = []; $cv_groups = []; $cv_seen = []; $cv_checked = 0;
 if ($tab === 'reqlog') {
+    clientver_autocheck();
+    if ($db_ok) $rl_outdated = clientver_outdated(24);
+}
+if ($rl_view === 'clients') {
+    require_once __DIR__ . '/inc/_reqlog_rows.php';
+    $cv_rows    = clientver_catalog();
+    $cv_builtin = clientver_builtin();
+    $cv_seen    = $db_ok ? clientver_unknown_seen(168) : [];
+    $cv_checked = (int) (clientver_state()['checked_at'] ?? 0);
+    $cv_cores = [
+        'На ядре xray'     => ['happ', 'incy', 'v2rayng', 'v2rayn', 'streisand', 'v2box', 'hiddifynextx', 'foxray'],
+        'На ядре sing-box' => ['sfa', 'sfi', 'sfm', 'sft', 'sing-box', 'nekobox', 'husi', 'exclave', 'throne', 'karing', 'hiddifynext', 'matsuri'],
+        'На ядре mihomo'   => ['flclash', 'flclashx', 'clash-verge', 'clash.meta', 'clashmetaforandroid', 'clashx', 'koala-clash', 'clodclash', 'clash-meta/rabbithole'],
+    ];
+    $cv_groups = ['На ядре xray' => [], 'На ядре sing-box' => [], 'На ядре mihomo' => [], 'Прочие' => []];
+    foreach ($cv_builtin as $cv_b) {
+        $cv_g = 'Прочие';
+        foreach ($cv_cores as $cv_gl => $cv_keys) { if (in_array($cv_b['k'], $cv_keys, true)) { $cv_g = $cv_gl; break; } }
+        $cv_groups[$cv_g][] = $cv_b;
+    }
+}
+if ($tab === 'reqlog' && $rl_view === '') {
     $junk_top = junk_top(100);
     $junk_wl  = junk_whitelist();
     require_once __DIR__ . '/inc/_reqlog_rows.php';
@@ -1669,7 +1727,7 @@ function nav_link($key, $it, $active, $badge = false) {
     <?php include __DIR__ . '/inc/tab_clod.php'; ?>
 
 <?php elseif ($tab === 'reqlog'): ?>
-    <?php include __DIR__ . '/inc/tab_reqlog.php'; ?>
+    <?php include __DIR__ . '/inc/' . ($rl_view === 'clients' ? 'tab_reqlog_clients.php' : 'tab_reqlog.php'); ?>
 
 <?php elseif ($tab === 'whlog' || $tab === 'whlog_other'): ?>
     <?php include __DIR__ . '/inc/tab_whlog.php'; ?>
