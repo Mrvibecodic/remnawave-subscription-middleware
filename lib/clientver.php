@@ -145,6 +145,15 @@ function clientver_save_catalog(array $rows) {
     }
     set_setting('clientver_catalog', json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     $GLOBALS['submw_cv_cat'] = $out;
+    // Стейт хранится по ключу k|os — записи удалённых/переименованных строк
+    // иначе копятся в настройке вечно.
+    $st = clientver_state();
+    if (is_array($st['rows'] ?? null) && $st['rows']) {
+        $ids = [];
+        foreach ($out as $r) $ids[clientver_row_id($r)] = 1;
+        $keep = array_intersect_key($st['rows'], $ids);
+        if (count($keep) !== count($st['rows'])) { $st['rows'] = $keep; clientver_save_state($st); }
+    }
     return count($out);
 }
 
@@ -199,6 +208,7 @@ function clientver_http($url, &$err = null, $accept = 'application/json', $heade
     $err = null;
     if (!function_exists('curl_init')) { $err = 'curl недоступен'; return null; }
     $buf = '';
+    $capped = false;
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_FOLLOWLOCATION => true,
@@ -208,10 +218,12 @@ function clientver_http($url, &$err = null, $accept = 'application/json', $heade
         CURLOPT_USERAGENT      => 'submw-clientver',
         CURLOPT_ENCODING       => '',
         CURLOPT_HTTPHEADER     => array_merge(['Accept: ' . $accept], $headers),
-        CURLOPT_WRITEFUNCTION  => function ($c, $chunk) use (&$buf, $max) {
-            $len = strlen($chunk);
-            if (strlen($buf) < $max) $buf .= $chunk;
-            return $len;
+        CURLOPT_WRITEFUNCTION  => function ($c, $chunk) use (&$buf, $max, &$capped) {
+            $buf .= $chunk;
+            // Вернуть не-длину = оборвать передачу: без этого лимит экономит только
+            // память, а хвост тела всё равно выкачивается целиком.
+            if (strlen($buf) >= $max) { $capped = true; return 0; }
+            return strlen($chunk);
         },
     ]);
     $ok = curl_exec($ch);
@@ -219,7 +231,10 @@ function clientver_http($url, &$err = null, $accept = 'application/json', $heade
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     $body = $buf;
-    if ($ok === false && $body === '') { $err = 'сеть: ' . $neterr; return null; }
+    // Свой обрыв по лимиту — не ошибка: нужного объёма уже достаточно.
+    // А вот сеть, оборвавшаяся посреди тела, — ошибка, даже если что-то накачалось:
+    // регулярки по обрезанной странице промахиваются молча.
+    if ($ok === false && !$capped) { $err = 'сеть: ' . $neterr; return null; }
     if ($code === 403 || $code === 429) { $err = 'лимит запросов (' . $code . '), попробуйте позже'; return null; }
     if ($code === 404) { $err = 'не найдено (404) — проверьте адрес источника'; return null; }
     if ($code < 200 || $code >= 300) { $err = 'HTTP ' . $code; return null; }
@@ -373,11 +388,16 @@ function clientver_autocheck($budget = 1) {
     return $n;
 }
 
-function clientver_firstrun($limit = 15) {
+function clientver_firstrun($limit = 15, $deadline = 8) {
+    // Первый прогон каталога идёт в рендере страницы, поэтому кроме лимита строк
+    // обязателен лимит времени: один медленный источник (Play — 4 МБ HTML) иначе
+    // держит вкладку до таймаута fpm. Недоопрошенные строки покажут статус
+    // «источник ещё не опрошен» и доедут следующими заходами или кнопкой.
     if (!clientver_enabled()) return 0;
     $n = 0;
+    $t0 = time();
     foreach (clientver_catalog() as $r) {
-        if ($n >= $limit) break;
+        if ($n >= $limit || time() - $t0 >= $deadline) break;
         if (empty($r['on']) || ($r['cmp'] ?? '') === 'dead' || ($r['src'] ?? '') === 'man') continue;
         if (clientver_row_checked($r) > 0) continue;
         clientver_refresh_row($r);
@@ -470,7 +490,12 @@ function clientver_seen($hours = 168, $limit = 300) {
         }
         $id = $cl['key'] . '|' . $os;
         if (!isset($out[$id])) {
-            $out[$id] = ['key' => $cl['key'], 'os' => $os, 'app' => $cl['app'], 'vers' => [], 'n' => 0, 'last' => 0];
+            // Имя без хвоста-версии: reqlog_client() приклеивает версию к названию,
+            // а имя строки каталога с версией протухает с первым же обновлением.
+            $app = (string) $cl['app'];
+            $cv  = (string) ($cl['ver'] ?? '');
+            if ($cv !== '' && substr($app, -strlen(' ' . $cv)) === ' ' . $cv) $app = substr($app, 0, -strlen(' ' . $cv));
+            $out[$id] = ['key' => $cl['key'], 'os' => $os, 'app' => $cl['app'], 'name' => $app, 'vers' => [], 'n' => 0, 'last' => 0];
             $i++;
         }
         $out[$id]['n'] += (int) $row['c'];
@@ -499,7 +524,8 @@ function clientver_unknown_seen($hours = 168) {
         if (clientver_find($s['key'], $s['os']) !== null) continue;
         $b = clientver_builtin_find($s['key'], $s['os']);
         if ($b !== null) $b['on'] = 1;
-        $s['pick'] = $b ?? ['k' => $s['key'], 'n' => $s['app'] !== '' ? $s['app'] : $s['key'], 'os' => $s['os'], 'src' => 'man', 'ref' => '', 'how' => 'latest', 'cmp' => 'auto', 'man' => '', 'on' => 1];
+        $nm = (string) ($s['name'] !== '' ? $s['name'] : $s['key']);
+        $s['pick'] = $b ?? ['k' => $s['key'], 'n' => $nm, 'os' => $s['os'], 'src' => 'man', 'ref' => '', 'how' => 'latest', 'cmp' => 'auto', 'man' => '', 'on' => 1];
         $out[$id] = $s;
     }
     return $out;

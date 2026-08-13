@@ -404,6 +404,15 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    // Автопроверка версий клиентов. Уходит отдельным ajax'ом после загрузки
+    // «Лога запросов» — тем же паттерном, что panelmeta: рендер страницы читает
+    // только кэш и никогда не ходит в интернет сам.
+    if ($a === 'cv_autocheck') {
+        $cv_n = clientver_autocheck(2);
+        echo json_encode(['ok' => true, 'checked' => $cv_n, 'outdated' => db() ? clientver_outdated(24) : 0], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'panelstats') {
         $perr = '';
         $age = !empty($_GET['force']) ? 0 : 45;
@@ -810,17 +819,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'save_clientver') {
         set_setting('clientver_enabled', empty($_POST['cv_enabled']) ? '0' : '1');
         $cv_in = is_array($_POST['cv_k'] ?? null) ? $_POST['cv_k'] : [];
+        // Вложенные массивы в POST дали бы «Array to string conversion» — гасим до каста.
+        $cv_s = fn($v, $d = '') => is_scalar($v) ? (string) $v : $d;
         $cv_new = [];
         foreach ($cv_in as $cv_i => $cv_k) {
             $cv_new[] = [
-                'k'   => (string) $cv_k,
-                'n'   => (string) ($_POST['cv_n'][$cv_i] ?? ''),
-                'os'  => (string) ($_POST['cv_os'][$cv_i] ?? ''),
-                'src' => (string) ($_POST['cv_src'][$cv_i] ?? 'man'),
-                'ref' => (string) ($_POST['cv_ref'][$cv_i] ?? ''),
-                'how' => (string) ($_POST['cv_how'][$cv_i] ?? 'latest'),
-                'cmp' => (string) ($_POST['cv_cmp'][$cv_i] ?? 'auto'),
-                'man' => (string) ($_POST['cv_man'][$cv_i] ?? ''),
+                'k'   => $cv_s($cv_k),
+                'n'   => $cv_s($_POST['cv_n'][$cv_i] ?? ''),
+                'os'  => $cv_s($_POST['cv_os'][$cv_i] ?? ''),
+                'src' => $cv_s($_POST['cv_src'][$cv_i] ?? 'man', 'man'),
+                'ref' => $cv_s($_POST['cv_ref'][$cv_i] ?? ''),
+                'how' => $cv_s($_POST['cv_how'][$cv_i] ?? 'latest', 'latest'),
+                'cmp' => $cv_s($_POST['cv_cmp'][$cv_i] ?? 'auto', 'auto'),
+                'man' => $cv_s($_POST['cv_man'][$cv_i] ?? ''),
                 'on'  => empty($_POST['cv_on'][$cv_i]) ? 0 : 1,
             ];
         }
@@ -1324,7 +1335,7 @@ $junk_top = []; $junk_wl = [];
 $rl_outdated = 0;
 $cv_rows = []; $cv_builtin = []; $cv_groups = []; $cv_seen = []; $cv_checked = 0;
 if ($tab === 'reqlog') {
-    clientver_autocheck();
+    // Только кэш: сами источники опрашивает ?ajax=cv_autocheck после загрузки.
     if ($db_ok) $rl_outdated = clientver_outdated(24);
 }
 if ($rl_view === 'clients') {

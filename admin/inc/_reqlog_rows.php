@@ -123,7 +123,8 @@ function rl_cv_row($cv) {
     $s = (string) ($cv['s'] ?? '');
     if ($s === '' || $s === 'none') return '';
     $link = '?tab=reqlog&view=clients#' . (string) ($cv['anchor'] ?? '');
-    if ($s === 'ok' || $s === 'ahead') $v = '<span class="cvl">актуальная <b>' . h($cv['latest']) . '</b></span>';
+    if ($s === 'ok')                   $v = '<span class="cvl">актуальная <b>' . h($cv['latest']) . '</b></span>';
+    elseif ($s === 'ahead')            $v = '<span class="cvl"><b>' . h($cv['cur']) . '</b> — новее известной релизной ' . h($cv['latest']) . '</span>';
     elseif ($s === 'patch')            $v = '<span class="cvl old">' . h($cv['cur']) . ' → <b>' . h($cv['latest']) . '</b></span>';
     elseif ($s === 'minor')            $v = '<span class="cvl far">' . h($cv['cur']) . ' → <b>' . h($cv['latest']) . '</b></span>';
     else                               $v = '<span class="cvl">' . h(clientver_label($s)) . '</span>';
