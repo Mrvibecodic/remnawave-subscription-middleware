@@ -5,7 +5,7 @@ function clientver_enabled() { return setting('clientver_enabled', '1') === '1';
 function clientver_ttl() { return 86400; }
 
 function clientver_sources() {
-    return ['gh' => 'GitHub', 'as' => 'App Store', 'cb' => 'Codeberg', 'man' => 'вручную'];
+    return ['gh' => 'GitHub', 'as' => 'App Store', 'gp' => 'Google Play', 'fd' => 'F-Droid', 'cb' => 'Codeberg', 'man' => 'вручную'];
 }
 
 function clientver_modes() {
@@ -19,11 +19,11 @@ function clientver_platforms() {
 function clientver_builtin() {
     return [
         ['k' => 'happ',                 'n' => 'Happ (iOS)',              'os' => 'ios',     'src' => 'as',  'ref' => '6504287215',                'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
-        ['k' => 'happ',                 'n' => 'Happ (Android)',          'os' => 'android', 'src' => 'gh',  'ref' => 'Happ-proxy/happ-android',   'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
+        ['k' => 'happ',                 'n' => 'Happ (Android)',          'os' => 'android', 'src' => 'gp',  'ref' => 'com.happproxy',             'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'happ',                 'n' => 'Happ (десктоп)',          'os' => 'desktop', 'src' => 'gh',  'ref' => 'Happ-proxy/happ-desktop',   'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'incy',                 'n' => 'INCY (iOS)',              'os' => 'ios',     'src' => 'as',  'ref' => '6756943388',                'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'incy',                 'n' => 'INCY (десктоп)',          'os' => 'desktop', 'src' => 'gh',  'ref' => 'INCY-DEV/incy-platforms',   'how' => 'tag:desktop-v',             'cmp' => 'auto',  'man' => '', 'on' => 1],
-        ['k' => 'incy',                 'n' => 'INCY (Android)',          'os' => 'android', 'src' => 'man', 'ref' => '',                          'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
+        ['k' => 'incy',                 'n' => 'INCY (Android)',          'os' => 'android', 'src' => 'gp',  'ref' => 'llc.itdev.incy',            'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'flclashx',             'n' => 'FlClashX',                'os' => '',        'src' => 'gh',  'ref' => 'pluralplay/FlClashX',       'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'koala-clash',          'n' => 'Koala Clash (десктоп)',   'os' => '',        'src' => 'gh',  'ref' => 'coolcoala/koala-clash',     'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'koala-clash',          'n' => 'Koala Clash (Android)',   'os' => 'android', 'src' => 'man', 'ref' => '',                          'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
@@ -88,6 +88,8 @@ function clientver_clean_row($r) {
     $ref = trim((string) ($r['ref'] ?? ''));
     if ($src === 'as') {
         if (!preg_match('~^\d{5,12}$~', $ref)) $ref = '';
+    } elseif ($src === 'gp' || $src === 'fd') {
+        if (!preg_match('~^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+){1,9}$~', $ref) || strlen($ref) > 120) $ref = '';
     } elseif ($src === 'gh' || $src === 'cb') {
         if (!preg_match('~^[A-Za-z0-9._-]{1,39}/[A-Za-z0-9._-]{1,100}$~', $ref)) $ref = '';
     } else {
@@ -193,25 +195,31 @@ function clientver_diff($cur, $latest) {
     return 'patch';
 }
 
-function clientver_http($url, &$err = null, $accept = 'application/json') {
+function clientver_http($url, &$err = null, $accept = 'application/json', $headers = [], $max = 1048576) {
     $err = null;
     if (!function_exists('curl_init')) { $err = 'curl недоступен'; return null; }
+    $buf = '';
     $ch = curl_init($url);
     curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_MAXREDIRS      => 5,
-        CURLOPT_TIMEOUT        => 8,
+        CURLOPT_TIMEOUT        => 10,
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_USERAGENT      => 'submw-clientver',
         CURLOPT_ENCODING       => '',
-        CURLOPT_HTTPHEADER     => ['Accept: ' . $accept],
+        CURLOPT_HTTPHEADER     => array_merge(['Accept: ' . $accept], $headers),
+        CURLOPT_WRITEFUNCTION  => function ($c, $chunk) use (&$buf, $max) {
+            $len = strlen($chunk);
+            if (strlen($buf) < $max) $buf .= $chunk;
+            return $len;
+        },
     ]);
-    $body = curl_exec($ch);
-    $neterr = ($body === false) ? curl_error($ch) : '';
+    $ok = curl_exec($ch);
+    $neterr = ($ok === false) ? curl_error($ch) : '';
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    if ($body === false) { $err = 'сеть: ' . $neterr; return null; }
+    $body = $buf;
+    if ($ok === false && $body === '') { $err = 'сеть: ' . $neterr; return null; }
     if ($code === 403 || $code === 429) { $err = 'лимит запросов (' . $code . '), попробуйте позже'; return null; }
     if ($code === 404) { $err = 'не найдено (404) — проверьте адрес источника'; return null; }
     if ($code < 200 || $code >= 300) { $err = 'HTTP ' . $code; return null; }
@@ -219,7 +227,7 @@ function clientver_http($url, &$err = null, $accept = 'application/json') {
 }
 
 function clientver_json($url, &$err = null, $accept = 'application/json') {
-    $body = clientver_http($url, $err, $accept);
+    $body = clientver_http($url, $err, $accept, [], 1048576);
     if ($body === null) return null;
     $j = json_decode($body, true);
     if (!is_array($j)) { $err = 'некорректный ответ источника'; return null; }
@@ -273,6 +281,35 @@ function clientver_from_as($id, &$err = null) {
     return ['v' => $v, 'd' => (string) ($first['currentVersionReleaseDate'] ?? '')];
 }
 
+function clientver_from_fd($pkg, &$err = null) {
+    $j = clientver_json('https://f-droid.org/api/v1/packages/' . rawurlencode($pkg), $err);
+    if ($j === null) return null;
+    if (!is_array($j['packages'] ?? null) || !$j['packages']) { $err = 'в F-Droid пакет не найден'; return null; }
+    $want = (int) ($j['suggestedVersionCode'] ?? 0);
+    $first = null;
+    foreach ($j['packages'] as $p) {
+        if (!is_array($p) || (string) ($p['versionName'] ?? '') === '') continue;
+        if ($first === null) $first = (string) $p['versionName'];
+        if ($want && (int) ($p['versionCode'] ?? 0) === $want) return ['v' => (string) $p['versionName'], 'd' => ''];
+    }
+    if ($first === null) { $err = 'в ответе нет версии'; return null; }
+    return ['v' => $first, 'd' => ''];
+}
+
+function clientver_from_gp($pkg, &$err = null) {
+    $body = clientver_http('https://play.google.com/store/apps/details?id=' . rawurlencode($pkg) . '&hl=en&gl=us',
+        $err, 'text/html', ['Accept-Language: en-US,en;q=0.9'], 4194304);
+    if ($body === null) return null;
+    if (stripos($body, 'Varies with device') !== false && !preg_match('~\[\[\["\d~', $body)) {
+        $err = 'в Google Play версия зависит от устройства';
+        return null;
+    }
+    if (preg_match('~\[\[\["([0-9][0-9A-Za-z._-]{0,31})"\]\],\[\[\[\d~', $body, $m)) return ['v' => $m[1], 'd' => ''];
+    if (preg_match('~"([0-9]+\.[0-9]+(?:\.[0-9]+)*)",null,null,null,null,null,1\]~', $body, $m)) return ['v' => $m[1], 'd' => ''];
+    $err = 'не удалось разобрать страницу Google Play';
+    return null;
+}
+
 function clientver_fetch($r, &$err = null) {
     $err = null;
     $src = (string) ($r['src'] ?? 'man');
@@ -286,6 +323,8 @@ function clientver_fetch($r, &$err = null) {
     if ($src === 'gh') return clientver_from_gh($ref, (string) ($r['how'] ?? 'latest'), $err);
     if ($src === 'cb') return clientver_from_cb($ref, $err);
     if ($src === 'as') return clientver_from_as($ref, $err);
+    if ($src === 'fd') return clientver_from_fd($ref, $err);
+    if ($src === 'gp') return clientver_from_gp($ref, $err);
     $err = 'неизвестный источник';
     return null;
 }
