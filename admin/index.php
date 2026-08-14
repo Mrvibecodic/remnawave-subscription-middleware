@@ -1198,6 +1198,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 
     if ($action === 'save_sqcfg_settings') {
         set_setting('squad_xray_json_inject', isset($_POST['squad_xray_json_inject']) ? '1' : '0');
+        if (array_key_exists('squad_xray_tpl_name', $_POST)) {
+            set_setting('squad_xray_tpl_name', mb_substr(trim((string) $_POST['squad_xray_tpl_name']), 0, 120));
+            squadconf_xray_tpl_drop();
+        }
         flash('Настройки доп-конфигов сохранены');
         form_saved('squad_configs');
     }

@@ -93,7 +93,7 @@ origin (часто доступный с сервера, даже если у к
 - **Лог запросов** — кто, когда и каким клиентом обновлял подписку: решение прослойки, тип ответа, размер тела, модель и ОС устройства (из заголовков клиента, а если их нет — из User-Agent), фильтры и раскрытие строки в карточку.
 - **Версии клиентов** — второй экран «Лога запросов»: каталог клиентских приложений с источником актуальной версии (GitHub, App Store, Google Play, F-Droid, Codeberg или вручную). Прослойка берёт версию из User-Agent, сравнивает с актуальной, и у отставших появляется отметка в логе. Каталог редактируется: строки добавляются из встроенного списка, из блока «замечены в логе, но не в каталоге» или руками. Проверка ленивая — не чаще одного источника за заход в админку и раза в сутки на строку, запросы уходят только со страниц админки. Версия из User-Agent — это то, что сказал клиент, поэтому отметка «вышло обновление» показывается как подсказка.
 - **Правила ответа по приложению** — подмена заголовков подписки под конкретный клиент (profile-title, announce, интервал обновления и т.д.) по User-Agent и ОС.
-- **Доп. конфиги по сквадам (бета)** — добавляет в подписку конфиги WireGuard / AmneziaWG / VLESS по внутреннему скваду, подстраивая формат под клиент. У VLESS поддержаны транспорты raw/tcp, ws, httpupgrade, grpc, h2, xhttp, mKCP и QUIC, а также Reality, Vision и http-обфускация. Поддержка у клиентских ядер разная (например, xhttp нет в sing-box, а QUIC — в Xray): в админке у каждого конфига видно, каким клиентам он уйдёт, и несовместимому ядру он не отдаётся — вместо порчи всей подписки пропускается только этот конфиг. Заблокированному, истёкшему, исчерпавшему трафик и упёршемуся в лимит устройств ничего не подмешивается — статус сверяется с панелью.
+- **Доп. конфиги по сквадам (бета)** — добавляет в подписку конфиги WireGuard / AmneziaWG / VLESS по внутреннему скваду, подстраивая формат под клиент. У VLESS поддержаны транспорты raw/tcp, ws, httpupgrade, grpc, h2, xhttp, mKCP и QUIC, а также Reality, Vision и http-обфускация. Поддержка у клиентских ядер разная (например, xhttp нет в sing-box, а QUIC — в Xray): в админке у каждого конфига видно, каким клиентам он уйдёт, и несовместимому ядру он не отдаётся — вместо порчи всей подписки пропускается только этот конфиг. Заблокированному, истёкшему, исчерпавшему трафик и упёршемуся в лимит устройств ничего не подмешивается — статус сверяется с панелью. В формате xray-json каждый доп. конфиг собирается на шаблоне подписки из панели (по умолчанию `Default`, имя настраивается): у хостов панели бывают свои шаблоны, и без этого доп. конфиг наследовал бы правила маршрутизации случайного хоста.
 - **Пул WG/AWG-конфигов (бета)** — раздаёт готовые `.conf` из загруженного пула, закрепляя за подписчиком или устройством отдельный конфиг (один WG-ключ нельзя делить между устройствами).
 - **Слияние двух подписок** — узлы второй подписки подмешиваются в тело основной: клиент получает одну ссылку, серверы из обеих лежат вместе.
 - **Обновление с GitHub** — встроенное обновление по коммитам: тянет только изменённые файлы, делает бэкап с откатом. Пункт меню подсвечивается, когда есть что обновить.
@@ -377,6 +377,8 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
   "hwid-user-devices:delete",
   "internal-squads:list",
   "external-squads:list",
+  "subscription-template:list",
+  "subscription-template:get",
   "system:metadata",
   "system:configuration",
   "system:stats",
@@ -396,6 +398,8 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
   "hwid-user-devices:list-by-user",
   "internal-squads:list",
   "external-squads:list",
+  "subscription-template:list",
+  "subscription-template:get",
   "system:metadata",
   "system:configuration",
   "system:stats",
@@ -405,7 +409,8 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 
 Не хочется возиться с отдельными эндпоинтами — можно выдать по ресурсам целиком:
 `users:read`, `users:write`, `hwid-user-devices:read`, `hwid-user-devices:write`,
-`internal-squads:read`, `external-squads:read`, `system:read`, `nodes:read`. Прав
+`internal-squads:read`, `external-squads:read`, `subscription-template:read`,
+`system:read`, `nodes:read`. Прав
 будет больше необходимого, но записывать токен сможет только в пользователей и
 устройства.
 
@@ -422,7 +427,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 | «Оверрайды», «Лог запросов» — подстановка имён | `users:list` |
 | «Юзер-лог» (лог вебхуков) — подстановка имён | `users:by-short-uuid` |
 | **«Грейс-сквад» и «Грейс-юзеры»** | `users:by-short-uuid`, `users:update` **(запись)**, `internal-squads:list`, `external-squads:list`; плюс `users:reset-traffic` **(запись)**, если задан лимит трафика грейса |
-| «Доп. конфиги» | `users:by-short-uuid`, `internal-squads:list`, `hwid-user-devices:list-by-user` |
+| «Доп. конфиги» | `users:by-short-uuid`, `internal-squads:list`, `hwid-user-devices:list-by-user`; плюс `subscription-template:list` и `subscription-template:get`, если включён инжект для xray-json |
 | «WG / AWG конфиги» | `users:list`, `users:by-short-uuid`, `users:by-username`, `internal-squads:list`, `hwid-user-devices:list`, `hwid-user-devices:list-by-user` |
 | «Слияние подписок» | `users:by-short-uuid`, `users:by-username` |
 | «Брендинг» | прав не нужно — см. примечания |
@@ -444,6 +449,8 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 | `/api/hwid/devices/delete` | POST | `hwid-user-devices:delete` | **write** | удаление устройства по клику в админке |
 | `/api/internal-squads` | GET | `internal-squads:list` | read | списки сквадов в настройках |
 | `/api/external-squads` | GET | `external-squads:list` | read | внешний сквад для грейса |
+| `/api/subscription-templates` | GET | `subscription-template:list` | read | поиск шаблона xray-json по имени |
+| `/api/subscription-templates/{uuid}` | GET | `subscription-template:get` | read | тело шаблона xray-json для доп. конфигов |
 | `/api/system/metadata` | GET | `system:metadata` | read | версия панели |
 | `/api/system/configuration` | GET | `system:configuration` | read | настройки панели *(3.2.0+)* |
 | `/api/system/stats` | GET | `system:stats` | read | статистика на «О системе» |
