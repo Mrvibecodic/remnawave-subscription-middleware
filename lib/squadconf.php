@@ -673,6 +673,64 @@ function squadconf_inject_singbox($body, array $configs) {
 
 function squadconf_xray_json_enabled() { return setting('squad_xray_json_inject', '0') === '1'; }
 
+function squadconf_xray_tpl_name() {
+    $n = trim((string) setting('squad_xray_tpl_name', ''));
+    return $n === '' ? 'Default' : $n;
+}
+
+function squadconf_xray_tpl_ttl() { return 600; }
+
+function squadconf_xray_tpl_cached() {
+    $c = json_decode((string) setting('sqcfg_xtpl', ''), true);
+    return is_array($c) ? $c : [];
+}
+
+function squadconf_xray_tpl_fetch($name, &$error = '') {
+    $error = '';
+    if (remnawave_url() === '' || remnawave_token() === '') {
+        $error = 'Не заданы URL панели или API-токен';
+        return null;
+    }
+    $e = '';
+    $list = remnawave_sub_templates($e);
+    if ($e !== '') { $error = $e; return null; }
+    $uuid = '';
+    foreach ($list as $t) {
+        if (strcasecmp((string) $t['type'], 'XRAY_JSON') !== 0) continue;
+        if (strcasecmp(trim((string) $t['name']), $name) === 0) { $uuid = $t['uuid']; break; }
+    }
+    if ($uuid === '') { $error = 'Шаблон xray-json «' . $name . '» в панели не найден'; return null; }
+    $tpl = remnawave_sub_template_json($uuid, $e);
+    if (!is_array($tpl)) { $error = $e ?: 'Пустое тело шаблона'; return null; }
+    return $tpl;
+}
+
+// Скелет для доп. конфигов берётся из шаблона панели, а не из отрендеренного
+// профиля: у профиля свой шаблон хоста (clientOverrides.xrayJsonTemplate), и
+// первый в списке хост навязывал доп. конфигам чужие правила маршрутизации.
+// Отрицательный результат кэшируется наравне с удачным — иначе панель без
+// нужных прав токена опрашивалась бы на каждый запрос подписки.
+function squadconf_xray_tpl($maxAge = null, &$error = '') {
+    $error = '';
+    if ($maxAge === null) $maxAge = squadconf_xray_tpl_ttl();
+    $name = squadconf_xray_tpl_name();
+    $now = time();
+    $c = squadconf_xray_tpl_cached();
+    if (($c['name'] ?? '') === $name && (int) ($c['ts'] ?? 0) > 0 && ($now - (int) $c['ts']) <= $maxAge) {
+        $error = (string) ($c['err'] ?? '');
+        $tpl = $c['tpl'] ?? null;
+        return (is_array($tpl) && $tpl) ? $tpl : null;
+    }
+    $tpl = squadconf_xray_tpl_fetch($name, $error);
+    set_setting('sqcfg_xtpl', json_encode(
+        ['name' => $name, 'ts' => $now, 'err' => $error, 'tpl' => $tpl],
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    ));
+    return $tpl;
+}
+
+function squadconf_xray_tpl_drop() { set_setting('sqcfg_xtpl', ''); }
+
 function conf_set_param($raw, $section, $key, $value) {
     $section = strtolower($section);
     $lines = preg_split('/\r\n|\r|\n/', (string) $raw);
@@ -788,7 +846,10 @@ function xray_tpl_make_single($el, $proxy) {
     }
     array_unshift($kept, $proxy);
     $el->outbounds = $kept;
-    unset($el->observatory, $el->burstObservatory);
+    // remnawave — инструкция панели по сборке профиля, в готовом конфиге ей
+    // делать нечего; meta описывает хост, с которого снят скелет, и к доп.
+    // конфигу отношения не имеет.
+    unset($el->observatory, $el->burstObservatory, $el->remnawave, $el->meta);
     if (isset($el->routing) && is_object($el->routing)) {
         unset($el->routing->balancers);
         if (isset($el->routing->rules) && is_array($el->routing->rules)) {
@@ -819,8 +880,12 @@ function squadconf_inject_xray_json($body, array $configs) {
             if (!is_object($el) || !isset($el->outbounds) || !is_array($el->outbounds)) return $body;
         }
         $tpl = null;
-        foreach ($obj as $el) { if (is_object($el) && isset($el->outbounds) && is_array($el->outbounds)) { $tpl = $el; break; } }
-        if ($tpl === null) return $body;
+        $def = squadconf_xray_tpl();
+        if (is_array($def) && $def) $tpl = json_decode(json_encode($def));
+        if (!is_object($tpl)) {
+            foreach ($obj as $el) { if (is_object($el) && isset($el->outbounds) && is_array($el->outbounds)) { $tpl = $el; break; } }
+        }
+        if (!is_object($tpl)) return $body;
         foreach ($items as $it) {
             $wg = xray_outbound_any($it['pn'], 'proxy');
             if (!$wg) continue;

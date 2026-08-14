@@ -235,6 +235,40 @@ function remnawave_external_squads(&$error = '') {
     return $out;
 }
 
+function remnawave_sub_templates(&$error = '') {
+    $error = '';
+    [$ok, $code, $data, $e] = remnawave_api_get('/api/subscription-templates');
+    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return []; }
+    $resp = $data['response'] ?? $data;
+    $list = $resp['templates'] ?? (is_array($resp) ? $resp : []);
+    if (!is_array($list)) { $error = 'Неожиданный ответ /api/subscription-templates'; return []; }
+    $out = [];
+    foreach ($list as $t) {
+        if (!is_array($t) || empty($t['uuid'])) continue;
+        $out[] = [
+            'uuid' => (string) $t['uuid'],
+            'name' => (string) ($t['name'] ?? ''),
+            'type' => (string) ($t['templateType'] ?? ''),
+            'pos'  => (int) ($t['viewPosition'] ?? 0),
+        ];
+    }
+    return $out;
+}
+
+// Список шаблонов панель отдаёт без содержимого, поэтому за телом нужен второй
+// запрос по uuid.
+function remnawave_sub_template_json($uuid, &$error = '') {
+    $error = '';
+    $uuid = trim((string) $uuid);
+    if ($uuid === '') { $error = 'Пустой uuid шаблона'; return null; }
+    [$ok, $code, $data, $e] = remnawave_api_get('/api/subscription-templates/' . rawurlencode($uuid));
+    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return null; }
+    $resp = $data['response'] ?? $data;
+    $tpl = is_array($resp) ? ($resp['templateJson'] ?? null) : null;
+    if (!is_array($tpl) || !$tpl) { $error = 'Шаблон без templateJson'; return null; }
+    return $tpl;
+}
+
 // $http_code по ссылке: вызывающему нужно отличать 404 (пользователя больше
 // нет) от сетевой ошибки или 5xx (панель недоступна, запись живая).
 function remnawave_get_user_by_short($shortUuid, &$error = '', &$http_code = 0) {

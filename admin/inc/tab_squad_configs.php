@@ -40,8 +40,26 @@
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_sqcfg_settings">
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Инжект для xray-json</div><div class="set-d">Вливать WG/VLESS-конфиги сквада в подписки формата xray-json (напр. Happ). По умолчанию выкл. base64 / Clash / sing-box работают всегда при наличии конфигов. AmneziaWG в xray-json не вливается — ядро не умеет обфускацию. Если панель отдаёт xray-json списком профилей, на каждый конфиг копируется её шаблон: из копии убираются балансировщики и observatory, а правила с balancerTag переводятся на прямой выход — поэтому по умолчанию выключено.</div></div>
+                <div class="set-info"><div class="set-t">Инжект для xray-json</div><div class="set-d">Вливать WG/VLESS-конфиги сквада в подписки формата xray-json (напр. Happ). По умолчанию выкл. base64 / Clash / sing-box работают всегда при наличии конфигов. AmneziaWG в xray-json не вливается — ядро не умеет обфускацию. Скелет конфига (dns, inbounds, правила) берётся из шаблона панели — см. поле ниже; из копии убираются балансировщики и observatory, а правила с balancerTag переводятся на прямой выход.</div></div>
                 <label class="switch"><input type="checkbox" name="squad_xray_json_inject" <?= squadconf_xray_json_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
+            <label style="margin-top:1.25rem">Шаблон xray-json для доп. конфигов <span class="hint">имя шаблона в панели, пусто — <code>Default</code></span></label>
+            <input type="text" name="squad_xray_tpl_name" value="<?= h(trim((string) setting('squad_xray_tpl_name', ''))) ?>" placeholder="Default" data-reload style="max-width:480px;box-sizing:border-box">
+            <?php
+                $sq_xt = squadconf_xray_tpl_cached();
+                $sq_xt_ts = (int) ($sq_xt['ts'] ?? 0);
+                $sq_xt_d = $sq_xt_ts > 0 ? max(0, time() - $sq_xt_ts) : -1;
+                $sq_xt_age = $sq_xt_d < 0 ? '' : ($sq_xt_d < 60 ? 'только что' : ($sq_xt_d < 3600 ? intdiv($sq_xt_d, 60) . ' мин назад' : ($sq_xt_d < 86400 ? intdiv($sq_xt_d, 3600) . ' ч назад' : intdiv($sq_xt_d, 86400) . ' дн назад')));
+            ?>
+            <div class="sqcfg-hint <?= $sq_xt ? (($sq_xt['err'] ?? '') === '' ? 'ok' : 'bad') : '' ?>" style="max-width:640px">
+                <?php if (!$sq_xt): ?>
+                    Шаблон ещё не запрашивался — прослойка возьмёт его при первой подписке в формате xray-json.
+                <?php elseif (($sq_xt['err'] ?? '') !== ''): ?>
+                    <span class="warn-line">Шаблон не получен: <?= h((string) $sq_xt['err']) ?><?= $sq_xt_age !== '' ? ' (' . h($sq_xt_age) . ')' : '' ?>.</span>
+                    <div class="note-line" style="margin-top:.35rem">Скелет временно берётся из первого профиля панели — доп. конфиги наследуют правила того хоста. Проверьте, что у API-токена есть права <code>subscription-template:list</code> и <code>subscription-template:get</code>, а имя шаблона совпадает с панелью. Повтор запроса — не чаще раза в <?= (int) round(squadconf_xray_tpl_ttl() / 60) ?> мин.</div>
+                <?php else: ?>
+                    Скелет берётся из шаблона <b><?= h((string) ($sq_xt['name'] ?? '')) ?></b> панели<?= $sq_xt_age !== '' ? ', обновлён ' . h($sq_xt_age) : '' ?>.
+                <?php endif; ?>
             </div>
         </form>
     </div>
