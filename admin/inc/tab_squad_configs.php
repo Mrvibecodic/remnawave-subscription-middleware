@@ -13,6 +13,15 @@
         .sqcfg-hint ul{margin:.4rem 0 0;padding-left:1.1rem}
         .sqcfg-hint .warn-line{color:var(--c-warn-fg)}
         .sqcfg-hint .note-line{color:var(--muted)}
+        .set-row>input.sq-tpl{flex:0 0 auto;width:230px;margin:0}
+        .sq-tplst{display:flex;align-items:flex-start;gap:.45rem;margin:.55rem .2rem 0;font-size:.79rem;line-height:1.45;color:var(--muted)}
+        .sq-tplst::before{content:"";flex:0 0 auto;width:7px;height:7px;border-radius:50%;margin-top:.42rem;background:var(--muted)}
+        .sq-tplst.ok::before{background:var(--accent)}
+        .sq-tplst.bad::before{background:var(--c-warn-fg)}
+        .sq-tplst.bad{color:var(--c-warn-fg)}
+        .sq-tplst b{color:var(--text)}
+        .sq-tplst .sub{display:block;color:var(--muted);margin-top:.2rem}
+        @media(max-width:560px){.set-row>input.sq-tpl{width:100%}}
         #sqEditModal label:not(.sq-item){display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
         .card label{display:block;margin-bottom:.35rem;font-weight:600;font-size:.85rem}
         .sq-tag{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:.08rem .45rem;font-size:.74rem;margin:.1rem .25rem .1rem 0;white-space:nowrap}
@@ -40,25 +49,28 @@
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_sqcfg_settings">
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Инжект для xray-json</div><div class="set-d">Вливать WG/VLESS-конфиги сквада в подписки формата xray-json (напр. Happ). По умолчанию выкл. base64 / Clash / sing-box работают всегда при наличии конфигов. AmneziaWG в xray-json не вливается — ядро не умеет обфускацию. Скелет конфига (dns, inbounds, правила) берётся из шаблона панели — см. поле ниже; из копии убираются балансировщики и observatory, а правила с balancerTag переводятся на прямой выход.</div></div>
+                <div class="set-info"><div class="set-t">Инжект для xray-json</div><div class="set-d">Вливать WG/VLESS-конфиги сквада в подписки формата xray-json (напр. Happ). По умолчанию выкл. base64 / Clash / sing-box работают всегда при наличии конфигов. AmneziaWG в xray-json не вливается — ядро не умеет обфускацию. Из копии шаблона убираются балансировщики и observatory, а правила с balancerTag переводятся на прямой выход.</div></div>
                 <label class="switch"><input type="checkbox" name="squad_xray_json_inject" <?= squadconf_xray_json_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
-            <label style="margin-top:1.25rem">Шаблон xray-json для доп. конфигов <span class="hint">имя шаблона в панели, пусто — <code>Default</code></span></label>
-            <input type="text" name="squad_xray_tpl_name" value="<?= h(trim((string) setting('squad_xray_tpl_name', ''))) ?>" placeholder="Default" data-reload style="max-width:480px;box-sizing:border-box">
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Шаблон xray-json для доп. конфигов</div><div class="set-d">Имя шаблона подписки в панели, на котором собирается каждый доп. конфиг — из него берутся dns, inbounds и правила. Пусто — <code>Default</code></div></div>
+                <input type="text" class="sq-tpl" name="squad_xray_tpl_name" value="<?= h(trim((string) setting('squad_xray_tpl_name', ''))) ?>" placeholder="Default" data-reload>
+            </div>
             <?php
                 $sq_xt = squadconf_xray_tpl_cached();
                 $sq_xt_ts = (int) ($sq_xt['ts'] ?? 0);
                 $sq_xt_d = $sq_xt_ts > 0 ? max(0, time() - $sq_xt_ts) : -1;
                 $sq_xt_age = $sq_xt_d < 0 ? '' : ($sq_xt_d < 60 ? 'только что' : ($sq_xt_d < 3600 ? intdiv($sq_xt_d, 60) . ' мин назад' : ($sq_xt_d < 86400 ? intdiv($sq_xt_d, 3600) . ' ч назад' : intdiv($sq_xt_d, 86400) . ' дн назад')));
             ?>
-            <div class="sqcfg-hint <?= $sq_xt ? (($sq_xt['err'] ?? '') === '' ? 'ok' : 'bad') : '' ?>" style="max-width:640px">
+            <div class="sq-tplst <?= $sq_xt ? (($sq_xt['err'] ?? '') === '' ? 'ok' : 'bad') : '' ?>">
                 <?php if (!$sq_xt): ?>
-                    Шаблон ещё не запрашивался — прослойка возьмёт его при первой подписке в формате xray-json.
+                    <div>Шаблон ещё не запрашивался — прослойка возьмёт его при первой подписке в формате xray-json.</div>
                 <?php elseif (($sq_xt['err'] ?? '') !== ''): ?>
-                    <span class="warn-line">Шаблон не получен: <?= h((string) $sq_xt['err']) ?><?= $sq_xt_age !== '' ? ' (' . h($sq_xt_age) . ')' : '' ?>.</span>
-                    <div class="note-line" style="margin-top:.35rem">Скелет временно берётся из первого профиля панели — доп. конфиги наследуют правила того хоста. Проверьте, что у API-токена есть права <code>subscription-template:list</code> и <code>subscription-template:get</code>, а имя шаблона совпадает с панелью. Повтор запроса — не чаще раза в <?= (int) round(squadconf_xray_tpl_ttl() / 60) ?> мин.</div>
+                    <div>Шаблон не получен: <?= h((string) $sq_xt['err']) ?><?= $sq_xt_age !== '' ? ' (' . h($sq_xt_age) . ')' : '' ?>.
+                        <span class="sub">Скелет временно берётся из первого профиля панели — доп. конфиги наследуют правила того хоста. Проверьте, что у API-токена есть права <code>subscription-template:list</code> и <code>subscription-template:get</code>, а имя шаблона совпадает с панелью. Повтор запроса — не чаще раза в <?= (int) round(squadconf_xray_tpl_ttl() / 60) ?> мин.</span>
+                    </div>
                 <?php else: ?>
-                    Скелет берётся из шаблона <b><?= h((string) ($sq_xt['name'] ?? '')) ?></b> панели<?= $sq_xt_age !== '' ? ', обновлён ' . h($sq_xt_age) : '' ?>.
+                    <div>Скелет берётся из шаблона <b><?= h((string) ($sq_xt['name'] ?? '')) ?></b> панели<?= $sq_xt_age !== '' ? ', обновлён ' . h($sq_xt_age) : '' ?>.</div>
                 <?php endif; ?>
             </div>
         </form>
