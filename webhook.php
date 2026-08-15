@@ -142,6 +142,14 @@ if ($short_uuid !== '') {
         delete_override('shortuuid', $short_uuid, 'webhook');
         grace_cleanup($short_uuid);
         wglease_purge_user($short_uuid);
+        // Метки канала снимаем сразу, а не ждём полного обхода: до него удалённый
+        // человек продолжал бы ходить по /c1/ — подписку прослойка узнаёт по метке,
+        // а не по панели. Без оглядки на chan_enabled(): канал могли выключить
+        // вчера, а метки в индексе от этого никуда не делись.
+        if (function_exists('chan_index_drop')) {
+            try { chan_index_drop($short_uuid); chan_state_drop($short_uuid); }
+            catch (Throwable $e) { error_log('submw chan index drop: ' . $e->getMessage()); }
+        }
         $action = 'clear';
     } elseif ($status === 'EXPIRED' || $event === 'user.expired') {
         // Новый грейс стартует только на настоящем user.expired: событие user.modified

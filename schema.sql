@@ -163,6 +163,8 @@ CREATE TABLE IF NOT EXISTS chan_kid (
     epoch INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chan_kid_epoch ON chan_kid(epoch);
+-- Под точечное снятие меток, когда юзера удалили в панели.
+CREATE INDEX IF NOT EXISTS idx_chan_kid_short ON chan_kid(short_uuid);
 
 -- chan_nonce — защита от повтора перехваченного запроса, живёт 10 минут.
 CREATE TABLE IF NOT EXISTS chan_nonce (

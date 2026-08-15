@@ -393,7 +393,7 @@ function migrate_extra_ddl($drv) {
             "CREATE TABLE IF NOT EXISTS chan_kid (
                 kid VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
                 short_uuid VARCHAR(64) NOT NULL, epoch INT NOT NULL,
-                PRIMARY KEY (kid), KEY idx_chan_kid_epoch (epoch)
+                PRIMARY KEY (kid), KEY idx_chan_kid_epoch (epoch), KEY idx_chan_kid_short (short_uuid)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "CREATE TABLE IF NOT EXISTS chan_nonce (
                 n VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -448,6 +448,7 @@ function migrate_extra_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS junk_hits (path TEXT NOT NULL PRIMARY KEY, hits INTEGER NOT NULL DEFAULT 0, last_ts INTEGER NOT NULL DEFAULT 0)",
         "CREATE TABLE IF NOT EXISTS chan_kid (kid TEXT NOT NULL PRIMARY KEY, short_uuid TEXT NOT NULL, epoch INTEGER NOT NULL)",
         "CREATE INDEX IF NOT EXISTS idx_chan_kid_epoch ON chan_kid(epoch)",
+        "CREATE INDEX IF NOT EXISTS idx_chan_kid_short ON chan_kid(short_uuid)",
         "CREATE TABLE IF NOT EXISTS chan_nonce (n TEXT NOT NULL PRIMARY KEY, ts INTEGER NOT NULL DEFAULT 0)",
         "CREATE INDEX IF NOT EXISTS idx_chan_nonce_ts ON chan_nonce(ts)",
         "CREATE TABLE IF NOT EXISTS chan_key (spid TEXT NOT NULL PRIMARY KEY, secret TEXT NOT NULL, created INTEGER NOT NULL DEFAULT 0, is_current INTEGER NOT NULL DEFAULT 0)",
