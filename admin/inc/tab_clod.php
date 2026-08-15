@@ -9,6 +9,14 @@ $chan_len   = function_exists('panel_short_uuid_len') ? (int) panel_short_uuid_l
 $chan_api   = remnawave_url() !== '' && remnawave_token() !== '';
 $chan_marks = implode("\n", chan_hard_remarks());
 $chan_dbg   = chan_debug_on() ? chan_debug_list(chan_debug_keep()) : [];
+$chan_plu   = function ($n, $one, $few, $many) {
+    $t = abs((int) $n) % 100;
+    if ($t > 10 && $t < 20) return $many;
+    $t %= 10;
+    if ($t === 1) return $one;
+    if ($t >= 2 && $t <= 4) return $few;
+    return $many;
+};
 ?>
     <style>
     .cdbg{font-size:.78rem}
@@ -47,10 +55,12 @@ $chan_dbg   = chan_debug_on() ? chan_debug_list(chan_debug_keep()) : [];
                 <td>Ключ прослойки<?= $chan_fp !== '' ? ' — отпечаток <code>' . h($chan_fp) . '</code>' : ' — ещё не создан, появится при первом защищённом запросе' ?></td></tr>
             <tr><td><?= $chan_api ? '✅' : '❌' ?></td>
                 <td>Доступ к панели<?= $chan_api ? '' : ' — без URL и API-токена метки подписок собрать не из чего' ?></td></tr>
-            <tr><td><?= $chan_idx['fresh'] && $chan_idx['count'] > 0 ? '✅' : '⚠️' ?></td>
-                <td>Индекс меток — <?= (int) $chan_idx['count'] ?> подписок<?php if ((int) $chan_idx['ts'] > 0): ?>, обновлён <span class="ct-time" data-ts="<?= (int) $chan_idx['ts'] ?>"><?= h(date('Y-m-d H:i', (int) $chan_idx['ts'])) ?></span><?php endif; ?><?= $chan_idx['fresh'] ? '' : ' <b>(не за сегодня)</b>' ?>
+            <tr><td><?= $chan_idx['fresh'] ? '✅' : '⚠️' ?></td>
+                <td>Индекс меток — <?= (int) $chan_idx['count'] ?> <?= $chan_plu((int) $chan_idx['count'], 'подписка', 'подписки', 'подписок') ?> на сегодня<?php if ((int) $chan_idx['ts'] > 0): ?>, полный обход <span class="ct-time" data-ts="<?= (int) $chan_idx['ts'] ?>"><?= h(date('Y-m-d H:i', (int) $chan_idx['ts'])) ?></span><?php endif; ?><?= $chan_idx['fresh'] || (int) $chan_idx['count'] === 0 ? '' : ' <b>(меток на сегодня нет)</b>' ?>
                     <?php if ((int) $chan_idx['count'] === 0): ?>
-                        <div class="muted" style="margin-top:.35rem">Индекс пока пуст: без него прослойка не узнаёт подписку по метке и отвечает как на мусорный адрес. Нажмите «Пересобрать» — дальше он обновляется сам, раз в сутки и на создание пользователя вебхуком.</div>
+                        <div class="muted" style="margin-top:.35rem">Индекс пока пуст: без него прослойка не узнаёт подписку по метке и отвечает как на мусорный адрес. Нажмите «Пересобрать».</div>
+                    <?php else: ?>
+                        <div class="muted" style="margin-top:.35rem">Число считается по самому индексу, а не по последнему обходу: вебхук досыпает метки созданному пользователю и снимает их у удалённого, поэтому оно меняется сразу.</div>
                     <?php endif; ?>
                 </td></tr>
             </tbody>
@@ -67,7 +77,7 @@ $chan_dbg   = chan_debug_on() ? chan_debug_list(chan_debug_keep()) : [];
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="clod_reindex">
             <button type="submit" class="ghost">↻ Пересобрать индекс меток</button>
-            <span class="hint">Обычно пересобирается сам: раз в сутки и на создание пользователя вебхуком.</span>
+            <span class="hint">Обычно не нужно: созданного и удалённого проводит вебхук, а полный обход прослойка делает сама, когда встречает незнакомую метку.</span>
         </form>
     </div>
 

@@ -117,8 +117,21 @@ function chan_ensure() {
             )");
             $p->exec("CREATE INDEX IF NOT EXISTS idx_chan_debug_ts ON chan_debug(ts)");
         }
-        return true;
     } catch (Throwable $e) { error_log('submw chan tables: ' . $e->getMessage()); return false; }
+
+    // Индекс по short_uuid появился позже самой таблицы — под точечное снятие
+    // меток, когда юзера удалили в панели. Отдельным try, потому что в MySQL
+    // нет `CREATE INDEX IF NOT EXISTS` и на уже созданном индексе запрос падает.
+    try {
+        if (db_driver() === 'mysql') {
+            $has = $p->query("SHOW INDEX FROM chan_kid WHERE Key_name = 'idx_chan_kid_short'")->fetch();
+            if (!$has) $p->exec('CREATE INDEX idx_chan_kid_short ON chan_kid (short_uuid)');
+        } else {
+            $p->exec('CREATE INDEX IF NOT EXISTS idx_chan_kid_short ON chan_kid(short_uuid)');
+        }
+    } catch (Throwable $e) {}
+
+    return true;
 }
 
 // ------------------------------------------------------------------ ключи ---
@@ -276,7 +289,13 @@ function chan_index_rebuild($force = false) {
     return true;
 }
 
-/** Досыпать метки одной подписке — вызывается вебхуком на создание юзера. */
+/**
+ * Досыпать метки одной подписке — вызывается вебхуком на создание юзера.
+ *
+ * Счётчик подписок тут намеренно не трогается: его считает `chan_index_info()`
+ * прямо по таблице. Держать отдельное число в настройках означало бы, что после
+ * каждого вебхука оно расходится с тем, что в индексе на самом деле лежит.
+ */
 function chan_index_add($short) {
     $short = trim((string) $short);
     if ($short === '' || !chan_ext_ok() || !chan_ensure() || !($p = db())) return;
@@ -290,12 +309,56 @@ function chan_index_add($short) {
     } catch (Throwable $e) { error_log('submw chan index add: ' . $e->getMessage()); }
 }
 
+/**
+ * Снять метки удалённой подписки.
+ *
+ * Без этого метки живут до следующего полного обхода — а он не обязан случиться
+ * ни сегодня, ни завтра. Всё это время удалённый в панели человек продолжал бы
+ * ходить по каналу: прослойка узнаёт подписку по метке, а не по панели.
+ */
+function chan_index_drop($short) {
+    $short = trim((string) $short);
+    if ($short === '' || !chan_ensure() || !($p = db())) return;
+    try { $p->prepare('DELETE FROM chan_kid WHERE short_uuid = ?')->execute([$short]); }
+    catch (Throwable $e) { error_log('submw chan index drop: ' . $e->getMessage()); }
+}
+
+/** Забыть подписку в таблице «кто ходит защищённо» — вебхук на удаление юзера. */
+function chan_state_drop($short) {
+    $short = trim((string) $short);
+    if ($short === '' || !chan_ensure() || !($p = db())) return;
+    try { $p->prepare('DELETE FROM chan_state WHERE short_uuid = ?')->execute([$short]); }
+    catch (Throwable $e) { error_log('submw chan state drop: ' . $e->getMessage()); }
+}
+
+/**
+ * Что показывать в «Готовности».
+ *
+ * `count` считается по самой таблице, а не берётся из настроек: между полными
+ * обходами индекс правят вебхуки — создание юзера досыпает метки, удаление их
+ * снимает, — и сохранённое при обходе число к этому моменту уже враньё.
+ *
+ * `fresh` — покрыт ли меткой сегодняшний день. Обход строит метки сразу на трое
+ * суток (вчера, сегодня, завтра), поэтому вчерашний обход — это норма, а не
+ * «устарел»: сравнение эпохи «в лоб» зажигало предупреждение через день.
+ */
 function chan_index_info() {
+    $epoch = chan_epoch();
+    $built = (int) setting('chan_index_epoch', '0');
+    $count = (int) setting('chan_index_count', '0');
+    if ($p = db()) {
+        try {
+            $st = $p->prepare('SELECT COUNT(DISTINCT short_uuid) FROM chan_kid WHERE epoch = ?');
+            $st->execute([$epoch]);
+            $v = $st->fetchColumn();
+            if ($v !== false && $v !== null) $count = (int) $v;
+        } catch (Throwable $e) {} // таблицы может ещё не быть — тогда остаётся число из настроек
+    }
     return [
-        'count' => (int) setting('chan_index_count', '0'),
+        'count' => $count,
         'ts'    => (int) setting('chan_index_ts', '0'),
-        'epoch' => (int) setting('chan_index_epoch', '0'),
-        'fresh' => (int) setting('chan_index_epoch', '0') === chan_epoch(),
+        'epoch' => $built,
+        'fresh' => $count > 0 && $built >= $epoch - 1,
     ];
 }
 
