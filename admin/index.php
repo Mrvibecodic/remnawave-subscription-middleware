@@ -414,6 +414,13 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    // Звёзды клиентов канала — тем же паттерном: вкладка рисуется из кэша
+    // (трое суток), а в GitHub ходит уже этот запрос, и только если протухло.
+    if ($a === 'clod_stars') {
+        echo json_encode(['ok' => true, 'stars' => chan_stars_refresh(false)], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'panelstats') {
         $perr = '';
         $age = !empty($_GET['force']) ? 0 : 45;

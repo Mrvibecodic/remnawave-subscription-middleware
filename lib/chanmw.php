@@ -362,6 +362,77 @@ function chan_index_info() {
     ];
 }
 
+// ------------------------------------------------------ клиенты и звёзды ---
+
+/** Приложения канала: то, что показано кнопками наверху вкладки. */
+function chan_client_apps() {
+    return [
+        ['repo' => 'Mrvibecodic/clod-clash',         'name' => 'Clod Clash', 'os' => 'Windows · macOS · Linux'],
+        ['repo' => 'Mrvibecodic/clod-clash-android', 'name' => 'Clod Clash', 'os' => 'Android'],
+    ];
+}
+
+// Трое суток: число звёзд — украшение, а неавторизованный лимит GitHub
+// (60 запросов в час на адрес) делится со всем, что уже ходит в api.github.com.
+function chan_stars_ttl() { return 3 * 86400; }
+
+// Неудачную попытку не повторяем чаще раза в час, иначе упавший GitHub
+// превращается в поход на каждое открытие вкладки.
+function chan_stars_retry() { return 3600; }
+
+function chan_stars_cache() {
+    $j = json_decode((string) setting('chan_stars', '{}'), true);
+    return is_array($j) ? $j : [];
+}
+
+/** Есть ли репозиторий, за которым пора сходить. */
+function chan_stars_stale($cache = null) {
+    $c   = is_array($cache) ? $cache : chan_stars_cache();
+    $now = time();
+    foreach (chan_client_apps() as $a) {
+        $e = is_array($c[$a['repo']] ?? null) ? $c[$a['repo']] : [];
+        if (($now - (int) ($e['ts'] ?? 0)) >= chan_stars_ttl()
+            && ($now - (int) ($e['try'] ?? 0)) >= chan_stars_retry()) return true;
+    }
+    return false;
+}
+
+/**
+ * Освежить число звёзд.
+ *
+ * Рендер страницы сюда не ходит и читает только кэш — тем же путём, что версия
+ * панели и автопроверка версий клиентов: вкладка не должна ждать GitHub.
+ * Ошибка не стирает прежнее число, оно так и висит до следующей удачной попытки.
+ */
+function chan_stars_refresh($force = false) {
+    $cache = chan_stars_cache();
+    $now   = time();
+    $dirty = false;
+    foreach (chan_client_apps() as $a) {
+        $k = $a['repo'];
+        $e = is_array($cache[$k] ?? null) ? $cache[$k] : [];
+        if (!$force) {
+            if (($now - (int) ($e['ts'] ?? 0)) < chan_stars_ttl()) continue;
+            if (($now - (int) ($e['try'] ?? 0)) < chan_stars_retry()) continue;
+        }
+        $e['try'] = $now;
+        $dirty    = true;
+        $err = '';
+        $j = function_exists('clientver_json')
+            ? clientver_json('https://api.github.com/repos/' . $k, $err, 'application/vnd.github+json')
+            : null;
+        if (is_array($j) && isset($j['stargazers_count'])) {
+            $e['n']  = (int) $j['stargazers_count'];
+            $e['ts'] = $now;
+        } elseif ($err !== '') {
+            error_log('submw chan stars ' . $k . ': ' . $err);
+        }
+        $cache[$k] = $e;
+    }
+    if ($dirty) set_setting('chan_stars', json_encode($cache, JSON_UNESCAPED_UNICODE));
+    return $cache;
+}
+
 // ----------------------------------------------------------------- повторы ---
 
 /**

@@ -9,6 +9,10 @@ $chan_len   = function_exists('panel_short_uuid_len') ? (int) panel_short_uuid_l
 $chan_api   = remnawave_url() !== '' && remnawave_token() !== '';
 $chan_marks = implode("\n", chan_hard_remarks());
 $chan_dbg   = chan_debug_on() ? chan_debug_list(chan_debug_keep()) : [];
+// Звёзды рисуем из кэша (трое суток). В GitHub ходит ajax уже после загрузки
+// страницы и только если кэш протух — вкладка не должна ждать сеть.
+$chan_stars = chan_stars_cache();
+$chan_upd   = chan_stars_stale($chan_stars);
 $chan_plu   = function ($n, $one, $few, $many) {
     $t = abs((int) $n) % 100;
     if ($t > 10 && $t < 20) return $many;
@@ -29,18 +33,38 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .cdbg .g{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
     .cdbg .lbl{font-weight:600;margin:.5rem 0 .15rem;font-size:.74rem}
     .cdbg pre{margin:0;padding:.45rem .55rem;font-size:.7rem;line-height:1.35;max-height:13rem;overflow:auto;white-space:pre-wrap;word-break:break-all;background:var(--bg2);border:1px solid var(--line)}
+    .capps{display:flex;gap:.7rem;flex-wrap:wrap;margin:.9rem 0 0}
+    .capp{flex:1 1 16rem;min-width:0;display:flex;align-items:center;gap:.7rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);color:var(--text);text-decoration:none;transition:border-color .18s,background .18s,transform .18s,box-shadow .18s}
+    .capp:hover{border-color:var(--accent);background:var(--accent-light);transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.12)}
+    .capp .gh{flex:0 0 auto;color:var(--text-strong)}
+    .capp .tx{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+    .capp .nm{font-weight:600;font-size:.92rem;color:var(--text-strong)}
+    .capp .os{font-size:.74rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .capp .st{flex:0 0 auto;display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .5rem;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--muted);font-size:.78rem;font-weight:600;font-variant-numeric:tabular-nums}
+    /* Иначе `display:inline-flex` перебивает браузерное `[hidden]`, и пустой
+       бейдж висел бы одинокой звездой, пока не ответит GitHub. */
+    .capp .st[hidden]{display:none}
+    .capp:hover .st{border-color:var(--accent);color:var(--accent-text)}
+    .capp .st svg{color:var(--amber)}
     </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Работает только с Clod Clash</h2>
         <p class="muted">Это протокол двух конкретных приложений и этой прослойки, а не стандарт подписок: никакой другой клиент про него не знает и по нему работать не будет. Обычные подписки идут прежним путём, канал их не касается.</p>
-        <table class="logtbl">
-            <tbody>
-            <tr><td style="width:9rem">Clod Clash · ПК</td>
-                <td><a href="https://github.com/Mrvibecodic/clod-clash" target="_blank" rel="noopener" style="color:var(--accent-text)">github.com/Mrvibecodic/clod-clash</a></td></tr>
-            <tr><td>Clod Clash · Android</td>
-                <td><a href="https://github.com/Mrvibecodic/clod-clash-android" target="_blank" rel="noopener" style="color:var(--accent-text)">github.com/Mrvibecodic/clod-clash-android</a></td></tr>
-            </tbody>
-        </table>
+        <div class="capps" id="clodApps" data-upd="<?= $chan_upd ? '1' : '0' ?>">
+            <?php foreach (chan_client_apps() as $app):
+                $cs = is_array($chan_stars[$app['repo']] ?? null) ? $chan_stars[$app['repo']] : [];
+                $cn = isset($cs['n']) ? (int) $cs['n'] : null; ?>
+            <a class="capp" href="https://github.com/<?= h($app['repo']) ?>" target="_blank" rel="noopener"
+               data-tip="github.com/<?= h($app['repo']) ?>">
+                <svg class="gh" width="22" height="22" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+                <span class="tx"><span class="nm"><?= h($app['name']) ?></span><span class="os"><?= h($app['os']) ?></span></span>
+                <span class="st" data-repo="<?= h($app['repo']) ?>"<?= $cn === null ? ' hidden' : '' ?>>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2 2.9 6.26 6.85.72-5.1 4.6 1.42 6.72L12 16.9 5.93 20.3l1.42-6.72-5.1-4.6 6.85-.72L12 2Z"/></svg>
+                    <span class="n"><?= $cn === null ? '' : (int) $cn ?></span>
+                </span>
+            </a>
+            <?php endforeach; ?>
+        </div>
         <p class="muted" style="margin-top:.8rem">Галочку «Защищённое соединение» пользователь ставит сам, отдельно для каждой подписки. Пока её не поставили, запрос идёт открытым путём, как раньше. Канал — свойство запроса, а не пользователя.</p>
     </div>
 
@@ -280,5 +304,36 @@ $chan_plu   = function ($n, $one, $few, $many) {
         </div>
     </section>
     <script>
+    // Звёзды: разметка уже отрисована из серверного кэша (трое суток), здесь
+    // только освежаем — и только когда серверу пора идти в GitHub. Если у сервера
+    // с api.github.com не вышло (там лимит на адрес, и датацентрам он достаётся
+    // чаще), доспрашиваем из браузера, как счётчик в шапке, со своим кэшем на те
+    // же трое суток. Всё молча: не получилось — остаётся то, что было.
+    (function(){
+        var w=document.getElementById('clodApps');
+        if(!w)return;
+        var TTL=3*86400*1000;
+        function paint(el,n){if(typeof n!=='number')return;el.querySelector('.n').textContent=n;el.hidden=false;}
+        function fallback(){
+            w.querySelectorAll('.st[data-repo]').forEach(function(el){
+                if(!el.hidden)return;
+                var r=el.getAttribute('data-repo'),k='gh_stars:'+r;
+                try{var c=JSON.parse(localStorage.getItem(k)||'null');if(c&&Date.now()-c.t<TTL){paint(el,c.n);return;}}catch(e){}
+                fetch('https://api.github.com/repos/'+r).then(function(x){return x.json();}).then(function(d){
+                    if(!d||typeof d.stargazers_count!=='number')return;
+                    paint(el,d.stargazers_count);
+                    try{localStorage.setItem(k,JSON.stringify({n:d.stargazers_count,t:Date.now()}));}catch(e){}
+                }).catch(function(){});
+            });
+        }
+        if(w.getAttribute('data-upd')!=='1'){fallback();return;}
+        fetch('?ajax=clod_stars').then(function(r){return r.json();}).then(function(d){
+            if(!d||!d.ok||!d.stars)return;
+            w.querySelectorAll('.st[data-repo]').forEach(function(el){
+                var e=d.stars[el.getAttribute('data-repo')];
+                if(e)paint(el,e.n);
+            });
+        }).catch(function(){}).then(fallback);
+    })();
     (function(){function p(n){return(n<10?'0':'')+n;}document.querySelectorAll('.ct-time[data-ts]').forEach(function(el){var ep=parseInt(el.getAttribute('data-ts'),10);if(!ep)return;var d=new Date(ep*1000);if(isNaN(d.getTime()))return;el.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());});})();
     </script>
