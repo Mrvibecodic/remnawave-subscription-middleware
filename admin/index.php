@@ -1475,10 +1475,8 @@ $fav_href = $brand_icon !== '' ? $brand_icon : ($emoji_favicon !== '' ? $emoji_f
 // прыгает от перезагрузки к перезагрузке. Пути обязаны совпадать с url()
 // внутри fonts.css (без ?v=), иначе файл скачается дважды.
 foreach (['cyrillic', 'latin'] as $f_sub) {
-    foreach ([400, 500, 600, 700] as $f_w) {
-        echo '<link rel="preload" as="font" type="font/woff2" crossorigin href="assets/fonts/inter-'
-            . $f_sub . '-' . $f_w . ".woff2\">\n";
-    }
+    echo '<link rel="preload" as="font" type="font/woff2" crossorigin href="assets/fonts/onest-'
+        . $f_sub . ".woff2\">\n";
 }
 ?>
 <script>(function(){try{var t=localStorage.getItem('submw_theme');if(!t||t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();document.documentElement.classList.add('lp');</script>
