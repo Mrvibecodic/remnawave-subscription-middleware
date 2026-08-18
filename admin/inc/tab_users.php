@@ -6,7 +6,7 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
     <style>
         .utbl-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
         .utbl-head h2{margin:0;font-size:1rem}
-        .utbl-card{margin-bottom:0}
+        .utbl-card{margin-bottom:0;display:flex;flex-direction:column;max-height:calc(100vh - 124px)}
         .utbl-tools{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
         .utbl-tools input#flt{width:280px;max-width:48vw}
         .dens{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -14,7 +14,7 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         .dens button.on{background:var(--accent-light);color:var(--accent-text)}
         .dens button:hover{color:var(--text)}
         .dens svg{width:15px;height:15px}
-        .utbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:.9rem;max-height:calc(100vh - 230px);scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+        .utbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:.9rem;flex:0 1 auto;min-height:0;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
         .utbl-wrap::-webkit-scrollbar{width:8px;height:8px}
         .utbl-wrap::-webkit-scrollbar-track{background:transparent}
         .utbl-wrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
@@ -44,7 +44,8 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         .uempty .ic svg{width:22px;height:22px;opacity:.7}
         .uempty b{color:var(--text);font-size:.95rem}
         @media(max-width:900px){
-            .utbl-wrap{max-height:none;overflow:visible;border:0;margin-top:.6rem}
+            .utbl-card{display:block;max-height:none}
+            .utbl-wrap{max-height:none;overflow:visible;border:0;margin-top:.6rem;flex:none}
             #utbl{display:block}
             #utbl thead{display:none}
             #utbl tbody,#utbl tbody tr,#utbl tbody td{display:block;width:100%}
@@ -329,7 +330,6 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         document.querySelectorAll('.dens button').forEach(function(x){x.classList.remove('on');});
         if(btn) btn.classList.add('on');
         try{localStorage.setItem('utbl_dens',c===1?'1':'0');}catch(e){}
-        if(typeof fitUtbl==='function') fitUtbl();
     }
     (function(){try{if(localStorage.getItem('utbl_dens')==='1'){var t=document.getElementById('utbl');if(t)t.classList.add('compact');var bs=document.querySelectorAll('.dens button');if(bs.length>1){bs.forEach(function(x){x.classList.remove('on');});bs[1].classList.add('on');}}}catch(e){}})();
     document.querySelectorAll('.hw-btn').forEach(function(b){
@@ -358,19 +358,6 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         function p(n){return(n<10?'0':'')+n;}
         td.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' в '+p(d.getHours())+':'+p(d.getMinutes());
     });
-    function fitUtbl(){
-        var wrap=document.querySelector('.utbl-wrap'); if(!wrap) return;
-        if(window.innerWidth<=900){ wrap.style.maxHeight=''; return; }
-        wrap.style.maxHeight='none';
-        var r=wrap.getBoundingClientRect();
-        var card=wrap.closest('.card'), content=document.querySelector('.rw-content');
-        var below=6;
-        if(card){ var cs=getComputedStyle(card); below+=(card.getBoundingClientRect().bottom-r.bottom)+(parseFloat(cs.marginBottom)||0); }
-        if(content){ below+=parseFloat(getComputedStyle(content).paddingBottom)||0; }
-        var mh=window.innerHeight-r.top-below;
-        if(mh>160) wrap.style.maxHeight=Math.floor(mh)+'px';
-    }
-    window.addEventListener('resize',fitUtbl);
     var UTBL=(function(){
         document.documentElement.classList.remove('lp');
         var sizes=[10,25,50], size=50, page=1;
@@ -397,7 +384,6 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
                     bot.querySelectorAll('.pgr-b').forEach(function(b){ b.addEventListener('click',function(){ if(b.dataset.go==='prev'&&page>1)page--; if(b.dataset.go==='next'&&page<pages)page++; render(); }); });
                 } else { bot.innerHTML=''; }
             }
-            if(typeof fitUtbl==='function') fitUtbl();
         }
         return {
             render:render,

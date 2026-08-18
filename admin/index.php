@@ -1495,7 +1495,7 @@ $lp_cfg = $lp_map[$tab] ?? null;
 <script>(function(){var d=document.documentElement,n=<?= (int) $lp_cfg[1] ?>;
 try{var v=parseInt(localStorage.getItem(<?= json_encode($lp_cfg[0]) ?>),10);if(!isNaN(v)&&v>=0&&[0,10,25,50].indexOf(v)>-1)n=v;}catch(e){}
 if(n===0){d.classList.remove('lp');return;}
-var st=document.createElement('style');st.textContent='html.lp tbody.lp-cap>tr:nth-child(n+'+(n+1)+'){display:none}';document.head.appendChild(st);
+var st=document.createElement('style');st.textContent='html.lp tbody.lp-cap>tr:nth-child(n+'+(n+1)+'){display:none!important}';document.head.appendChild(st);
 document.addEventListener('DOMContentLoaded',function(){d.classList.remove('lp');});})();</script>
 <?php else: ?>
 <script>document.documentElement.classList.remove('lp')</script>
