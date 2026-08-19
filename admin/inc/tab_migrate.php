@@ -49,7 +49,7 @@ $gc_free = gc_free_bytes();
     <p class="muted">Сейчас: <b><?= $cur_drv === 'mysql' ? 'MySQL / MariaDB' : 'SQLite' ?></b>, размер <b><?= h(metrics_fmt_bytes((int) ($gc_db['size'] ?? 0))) ?></b><?= ($gc_free === null || $gc_free <= 0) ? '' : (', свободно внутри — <b>' . h(metrics_fmt_bytes((int) $gc_free)) . '</b>') ?>.</p>
     <p class="muted">После удаления записей файл базы сам не уменьшается: освободившееся место остаётся внутри и переиспользуется под новые записи. Сжатие возвращает его операционной системе.</p>
     <div class="warn" style="margin-top:.6rem">Пока идёт сжатие, база заблокирована целиком — запросы подписки будут ждать. На большой базе это десятки секунд, так что лучше делать в спокойное время.<?= $cur_drv === 'mysql' ? ' Пользователю MySQL нужно право <code>ALTER</code>.' : ' На диске должно быть свободно примерно столько же, сколько весит база.' ?></div>
-    <form method="post" onsubmit="return uiConfirmForm(this,'Сжать базу? На время работы она будет заблокирована.')" style="margin-top:.9rem">
+    <form method="post" onsubmit="return uiConfirmForm(this,'Сжать базу? На время работы она будет заблокирована.','Сжать',false)" style="margin-top:.9rem">
         <input type="hidden" name="csrf" value="<?= h($token) ?>">
         <input type="hidden" name="action" value="gc_compact">
         <button type="submit" class="ghost">Сжать базу</button>
