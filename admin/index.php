@@ -1867,7 +1867,7 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
         cancel.style.display='none'; ok.textContent='OK'; ok.className='btn';
         dlg.classList.add('open');
     };
-    window.uiConfirmForm=function(form,message){ uiConfirm(message,function(){form.submit();},'Удалить',true); return false; };
+    window.uiConfirmForm=function(form,message,okLabel,danger){ uiConfirm(message,function(){form.submit();},okLabel||'Удалить',danger!==false); return false; };
     var toastEl=document.getElementById('uiToast'), toastT=null;
     window.uiToast=function(message){
         if(!toastEl) return;
