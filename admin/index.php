@@ -900,6 +900,35 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         form_saved('sysinfo');
     }
 
+    if ($action === 'gc_purge') {
+        $gc_days = (int) ($_POST['gc_days'] ?? 0);
+        if (!in_array($gc_days, gc_periods(), true)) $gc_days = 0;
+        $gc_sel  = is_array($_POST['gc_t'] ?? null) ? $_POST['gc_t'] : [];
+        $gc_all  = gc_tables();
+        $gc_done = 0; $gc_left = 0; $gc_any = false;
+        @set_time_limit(60);
+        $gc_t0 = microtime(true);
+        foreach ($gc_sel as $gc_name) {
+            $gc_name = (string) $gc_name;
+            if (!isset($gc_all[$gc_name])) continue;
+            $gc_any = true;
+            $gc_budget = 15.0 - (microtime(true) - $gc_t0);
+            if ($gc_budget > 0) $gc_done += gc_purge($gc_name, $gc_days, $gc_budget);
+            $gc_left += (int) gc_count($gc_name, $gc_days);
+        }
+        if (!$gc_any) flash('Не выбрано ни одной таблицы');
+        elseif ($gc_left > 0) flash('Удалено строк: ' . $gc_done . '. Осталось ' . $gc_left . ' — нажмите «Очистить» ещё раз');
+        else flash('Удалено строк: ' . $gc_done . '. Больше удалять нечего');
+        header('Location: index.php?tab=migrate'); exit();
+    }
+
+    if ($action === 'gc_compact') {
+        @set_time_limit(0);
+        $gc_err = '';
+        flash(gc_compact($gc_err) ? 'База сжата' : ('Сжать не удалось: ' . $gc_err));
+        header('Location: index.php?tab=migrate'); exit();
+    }
+
     if ($action === 'migrate_db') {
         $to  = $_POST['to'] ?? '';
         $cur = db_driver();
@@ -1443,7 +1472,7 @@ if ($tab === 'addsub') $addsub_list = addsub_map_all();
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'Миграция БД', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'clod' => 'Защищённый канал (Clod Clash)'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'clod' => 'Защищённый канал (Clod Clash)'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -1609,7 +1638,7 @@ $nav = [
     'grace_users' => ['Грейс-юзеры', '<circle cx="9" cy="7" r="3"/><path d="M3 21v-1a5 5 0 0 1 5-5h2.5"/><circle cx="17" cy="16" r="4"/><path d="M17 14.4V16l1.2 1"/>'],
     'sysinfo'   => ['О системе', '<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /> <path d="M12 9h.01" /> <path d="M11 12h1v4h1" />'],
     'update'    => ['Обновление', '<path d="M12 13v8l-4-4" /> <path d="m12 21 4-4" /> <path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284" />'],
-    'migrate'   => ['Миграция БД', '<ellipse cx="12" cy="5" rx="9" ry="3" /> <path d="M3 5V19A9 3 0 0 0 21 19V5" /> <path d="M3 12A9 3 0 0 0 21 12" />'],
+    'migrate'   => ['База данных', '<ellipse cx="12" cy="5" rx="9" ry="3" /> <path d="M3 5V19A9 3 0 0 0 21 19V5" /> <path d="M3 12A9 3 0 0 0 21 12" />'],
     'chat'      => ['Чат поддержки', '<path d="M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /> <path d="M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1" />'],
 ];
 ?>

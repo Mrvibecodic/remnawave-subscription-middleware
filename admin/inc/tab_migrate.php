@@ -1,4 +1,91 @@
-<?php $cur_drv = db_driver(); ?>
+<?php
+$cur_drv = db_driver();
+$gc_ov   = gc_overview();
+$gc_db   = metrics_db_info();
+$gc_free = gc_free_bytes();
+?>
+<style>
+.gctbl{width:100%;margin-top:.9rem}
+.gctbl th:first-child,.gctbl td:first-child{width:2.4rem;text-align:center}
+.gctbl td.n,.gctbl th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.gctbl input[type=checkbox]{margin:0;vertical-align:middle}
+.gctbl tr.off td:not(:first-child){opacity:.45}
+.gcfoot{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin-top:1rem}
+</style>
+<div class="card">
+    <h2 style="margin-top:0;font-size:1rem">Очистка данных</h2>
+    <p class="muted">Разово удаляет старые записи журналов и метрик. На работу прослойки это не влияет: пропадёт только история в соответствующих вкладках админки. Оверрайды, грейс, конфиги и настройки не затрагиваются.</p>
+    <form method="post" onsubmit="return uiConfirmForm(this,'Удалить выбранные записи? Вернуть их будет нельзя.')">
+        <input type="hidden" name="csrf" value="<?= h($token) ?>">
+        <input type="hidden" name="action" value="gc_purge">
+        <input type="hidden" name="gc_days" id="gcDays" value="30">
+        <div class="seg" id="gcSeg">
+            <?php foreach (gc_periods() as $gc_d): ?>
+            <button type="button" data-d="<?= (int) $gc_d ?>">Старше <?= (int) $gc_d ?> дней</button>
+            <?php endforeach; ?>
+            <button type="button" data-d="0">Всё</button>
+        </div>
+        <table class="logtbl gctbl">
+            <thead><tr><th></th><th>Таблица</th><th class="n">Всего строк</th><th class="n">Под удаление</th></tr></thead>
+            <tbody id="gcTbl">
+            <?php foreach ($gc_ov as $gc_name => $gc_r): ?>
+                <tr data-t="<?= h($gc_name) ?>" data-d0="<?= $gc_r['total'] === null ? '' : (int) $gc_r['total'] ?>"<?php foreach (gc_periods() as $gc_d): ?> data-d<?= (int) $gc_d ?>="<?= ($gc_r['old'][$gc_d] ?? null) === null ? '' : (int) $gc_r['old'][$gc_d] ?>"<?php endforeach; ?>>
+                    <td><input type="checkbox" name="gc_t[]" value="<?= h($gc_name) ?>" checked></td>
+                    <td><?= h($gc_r['title']) ?> <code><?= h($gc_name) ?></code></td>
+                    <td class="n muted"><?= $gc_r['total'] === null ? '—' : number_format((int) $gc_r['total'], 0, '.', ' ') ?></td>
+                    <td class="n gc-n">—</td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <div class="gcfoot">
+            <button class="danger" type="submit">Очистить</button>
+            <span class="muted" style="font-size:.8rem">За один заход удаляется столько, сколько успевается примерно за 15 секунд. Если записей очень много, прослойка скажет, сколько осталось — нажмите ещё раз.</span>
+        </div>
+    </form>
+</div>
+<div class="card">
+    <h2 style="margin-top:0;font-size:1rem">Сжать базу</h2>
+    <p class="muted">Сейчас: <b><?= $cur_drv === 'mysql' ? 'MySQL / MariaDB' : 'SQLite' ?></b>, размер <b><?= h(metrics_fmt_bytes((int) ($gc_db['size'] ?? 0))) ?></b><?= ($gc_free === null || $gc_free <= 0) ? '' : (', свободно внутри — <b>' . h(metrics_fmt_bytes((int) $gc_free)) . '</b>') ?>.</p>
+    <p class="muted">После удаления записей файл базы сам не уменьшается: освободившееся место остаётся внутри и переиспользуется под новые записи. Сжатие возвращает его операционной системе.</p>
+    <div class="warn" style="margin-top:.6rem">Пока идёт сжатие, база заблокирована целиком — запросы подписки будут ждать. На большой базе это десятки секунд, так что лучше делать в спокойное время.<?= $cur_drv === 'mysql' ? ' Пользователю MySQL нужно право <code>ALTER</code>.' : ' На диске должно быть свободно примерно столько же, сколько весит база.' ?></div>
+    <form method="post" onsubmit="return uiConfirmForm(this,'Сжать базу? На время работы она будет заблокирована.')" style="margin-top:.9rem">
+        <input type="hidden" name="csrf" value="<?= h($token) ?>">
+        <input type="hidden" name="action" value="gc_compact">
+        <button type="submit" class="ghost">Сжать базу</button>
+    </form>
+</div>
+<script>
+(function(){
+    var seg = document.getElementById('gcSeg');
+    var tbl = document.getElementById('gcTbl');
+    if (!seg || !tbl) return;
+    function apply(d){
+        Array.prototype.forEach.call(seg.querySelectorAll('button'), function(b){
+            b.classList.toggle('on', b.getAttribute('data-d') === d);
+        });
+        document.getElementById('gcDays').value = d;
+        Array.prototype.forEach.call(tbl.querySelectorAll('tr[data-t]'), function(tr){
+            var raw = tr.getAttribute('data-d' + d);
+            var has = raw !== '' && raw !== null;
+            var n = has ? parseInt(raw, 10) : 0;
+            var cell = tr.querySelector('.gc-n');
+            cell.textContent = has ? n.toLocaleString('ru-RU') : '—';
+            cell.classList.toggle('muted', n === 0);
+            var cb = tr.querySelector('input[type=checkbox]');
+            cb.disabled = (n === 0);
+            cb.checked = (n > 0);
+            tr.classList.toggle('off', n === 0);
+        });
+    }
+    seg.addEventListener('click', function(e){
+        var b = e.target;
+        while (b && b !== seg && b.tagName !== 'BUTTON') b = b.parentNode;
+        if (b && b.tagName === 'BUTTON') apply(b.getAttribute('data-d'));
+    });
+    apply('30');
+})();
+</script>
 <?php if (submw_in_docker()): ?>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Миграция базы данных (Docker)</h2>
