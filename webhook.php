@@ -155,13 +155,17 @@ if ($short_uuid !== '') {
         // Новый грейс стартует только на настоящем user.expired: событие user.modified
         // со status=EXPIRED прилетает и от нашего же restore-PATCH в конце грейса —
         // без этого ограничения грейс тут же выдавался заново (вечная петля).
-        $g = grace_on_expired($short_uuid, $username, $event === 'user.expired');
-        if ($g === 'grace_started' || $g === 'grace_ended' || $g === 'grace_active') {
-            delete_override('shortuuid', $short_uuid, 'webhook');
-            $action = $g;
+        if (addsub_is_secondary($short_uuid, $username) && !grace_find($short_uuid)) {
+            $action = 'addsub_skip';
         } else {
-            upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
-            $action = 'set_expired';
+            $g = grace_on_expired($short_uuid, $username, $event === 'user.expired');
+            if ($g === 'grace_started' || $g === 'grace_ended' || $g === 'grace_active') {
+                delete_override('shortuuid', $short_uuid, 'webhook');
+                $action = $g;
+            } else {
+                upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
+                $action = 'set_expired';
+            }
         }
     } elseif ($status === 'DISABLED' || $status === 'LIMITED') {
         upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);

@@ -101,6 +101,32 @@ function addsub_map_all() {
     catch (Throwable $e) { return []; }
 }
 
+function addsub_map_is_target($short) {
+    $short = trim((string) $short);
+    if ($short === '' || !($p = db())) return false;
+    addsub_ensure();
+    try {
+        $st = $p->prepare('SELECT add_url FROM addsub_map WHERE add_url LIKE ?');
+        $st->execute(['%' . $short . '%']);
+        foreach ($st as $r) {
+            $segs = path_segments((string) parse_url((string) $r['add_url'], PHP_URL_PATH));
+            if ($segs && end($segs) === $short) return true;
+        }
+    } catch (Throwable $e) {}
+    return false;
+}
+
+function addsub_is_secondary($short, $username) {
+    static $memo = [];
+    if (!addsub_enabled()) return false;
+    $u   = trim((string) $username);
+    $suf = addsub_suffix();
+    if ($u !== '' && $suf !== '' && strlen($u) > strlen($suf) && substr($u, -strlen($suf)) === $suf) return true;
+    $k = (string) $short;
+    if (array_key_exists($k, $memo)) return $memo[$k];
+    return $memo[$k] = addsub_map_is_target($k);
+}
+
 function addsub_cache_get($short) {
     $short = trim((string) $short);
     if ($short === '' || !($p = db())) return ['hit' => false, 'url' => null];

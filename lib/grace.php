@@ -347,7 +347,9 @@ function grace_retry_pending($limit = 2) {
 }
 
 function grace_is_active($short) {
+    static $memo = [];
     if ($short === '' || !grace_squad_active()) return false;
+    if (array_key_exists($short, $memo)) return $memo[$short];
     $r = grace_find($short);
-    return ($r && (int) $r['grace_until'] > time());
+    return $memo[$short] = ($r && (int) $r['grace_until'] > time());
 }
