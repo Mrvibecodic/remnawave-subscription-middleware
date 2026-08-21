@@ -80,6 +80,7 @@ function rl_as_badge($as) {
     if ($s === 'err')  return '<span class="as err">ошибка</span>';
     if ($s === 'off')  return '<span class="as off">выкл</span>';
     if ($s === 'no')   return '<span class="as no">нет</span>';
+    if ($s === 'grace') return '<span class="as no">грейс</span>';
     return '<span class="as no">—</span>';
 }
 

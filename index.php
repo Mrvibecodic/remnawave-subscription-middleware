@@ -164,7 +164,7 @@ curl_setopt_array($ch, [
 $addsub_pre = null;
 if (!$junk_path && addsub_enabled() && addsub_parallel_enabled()) {
     $addsub_segs = path_segments($path);
-    if ($addsub_segs) {
+    if ($addsub_segs && !grace_is_active($addsub_segs[0])) {
         try {
             $addsub_pre = ['short' => $addsub_segs[0],
                            'cached' => addsub_map_get($addsub_segs[0]) === '' && addsub_cache_get($addsub_segs[0])['hit'],
@@ -386,6 +386,9 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any
 if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enabled()
     && ($panel_hwid_block || squadconf_user_inactive($gate_short))) {
     $log_as = ['s' => 'skip'];
+} elseif ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enabled()
+    && grace_is_active($short_uuid)) {
+    $log_as = ['s' => 'grace'];
 } elseif ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enabled()) {
     $log_as = ['s' => 'no'];
     try {
