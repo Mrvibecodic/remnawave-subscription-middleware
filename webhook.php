@@ -121,6 +121,7 @@ $action = 'ignored';
 
 if ($short_uuid !== '') squadconf_cache_drop($short_uuid);
 if ($short_uuid !== '') addsub_cache_drop($short_uuid);
+if ($short_uuid !== '' && addsub_is_secondary($short_uuid, $username)) addsub_cache_drop_by_target($short_uuid);
 
 // Метки защищённого канала для новой подписки. Индекс пересобирается раз в
 // сутки, и без этого человек, созданный сразу после обхода, не смог бы

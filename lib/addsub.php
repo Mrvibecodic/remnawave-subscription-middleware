@@ -157,6 +157,14 @@ function addsub_cache_put($short, $url) {
     } catch (Throwable $e) {}
 }
 
+function addsub_cache_drop_by_target($short) {
+    $short = trim((string) $short);
+    if ($short === '' || !($p = db())) return;
+    addsub_ensure();
+    try { $p->prepare('DELETE FROM addsub_cache WHERE add_url LIKE ?')->execute(['%' . $short . '%']); }
+    catch (Throwable $e) {}
+}
+
 function addsub_cache_drop($short) {
     $short = trim((string) $short);
     if ($short === '' || !($p = db())) return;
