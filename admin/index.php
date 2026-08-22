@@ -1718,6 +1718,11 @@ function nav_link($key, $it, $active, $badge = false) {
             </div>
         </div>
     </aside>
+    <script>(function(){var n=document.querySelector('.rw-nav');if(!n)return;var K='submw_navscroll',v=null;try{v=sessionStorage.getItem(K);}catch(e){}
+if(v!==null&&v!==''){n.scrollTop=parseInt(v,10)||0;}else{var a=n.querySelector('a.active');if(a&&a.offsetTop+a.offsetHeight>n.clientHeight){var t=a.offsetTop-(n.clientHeight-a.offsetHeight)/2;n.scrollTop=t>0?t:0;}}
+var q=0;function save(){q=0;try{sessionStorage.setItem(K,String(n.scrollTop));}catch(e){}}
+n.addEventListener('scroll',function(){if(q)return;q=setTimeout(save,150);},{passive:true});
+window.addEventListener('pagehide',save);})();</script>
     <main class="rw-main">
         <header class="rw-header">
             <div style="display:flex;align-items:center;gap:.7rem;min-width:0">
