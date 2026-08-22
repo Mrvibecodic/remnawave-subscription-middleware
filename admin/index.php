@@ -1718,11 +1718,16 @@ function nav_link($key, $it, $active, $badge = false) {
             </div>
         </div>
     </aside>
-    <script>(function(){var n=document.querySelector('.rw-nav');if(!n)return;var K='submw_navscroll',v=null;try{v=sessionStorage.getItem(K);}catch(e){}
-if(v!==null&&v!==''){n.scrollTop=parseInt(v,10)||0;}else{var a=n.querySelector('a.active');if(a&&a.offsetTop+a.offsetHeight>n.clientHeight){var t=a.offsetTop-(n.clientHeight-a.offsetHeight)/2;n.scrollTop=t>0?t:0;}}
-var q=0;function save(){q=0;try{sessionStorage.setItem(K,String(n.scrollTop));}catch(e){}}
+    <script>(function(){var n=document.querySelector('.rw-nav');if(!n)return;var K='submw_navscroll',v=null,q=0,lock=1,t0=0;
+try{v=sessionStorage.getItem(K);}catch(e){}
+function put(){if(v==='b'){n.scrollTop=n.scrollHeight;}else if(v){n.scrollTop=parseFloat(v)||0;}else{var a=n.querySelector('a.active');if(a&&a.offsetTop+a.offsetHeight>n.clientHeight)n.scrollTop=Math.max(0,a.offsetTop-(n.clientHeight-a.offsetHeight)/2);}}
+function save(){q=0;if(lock)return;try{sessionStorage.setItem(K,n.scrollTop>=n.scrollHeight-n.clientHeight-1?'b':String(n.scrollTop));}catch(e){}}
+function free(){lock=0;}
+put();
+requestAnimationFrame(function tick(ts){if(!lock)return;put();if(!t0)t0=ts;if(ts-t0<600)requestAnimationFrame(tick);else free();});
 n.addEventListener('scroll',function(){if(q)return;q=setTimeout(save,150);},{passive:true});
-window.addEventListener('pagehide',save);})();</script>
+['wheel','pointerdown','keydown','touchstart'].forEach(function(e){window.addEventListener(e,free,{passive:true,once:true});});
+window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
     <main class="rw-main">
         <header class="rw-header">
             <div style="display:flex;align-items:center;gap:.7rem;min-width:0">
