@@ -56,6 +56,10 @@
                 </div>
             </div>
             <div class="set-row" style="margin-top:1.5rem">
+                <div class="set-info"><div class="set-t">Сбрасывать трафик на выходе из грейса</div><div class="set-d">Счётчик обнуляется, когда человек продлил подписку или грейс закончился: скачанное за грейс не съедает следующий оплаченный период, а статус <code>LIMITED</code> с юзера снимается. Выключите, если продаёте пакеты трафика, а не срок.</div></div>
+                <label class="switch"><input type="checkbox" name="grace_reset_traffic_exit" <?= grace_reset_traffic_on_exit()?'checked':'' ?>><span class="sl"></span></label>
+            </div>
+            <div class="set-row" style="margin-top:1.5rem">
                 <div class="set-info"><div class="set-t">Внешний сквад на время грейса</div><div class="set-d">Дополнительно к внутреннему: на грейс юзеру выдаётся внешний сквад (его <code>announce</code> и заголовки из Subscription Settings панели), после грейса возвращается родной.</div></div>
                 <label class="switch"><input type="checkbox" name="grace_external_enabled" <?= grace_external_enabled()?'checked':'' ?>><span class="sl"></span></label>
             </div>
