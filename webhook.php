@@ -169,8 +169,20 @@ if ($short_uuid !== '') {
             }
         }
     } elseif ($status === 'DISABLED' || $status === 'LIMITED') {
-        upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
-        $action = 'set_expired';
+        // Оплата во время грейса приходит со статусом LIMITED, если человек успел
+        // выбрать грейсовую квоту: панель снимает LIMITED сбросом трафика, а не новой
+        // датой. Без этой ветки продление попадало в set_expired, строка грейса
+        // оставалась, и оплативший сидел на заглушке «истекло» до конца грейса.
+        // DISABLED сюда не пускаем: там юзера выключил админ, поднимать его нельзя.
+        $renewed = $status === 'LIMITED' && $expire_future
+            && grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''));
+        if ($renewed) {
+            delete_override('shortuuid', $short_uuid, 'webhook');
+            $action = 'grace_renewed';
+        } else {
+            upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
+            $action = 'set_expired';
+        }
     } elseif ($is_active) {
         $renewed = grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''));
         delete_override('shortuuid', $short_uuid, 'webhook');
