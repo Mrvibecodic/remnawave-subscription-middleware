@@ -654,6 +654,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('grace_traffic_bytes', (string) (int) round(max(0, $gb) * 1073741824));
         $strat = (string) ($_POST['grace_traffic_strategy'] ?? 'NO_RESET');
         set_setting('grace_traffic_strategy', in_array($strat, ['NO_RESET', 'DAY', 'WEEK', 'MONTH', 'MONTH_ROLLING'], true) ? $strat : 'NO_RESET');
+        set_setting('grace_reset_traffic_exit', isset($_POST['grace_reset_traffic_exit']) ? '1' : '0');
         $gh = trim((string) ($_POST['grace_hwid_limit'] ?? ''));
         set_setting('grace_hwid_limit', $gh === '' ? '' : (string) max(0, (int) $gh));
         set_setting('grace_days', ($_POST['grace_days'] ?? '') === '' ? '' : (string) max(0, (int) $_POST['grace_days']));

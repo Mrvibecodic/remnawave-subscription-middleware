@@ -140,6 +140,22 @@ function grace_patch(&$existing, array $patch, &$err = '') {
     return remnawave_update_user($ref2, $patch, $err);
 }
 
+// Сброс счётчика трафика на выходе из грейса. К этому моменту в счётчике лежит
+// то, что человек скачал за грейс (на входе в грейс счётчик обнуляется, если задана
+// грейсовая квота), — без сброса этот расход съедал бы часть следующего оплаченного
+// периода, а при упоре в квоту панель ещё и держала бы статус LIMITED.
+// Зовём только ПОСЛЕ удачного PATCH и перед удалением строки: иначе зависший грейс
+// сбрасывал бы трафик на каждом ретрае, раздавая его тому, кто не платил.
+function grace_exit_reset_traffic(&$existing) {
+    if (!grace_reset_traffic_on_exit()) return;
+    $short = (string) ($existing['short_uuid'] ?? '');
+    $e   = '';
+    $ref = grace_ref($existing, $e);
+    if (!rw_ref_ok($ref)) { error_log('submw grace exit reset-traffic: ' . ($e ?: 'нет идентификатора пользователя') . ' (short=' . $short . ')'); return; }
+    $re = '';
+    if (!remnawave_reset_traffic($ref, $re)) error_log('submw grace exit reset-traffic: ' . $re . ' (short=' . $short . ')');
+}
+
 function grace_restore($existing) {
     if (!is_array($existing)) return false;
     $short  = (string) ($existing['short_uuid'] ?? '');
@@ -169,12 +185,13 @@ function grace_restore($existing) {
     }
 
     $e = '';
-    if (grace_patch($existing, $full, $e)) { grace_delete($short); return true; }
+    if (grace_patch($existing, $full, $e)) { grace_exit_reset_traffic($existing); grace_delete($short); return true; }
     error_log('submw grace end: ' . $e . ' (short=' . $short . '), retrying squads-only');
 
     $e2 = '';
     if (grace_patch($existing, ['activeInternalSquads' => $squads], $e2)) {
         error_log('submw grace end: squads-only restore ok for ' . $short);
+        grace_exit_reset_traffic($existing);
         grace_delete($short);
         return true;
     }
@@ -271,6 +288,7 @@ function grace_on_renew($short, $new_expire_str) {
     $e = '';
     $ok = grace_patch($existing, $patch, $e);
     if (!$ok) { error_log('submw grace renew: ' . $e); return false; }
+    grace_exit_reset_traffic($existing);
     grace_delete($short);
     return true;
 }

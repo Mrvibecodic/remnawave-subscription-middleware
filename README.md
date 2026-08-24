@@ -439,7 +439,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 | «Пользователи» — кнопка «удалить устройство» | `hwid-user-devices:delete` **(запись)** |
 | «Оверрайды», «Лог запросов» — подстановка имён | `users:list` |
 | «Юзер-лог» (лог вебхуков) — подстановка имён | `users:by-short-uuid` |
-| **«Грейс-сквад» и «Грейс-юзеры»** | `users:by-short-uuid`, `users:update` **(запись)**, `internal-squads:list`, `external-squads:list`; плюс `users:reset-traffic` **(запись)**, если задан лимит трафика грейса |
+| **«Грейс-сквад» и «Грейс-юзеры»** | `users:by-short-uuid`, `users:update` **(запись)**, `internal-squads:list`, `external-squads:list`; плюс `users:reset-traffic` **(запись)**, если задан лимит трафика грейса или включён сброс трафика на выходе из грейса |
 | «Доп. конфиги» | `users:by-short-uuid`, `internal-squads:list`, `hwid-user-devices:list-by-user`; плюс `subscription-template:list` и `subscription-template:get`, если включён инжект для xray-json |
 | «WG / AWG конфиги» | `users:list`, `users:by-short-uuid`, `users:by-username`, `internal-squads:list`, `hwid-user-devices:list`, `hwid-user-devices:list-by-user` |
 | «Слияние подписок» | `users:by-short-uuid`, `users:by-username` |
@@ -456,7 +456,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 | `/api/users/by-short-uuid/{shortUuid}` | GET | `users:by-short-uuid` | read | пользователь по ссылке подписки |
 | `/api/users/by-username/{username}` | GET | `users:by-username` | read | поиск по имени |
 | `/api/users` | PATCH | `users:update` | **write** | грейс-сквад: перевод в грейс и возврат обратно |
-| `/api/users/{userId}/actions/reset-traffic` | POST | `users:reset-traffic` | **write** | грейс-сквад: сброс трафика на входе в грейс |
+| `/api/users/{userId}/actions/reset-traffic` | POST | `users:reset-traffic` | **write** | грейс-сквад: сброс трафика на входе в грейс и на выходе из него |
 | `/api/hwid/devices` | GET | `hwid-user-devices:list` | read | подсчёт устройств для WG-пула |
 | `/api/hwid/devices/{userId}` | GET | `hwid-user-devices:list-by-user` | read | устройства пользователя |
 | `/api/hwid/devices/delete` | POST | `hwid-user-devices:delete` | **write** | удаление устройства по клику в админке |

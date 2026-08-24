@@ -82,6 +82,8 @@ function grace_traffic_strategy() {
     return in_array($s, $ok, true) ? $s : 'NO_RESET';
 }
 
+function grace_reset_traffic_on_exit() { return setting('grace_reset_traffic_exit', '1') === '1'; }
+
 function grace_hwid_limit_raw() { return trim((string) setting('grace_hwid_limit', '')); }
 
 function grace_announce() { return (string) setting('grace_announce', ''); }
