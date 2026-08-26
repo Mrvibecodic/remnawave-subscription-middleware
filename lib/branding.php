@@ -137,8 +137,8 @@ function brand_download_logo($url) {
         CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
         CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
     ]);
-    $cookie = remnawave_cookie();
-    if ($cookie !== '') curl_setopt($ch, CURLOPT_HTTPHEADER, ['Cookie: ' . $cookie]);
+    $auth = panel_auth_headers([]);
+    if ($auth) curl_setopt($ch, CURLOPT_HTTPHEADER, $auth);
     $body = curl_exec($ch);
     $ct   = strtolower((string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);

@@ -50,7 +50,7 @@ function subpage_external_proxy($path, $query) {
         }
     }
     $headers[] = 'x-remnawave-real-ip: ' . client_ip();
-    $headers = panel_cookie_header($headers);
+    $headers = panel_auth_headers($headers);
 
     $grabbed = [];
     $ch = curl_init();

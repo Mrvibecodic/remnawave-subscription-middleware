@@ -38,6 +38,9 @@
                 <div><label>API-токен панели <button type="button" class="qh" onclick="help('apikey')" aria-label="Справка">?</button></label><input type="password" name="remnawave_api_key" value="" placeholder="<?= remnawave_token() ? '•••••• задан' : 'не задан' ?>"></div>
                 <div><label>Секрет вебхука <button type="button" class="qh" onclick="help('whsecret')" aria-label="Справка">?</button></label><input type="password" name="webhook_secret" value="" placeholder="<?= webhook_secret() ? '•••••• задан' : 'не задан' ?>"></div>
             </div>
+            <div class="row">
+                <div><label>X-Api-Key (caddy-with-auth) <button type="button" class="qh" onclick="help('xapikey')" aria-label="Справка">?</button></label><input type="text" name="remnawave_xapikey" value="<?= h(remnawave_xapikey()) ?>" placeholder="если панель за Caddy with custom path; иначе пусто"></div>
+            </div>
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Таймаут проксирования, сек <button type="button" class="qh" onclick="help('timeout')" aria-label="Справка">?</button></div><div class="set-d">Сколько ждать ответа origin при запросе подписки.</div></div>
                 <input type="number" name="proxy_timeout" value="<?= h(proxy_timeout()) ?>">

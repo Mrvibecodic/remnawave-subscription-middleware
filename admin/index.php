@@ -30,6 +30,7 @@ if (!is_installed()) {
         $rw_url   = rtrim($f('remnawave_url'), '/');
         $rw_key   = $f('remnawave_api_key');
         $rw_cookie= $f('remnawave_cookie');
+        $rw_xkey  = $f('remnawave_xapikey');
         $wh_sec   = $f('webhook_secret');
         $au       = $f('admin_user');
         $ap       = (string) ($_POST['admin_pass'] ?? '');
@@ -64,6 +65,7 @@ if (!is_installed()) {
                     $set('remnawave_url', $rw_url);
                     $set('remnawave_api_key', $rw_key);
                     $set('remnawave_cookie', $rw_cookie);
+                    $set('remnawave_xapikey', $rw_xkey);
                     $set('sub_source', $mode);
                     if (($prefill['subpage_external_url'] ?? '') !== '') {
                         $set('subpage_external_url', rtrim((string) $prefill['subpage_external_url'], '/'));
@@ -158,6 +160,8 @@ if (!is_installed()) {
             <p class="muted">Полный адрес <b>со схемой</b> <code>https://</code> и без <code>/</code> на конце. Пример: <code>https://panel.example.com</code></p>
             <label>Cookie панели (если защита eGames; иначе пусто)</label><input name="remnawave_cookie" value="<?= h($_POST['remnawave_cookie'] ?? '') ?>" placeholder="aB3xK9pQ=Zt7mW2nR">
             <p class="muted">Нужна, только если панель закрыта cookie-защитой eGames reverse-proxy (без верной куки панель отдаёт 404); иначе оставьте пустым. Формат <code>имя=значение</code>.<br><b>Где взять:</b> проще всего в браузере — войдите в панель, F12 → Application (Storage) → Cookies → выберите домен панели → скопируйте защитную куку (её имя и значение). Либо в конфиге вашего eGames reverse-proxy (nginx/Caddy), где проверяется кука, или в выводе установщика eGames при настройке.</p>
+            <label>X-Api-Key (если панель за caddy-with-auth; иначе пусто)</label><input name="remnawave_xapikey" value="<?= h($_POST['remnawave_xapikey'] ?? '') ?>">
+            <p class="muted">Нужен, только если панель закрыта по официальной схеме Remnawave «Caddy with custom path» (caddy-with-auth) — тогда без верного заголовка <code>X-Api-Key</code> Caddy не пропускает запросы к <code>/api/*</code>, и грейс/HWID работать не будут. <b>Где взять:</b> портал авторизации Caddy → <code>https://панель/&lt;REMNAWAVE_CUSTOM_LOGIN_ROUTE&gt;/auth</code> → вкладка <b>API-keys</b> → создать ключ.</p>
             <label>API-токен (раздел API Tokens в панели)</label><input name="remnawave_api_key" value="<?= h($_POST['remnawave_api_key'] ?? '') ?>">
         </div>
         <div class="card">
@@ -688,6 +692,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('mirror_domain', trim($_POST['mirror_domain'] ?? ''));
         set_setting('remnawave_url', rtrim(trim($_POST['remnawave_url'] ?? ''), '/'));
         set_setting('remnawave_cookie', trim($_POST['remnawave_cookie'] ?? ''));
+        set_setting('remnawave_xapikey', trim($_POST['remnawave_xapikey'] ?? ''));
         if (($_POST['remnawave_api_key'] ?? '') !== '') set_setting('remnawave_api_key', trim($_POST['remnawave_api_key']));
         if (($_POST['webhook_secret'] ?? '') !== '')   set_setting('webhook_secret', trim($_POST['webhook_secret']));
         set_setting('trust_header_expire', isset($_POST['trust_header_expire']) ? '1' : '0');
@@ -1844,6 +1849,7 @@ var HELP={
 'mirror':{t:'Домен зеркала',h:'<p>Адрес, на котором стоит сама прослойка — именно его клиенты видят в ссылке подписки. Обычно подставляется автоматически, менять не нужно.</p><h4>Что вписать</h4><p>Только домен, <b>без</b> <code>https://</code>. Например: <code>mirror.example.com</code></p><h4>Совет: держите зеркало на РФ-сервере</h4><p>РФ-сервер почти всегда открывается из России без VPN — значит, ссылка подписки работает стабильно.</p><p>А на origin прослойка ходит со своей стороны, поэтому подписка обновляется, даже если у клиента origin заблокирован или спрятан за Cloudflare.</p>'},
 'rwurl':{t:'URL панели Remnawave',h:'<p>Адрес панели для обращения к её API — список пользователей, устройства HWID, авто-брендинг. Работает в паре с API-токеном ниже.</p><h4>Что вписать</h4><p>Полный адрес <b>с</b> <code>https://</code> и <b>без</b> <code>/</code> в конце. Например: <code>https://panel.example.com</code></p><p>Не путать с Origin: там — только домен, здесь — со схемой <code>https://</code>.</p><h4>Если панель рядом (Docker)</h4><p>Внутренний адрес контейнера, например <code>http://remnawave:3000</code> или <code>http://127.0.0.1:3000</code>.</p><h4>Если панель на другом сервере</h4><p>Её публичный домен с <code>https://</code> (наружу по http панель не отвечает).</p>'},
 'cookie':{t:'Cookie панели (eGames)',h:'<p>Нужна <b>только</b> если панель закрыта cookie-защитой reverse-proxy eGames — без правильной куки панель отвечает 404. Нет такой защиты — оставьте поле пустым.</p><h4>Что вписать</h4><p>Одну куку вида <code>имя=значение</code>. Например: <code>aB3xK9pQ=Zt7mW2nR</code></p><h4>Где её взять</h4><p>Проще всего из браузера: войдите в панель, откройте DevTools → Application → Cookies и скопируйте имя и значение защитной куки.</p><p>Также она есть в конфиге reverse-proxy eGames (nginx/Caddy) и в выводе его установщика. Проект: <code>github.com/eGamesAPI/remnawave-reverse-proxy</code></p><p>Прослойка добавляет эту куку в <b>каждый</b> запрос к панели, поэтому всё работает, даже если она стоит на отдельном сервере за eGames.</p>'},
+'xapikey':{t:'X-Api-Key (caddy-with-auth)',h:'<p>Нужен <b>только</b> если панель закрыта по официальной схеме Remnawave <b>Caddy with custom path</b> (caddy-with-auth): Caddy проверяет заголовок <code>X-Api-Key</code> и без него не пропускает запросы к <code>/api/*</code>. Нет такой защиты — оставьте поле пустым.</p><h4>Что вписать</h4><p>Значение ключа как есть, без имени заголовка.</p><h4>Где его взять</h4><p>Откройте портал авторизации Caddy: <code>https://панель/&lt;REMNAWAVE_CUSTOM_LOGIN_ROUTE&gt;/auth</code> → вкладка <b>API-keys</b> → создайте ключ и скопируйте его.</p><p>Прослойка добавляет заголовок в <b>каждый</b> запрос к панели (API, проксирование подписки, брендинг), поэтому грейс, HWID и остальные функции работают, даже если панель стоит на отдельном сервере за Caddy. Документация: <code>docs.rw/security/caddy-with-custom-path</code></p>'},
 'apikey':{t:'API-токен панели',h:'<p>Токен для доступа к API панели Remnawave.</p><h4>Где взять</h4><p>В панели → раздел <b>API Tokens</b>: создайте токен и вставьте сюда.</p><h4>Подсказка</h4><p>Чтобы не менять сохранённый токен, оставьте поле пустым.</p>'},
 'whsecret':{t:'Секрет вебхука',h:'<p>Ключ, которым панель подписывает вебхуки, а прослойка проверяет подпись (заголовок <code>X-Remnawave-Signature</code>).</p><h4>Что вписать</h4><p>Не короче 32 символов, только латиница и цифры. Должен точь-в-точь совпадать с <code>WEBHOOK_SECRET_HEADER</code> в <code>.env</code> панели.</p><h4>Где взять</h4><p>Придумайте сами — например командой <code>openssl rand -hex 32</code> — и пропишите тот же ключ в <code>.env</code> панели. Как включить вебхук — в подсказке у раздела «Вебхуки». Чтобы не менять сохранённый ключ, оставьте поле пустым.</p>'},
 'trust':{t:'Доверять заголовку expire',h:'<p>Делает заголовок <code>expire</code> от origin главным источником срока подписки.</p><h4>Лучше включить</h4><p>Тогда продление чинит себя само: новая дата от origin сразу снимает метку истечения, даже если вебхук о продлении потерялся. Выключайте только для отладки.</p>'},
