@@ -114,7 +114,7 @@ if ($to_panel) {
         $request_headers[] = 'x-forwarded-for: 127.0.0.1';
     }
     $request_headers[] = 'x-remnawave-real-ip: ' . client_ip();
-    $request_headers = panel_cookie_header($request_headers);
+    $request_headers = panel_auth_headers($request_headers);
 }
 
 $ua_hwid_value = '';

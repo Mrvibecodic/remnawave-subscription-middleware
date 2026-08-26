@@ -1,12 +1,22 @@
 <?php
 
-function panel_cookie_header(array $headers) {
+function panel_auth_headers(array $headers) {
     $cookie = remnawave_cookie();
-    if ($cookie === '') return $headers;
-    foreach ($headers as $i => $h) {
-        if (stripos($h, 'cookie:') === 0) { $headers[$i] = rtrim($h, "; \t") . '; ' . $cookie; return $headers; }
+    if ($cookie !== '') {
+        $found = false;
+        foreach ($headers as $i => $h) {
+            if (stripos($h, 'cookie:') === 0) { $headers[$i] = rtrim($h, "; \t") . '; ' . $cookie; $found = true; break; }
+        }
+        if (!$found) $headers[] = 'Cookie: ' . $cookie;
     }
-    $headers[] = 'Cookie: ' . $cookie;
+    $xkey = remnawave_xapikey();
+    if ($xkey !== '') {
+        foreach ($headers as $i => $h) {
+            if (stripos($h, 'x-api-key:') === 0) unset($headers[$i]);
+        }
+        $headers[] = 'X-Api-Key: ' . $xkey;
+        $headers = array_values($headers);
+    }
     return $headers;
 }
 
@@ -25,8 +35,7 @@ function remnawave_api_get($path) {
         $headers[] = 'x-forwarded-proto: https';
         $headers[] = 'x-forwarded-for: 127.0.0.1';
     }
-    $cookie = remnawave_cookie();
-    if ($cookie !== '') $headers[] = 'Cookie: ' . $cookie;
+    $headers = panel_auth_headers($headers);
 
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -77,8 +86,7 @@ function remnawave_api_request($method, $path, $body = null) {
         $headers[] = 'x-forwarded-proto: https';
         $headers[] = 'x-forwarded-for: 127.0.0.1';
     }
-    $cookie = remnawave_cookie();
-    if ($cookie !== '') $headers[] = 'Cookie: ' . $cookie;
+    $headers = panel_auth_headers($headers);
 
     $opt = [
         CURLOPT_URL            => $url,

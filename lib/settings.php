@@ -18,6 +18,8 @@ function remnawave_token() { return (string) setting('remnawave_api_key', ''); }
 
 function remnawave_cookie() { return trim((string) setting('remnawave_cookie', '')); }
 
+function remnawave_xapikey() { return trim((string) setting('remnawave_xapikey', '')); }
+
 function proxy_timeout() { return (int) (setting('proxy_timeout', '30') ?: 30); }
 
 function trust_header_expire() { return setting('trust_header_expire', '1') === '1'; }
