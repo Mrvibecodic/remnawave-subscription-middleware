@@ -89,7 +89,10 @@ function subpage_external_proxy($path, $query) {
     echo $resp;
 }
 
-function subpage_dispatch($path, $query) {
+// $wire_path — путь как он пришёл снаружи (с префиксом subscription-page,
+// если он есть): решение «браузер или нет» принимается по $path без префикса,
+// а к внешней странице уходит исходный адрес.
+function subpage_dispatch($path, $query, $wire_path = null) {
     if (!subpage_render_active()) return false;
     if (subpage_external_url() === '') return false;
 
@@ -98,7 +101,7 @@ function subpage_dispatch($path, $query) {
 
     if (strpos($p, '/assets/') === 0 || subpage_is_browser($ua)) {
         $GLOBALS['submw_skip_metric'] = true;
-        subpage_external_proxy($path, $query);
+        subpage_external_proxy($wire_path === null ? $path : $wire_path, $query);
         return true;
     }
     return false;

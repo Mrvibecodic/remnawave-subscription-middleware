@@ -25,13 +25,21 @@ if ($path !== '' && apisub_accept_active() && remnawave_url() !== '' && preg_mat
     $apisub_in = true;
 }
 
+// Префикс штатного subscription-page (CUSTOM_SUB_PREFIX, ишью #7): режем его
+// здесь, до лендинга, страницы подписки и разбора shortUuid, — иначе первым
+// сегментом пути оказывается сам префикс, и грейс/HWID/лог склеивают всех
+// пользователей в одну запись. На проводе к origin префикс возвращается.
+$prefix_in = false;
+if (!$apisub_in) [$path, $prefix_in] = sub_prefix_strip($path);
+$wire_path = ($prefix_in ? sub_prefix_seg() : '') . $path;
+
 if (empty($path) || $path === 'index.php') {
     header('X-Robots-Tag: noindex, nofollow');
     landing_render();
     exit();
 }
 
-if (!$apisub_in && subpage_dispatch($path, $query)) {
+if (!$apisub_in && subpage_dispatch($path, $query, $wire_path)) {
     exit();
 }
 
@@ -65,7 +73,7 @@ $to_panel = subpage_active() || $apisub_in;
 if ($to_panel) {
     $target_url = remnawave_url() . '/api/sub/' . $path;
 } else {
-    $target_url = 'https://' . $target_domain . '/' . $path;
+    $target_url = 'https://' . $target_domain . '/' . $wire_path;
 }
 if ($query) $target_url .= '?' . $query;
 

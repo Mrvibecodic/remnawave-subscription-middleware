@@ -72,6 +72,19 @@
                 <div class="set-info"><div class="set-t">Ссылки в формате <code>/api/sub/</code></div><div class="set-d">Показывать ссылки подписки во вкладке «Пользователи» как <code>/api/sub/&lt;shortUuid&gt;</code> вместо голого <code>/&lt;shortUuid&gt;</code>. Нужно, если по голой ссылке origin не отдаёт страницу подписки, а по <code>/api/sub/&lt;shortUuid&gt;</code> — отдаёт.</div></div>
                 <label class="switch"><input type="checkbox" name="sub_link_apisub" <?= sub_link_apisub()?'checked':'' ?>><span class="sl"></span></label>
             </div>
+            <?php $pfx_on = setting('sub_prefix_enabled', '0') === '1'; ?>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Префикс подписки (<code>CUSTOM_SUB_PREFIX</code>) <button type="button" class="qh" onclick="help('subprefix')" aria-label="Справка">?</button></div><div class="set-d">Если origin — штатный subscription-page на отдельном сервере с <code>CUSTOM_SUB_PREFIX</code>, ссылки панели выглядят как <code>/&lt;prefix&gt;/&lt;shortUuid&gt;</code>. Включите, чтобы прослойка снимала префикс перед определением shortUuid (грейс, HWID, лог, доп. конфиги) и возвращала его в запросе к origin. Ссылки без префикса продолжают работать как раньше.</div></div>
+                <label class="switch"><input type="checkbox" name="sub_prefix_enabled" id="subPrefixOn" <?= $pfx_on?'checked':'' ?>><span class="sl"></span></label>
+            </div>
+            <div class="row" id="rowSubPrefix"<?= $pfx_on ? '' : ' style="display:none"' ?>>
+                <div><label>Значение префикса</label><input type="text" name="sub_prefix" value="<?= h((string) setting('sub_prefix', '')) ?>" placeholder="sub" autocomplete="off"><div class="muted" style="font-size:.8rem;margin-top:.3rem">Как в <code>.env</code> subscription-page: без слэшей по краям, например <code>sub</code>.</div></div>
+                <div></div>
+            </div>
+            <div class="set-row" id="rowSubLinkPrefix"<?= $pfx_on ? '' : ' style="display:none"' ?>>
+                <div class="set-info"><div class="set-t">Ссылки с префиксом</div><div class="set-d">Показывать ссылки во вкладке «Пользователи» как <code>/&lt;prefix&gt;/&lt;shortUuid&gt;</code> — один в один с тем, что выдаёт панель. Выключено — ссылки прослойки остаются голыми <code>/&lt;shortUuid&gt;</code> (или <code>/api/sub/</code>, если включён тумблер выше); работают оба варианта.</div></div>
+                <label class="switch"><input type="checkbox" name="sub_link_prefix" <?= setting('sub_link_prefix', '0') === '1'?'checked':'' ?>><span class="sl"></span></label>
+            </div>
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Обезличивать 404</div><div class="set-d">На неизвестный путь или несуществующий UUID отдаётся <b>собственный пустой 404</b> без тела и заголовков панели — probe видит обычное «страницы нет», как у любого сайта, без признаков что за фронтом что-то есть. Держите выключенным, если клиентам нужен проксируемый ответ панели.</div></div>
                 <label class="switch"><input type="checkbox" name="mask_notfound" <?= mask_notfound()?'checked':'' ?>><span class="sl"></span></label>
@@ -120,6 +133,14 @@
             if(rowUrl) rowUrl.style.display=(mode()==='panel')?'':'none';
         }
         sel.addEventListener('change',sync);
+        sync();
+    })();
+    (function(){
+        var on=document.getElementById('subPrefixOn');
+        if(!on) return;
+        var rows=[document.getElementById('rowSubPrefix'),document.getElementById('rowSubLinkPrefix')];
+        function sync(){rows.forEach(function(r){if(r) r.style.display=on.checked?'':'none';});}
+        on.addEventListener('change',sync);
         sync();
     })();
     </script>

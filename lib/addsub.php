@@ -182,7 +182,7 @@ function addsub_build_sub_url($short) {
         return $base === '' ? '' : $base . '/api/sub/' . $enc;
     }
     $dom = target_domain();
-    return $dom === '' ? '' : 'https://' . $dom . '/' . $enc;
+    return $dom === '' ? '' : 'https://' . $dom . '/' . sub_prefix_seg() . $enc;
 }
 
 function addsub_normalize_host($h) {
@@ -216,6 +216,7 @@ function addsub_rewrite_selfurl($url) {
     if ($host === '' || !isset(addsub_self_hosts()[$host])) return $url;
     $path = ltrim((string) ($p['path'] ?? ''), '/');
     if (preg_match('~^api/sub/(.+)$~is', $path, $m)) $path = $m[1];
+    else [$path] = sub_prefix_strip($path);
     if ($path === '') return $url;
     if (function_exists('subpage_active') && subpage_active()) {
         $base = remnawave_url();
@@ -225,7 +226,7 @@ function addsub_rewrite_selfurl($url) {
     } else {
         $dom = target_domain();
         if ($dom === '' || addsub_normalize_host($dom) === $host) return $url;
-        $new = 'https://' . $dom . '/' . $path;
+        $new = 'https://' . $dom . '/' . sub_prefix_seg() . $path;
     }
     if (!empty($p['query'])) $new .= '?' . $p['query'];
     return $new;
