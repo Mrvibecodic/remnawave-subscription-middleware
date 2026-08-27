@@ -135,7 +135,7 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
                 $exp_ts = !empty($u['expireAt']) ? strtotime((string) $u['expireAt']) : null;
                 if ($exp_ts === false) $exp_ts = null;
                 $exp = $exp_ts !== null ? (date('Y-m-d', $exp_ts) . ' в ' . date('H:i', $exp_ts)) : '—';
-                $mirror_link = ($mirror !== '' && $su !== '') ? ('https://' . $mirror . '/' . (sub_link_apisub() ? 'api/sub/' : '') . $su) : '';
+                $mirror_link = ($mirror !== '' && $su !== '') ? ('https://' . $mirror . '/' . (sub_link_prefix() ? sub_prefix_seg() : (sub_link_apisub() ? 'api/sub/' : '')) . $su) : '';
                 $ov  = $ov_index[$su] ?? null;
                 $ovr = $ov['reason'] ?? '';
 
