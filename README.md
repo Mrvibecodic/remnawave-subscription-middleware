@@ -1,5 +1,7 @@
 # Remnawave Subscription Middleware
 
+[![Telegram — группа](https://img.shields.io/badge/Telegram-%D0%B3%D1%80%D1%83%D0%BF%D0%BF%D0%B0-2aabee?logo=telegram&logoColor=white)](https://t.me/+2lmP1yhxpCE3MDcy)
+[![Telegram — чат](https://img.shields.io/badge/Telegram-%D1%87%D0%B0%D1%82-2aabee?logo=telegram&logoColor=white)](https://t.me/+8BJQXYXYLqM4YWYy)
 ![status: beta](https://img.shields.io/badge/status-beta-e2b341)
 ![PHP 8.1+](https://img.shields.io/badge/PHP-8.1%2B-7c9cff)
 ![docker: ghcr.io](https://img.shields.io/badge/docker-ghcr.io-2496ed)
@@ -8,7 +10,9 @@
 
 Прослойка для подписок [Remnawave](https://remna.st): встаёт перед панелью и на лету правит выдачу подписки — заголовки под приложения, заглушки для заблокированных устройств, мягкое истечение («грейс-сквад»). Основной сценарий — зеркало для России: клиент ходит на ваш РФ-домен, а прослойка проксирует запрос на origin-домен панели. В комплекте — веб-админка поверх API панели и пересылка вебхуков на несколько адресов.
 
-💬 **Чат проекта:** https://t.me/+GTkYbwX3alg0ZGEy
+> [!TIP]
+> **Telegram:** [группа проекта](https://t.me/+2lmP1yhxpCE3MDcy) — новости и релизы ·
+> [чат](https://t.me/+8BJQXYXYLqM4YWYy) — вопросы, помощь с установкой, баг-репорты.
 
 > [!WARNING]
 > **Проект в стадии активной разработки (beta).** Возможны ошибки, часть поведения
@@ -557,4 +561,4 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 
 ---
 
-💬 **Чат проекта:** https://t.me/+GTkYbwX3alg0ZGEy
+💬 **Telegram:** [группа проекта](https://t.me/+2lmP1yhxpCE3MDcy) · [чат](https://t.me/+8BJQXYXYLqM4YWYy)
