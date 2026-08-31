@@ -42,7 +42,11 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .cdbg .n{font-variant-numeric:tabular-nums;flex:0 0 auto}
     .cdbg .g{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
     .cdbg .lbl{font-weight:600;margin:.5rem 0 .15rem;font-size:.74rem}
-    .cdbg pre{margin:0;padding:.45rem .55rem;font-size:.7rem;line-height:1.35;max-height:13rem;overflow:auto;white-space:pre-wrap;word-break:break-all;background:var(--bg2);border:1px solid var(--line)}
+    /* Раскрытая запись не должна ехать вбок: перенос по любому месту, включая
+       длинные прогоны пробелов и табуляций из выравнивания запроса
+       (`break-spaces`), а горизонтальная прокрутка запрещена совсем — с таким
+       переносом переезжать вбок уже нечему. */
+    .cdbg pre{margin:0;padding:.45rem .55rem;font-size:.7rem;line-height:1.35;max-width:100%;max-height:13rem;overflow-x:hidden;overflow-y:auto;white-space:break-spaces;word-break:break-all;overflow-wrap:anywhere;background:var(--bg2);border:1px solid var(--line)}
     .capps{display:flex;gap:.7rem;flex-wrap:wrap;margin:.9rem 0 0}
     .capp{flex:1 1 16rem;min-width:0;display:flex;align-items:center;gap:.7rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);color:var(--text);text-decoration:none;transition:border-color .18s,background .18s,transform .18s,box-shadow .18s}
     .capp:hover{border-color:var(--accent);background:var(--accent-light);transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.12)}
