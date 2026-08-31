@@ -460,6 +460,24 @@ function chan_names_map($cache = null) {
     return is_array($c['map'] ?? null) ? $c['map'] : [];
 }
 
+/**
+ * Кого показываем по имени: и таблица канала, и журнал диагностики. В журнал
+ * попадают отказы — в том числе от подписок, которые ни разу не прошли и в
+ * chan_state поэтому не значатся, — а без имени по отказу не понять, кто это.
+ */
+function chan_names_wanted($limit = 500) {
+    $out = [];
+    foreach (chan_state_shorts($limit) as $s) $out[$s] = true;
+    if (chan_ensure() && ($p = db())) {
+        try {
+            $r = $p->query("SELECT DISTINCT short_uuid FROM chan_debug WHERE short_uuid <> '' LIMIT " . (int) $limit)->fetchAll(PDO::FETCH_COLUMN);
+            foreach ((array) $r as $s) if ((string) $s !== '') $out[(string) $s] = true;
+        } catch (Throwable $e) {}
+    }
+
+    return array_keys($out);
+}
+
 /** shortUuid всех, кто уже ходил по каналу, — свежие сверху. */
 function chan_state_shorts($limit = 500) {
     if (!chan_ensure() || !($p = db())) return [];
@@ -481,7 +499,7 @@ function chan_names_stale($cache = null) {
     if (($now - (int) ($c['try'] ?? 0)) < chan_names_retry()) return false;
     if (($now - (int) ($c['ts'] ?? 0)) >= chan_names_ttl()) return true;
     $map = chan_names_map($c);
-    foreach (chan_state_shorts() as $s) if (!array_key_exists($s, $map)) return true;
+    foreach (chan_names_wanted() as $s) if (!array_key_exists($s, $map)) return true;
     return false;
 }
 
@@ -489,8 +507,8 @@ function chan_names_stale($cache = null) {
  * Освежить имена. Рендер вкладки сюда не ходит и читает только кэш.
  * Неудача прежние имена не стирает: они висят до следующей удачной попытки.
  *
- * В карту кладутся все, кто есть в chan_state, — в том числе удалённые из
- * панели, с пустым именем. Иначе отсутствующий ключ каждый раз читался бы как
+ * В карту кладутся все, кого мы собирались показать, — в том числе удалённые
+ * из панели, с пустым именем. Иначе отсутствующий ключ каждый раз читался бы как
  * «кэш неполон» и гнал в панель новый обход каждые две минуты.
  */
 function chan_names_refresh($force = false) {
@@ -508,7 +526,7 @@ function chan_names_refresh($force = false) {
         return chan_names_map($c);
     }
     $map = [];
-    foreach (chan_state_shorts() as $s) $map[$s] = '';
+    foreach (chan_names_wanted() as $s) $map[$s] = '';
     foreach ($users as $u) {
         if (!is_array($u)) continue;
         $su = (string) ($u['shortUuid'] ?? '');
@@ -783,11 +801,17 @@ function chan_intercept() {
     $head = $dbg ? chan_debug_incoming_headers() : [];
 
     $why = null;
-    $ctx = chan_open($kid, $spid, $blob, 'chan_lookup_token', chan_keys(), null, $why);
+    // Адрес подписки достаём из самого поиска метки: у отказа его иначе нет, и
+    // в журнале не видно, чья метка не расшифровалась или пришла повторно.
+    // Повторный chan_lookup_token тут звать нельзя — на промахе он тянет
+    // полный обход панели.
+    $found = null;
+    $look  = static function ($k) use (&$found) { $found = chan_lookup_token($k); return $found; };
+    $ctx = chan_open($kid, $spid, $blob, $look, chan_keys(), null, $why);
     if ($ctx === null) {
         if ($dbg) {
             chan_debug_record(['ok' => 0, 'why' => $why, 'kid' => $kid, 'spid' => $spid,
-                               'req_path' => $uri, 'req_head' => $head]);
+                               'short_uuid' => (string) $found, 'req_path' => $uri, 'req_head' => $head]);
         }
 
         return null;
