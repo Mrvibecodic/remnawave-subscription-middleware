@@ -55,6 +55,12 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .cwho .nm{color:var(--text-strong);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cwho .nm.pend{color:var(--muted);font-weight:500}
     .cwho .su{font-family:ui-monospace,monospace;font-size:.75rem;color:var(--muted)}
+    /* Тумблеры в две колонки: карточка перестаёт уезжать вниз на страницу.
+       Отступ снимаем обоими селекторами сразу — `.set-row+.set-row` той же
+       специфичности, и полагаться на порядок правил тут не хочется. */
+    .ctg{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem;align-items:stretch}
+    .ctg .set-row,.ctg .set-row+.set-row{margin:0}
+    @media(max-width:1000px){.ctg{grid-template-columns:1fr}}
     </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Работает только с Clod Clash</h2>
@@ -135,6 +141,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
         <form method="post" data-autosave>
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_clod">
+            <div class="ctg">
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Принимать защищённые запросы</div><div class="set-d">Главный выключатель. Пока выключен, адрес <code>/c1/…</code> для прослойки — обычный мусорный путь, и ничего не меняется вообще.</div></div>
                 <label class="switch"><input type="checkbox" name="chan_enabled" <?= setting('chan_enabled', '0') === '1' ? 'checked' : '' ?> <?= $chan_ok ? '' : 'disabled' ?>><span class="sl"></span></label>
@@ -150,6 +157,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Закрыть HTML-страницу подписки для защищённых</div><div class="set-d">Страница в браузере показывает адрес подписки целиком, то есть отменяет весь смысл канала. Включается отдельно, потому что ссылку иногда открывают руками.</div></div>
                 <label class="switch"><input type="checkbox" name="chan_page_404" <?= setting('chan_page_404', '0') === '1' ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
             </div>
             <label style="margin-top:1.25rem">Что увидит клиент, откатившийся на открытый HTTP</label>
             <textarea name="chan_hard_remarks" rows="4"><?= h($chan_marks) ?></textarea>
