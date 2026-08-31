@@ -61,6 +61,8 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .ctg{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem;align-items:stretch}
     .ctg .set-row,.ctg .set-row+.set-row{margin:0}
     @media(max-width:1000px){.ctg{grid-template-columns:1fr}}
+    .cdbg-h{margin:1.1rem 0 .6rem}
+    .cdbg-h>h2{font-size:.92rem}
     </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Работает только с Clod Clash</h2>
@@ -222,25 +224,36 @@ $chan_plu   = function ($n, $one, $few, $many) {
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
-            <form method="post" data-autosave style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+            <form method="post" data-autosave>
                 <input type="hidden" name="csrf" value="<?= h($token) ?>">
                 <input type="hidden" name="action" value="save_clod_debug">
-                <label class="chk" style="margin:0"><input type="checkbox" name="chan_debug" <?= chan_debug_on() ? 'checked' : '' ?>> <span>Писать журнал</span></label>
-                <label style="margin:0;display:flex;gap:.4rem;align-items:center">хранить <input type="number" name="chan_debug_keep" min="5" max="500" value="<?= (int) chan_debug_keep() ?>" style="width:5.5rem"> записей</label>
-                <button type="submit">💾</button>
+                <div class="ctg" style="margin-top:0">
+                    <div class="set-row">
+                        <div class="set-info"><div class="set-t">Писать журнал</div><div class="set-d">Включайте на время разбора и выключайте после: в запись попадает расшифрованное тело подписки.</div></div>
+                        <label class="switch"><input type="checkbox" name="chan_debug" data-reload <?= chan_debug_on() ? 'checked' : '' ?>><span class="sl"></span></label>
+                    </div>
+                    <div class="set-row">
+                        <div class="set-info"><div class="set-t">Сколько записей хранить</div><div class="set-d">Лишнее вытесняется самым старым. От 5 до 500.</div></div>
+                        <input type="number" name="chan_debug_keep" min="5" max="500" value="<?= (int) chan_debug_keep() ?>">
+                    </div>
+                </div>
             </form>
-            <p class="muted" style="margin:.6rem 0 0;font-size:.8rem">В записи попадает <b>расшифрованное тело подписки</b> и карточка устройства — то самое, что канал прячет от посредника. Включайте на время разбора и выключайте после. Пишутся и удачные запросы, и отказы, включая чужие: по ним видно, что вообще стучится по <code>/c1/…</code>.</p>
-            <?php if (chan_debug_on()): ?>
-                <form method="post" style="margin:.6rem 0 0">
-                    <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                    <input type="hidden" name="action" value="clod_debug_clear">
-                    <button type="submit" class="ghost">🗑 Очистить</button>
-                </form>
-            <?php endif; ?>
+            <p class="muted" style="margin:.7rem 0 0;font-size:.8rem">В записи попадает <b>расшифрованное тело подписки</b> и карточка устройства — то самое, что канал прячет от посредника. Пишутся и удачные запросы, и отказы, включая чужие: по ним видно, что вообще стучится по <code>/c1/…</code>.</p>
             <?php if (!$chan_dbg): ?>
                 <p class="muted" style="margin:.8rem 0 0;font-size:.8rem"><?= chan_debug_on() ? 'Пока пусто — журнал ждёт первого запроса по каналу.' : 'Журнал выключен.' ?></p>
             <?php else: ?>
-            <div class="cdbg" style="margin-top:.7rem">
+            <div class="loghead cdbg-h">
+                <h2>Журнал · <?= count($chan_dbg) ?></h2>
+                <div class="loghead-r">
+                    <form method="post">
+                        <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                        <input type="hidden" name="action" value="clod_debug_clear">
+                        <button type="submit" class="ghost">🗑 Очистить</button>
+                    </form>
+                    <div id="cdbg_pgrTop" class="pgr"></div>
+                </div>
+            </div>
+            <div class="cdbg" id="cdbgBody">
                 <?php foreach ($chan_dbg as $d): $ok = (int) $d['ok'] === 1; ?>
                 <details>
                     <summary>
@@ -271,6 +284,14 @@ $chan_plu   = function ($n, $one, $few, $many) {
                 </details>
                 <?php endforeach; ?>
             </div>
+            <div id="cdbg_pgrBot" class="pgr-bot"></div>
+            <script>
+            // Тот же постраничник, что в логах запросов и вебхуков: 10/25/50/все,
+            // выбор запоминается в localStorage. Записи журнала — не строки
+            // таблицы, а раскрывающиеся блоки, но LogPager работает с любыми
+            // детьми контейнера: строк с td[colspan] среди них нет.
+            (function(){ if(window.LogPager) LogPager({bodyId:'cdbgBody', topId:'cdbg_pgrTop', botId:'cdbg_pgrBot', storeKey:'pg_clod_dbg'}); })();
+            </script>
             <?php endif; ?>
         </div>
     </section>
