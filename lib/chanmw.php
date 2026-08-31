@@ -433,6 +433,92 @@ function chan_stars_refresh($force = false) {
     return $cache;
 }
 
+// ------------------------------------------------- имена учётных записей ---
+
+/**
+ * Имена подписок для таблицы «кто ходит защищённо».
+ *
+ * В самом канале имени нет и быть не может: прослойка знает только shortUuid,
+ * а имя живёт в панели. Ходить туда на каждое открытие вкладки незачем —
+ * поэтому кэш в настройках и обновление отдельным ajax'ом после загрузки, тем
+ * же путём, что звёзды клиентов и версия панели.
+ */
+function chan_names_ttl() { return 900; }
+
+// Молчащую панель не переспрашиваем чаще, чем раз в две минуты, иначе её
+// таймаут превращается в ожидание на каждое открытие вкладки.
+function chan_names_retry() { return 120; }
+
+function chan_names_cache() {
+    $j = json_decode((string) setting('chan_names', '{}'), true);
+    return is_array($j) ? $j : [];
+}
+
+/** Карта shortUuid → имя из кэша. */
+function chan_names_map($cache = null) {
+    $c = is_array($cache) ? $cache : chan_names_cache();
+    return is_array($c['map'] ?? null) ? $c['map'] : [];
+}
+
+/** shortUuid всех, кто уже ходил по каналу, — свежие сверху. */
+function chan_state_shorts($limit = 500) {
+    if (!chan_ensure() || !($p = db())) return [];
+    try {
+        $r = $p->query('SELECT short_uuid FROM chan_state ORDER BY last_seen DESC LIMIT ' . (int) $limit)->fetchAll(PDO::FETCH_COLUMN);
+        return is_array($r) ? array_map('strval', $r) : [];
+    } catch (Throwable $e) { return []; }
+}
+
+/**
+ * Пора ли идти в панель: протух кэш либо в нём нет кого-то из таблицы.
+ * Вторая половина важнее первой — подписка, сходившая по каналу впервые,
+ * иначе осталась бы без имени до конца TTL.
+ */
+function chan_names_stale($cache = null) {
+    if (remnawave_url() === '' || remnawave_token() === '') return false;
+    $c   = is_array($cache) ? $cache : chan_names_cache();
+    $now = time();
+    if (($now - (int) ($c['try'] ?? 0)) < chan_names_retry()) return false;
+    if (($now - (int) ($c['ts'] ?? 0)) >= chan_names_ttl()) return true;
+    $map = chan_names_map($c);
+    foreach (chan_state_shorts() as $s) if (!array_key_exists($s, $map)) return true;
+    return false;
+}
+
+/**
+ * Освежить имена. Рендер вкладки сюда не ходит и читает только кэш.
+ * Неудача прежние имена не стирает: они висят до следующей удачной попытки.
+ *
+ * В карту кладутся все, кто есть в chan_state, — в том числе удалённые из
+ * панели, с пустым именем. Иначе отсутствующий ключ каждый раз читался бы как
+ * «кэш неполон» и гнал в панель новый обход каждые две минуты.
+ */
+function chan_names_refresh($force = false) {
+    $c = chan_names_cache();
+    if (!$force && !chan_names_stale($c)) return chan_names_map($c);
+    $now = time();
+    // Отметку о попытке пишем до запроса, а не после: панель может молчать до
+    // таймаута, и следующее открытие вкладки не должно ждать её ещё раз.
+    $c['try'] = $now;
+    set_setting('chan_names', json_encode($c, JSON_UNESCAPED_UNICODE));
+    $err   = '';
+    $users = remnawave_all_users($err);
+    if ($err !== '') {
+        error_log('submw chan names: ' . $err);
+        return chan_names_map($c);
+    }
+    $map = [];
+    foreach (chan_state_shorts() as $s) $map[$s] = '';
+    foreach ($users as $u) {
+        if (!is_array($u)) continue;
+        $su = (string) ($u['shortUuid'] ?? '');
+        if ($su === '' || !array_key_exists($su, $map)) continue;
+        $map[$su] = (string) ($u['username'] ?? '');
+    }
+    set_setting('chan_names', json_encode(['ts' => $now, 'try' => $now, 'map' => $map], JSON_UNESCAPED_UNICODE));
+    return $map;
+}
+
 // ----------------------------------------------------------------- повторы ---
 
 /**

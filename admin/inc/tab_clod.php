@@ -13,6 +13,11 @@ $chan_dbg   = chan_debug_on() ? chan_debug_list(chan_debug_keep()) : [];
 // страницы и только если кэш протух — вкладка не должна ждать сеть.
 $chan_stars = chan_stars_cache();
 $chan_upd   = chan_stars_stale($chan_stars);
+// Имена учётных записей — тем же путём: рендер читает только кэш, за панелью
+// уходит ajax после загрузки. В канале имени нет, прослойка знает shortUuid.
+$chan_ncache = chan_names_cache();
+$chan_names  = chan_names_map($chan_ncache);
+$chan_nupd   = chan_names_stale($chan_ncache);
 $chan_plu   = function ($n, $one, $few, $many) {
     $t = abs((int) $n) % 100;
     if ($t > 10 && $t < 20) return $many;
@@ -46,6 +51,10 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .capp .st[hidden]{display:none}
     .capp:hover .st{border-color:var(--accent);color:var(--accent-text)}
     .capp .st svg{color:var(--amber)}
+    .cwho{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+    .cwho .nm{color:var(--text-strong);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cwho .nm.pend{color:var(--muted);font-weight:500}
+    .cwho .su{font-family:ui-monospace,monospace;font-size:.75rem;color:var(--muted)}
     </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Работает только с Clod Clash</h2>
@@ -171,12 +180,14 @@ $chan_plu   = function ($n, $one, $few, $many) {
         <?php if ((int) $chan_st['downgrades'] > 0): ?>
         <div class="warn">Есть откаты на открытый HTTP. Сам клиент так не делает, поэтому каждый случай — либо старая версия приложения, либо посредник, который режет защищённый путь.</div>
         <?php endif; ?>
-        <table class="logtbl">
-            <thead><tr><th>Подписка</th><th>Первый раз</th><th>Последний</th><th>Запросов</th><th>Откатов</th><th>Клиент</th><th>Жёстко</th></tr></thead>
+        <table class="logtbl" id="clodWho" data-upd="<?= $chan_nupd ? '1' : '0' ?>">
+            <thead><tr><th>Учётная запись</th><th>Первый раз</th><th>Последний</th><th>Запросов</th><th>Откатов</th><th>Клиент</th><th>Жёстко</th></tr></thead>
             <tbody>
-            <?php foreach ($chan_rows as $r): ?>
+            <?php foreach ($chan_rows as $r):
+                $c_su = (string) $r['short_uuid'];
+                $c_nm = (string) ($chan_names[$c_su] ?? ''); ?>
                 <tr>
-                    <td><code style="font-size:.78rem"><?= h((string) $r['short_uuid']) ?></code></td>
+                    <td><span class="cwho"><span class="nm<?= $c_nm === '' ? ' pend' : '' ?>" data-unm="<?= h($c_su) ?>"><?= $c_nm === '' ? '—' : h($c_nm) ?></span><span class="su"><?= h($c_su) ?></span></span></td>
                     <td class="ct-time muted" data-ts="<?= (int) $r['first_seen'] ?>"><?= h(date('Y-m-d H:i', (int) $r['first_seen'])) ?></td>
                     <td class="ct-time muted" data-ts="<?= (int) $r['last_seen'] ?>"><?= h(date('Y-m-d H:i', (int) $r['last_seen'])) ?></td>
                     <td><?= (int) $r['hits'] ?></td>
@@ -334,6 +345,22 @@ $chan_plu   = function ($n, $one, $few, $many) {
                 if(e)paint(el,e.n);
             });
         }).catch(function(){}).then(fallback);
+    })();
+    // Имена учётных записей: разметка уже отрисована из серверного кэша (15
+    // минут), здесь только освежаем — и только когда серверу пора в панель.
+    // Не ответила — остаётся то, что было, прочерк вместо имени.
+    (function(){
+        var t=document.getElementById('clodWho');
+        if(!t||t.getAttribute('data-upd')!=='1')return;
+        fetch('?ajax=clod_names').then(function(r){return r.json();}).then(function(d){
+            if(!d||!d.ok||!d.names)return;
+            t.querySelectorAll('.nm[data-unm]').forEach(function(el){
+                var n=d.names[el.getAttribute('data-unm')];
+                if(!n)return;
+                el.textContent=n;
+                el.classList.remove('pend');
+            });
+        }).catch(function(){});
     })();
     (function(){function p(n){return(n<10?'0':'')+n;}document.querySelectorAll('.ct-time[data-ts]').forEach(function(el){var ep=parseInt(el.getAttribute('data-ts'),10);if(!ep)return;var d=new Date(ep*1000);if(isNaN(d.getTime()))return;el.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());});})();
     </script>
