@@ -34,6 +34,11 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .cdbg summary{cursor:pointer;padding:.34rem .2rem;display:flex;gap:.55rem;align-items:center;list-style:none;overflow:hidden;white-space:nowrap}
     .cdbg summary::-webkit-details-marker{display:none}
     .cdbg summary:hover{background:var(--accent-light)}
+    .cdbg .w{flex:0 0 auto;width:11rem;min-width:0;overflow:hidden;text-overflow:ellipsis}
+    .cdbg .w .nm{color:var(--text-strong);font-weight:600}
+    /* Пока имя не приехало (или подписки уже нет в панели) — в той же колонке
+       стоит сам адрес, моноширинным и приглушённо. */
+    .cdbg .w .nm.pend{font-family:ui-monospace,monospace;font-size:.72rem;font-weight:500;color:var(--muted)}
     .cdbg .n{font-variant-numeric:tabular-nums;flex:0 0 auto}
     .cdbg .g{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
     .cdbg .lbl{font-weight:600;margin:.5rem 0 .15rem;font-size:.74rem}
@@ -260,12 +265,20 @@ $chan_plu   = function ($n, $one, $few, $many) {
                 </div>
             </div>
             <div class="cdbg" id="cdbgBody">
-                <?php foreach ($chan_dbg as $d): $ok = (int) $d['ok'] === 1; ?>
+                <?php foreach ($chan_dbg as $d):
+                    $ok   = (int) $d['ok'] === 1;
+                    $d_su = (string) ($d['short_uuid'] ?? '');
+                    $d_nm = $d_su !== '' ? (string) ($chan_names[$d_su] ?? '') : ''; ?>
                 <details>
                     <summary>
                         <span class="n ct-time muted" data-ts="<?= (int) $d['ts'] ?>"><?= h(date('H:i:s', (int) $d['ts'])) ?></span>
                         <span class="n"><?= $ok ? '✅' : '⛔' ?></span>
-                        <span class="g"><?php if ($ok): ?><code><?= h((string) $d['short_uuid']) ?></code> · ответ <?= (int) $d['res_st'] ?> · тело <?= (int) $d['body_bytes'] ?> б → шифр <?= (int) $d['wire_bytes'] ?> симв<?php else: ?><span class="muted"><?= h(chan_debug_why($d['why'])) ?></span><?php endif; ?></span>
+                        <?php if ($d_su !== ''): ?>
+                        <span class="w" data-tip="<?= h($d_su) ?>"><span class="nm<?= $d_nm === '' ? ' pend' : '' ?>" data-unm="<?= h($d_su) ?>"><?= h($d_nm !== '' ? $d_nm : $d_su) ?></span></span>
+                        <?php else: ?>
+                        <span class="w muted" data-tip="метка не опознана — по ней не найти ни подписки, ни имени">адрес неизвестен</span>
+                        <?php endif; ?>
+                        <span class="g"><?php if ($ok): ?>ответ <?= (int) $d['res_st'] ?> · тело <?= (int) $d['body_bytes'] ?> б → шифр <?= (int) $d['wire_bytes'] ?> симв<?php else: ?><span class="muted"><?= h(chan_debug_why($d['why'])) ?></span><?php endif; ?></span>
                     </summary>
                     <div class="lbl">1. Запрос снаружи — что видит посредник</div>
                     <pre><?= h((string) $d['req_path']) ?></pre>
@@ -389,7 +402,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
         if(!t||t.getAttribute('data-upd')!=='1')return;
         fetch('?ajax=clod_names').then(function(r){return r.json();}).then(function(d){
             if(!d||!d.ok||!d.names)return;
-            t.querySelectorAll('.nm[data-unm]').forEach(function(el){
+            document.querySelectorAll('.nm[data-unm]').forEach(function(el){
                 var n=d.names[el.getAttribute('data-unm')];
                 if(!n)return;
                 el.textContent=n;
