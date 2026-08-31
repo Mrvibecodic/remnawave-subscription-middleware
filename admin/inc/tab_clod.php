@@ -63,6 +63,12 @@ $chan_plu   = function ($n, $one, $few, $many) {
     @media(max-width:1000px){.ctg{grid-template-columns:1fr}}
     .cdbg-h{margin:1.1rem 0 .6rem}
     .cdbg-h>h2{font-size:.92rem}
+    /* .btn поднимает min-height до 38px, а постраничник рядом — 36px. */
+    .cdbg-h .btn{min-height:36px}
+    /* Состояние жёсткого режима было видно только текстом кнопки: две одинаковые
+       пилюли, «вкл» и «выкл», и не понять, это состояние или действие. */
+    .chard{display:inline-flex;align-items:center;justify-content:center;min-width:3.6rem;padding:.35rem .7rem;font-size:.82rem}
+    .chard.on{border-color:var(--accent);color:var(--accent-text);background:var(--accent-light)}
     </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Работает только с Clod Clash</h2>
@@ -117,7 +123,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
         <form method="post" style="margin-top:1rem">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="clod_reindex">
-            <button type="submit" class="ghost">↻ Пересобрать индекс меток</button>
+            <button type="submit" class="btn ghost">↻ Пересобрать индекс меток</button>
             <span class="hint">Обычно не нужно: созданного и удалённого проводит вебхук, а полный обход прослойка делает сама, когда встречает незнакомую метку.</span>
         </form>
     </div>
@@ -175,7 +181,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
         <form method="post" onsubmit="return confirm('Сменить ключ прослойки?')">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="clod_rotate">
-            <button type="submit" class="ghost">🔑 Сменить ключ</button>
+            <button type="submit" class="btn ghost">🔑 Сменить ключ</button>
         </form>
     </div>
 
@@ -209,7 +215,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
                             <input type="hidden" name="action" value="clod_hard">
                             <input type="hidden" name="short" value="<?= h((string) $r['short_uuid']) ?>">
                             <input type="hidden" name="on" value="<?= (int) $r['hard'] === 1 ? '0' : '1' ?>">
-                            <button type="submit" class="ghost"><?= (int) $r['hard'] === 1 ? 'вкл' : 'выкл' ?></button>
+                            <button type="submit" class="btn ghost chard<?= (int) $r['hard'] === 1 ? ' on' : '' ?>" data-tip="<?= (int) $r['hard'] === 1 ? 'жёсткий режим включён — нажмите, чтобы выключить' : 'жёсткий режим выключен — нажмите, чтобы включить' ?>"><?= (int) $r['hard'] === 1 ? 'вкл' : 'выкл' ?></button>
                         </form>
                     </td>
                 </tr>
@@ -248,7 +254,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
                     <form method="post">
                         <input type="hidden" name="csrf" value="<?= h($token) ?>">
                         <input type="hidden" name="action" value="clod_debug_clear">
-                        <button type="submit" class="ghost">🗑 Очистить</button>
+                        <button type="submit" class="btn ghost">🗑 Очистить</button>
                     </form>
                     <div id="cdbg_pgrTop" class="pgr"></div>
                 </div>
