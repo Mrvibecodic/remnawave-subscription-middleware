@@ -425,6 +425,13 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    // Имена учётных записей для таблицы «кто ходит защищённо». Тем же паттерном:
+    // вкладка рисуется из кэша (15 минут), а в панель ходит уже этот запрос.
+    if ($a === 'clod_names') {
+        echo json_encode(['ok' => true, 'names' => chan_names_refresh(!empty($_GET['force']))], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'panelstats') {
         $perr = '';
         $age = !empty($_GET['force']) ? 0 : 45;
