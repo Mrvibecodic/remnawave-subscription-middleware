@@ -229,9 +229,8 @@ function grace_on_expired($short, $username = null, $allow_start = true) {
     // Панель 3.x не отдаёт uuid — идентификатор берём через rw_user_ref (uuid или id).
     $ref = rw_user_ref($u);
     if (!is_array($u) || !rw_ref_ok($ref)) { error_log('submw grace start get: ' . $e); return 'grace_err'; }
-    $squads      = grace_squads_from_user($u);
-    if (!$squads) { error_log('submw grace start: empty squads for ' . $short . ', skipping grace'); return 'grace_off'; }
-    if (count($squads) === 1 && $squads[0] === grace_squad_uuid()) { error_log('submw grace start: user already only in grace squad ' . $short . ', skipping grace'); return 'grace_off'; }
+    $squads      = array_values(array_diff(grace_squads_from_user($u), [grace_squad_uuid()]));
+    if (!$squads) { error_log('submw grace start: empty or grace-only squads for ' . $short . ', skipping grace'); return 'grace_off'; }
     $bytes       = (int) ($u['trafficLimitBytes'] ?? 0);
     $strategy    = (string) ($u['trafficLimitStrategy'] ?? 'NO_RESET');
     $orig_expire = (string) ($u['expireAt'] ?? '');
