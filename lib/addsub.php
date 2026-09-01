@@ -663,7 +663,16 @@ function addsub_stub_singbox($a, $label) {
 
 function addsub_stub_xray($a, $label) {
     $oa = json_decode((string) $a);
-    $node = ['protocol' => 'blackhole', 'settings' => (object) [], 'tag' => $label];
+    $node = [
+        'protocol'       => 'vless',
+        'tag'            => $label,
+        'settings'       => ['vnext' => [[
+            'address' => '0.0.0.0',
+            'port'    => 1,
+            'users'   => [['id' => '00000000-0000-0000-0000-000000000000', 'encryption' => 'none']],
+        ]]],
+        'streamSettings' => ['network' => 'tcp', 'security' => 'none'],
+    ];
     if (is_object($oa) && isset($oa->outbounds) && is_array($oa->outbounds)) {
         $oa->outbounds[] = $node;
     } elseif (is_array($oa)) {
