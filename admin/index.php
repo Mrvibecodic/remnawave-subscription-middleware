@@ -1362,14 +1362,34 @@ if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
         $wh_matched = (int) $wh_st->fetchColumn();
         if (isset($_GET['wh_csv'])) {
             // Выгрузка текущей выборки целиком (по SQL-фильтру, не по видимой странице).
-            $wh_st = $pdo->prepare("SELECT ts, event, short_uuid, username, status, sig_ok, action FROM webhook_log WHERE $wh_where ORDER BY id DESC LIMIT 20000");
+            // wh_mask — обезличивание: shortUuid по сути пароль от подписки, имя и uuid
+            // сквадов — чужие данные, а файл уходит из админки наружу. Метка стабильна
+            // внутри одной выгрузки, поэтому строки между собой сопоставляются.
+            $wh_mask = isset($_GET['wh_mask']);
+            $wh_st = $pdo->prepare("SELECT ts, event, short_uuid, username, status, sig_ok, action, meta FROM webhook_log WHERE $wh_where ORDER BY id DESC LIMIT 20000");
             $wh_st->execute($wh_args);
             header('Content-Type: text/csv; charset=utf-8');
-            header('Content-Disposition: attachment; filename="webhook_log_' . ($tab === 'whlog' ? 'users' : 'other') . '_' . date('Ymd_His') . '.csv"');
+            header('Content-Disposition: attachment; filename="webhook_log_' . ($tab === 'whlog' ? 'users' : 'other') . ($wh_mask ? '_anon' : '') . '_' . date('Ymd_His') . '.csv"');
             $wh_out = fopen('php://output', 'w');
             fwrite($wh_out, "\xEF\xBB\xBF"); // BOM, чтобы Excel понял UTF-8
-            fputcsv($wh_out, ['ts', 'event', 'short_uuid', 'username', 'status', 'sig_ok', 'action'], ';', '"', '\\');
-            foreach ($wh_st as $r) fputcsv($wh_out, [$r['ts'], $r['event'], $r['short_uuid'], $r['username'], $r['status'], $r['sig_ok'], $r['action']], ';', '"', '\\');
+            fputcsv($wh_out, ['ts', 'event', 'short_uuid', 'username', 'status', 'sig_ok', 'action', 'changed', 'by', 'diff', 'snapshot'], ';', '"', '\\');
+            foreach ($wh_st as $r) {
+                $wm = whlog_meta($r);
+                $wsnap = $wm ? $wm['s'] : null;
+                $wdiff = $wm ? $wm['d'] : [];
+                if ($wh_mask) { $wsnap = whlog_mask_snapshot($wsnap); $wdiff = whlog_mask_diff($wdiff); }
+                $wby = ($wm === null || $wm['mw'] === null) ? '' : ($wm['mw'] ? ('прослойка' . ($wm['src'] !== '' ? ' / ' . $wm['src'] : '')) : 'извне');
+                fputcsv($wh_out, [
+                    $r['ts'], $r['event'],
+                    $wh_mask ? whlog_mask_id($r['short_uuid'], 'su') : $r['short_uuid'],
+                    $wh_mask ? whlog_mask_id($r['username'], 'un') : $r['username'],
+                    $r['status'], $r['sig_ok'], $r['action'],
+                    $wdiff ? implode(',', array_map('whlog_field_label', array_keys($wdiff))) : '',
+                    $wby,
+                    $wdiff ? json_encode($wdiff, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '',
+                    $wsnap ? json_encode($wsnap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '',
+                ], ';', '"', '\\');
+            }
             exit();
         }
         $wh_st = $pdo->prepare("SELECT *, " . sql_epoch('ts') . " AS ts_epoch FROM webhook_log WHERE $wh_where ORDER BY id DESC LIMIT 3000");

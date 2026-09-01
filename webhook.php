@@ -104,7 +104,7 @@ if ($event === 'user_hwid_devices.added' || $event === 'user_hwid_devices.delete
         wglease_hwid_delete($hw_uuid, $hw_hwid, $hw_short);
     }
     if ($hw_short !== '') squadconf_cache_drop($hw_short);
-    log_webhook($event, ($hw_short !== '' ? $hw_short : null), $hw_name, $hw_stat, true, $event === 'user_hwid_devices.added' ? 'hwid_add' : 'hwid_del');
+    log_webhook($event, ($hw_short !== '' ? $hw_short : null), $hw_name, $hw_stat, true, $event === 'user_hwid_devices.added' ? 'hwid_add' : 'hwid_del', $hw_usr);
     http_response_code(200);
     echo 'OK';
     if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
@@ -193,7 +193,7 @@ if ($short_uuid !== '') {
     }
 }
 
-log_webhook($event, $short_uuid ?: null, $username, $status, true, $action);
+log_webhook($event, $short_uuid ?: null, $username, $status, true, $action, $data);
 
 // Отвечаем панели сразу и закрываем соединение, а пересылку делаем после —
 // чтобы медленный получатель не задерживал ответ и панель не ретраила событие.

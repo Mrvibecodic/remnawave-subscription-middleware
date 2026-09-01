@@ -65,6 +65,33 @@ function ddl_forward_log($drv) {
     )";
 }
 
+function ddl_panel_write_log($drv) {
+    if ($drv === 'mysql') {
+        return "CREATE TABLE IF NOT EXISTS panel_write_log (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            short_uuid VARCHAR(191) NULL,
+            ref_key VARCHAR(16) NULL,
+            ref_val VARCHAR(191) NULL,
+            op VARCHAR(32) NULL,
+            src VARCHAR(32) NULL,
+            fields VARCHAR(255) NULL,
+            body MEDIUMTEXT NULL,
+            ok TINYINT(1) NOT NULL DEFAULT 0,
+            http_code INT NULL,
+            error VARCHAR(255) NULL,
+            PRIMARY KEY (id), KEY idx_pw_ts (ts), KEY idx_pw_short (short_uuid)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    }
+    return "CREATE TABLE IF NOT EXISTS panel_write_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        short_uuid TEXT NULL, ref_key TEXT NULL, ref_val TEXT NULL,
+        op TEXT NULL, src TEXT NULL, fields TEXT NULL, body TEXT NULL,
+        ok INTEGER NOT NULL DEFAULT 0, http_code INTEGER NULL, error TEXT NULL
+    )";
+}
+
 function install_statements($drv = null) {
     $drv = $drv ?: db_driver();
     if ($drv === 'mysql') return install_statements_mysql();
@@ -129,11 +156,15 @@ function install_statements_sqlite() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             event TEXT NULL, short_uuid TEXT NULL, username TEXT NULL, status TEXT NULL,
-            sig_ok INTEGER NOT NULL DEFAULT 0, action TEXT NULL
+            sig_ok INTEGER NOT NULL DEFAULT 0, action TEXT NULL, meta TEXT NULL
         )",
         "CREATE INDEX IF NOT EXISTS idx_wh_ts ON webhook_log(ts)",
+        "CREATE INDEX IF NOT EXISTS idx_wh_short ON webhook_log(short_uuid)",
         ddl_forward_log('sqlite'),
         "CREATE INDEX IF NOT EXISTS idx_fw_ts ON forward_log(ts)",
+        ddl_panel_write_log('sqlite'),
+        "CREATE INDEX IF NOT EXISTS idx_pw_ts ON panel_write_log(ts)",
+        "CREATE INDEX IF NOT EXISTS idx_pw_short ON panel_write_log(short_uuid)",
         "CREATE TABLE IF NOT EXISTS grace_users (
             short_uuid TEXT NOT NULL PRIMARY KEY, user_uuid TEXT NOT NULL, username TEXT NULL,
             orig_squads TEXT NULL, orig_traffic_bytes INTEGER NOT NULL DEFAULT 0,
@@ -188,10 +219,11 @@ function install_statements_mysql() {
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             event VARCHAR(64) NULL, short_uuid VARCHAR(191) NULL, username VARCHAR(191) NULL, status VARCHAR(32) NULL,
-            sig_ok TINYINT(1) NOT NULL DEFAULT 0, action VARCHAR(64) NULL,
-            PRIMARY KEY (id), KEY idx_wh_ts (ts)
+            sig_ok TINYINT(1) NOT NULL DEFAULT 0, action VARCHAR(64) NULL, meta MEDIUMTEXT NULL,
+            PRIMARY KEY (id), KEY idx_wh_ts (ts), KEY idx_wh_short (short_uuid)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ddl_forward_log('mysql'),
+        ddl_panel_write_log('mysql'),
         "CREATE TABLE IF NOT EXISTS grace_users (
             short_uuid VARCHAR(191) NOT NULL, user_uuid VARCHAR(191) NOT NULL, username VARCHAR(191) NULL,
             orig_squads MEDIUMTEXT NULL, orig_traffic_bytes BIGINT NOT NULL DEFAULT 0,
@@ -241,6 +273,20 @@ function ensure_forward_log() {
     if (!($p = db())) return;
     try { $p->exec(ddl_forward_log(db_driver())); }
     catch (Throwable $e) { error_log('submw ensure_forward_log: ' . $e->getMessage()); }
+}
+
+function ensure_panel_write_log() {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    if (!($p = db())) return;
+    try {
+        $p->exec(ddl_panel_write_log(db_driver()));
+        if (db_driver() !== 'mysql') {
+            $p->exec('CREATE INDEX IF NOT EXISTS idx_pw_ts ON panel_write_log(ts)');
+            $p->exec('CREATE INDEX IF NOT EXISTS idx_pw_short ON panel_write_log(short_uuid)');
+        }
+    } catch (Throwable $e) { error_log('submw ensure_panel_write_log: ' . $e->getMessage()); }
 }
 
 function cfg() {
