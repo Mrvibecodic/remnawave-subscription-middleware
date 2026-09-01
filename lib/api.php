@@ -301,6 +301,15 @@ function remnawave_get_user_by_username($username, &$error = '') {
     return is_array($resp) ? $resp : null;
 }
 
+// Кто из нашего кода сейчас пишет в панель. Сам PATCH знает только идентификатор
+// пользователя, а разбирать журнал потом надо по shortUuid и по причине, поэтому
+// вызывающий выставляет контекст перед обращением к панели.
+function api_ctx($src = null, $short = null) {
+    static $ctx = ['src' => '', 'short' => ''];
+    if ($src !== null) $ctx = ['src' => (string) $src, 'short' => (string) $short];
+    return $ctx;
+}
+
 // $http_code возвращается по ссылке: грейсу нужно отличить 400/404 (протухший
 // идентификатор — стоит перерезолвить и повторить) от прочих ошибок.
 function remnawave_update_user($ref, array $fields, &$error = '', &$http_code = 0) {
@@ -310,8 +319,12 @@ function remnawave_update_user($ref, array $fields, &$error = '', &$http_code = 
     $body = array_merge([$ref['key'] => rw_ref_body_value($ref)], $fields);
     [$ok, $code, $data, $e] = remnawave_api_request('PATCH', '/api/users', $body);
     $http_code = (int) $code;
-    if (!$ok) { $error = $e ?: ('HTTP ' . $code . ' ' . json_encode($data, JSON_UNESCAPED_UNICODE)); return false; }
-    return true;
+    if (!$ok) $error = $e ?: ('HTTP ' . $code . ' ' . json_encode($data, JSON_UNESCAPED_UNICODE));
+    if (function_exists('log_panel_write')) {
+        $ctx = api_ctx();
+        log_panel_write($ctx['short'], $ref, 'patch', $ctx['src'], $fields, $ok, (int) $code, $error);
+    }
+    return $ok ? true : false;
 }
 
 function remnawave_reset_traffic($ref, &$error = '') {
@@ -319,8 +332,12 @@ function remnawave_reset_traffic($ref, &$error = '') {
     $ref = rw_ref_coerce($ref);
     if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
     [$ok, $code, $data, $e] = remnawave_api_request('POST', '/api/users/' . rawurlencode($ref['val']) . '/actions/reset-traffic');
-    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return false; }
-    return true;
+    if (!$ok) $error = $e ?: ('HTTP ' . $code);
+    if (function_exists('log_panel_write')) {
+        $ctx = api_ctx();
+        log_panel_write($ctx['short'], $ref, 'reset_traffic', $ctx['src'], [], $ok, (int) $code, $error);
+    }
+    return $ok ? true : false;
 }
 
 

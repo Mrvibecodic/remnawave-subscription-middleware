@@ -434,14 +434,288 @@ function reqlog_plural($n) {
     return 'обновлений';
 }
 
-function log_webhook($event, $short_uuid, $username, $status, $sig_ok, $action) {
+// --- Снимок состояния пользователя и «до → после» ---
+//
+// Панель кладёт в payload user-вебхука полное состояние пользователя, поэтому
+// снимок стоит ноль обращений к API. «До» берём из предыдущей записи журнала по
+// тому же shortUuid: так у события видно не только что оно было, но и что именно
+// поменялось. Расход трафика в дифф не входит — он растёт сам по себе и забивал
+// бы список; в снимке он есть.
+
+function whlog_ensure_meta() {
+    static $done = false;
+    if ($done) return;
+    $done = true;
     if (!($p = db())) return;
+    if (setting('whlog_meta_col', '') === '1') return;
+    try { $p->exec('ALTER TABLE webhook_log ADD COLUMN meta ' . (db_driver() === 'mysql' ? 'MEDIUMTEXT' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
+    try {
+        $p->exec(db_driver() === 'mysql'
+            ? 'ALTER TABLE webhook_log ADD INDEX idx_wh_short (short_uuid)'
+            : 'CREATE INDEX IF NOT EXISTS idx_wh_short ON webhook_log(short_uuid)');
+    } catch (Throwable $e) {}
+    set_setting('whlog_meta_col', '1');
+}
+
+function whlog_snap_fields() { return ['sq', 'tl', 'ts', 'exp', 'hw', 'ex', 'tag', 'rst', 'rev']; }
+
+function whlog_field_label($k) {
+    $m = [
+        'sq'   => 'Внутренние сквады',
+        'tl'   => 'Лимит трафика',
+        'ts'   => 'Стратегия сброса',
+        'exp'  => 'Истекает',
+        'hw'   => 'Лимит устройств',
+        'ex'   => 'Внешний сквад',
+        'tag'  => 'Тег',
+        'rst'  => 'Сброс трафика',
+        'rev'  => 'Подписка отозвана',
+        'used' => 'Израсходовано',
+        'upd'  => 'Изменён в панели',
+    ];
+    return $m[$k] ?? $k;
+}
+
+function whlog_snapshot($data) {
+    if (!is_array($data)) return null;
+    $sq = [];
+    foreach (($data['activeInternalSquads'] ?? []) as $s) {
+        if (count($sq) >= 20) break;
+        if (is_array($s)) $sq[] = ['u' => (string) ($s['uuid'] ?? ''), 'n' => (string) ($s['name'] ?? '')];
+        elseif (is_string($s) && $s !== '') $sq[] = ['u' => $s, 'n' => ''];
+    }
+    $tr  = is_array($data['userTraffic'] ?? null) ? $data['userTraffic'] : [];
+    $str = function ($v) { return ($v === null || $v === '') ? null : (string) $v; };
+    $int = function ($v) { return $v === null ? null : (int) $v; };
+    $snap = [
+        'sq'   => $sq,
+        'tl'   => array_key_exists('trafficLimitBytes', $data) ? $int($data['trafficLimitBytes']) : null,
+        'ts'   => $str($data['trafficLimitStrategy'] ?? null),
+        'exp'  => $str($data['expireAt'] ?? null),
+        'hw'   => array_key_exists('hwidDeviceLimit', $data) ? $int($data['hwidDeviceLimit']) : null,
+        'ex'   => $str($data['externalSquadUuid'] ?? null),
+        'tag'  => $str($data['tag'] ?? null),
+        'rst'  => $str($data['lastTrafficResetAt'] ?? null),
+        'rev'  => $str($data['subRevokedAt'] ?? null),
+        'used' => isset($tr['usedTrafficBytes']) ? (int) $tr['usedTrafficBytes'] : null,
+        'upd'  => $str($data['updatedAt'] ?? null),
+    ];
+    foreach ($snap as $k => $v) { if ($v === null || $v === []) unset($snap[$k]); }
+    return $snap ?: null;
+}
+
+function whlog_squad_ids($sq) {
+    $out = [];
+    foreach ((array) $sq as $s) { if (is_array($s) && (string) ($s['u'] ?? '') !== '') $out[] = (string) $s['u']; }
+    sort($out);
+    return $out;
+}
+
+function whlog_squad_names($sq) {
+    $out = [];
+    foreach ((array) $sq as $s) {
+        if (!is_array($s)) continue;
+        $out[] = (string) ($s['n'] ?? '') !== '' ? (string) $s['n'] : (string) ($s['u'] ?? '');
+    }
+    sort($out);
+    return $out;
+}
+
+function whlog_diff($before, $after) {
+    if (!is_array($before) || !is_array($after)) return [];
+    $out = [];
+    foreach (whlog_snap_fields() as $k) {
+        $b = $before[$k] ?? null;
+        $a = $after[$k] ?? null;
+        if ($k === 'sq') {
+            if (whlog_squad_ids($b) === whlog_squad_ids($a)) continue;
+            $out['sq'] = [whlog_squad_names($b), whlog_squad_names($a)];
+            continue;
+        }
+        if ($b === $a) continue;
+        $out[$k] = [$b, $a];
+    }
+    return $out;
+}
+
+function whlog_prev_snapshot($short) {
+    if ((string) $short === '' || !($p = db())) return null;
+    try {
+        $st = $p->prepare("SELECT meta FROM webhook_log WHERE short_uuid = ? AND meta IS NOT NULL AND meta <> '' ORDER BY id DESC LIMIT 1");
+        $st->execute([(string) $short]);
+        $v = $st->fetchColumn();
+        if (!is_string($v) || $v === '') return null;
+        $j = json_decode($v, true);
+        return isset($j['s']) && is_array($j['s']) ? $j['s'] : null;
+    } catch (Throwable $e) { return null; }
+}
+
+// --- Журнал наших записей в панель ---
+//
+// Прослойка пишет в панель тремя вызовами (PATCH пользователя, сброс трафика,
+// удаление устройства). Журнал нужен, чтобы у изменения был автор: событие от
+// панели само по себе не говорит, чьё оно, а по этому журналу видно, что PATCH
+// с ровно такими полями только что ушёл от нас.
+
+function panel_write_field_map() {
+    return [
+        'activeInternalSquads' => 'sq',
+        'trafficLimitBytes'    => 'tl',
+        'trafficLimitStrategy' => 'ts',
+        'expireAt'             => 'exp',
+        'hwidDeviceLimit'      => 'hw',
+        'externalSquadUuid'    => 'ex',
+        'tag'                  => 'tag',
+    ];
+}
+
+function log_panel_write($short, $ref, $op, $src, $body, $ok, $http_code = 0, $error = '') {
+    ensure_panel_write_log();
+    if (!($p = db())) return;
+    $body = is_array($body) ? $body : [];
+    $map  = panel_write_field_map();
+    $keys = [];
+    foreach (array_keys($body) as $k) { if (isset($map[$k])) $keys[] = $map[$k]; }
+    if ($op === 'reset_traffic') $keys[] = 'rst';
+    try {
+        $st = $p->prepare('INSERT INTO panel_write_log (short_uuid, ref_key, ref_val, op, src, fields, body, ok, http_code, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $st->execute([
+            (string) $short !== '' ? mb_substr((string) $short, 0, 191) : null,
+            is_array($ref) ? mb_substr((string) ($ref['key'] ?? ''), 0, 16) : null,
+            is_array($ref) ? mb_substr((string) ($ref['val'] ?? ''), 0, 191) : null,
+            mb_substr((string) $op, 0, 32),
+            (string) $src !== '' ? mb_substr((string) $src, 0, 32) : null,
+            $keys ? mb_substr(implode(',', $keys), 0, 255) : null,
+            $body ? mb_substr((string) json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0, 1000) : null,
+            $ok ? 1 : 0,
+            $http_code ? (int) $http_code : null,
+            (string) $error !== '' ? mb_substr((string) $error, 0, 255) : null,
+        ]);
+        if (random_int(1, 100) === 1) {
+            $p->exec("DELETE FROM panel_write_log WHERE id < (
+                SELECT id FROM (SELECT id FROM panel_write_log ORDER BY id DESC LIMIT 1 OFFSET 20000) t
+            )");
+        }
+    } catch (Throwable $e) { error_log('submw log_panel_write: ' . $e->getMessage()); }
+}
+
+// Наш ли это PATCH: ищем свою удачную запись по тому же shortUuid за последние
+// $sec секунд и сверяем набор полей. Совпадение по времени без совпадения по
+// полям — это уже чужое изменение, приехавшее следом за нашим.
+function panel_write_recent($short, $sec = 300) {
+    ensure_panel_write_log();
+    if ((string) $short === '' || !($p = db())) return null;
+    try {
+        $st = $p->prepare('SELECT src, fields, op FROM panel_write_log WHERE short_uuid = ? AND ok = 1 AND ' . sql_epoch('ts') . ' >= ? ORDER BY id DESC LIMIT 3');
+        $st->execute([(string) $short, time() - (int) $sec]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        return $rows ?: null;
+    } catch (Throwable $e) { return null; }
+}
+
+function whlog_attribute(array $diff, $short) {
+    if (!$diff) return null;
+    $rows = panel_write_recent($short);
+    if (!$rows) return 0;
+    $changed = array_keys($diff);
+    foreach ($rows as $r) {
+        $sent = array_filter(explode(',', (string) ($r['fields'] ?? '')));
+        if (!array_diff($changed, $sent)) return ['src' => (string) ($r['src'] ?? ''), 'op' => (string) ($r['op'] ?? '')];
+    }
+    return 0;
+}
+
+// --- Обезличивание для выгрузки ---
+//
+// Журнал уезжает из админки файлом: в нём shortUuid — это фактически пароль от
+// подписки, а имя пользователя и uuid сквадов — чужие данные. Заменяем их
+// короткой солёной меткой: она стабильна внутри одной выгрузки, поэтому строки
+// по-прежнему можно сопоставлять между собой, но восстановить исходник нельзя.
+function whlog_mask_id($v, $prefix = 'id') {
+    $v = (string) $v;
+    if ($v === '') return '';
+    static $salt = null;
+    if ($salt === null) $salt = bin2hex(random_bytes(8));
+    return $prefix . ':' . substr(hash('sha256', $salt . $v), 0, 8);
+}
+
+function whlog_mask_diff($diff) {
+    if (!is_array($diff)) return $diff;
+    if (isset($diff['ex']) && is_array($diff['ex'])) {
+        foreach ($diff['ex'] as $i => $v) $diff['ex'][$i] = ($v === null || $v === '') ? $v : whlog_mask_id($v, 'ex');
+    }
+    return $diff;
+}
+
+function whlog_is_date($k) { return $k === 'exp' || $k === 'rst' || $k === 'rev'; }
+
+function whlog_epoch($v) {
+    if ($v === null || $v === '') return 0;
+    $t = strtotime((string) $v);
+    return $t === false ? 0 : (int) $t;
+}
+
+function whlog_fmt_value($k, $v) {
+    if ($v === null || $v === '') return '—';
+    if (is_array($v)) return $v ? implode(', ', array_map('strval', $v)) : '—';
+    if ($k === 'tl' || $k === 'used') {
+        $n = (float) $v;
+        if ($n <= 0) return $k === 'tl' ? 'без лимита' : '0';
+        $u = ['Б', 'КиБ', 'МиБ', 'ГиБ', 'ТиБ'];
+        $i = 0;
+        while ($n >= 1024 && $i < count($u) - 1) { $n /= 1024; $i++; }
+        return ($i === 0 ? (string) (int) $n : number_format($n, 2, '.', ' ')) . ' ' . $u[$i];
+    }
+    return (string) $v;
+}
+
+function whlog_meta($row) {
+    $m = json_decode((string) ($row['meta'] ?? ''), true);
+    if (!is_array($m)) return null;
+    return [
+        's'  => is_array($m['s'] ?? null) ? $m['s'] : null,
+        'd'  => is_array($m['d'] ?? null) ? $m['d'] : [],
+        'mw' => array_key_exists('mw', $m) ? (int) $m['mw'] : null,
+        'src' => (string) ($m['src'] ?? ''),
+    ];
+}
+
+function whlog_mask_snapshot($snap) {
+    if (!is_array($snap)) return $snap;
+    if (isset($snap['sq']) && is_array($snap['sq'])) {
+        foreach ($snap['sq'] as $i => $s) {
+            if (is_array($s) && (string) ($s['u'] ?? '') !== '') $snap['sq'][$i]['u'] = whlog_mask_id($s['u'], 'sq');
+        }
+    }
+    if (!empty($snap['ex'])) $snap['ex'] = whlog_mask_id($snap['ex'], 'ex');
+    return $snap;
+}
+
+function log_webhook($event, $short_uuid, $username, $status, $sig_ok, $action, $data = null) {
+    if (!($p = db())) return;
+    whlog_ensure_meta();
+    $meta = null;
+    try {
+        $snap = whlog_snapshot($data);
+        if ($snap !== null) {
+            $m = ['s' => $snap];
+            $diff = whlog_diff(whlog_prev_snapshot($short_uuid), $snap);
+            if ($diff) {
+                $m['d'] = $diff;
+                $who = whlog_attribute($diff, $short_uuid);
+                if (is_array($who)) { $m['mw'] = 1; if ($who['src'] !== '') $m['src'] = $who['src']; }
+                elseif ($who === 0) $m['mw'] = 0;
+            }
+            $enc = json_encode($m, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (is_string($enc) && strlen($enc) <= 8000) $meta = $enc;
+        }
+    } catch (Throwable $e) { error_log('submw whlog snapshot: ' . $e->getMessage()); }
     try {
         $stmt = $p->prepare(
-            'INSERT INTO webhook_log (event, short_uuid, username, status, sig_ok, action)
-             VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO webhook_log (event, short_uuid, username, status, sig_ok, action, meta)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$event, $short_uuid, $username, $status, $sig_ok ? 1 : 0, $action]);
+        $stmt->execute([$event, $short_uuid, $username, $status, $sig_ok ? 1 : 0, $action, $meta]);
         if (random_int(1, 100) === 1) {
             $p->exec("DELETE FROM webhook_log WHERE id < (
                 SELECT id FROM (SELECT id FROM webhook_log ORDER BY id DESC LIMIT 1 OFFSET 20000) t

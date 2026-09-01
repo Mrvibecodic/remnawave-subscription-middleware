@@ -86,9 +86,11 @@ CREATE TABLE IF NOT EXISTS webhook_log (
     username TEXT NULL,
     status TEXT NULL,
     sig_ok INTEGER NOT NULL DEFAULT 0,
-    action TEXT NULL
+    action TEXT NULL,
+    meta TEXT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_wh_ts ON webhook_log(ts);
+CREATE INDEX IF NOT EXISTS idx_wh_short ON webhook_log(short_uuid);
 
 CREATE TABLE IF NOT EXISTS forward_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,6 +102,23 @@ CREATE TABLE IF NOT EXISTS forward_log (
     error TEXT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_fw_ts ON forward_log(ts);
+
+CREATE TABLE IF NOT EXISTS panel_write_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    short_uuid TEXT NULL,
+    ref_key TEXT NULL,
+    ref_val TEXT NULL,
+    op TEXT NULL,
+    src TEXT NULL,
+    fields TEXT NULL,
+    body TEXT NULL,
+    ok INTEGER NOT NULL DEFAULT 0,
+    http_code INTEGER NULL,
+    error TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_pw_ts ON panel_write_log(ts);
+CREATE INDEX IF NOT EXISTS idx_pw_short ON panel_write_log(short_uuid);
 
 CREATE TABLE IF NOT EXISTS grace_users (
     short_uuid TEXT NOT NULL PRIMARY KEY,

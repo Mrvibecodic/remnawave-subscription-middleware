@@ -20,7 +20,15 @@
         if (strpos((string) $e, 'user.') === 0) return 'webhook';
         return '';
     };
-    $wh_cols = $wh_full ? 7 : 4;
+    // Даты отдаём через .wh-time[data-ts]: их локализует тот же скрипт, что и колонку
+    // «Время», иначе в раскрытии висел бы UTC-ISO из панели.
+    $whlog_cell = function ($k, $v) {
+        if (whlog_is_date($k) && ($ep = whlog_epoch($v)) > 0) {
+            return '<span class="wh-time" data-ts="' . $ep . '">' . h(whlog_fmt_value($k, $v)) . '</span>';
+        }
+        return h(whlog_fmt_value($k, $v));
+    };
+    $wh_cols = $wh_full ? 8 : 4;
     ?>
     <style>
     .wh-flt{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.2rem 0 .8rem}
@@ -30,12 +38,19 @@
     .wh-flt input[type=text]{width:190px;flex:0 1 auto}
     .wh-flt .btn{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;line-height:1;font-weight:600}
     .wh-flt .btn svg{width:15px;height:15px;flex:0 0 auto}
-    .wh-csv{margin-left:auto}
+    .wh-exp{margin-left:auto;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+    .wh-anon{display:inline-flex;align-items:center;gap:.35rem;font-size:.82rem;white-space:nowrap;cursor:pointer}
+    .wh-anon input{width:15px;height:15px;margin:0;flex:0 0 auto}
+    .wh-chg details>summary{cursor:pointer;list-style:none;display:flex;gap:.35rem;flex-wrap:wrap;align-items:center}
+    .wh-chg details>summary::-webkit-details-marker{display:none}
+    .wh-chg .wh-dt{margin:.5rem 0 0;border-collapse:collapse;font-size:.8rem}
+    .wh-chg .wh-dt th,.wh-chg .wh-dt td{padding:.25rem .5rem;border:1px solid var(--line);text-align:left;vertical-align:top}
+    .wh-chg .wh-snap{margin:.45rem 0 .2rem;font-size:.78rem}
     .logtbl a:hover .tag,.logtbl a:hover code{outline:1px solid var(--accent);outline-offset:1px}
     @media(max-width:760px){
         .wh-flt select,.wh-flt input[type=text]{flex:1 1 46%;max-width:none;width:auto}
         .wh-flt .btn{flex:1 0 auto;justify-content:center}
-        .wh-csv{margin-left:0;flex:1 1 100%}
+        .wh-exp{margin-left:0;flex:1 1 100%}
     }
     </style>
     <div class="seg">
@@ -79,13 +94,13 @@
             <button class="btn ghost" type="submit"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Найти</button>
             <?php endif; ?>
             <?php if ($wh_has_flt): ?><a class="btn ghost" href="?tab=<?= h($wh_tabkey) ?>" title="Сбросить все фильтры"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Сброс</a><?php endif; ?>
-            <button class="btn ghost wh-csv" type="submit" name="wh_csv" value="1" title="Выгрузить текущую выборку целиком (по фильтру, не только видимую страницу)"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Скачать CSV</button>
+            <span class="wh-exp"><label class="wh-anon" title="Заменить shortUuid, имя пользователя и uuid сквадов на стабильные метки — файл можно показать постороннему"><input type="checkbox" name="wh_mask" value="1" checked> Обезличить</label><button class="btn ghost" type="submit" name="wh_csv" value="1" title="Выгрузить текущую выборку целиком (по фильтру, не только видимую страницу)"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Скачать CSV</button></span>
         </form>
         <p class="muted"><?= $wh_full
             ? 'События, связанные с пользователями: user.*, либо с shortUuid/именем. Клик по событию, пользователю, shortUuid или действию в таблице ставит фильтр по этому значению.'
             : 'Всё остальное: служебные/прочие события и хуки без привязки к пользователю (включая неверную подпись). Клик по событию ставит фильтр.' ?></p>
         <table class="logtbl">
-            <tr><th>Время</th><th>Событие</th><th>Подпись</th><th>Действие</th><?php if ($wh_full): ?><th>shortUuid</th><th>Пользователь</th><th>Статус</th><?php endif; ?></tr>
+            <tr><th>Время</th><th>Событие</th><th>Подпись</th><th>Действие</th><?php if ($wh_full): ?><th>shortUuid</th><th>Пользователь</th><th>Статус</th><th>Изменения</th><?php endif; ?></tr>
             <tbody id="whBody" class="lp-cap">
             <?php foreach ($whlog as $r): ?>
             <?php $wh_ec = $wh_evcls($r['event']); ?>
@@ -98,6 +113,32 @@
                 <td><?= (string) $r['short_uuid'] !== '' ? '<a href="' . h($wh_link(['wh_user' => (string) $r['short_uuid']])) . '" title="Фильтровать по shortUuid"><code>' . h($r['short_uuid']) . '</code></a>' : '<span class="muted">—</span>' ?></td>
                 <td><?= (string) $r['username'] !== '' ? '<a href="' . h($wh_link(['wh_user' => (string) $r['username']])) . '" title="Фильтровать по пользователю">' . h($r['username']) . '</a>' : '<span class="muted">—</span>' ?></td>
                 <td><?= (string) $r['status'] !== '' ? '<span class="tag ' . h($r['status']) . '">' . h($r['status']) . '</span>' : '<span class="muted">—</span>' ?></td>
+                <td class="wh-chg">
+                    <?php $wm = whlog_meta($r); ?>
+                    <?php if ($wm && $wm['d']): ?>
+                    <details class="wh-diff">
+                        <summary>
+                            <span class="tag manual"><?= h(implode(', ', array_map('whlog_field_label', array_keys($wm['d'])))) ?></span>
+                            <?php if ($wm['mw'] === 1): ?><span class="tag normal" title="Это изменение сделала прослойка<?= $wm['src'] !== '' ? ': ' . h($wm['src']) : '' ?>">прослойка</span>
+                            <?php elseif ($wm['mw'] === 0): ?><span class="tag error" title="Перед этим событием прослойка ничего такого в панель не писала">извне</span><?php endif; ?>
+                        </summary>
+                        <table class="wh-dt">
+                            <tr><th>Поле</th><th>Было</th><th>Стало</th></tr>
+                            <?php foreach ($wm['d'] as $dk => $dv): ?>
+                            <tr>
+                                <td><?= h(whlog_field_label($dk)) ?></td>
+                                <td class="muted"><?= $whlog_cell($dk, $dv[0] ?? null) ?></td>
+                                <td><?= $whlog_cell($dk, $dv[1] ?? null) ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </table>
+                        <?php if ($wm['s']): ?>
+                        <p class="muted wh-snap">Снимок: сквады <?= h(whlog_fmt_value('sq', whlog_squad_names($wm['s']['sq'] ?? []))) ?> · лимит <?= h(whlog_fmt_value('tl', $wm['s']['tl'] ?? null)) ?> · израсходовано <?= h(whlog_fmt_value('used', $wm['s']['used'] ?? null)) ?> · устройств <?= h(whlog_fmt_value('hw', $wm['s']['hw'] ?? null)) ?> · истекает <?= $whlog_cell('exp', $wm['s']['exp'] ?? null) ?></p>
+                        <?php endif; ?>
+                    </details>
+                    <?php elseif ($wm && $wm['s']): ?><span class="muted" title="Состояние пользователя не изменилось">без изменений</span>
+                    <?php else: ?><span class="muted">—</span><?php endif; ?>
+                </td>
                 <?php endif; ?>
             </tr>
             <?php endforeach; ?>

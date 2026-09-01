@@ -149,6 +149,7 @@ function grace_patch(&$existing, array $patch, &$err = '') {
 function grace_exit_reset_traffic(&$existing) {
     if (!grace_reset_traffic_on_exit()) return;
     $short = (string) ($existing['short_uuid'] ?? '');
+    api_ctx('grace_exit_reset', $short);
     $e   = '';
     $ref = grace_ref($existing, $e);
     if (!rw_ref_ok($ref)) { error_log('submw grace exit reset-traffic: ' . ($e ?: 'нет идентификатора пользователя') . ' (short=' . $short . ')'); return; }
@@ -163,6 +164,7 @@ function grace_restore($existing) {
     if (!is_array($squads)) $squads = [];
     $squads = array_values(array_filter($squads, fn($s) => is_string($s) && $s !== ''));
     if (!$squads) { error_log('submw grace end: empty orig_squads for ' . $short); return false; }
+    api_ctx('grace_end', $short);
 
     $full = [
         'activeInternalSquads'  => $squads,
@@ -237,6 +239,7 @@ function grace_on_expired($short, $username = null, $allow_start = true) {
     $hwid_orig   = array_key_exists('hwidDeviceLimit', $u) ? $u['hwidDeviceLimit'] : null;
     $ext_orig    = grace_external_active() ? (string) ($u['externalSquadUuid'] ?? '') : null;
     $grace_until = time() + grace_days() * 86400;
+    api_ctx('grace_start', $short);
 
     grace_save($short, $ref['val'], $username, $squads, $bytes, $strategy, $orig_expire, $hwid_orig, $ext_orig, $grace_until);
 
@@ -266,6 +269,7 @@ function grace_on_renew($short, $new_expire_str) {
     if ($short === '') return false;
     $existing = grace_find($short);
     if (!$existing) return false;
+    api_ctx('grace_renew', $short);
     $new_ts      = $new_expire_str ? strtotime((string) $new_expire_str) : false;
     $grace_until = (int) $existing['grace_until'];
     if ($new_ts === false || $new_ts <= $grace_until) return false;

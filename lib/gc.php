@@ -5,6 +5,7 @@ function gc_tables() {
         'request_log'    => ['title' => 'Лог запросов',       'pk' => 'id',        'col' => 'ts',        'kind' => 'text'],
         'webhook_log'    => ['title' => 'Лог вебхуков',       'pk' => 'id',        'col' => 'ts',        'kind' => 'text'],
         'forward_log'    => ['title' => 'Лог пересылки',      'pk' => 'id',        'col' => 'ts',        'kind' => 'text'],
+        'panel_write_log' => ['title' => 'Журнал записей в панель', 'pk' => 'id',   'col' => 'ts',        'kind' => 'text'],
         'metrics_minute' => ['title' => 'Метрики по минутам', 'pk' => 'minute_ts', 'col' => 'minute_ts', 'kind' => 'epoch'],
         'metrics_peak'   => ['title' => 'Пики нагрузки',      'pk' => 'minute_ts', 'col' => 'minute_ts', 'kind' => 'epoch'],
     ];
@@ -28,6 +29,7 @@ function gc_where(array $t, $days, array &$args) {
 
 function gc_ensure() {
     ensure_forward_log();
+    ensure_panel_write_log();
     ensure_metrics_tables();
 }
 
