@@ -16,7 +16,7 @@
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Подключение</h2>
         <p class="muted" style="margin-bottom:.4rem">Нажмите <b>?</b> у любого поля — справа откроется справка с примером. Формат: <b>домены — без</b> <code>https://</code>, а <b>URL панели — со схемой</b> <code>https://</code>.</p>
-        <?php if (submw_in_docker()): ?><div class="info" style="margin-bottom:.6rem">Docker-режим: источник «Панель» и адреса панели/subpage заданы окружением контейнера (compose) и здесь только для чтения. Достаточно задать <b>API-токен панели</b>.</div><?php endif; ?>
+        <?php if (submw_in_docker()): ?><div class="info" style="margin-bottom:.6rem">Docker-режим: адреса панели и subscription-page предзаполнены из окружения контейнера при установке и дальше хранятся в БД. Обычно достаточно задать <b>API-токен панели</b>; если прослойка стоит отдельно от панели или нужен режим «Зеркало» — поменяйте поля здесь.</div><?php endif; ?>
         <form method="post" data-autosave>
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_connection">
@@ -31,7 +31,7 @@
             <div class="cn-spd">Origin совпадает с доменом подписки в панели.</div>
             <?php endif; ?>
             <div class="row">
-                <div><label>URL панели Remnawave <button type="button" class="qh" onclick="help('rwurl')" aria-label="Справка">?</button></label><input type="text" name="remnawave_url" value="<?= h(remnawave_url()) ?>" placeholder="https://panel.example.com" <?= submw_in_docker() ? 'readonly' : '' ?>></div>
+                <div><label>URL панели Remnawave <button type="button" class="qh" onclick="help('rwurl')" aria-label="Справка">?</button></label><input type="text" name="remnawave_url" value="<?= h(remnawave_url()) ?>" placeholder="https://panel.example.com"></div>
                 <div><label>Cookie панели (eGames-защита) <button type="button" class="qh" onclick="help('cookie')" aria-label="Справка">?</button></label><input type="text" name="remnawave_cookie" value="<?= h(remnawave_cookie()) ?>" placeholder="aB3xK9pQ=Zt7mW2nR"></div>
             </div>
             <div class="row">
@@ -55,17 +55,20 @@
                     <label class="switch"><input type="checkbox" name="tls_verify" <?= api_tls_verify()?'checked':'' ?>><span class="sl"></span></label>
                 </div>
             </div>
-            <?php $eff_mode = submw_in_docker() ? 'panel' : sub_source(); $show_url_row = ($eff_mode === 'panel'); ?>
+            <?php $eff_mode = sub_source(); $show_mirror_row = ($eff_mode === 'mirror'); $show_url_row = ($eff_mode === 'panel' || subpage_mirror_active()); ?>
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Источник подписки</div><div class="set-d">«Зеркало» — проксирование origin-домена (как раньше). «Панель» — прослойка сама становится подпиской (sub-сервис Remnawave): конфиги берутся с <code>/api/sub</code> панели, а в браузере рендерится страница подписки. Адрес панели — это контейнер/loopback (рядом с панелью) <b>или</b> публичный <code>https://</code>-домен (если прослойка на отдельном сервере).</div></div>
-                <?php if (submw_in_docker()): ?><input type="hidden" name="sub_source" value="panel"><?php endif; ?>
-                <select name="sub_source" id="subSourceSel" <?= submw_in_docker() ? 'disabled' : '' ?>>
+                <select name="sub_source" id="subSourceSel">
                     <option value="mirror" <?= sub_source()==='mirror'?'selected':'' ?>>Зеркало (origin)</option>
                     <option value="panel" <?= sub_source()==='panel'?'selected':'' ?>>Панель (sub-сервис)</option>
                 </select>
             </div>
+            <div class="set-row" id="rowSubpageMirror"<?= $show_mirror_row ? '' : ' style="display:none"' ?>>
+                <div class="set-info"><div class="set-t">Браузерную страницу брать с отдельного адреса (Зеркало)</div><div class="set-d">Только для режима «Зеркало». Тумблер направляет браузерные запросы (и <code>/assets</code>) на адрес subscription-page ниже вместо origin; приложения продолжают получать конфиг с origin. Нужен лишь когда ваш origin отдаёт голый конфиг без HTML-страницы — тогда браузер получит страницу подписки. Если origin уже является subscription-page, он и так отдаёт страницу браузеру, и тумблер не требуется. Требуется заданный адрес subscription-page. На режим «Панель» не влияет.</div></div>
+                <label class="switch"><input type="checkbox" name="subpage_mirror" id="subpageMirrorChk" <?= subpage_mirror_active()?'checked':'' ?>><span class="sl"></span></label>
+            </div>
             <div class="row" id="rowSubpageUrl"<?= $show_url_row ? '' : ' style="display:none"' ?>>
-                <div><label>Адрес subscription-page (режимы «Панель» / «Зеркало»)</label><input type="text" name="subpage_external_url" value="<?= h(subpage_external_url()) ?>" placeholder="https://panel.example.com или http://127.0.0.1:3010" <?= submw_in_docker() ? 'readonly' : '' ?>><div class="muted" style="font-size:.8rem;margin-top:.3rem">Рядом с панелью — адрес контейнера/loopback; на отдельном сервере — публичный https-адрес панели. Используется как источник страницы подписки для браузера в обоих режимах.</div></div>
+                <div><label>Адрес subscription-page (режимы «Панель» / «Зеркало»)</label><input type="text" name="subpage_external_url" value="<?= h(subpage_external_url()) ?>" placeholder="https://panel.example.com или http://127.0.0.1:3010"><div class="muted" style="font-size:.8rem;margin-top:.3rem">Рядом с панелью — адрес контейнера/loopback; на отдельном сервере — публичный https-адрес панели. Используется как источник страницы подписки для браузера в обоих режимах.</div></div>
                 <div></div>
             </div>
             <div class="set-row">
@@ -127,12 +130,16 @@
     (function(){
         var sel=document.getElementById('subSourceSel');
         if(!sel) return;
+        var rowMirror=document.getElementById('rowSubpageMirror');
         var rowUrl=document.getElementById('rowSubpageUrl');
-        function mode(){return sel.disabled?'panel':sel.value;}
+        var chk=document.getElementById('subpageMirrorChk');
         function sync(){
-            if(rowUrl) rowUrl.style.display=(mode()==='panel')?'':'none';
+            var m=sel.value, mir=chk&&chk.checked;
+            if(rowMirror) rowMirror.style.display=(m==='mirror')?'':'none';
+            if(rowUrl) rowUrl.style.display=(m==='panel'||mir)?'':'none';
         }
         sel.addEventListener('change',sync);
+        if(chk) chk.addEventListener('change',sync);
         sync();
     })();
     (function(){
