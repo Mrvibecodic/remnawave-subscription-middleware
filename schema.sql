@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS grace_users (
     orig_expire TEXT NULL,
     orig_hwid_limit INTEGER NULL,
     orig_external_squad TEXT NULL,
+    grace_patch TEXT NULL,
     grace_until INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
