@@ -175,7 +175,7 @@ if ($short_uuid !== '') {
         // оставалась, и оплативший сидел на заглушке «истекло» до конца грейса.
         // DISABLED сюда не пускаем: там юзера выключил админ, поднимать его нельзя.
         $renewed = $status === 'LIMITED' && $expire_future
-            && grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''));
+            && grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''), $data);
         if ($renewed) {
             delete_override('shortuuid', $short_uuid, 'webhook');
             $action = 'grace_renewed';
@@ -184,7 +184,7 @@ if ($short_uuid !== '') {
             $action = 'set_expired';
         }
     } elseif ($is_active) {
-        $renewed = grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''));
+        $renewed = grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''), $data);
         delete_override('shortuuid', $short_uuid, 'webhook');
         $action = $renewed ? 'grace_renewed' : 'reactivate';
     } elseif ($is_inactive) {

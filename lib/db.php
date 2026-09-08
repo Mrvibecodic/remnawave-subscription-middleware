@@ -458,6 +458,7 @@ function migrate_extra_ddl($drv) {
                 ua VARCHAR(255) NULL, PRIMARY KEY (short_uuid)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "ALTER TABLE grace_users ADD COLUMN orig_external_squad VARCHAR(191) NULL",
+            "ALTER TABLE grace_users ADD COLUMN grace_patch MEDIUMTEXT NULL",
         ];
     }
     return [
@@ -500,6 +501,7 @@ function migrate_extra_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS chan_key (spid TEXT NOT NULL PRIMARY KEY, secret TEXT NOT NULL, created INTEGER NOT NULL DEFAULT 0, is_current INTEGER NOT NULL DEFAULT 0)",
         "CREATE TABLE IF NOT EXISTS chan_state (short_uuid TEXT NOT NULL PRIMARY KEY, first_seen INTEGER NOT NULL DEFAULT 0, last_seen INTEGER NOT NULL DEFAULT 0, hits INTEGER NOT NULL DEFAULT 0, downgrades INTEGER NOT NULL DEFAULT 0, hard INTEGER NOT NULL DEFAULT 0, ua TEXT NULL)",
         "ALTER TABLE grace_users ADD COLUMN orig_external_squad TEXT NULL",
+        "ALTER TABLE grace_users ADD COLUMN grace_patch TEXT NULL",
     ];
 }
 
