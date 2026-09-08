@@ -649,6 +649,11 @@ function whlog_mask_diff($diff) {
 
 function whlog_is_date($k) { return $k === 'exp' || $k === 'rst' || $k === 'rev'; }
 
+// Отметки события, а не состояния: в них лежит время ПРЕДЫДУЩЕГО отзыва подписки
+// или сброса трафика, и сравнивать его с новым незачем — значение несёт только
+// сам факт «сейчас произошло» и время в колонке «Стало».
+function whlog_is_marker($k) { return $k === 'rst' || $k === 'rev'; }
+
 function whlog_epoch($v) {
     if ($v === null || $v === '') return 0;
     $t = strtotime((string) $v);
