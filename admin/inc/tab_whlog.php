@@ -41,15 +41,17 @@
     .wh-exp{margin-left:auto;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
     .wh-anon{display:inline-flex;align-items:center;gap:.35rem;font-size:.82rem;white-space:nowrap;cursor:pointer}
     .wh-anon input{width:15px;height:15px;margin:0;flex:0 0 auto}
-    .wh-tg{display:flex;align-items:flex-start;gap:.4rem;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer;text-align:left}
-    .wh-tg .wh-cv{width:13px;height:13px;margin-top:.3rem;flex:0 0 auto;color:var(--muted);transition:transform .15s}
-    .wh-tg:hover .wh-cv{color:var(--accent-text)}
+    .wh-tg{display:flex;align-items:flex-start;gap:.4rem;padding:0;margin:0;border:0;color:inherit;font:inherit;cursor:pointer;text-align:left}
+    .wh-tg,.wh-tg:hover,.wh-tg:active{background:none;border-radius:0;filter:none;transform:none}
+    .wh-tg:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+    .wh-tg .wh-cv{width:20px;height:20px;padding:4px;margin-top:1px;box-sizing:border-box;flex:0 0 auto;color:var(--accent-text);background:var(--bg2);border:1px solid var(--line);border-radius:7px;transition:transform .2s,background .2s,border-color .2s}
+    .wh-tg:hover .wh-cv{background:var(--hover);border-color:var(--accent)}
     .wh-tg[aria-expanded="true"] .wh-cv{transform:rotate(90deg)}
     .wh-tg .wh-tgs{display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;min-width:0}
     .wh-det>td{padding:0}
-    .wh-pan{display:flex;flex-direction:column;align-items:center;gap:.55rem;padding:.85rem 1rem;background:var(--hover2)}
+    .wh-pan{display:flex;flex-direction:column;align-items:center;gap:.55rem;padding:.85rem 1rem}
     .wh-dt-w{max-width:100%;overflow-x:auto}
-    .wh-dt{margin:0;border-collapse:collapse;font-size:.8rem;background:var(--card)}
+    .wh-dt{margin:0;border-collapse:collapse;font-size:.8rem}
     .wh-dt th,.wh-dt td{padding:.3rem .7rem;border:1px solid var(--line);text-align:left;vertical-align:top;white-space:nowrap}
     .wh-snap{margin:0;font-size:.78rem;text-align:center}
     .logtbl a:hover .tag,.logtbl a:hover code{outline:1px solid var(--accent);outline-offset:1px}
@@ -162,7 +164,8 @@
         <script>
         (function(){
             function whLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);if(isNaN(d.getTime()))return '';function p(n){return(n<10?'0':'')+n;}return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
-            document.querySelectorAll('.wh-time[data-ts]').forEach(function(td){var v=whLocal(td.getAttribute('data-ts'));if(v)td.textContent=v;});
+            function whTimes(root){(root||document).querySelectorAll('.wh-time[data-ts]').forEach(function(td){var v=whLocal(td.getAttribute('data-ts'));if(v)td.textContent=v;});}
+            whTimes(document);
             if(window.LogPager) LogPager({bodyId:'whBody', topId:'wh_pgrTop', botId:'wh_pgrBot', colspan:<?= $wh_cols ?>, storeKey:'pg_whlog_<?= $wh_full ? 'user' : 'other' ?>'});
             var whBody=document.getElementById('whBody');
             if(whBody){
@@ -195,6 +198,9 @@
                         det.appendChild(td);
                         det.style.display='none';
                         tr.parentNode.insertBefore(det,tr.nextSibling);
+                        // Панель рождается после загрузки, поэтому даты в ней
+                        // локализуем отдельно — общий проход уже отработал.
+                        whTimes(det);
                     }
                     var open=!det.classList.contains('open');
                     det.classList.toggle('open',open);
