@@ -140,7 +140,7 @@
                                     <?php foreach ($wm['d'] as $dk => $dv): ?>
                                     <tr>
                                         <td><?= h(whlog_field_label($dk)) ?></td>
-                                        <td class="muted"><?= $whlog_cell($dk, $dv[0] ?? null) ?></td>
+                                        <td class="muted"><?= whlog_is_marker($dk) ? '—' : $whlog_cell($dk, $dv[0] ?? null) ?></td>
                                         <td><?= $whlog_cell($dk, $dv[1] ?? null) ?></td>
                                     </tr>
                                     <?php endforeach; ?>
