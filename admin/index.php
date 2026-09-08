@@ -707,7 +707,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('proxy_timeout', (string) max(5, (int) ($_POST['proxy_timeout'] ?? 30)));
         set_setting('sub_source', ($_POST['sub_source'] ?? 'mirror') === 'panel' ? 'panel' : 'mirror');
         set_setting('subpage_external_url', rtrim(trim($_POST['subpage_external_url'] ?? ''), '/'));
-        set_setting('apisub_accept', isset($_POST['apisub_accept']) ? '1' : '0');
         set_setting('mask_notfound', isset($_POST['mask_notfound']) ? '1' : '0');
         set_setting('subpage_mirror', isset($_POST['subpage_mirror']) ? '1' : '0');
         set_setting('sub_link_apisub', isset($_POST['sub_link_apisub']) ? '1' : '0');
