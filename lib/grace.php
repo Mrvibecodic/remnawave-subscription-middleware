@@ -11,7 +11,7 @@ function ensure_grace_table() {
                 short_uuid VARCHAR(191) NOT NULL, user_uuid VARCHAR(191) NOT NULL, username VARCHAR(191) NULL,
                 orig_squads MEDIUMTEXT NULL, orig_traffic_bytes BIGINT NOT NULL DEFAULT 0,
                 orig_traffic_strategy VARCHAR(32) NOT NULL DEFAULT 'NO_RESET', orig_expire VARCHAR(40) NULL,
-                orig_hwid_limit INT NULL, orig_external_squad VARCHAR(191) NULL, grace_until INT NOT NULL DEFAULT 0,
+                orig_hwid_limit INT NULL, orig_external_squad VARCHAR(191) NULL, grace_patch MEDIUMTEXT NULL, grace_until INT NOT NULL DEFAULT 0,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (short_uuid)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         } else {
@@ -19,12 +19,13 @@ function ensure_grace_table() {
                 short_uuid TEXT NOT NULL PRIMARY KEY, user_uuid TEXT NOT NULL, username TEXT NULL,
                 orig_squads TEXT NULL, orig_traffic_bytes INTEGER NOT NULL DEFAULT 0,
                 orig_traffic_strategy TEXT NOT NULL DEFAULT 'NO_RESET', orig_expire TEXT NULL,
-                orig_hwid_limit INTEGER NULL, orig_external_squad TEXT NULL, grace_until INTEGER NOT NULL DEFAULT 0,
+                orig_hwid_limit INTEGER NULL, orig_external_squad TEXT NULL, grace_patch TEXT NULL, grace_until INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )");
         }
     } catch (Throwable $e) { error_log('submw grace table: ' . $e->getMessage()); }
     try { $p->exec('ALTER TABLE grace_users ADD COLUMN orig_external_squad ' . (db_driver() === 'mysql' ? 'VARCHAR(191)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
+    try { $p->exec('ALTER TABLE grace_users ADD COLUMN grace_patch ' . (db_driver() === 'mysql' ? 'MEDIUMTEXT' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
 }
 
 function grace_iso($ts) { return gmdate('Y-m-d\TH:i:s.000\Z', (int) $ts); }
@@ -54,17 +55,17 @@ function grace_delete($short) {
     catch (Throwable $e) {}
 }
 
-function grace_save($short, $uuid, $username, array $squads, $bytes, $strategy, $orig_expire, $hwid_limit, $orig_external_squad, $grace_until) {
+function grace_save($short, $uuid, $username, array $squads, $bytes, $strategy, $orig_expire, $hwid_limit, $orig_external_squad, $grace_until, $grace_patch = null) {
     ensure_grace_table();
     if (!($p = db())) return;
     try {
-        $cols = "INSERT INTO grace_users (short_uuid, user_uuid, username, orig_squads, orig_traffic_bytes, orig_traffic_strategy, orig_expire, orig_hwid_limit, orig_external_squad, grace_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ";
+        $cols = "INSERT INTO grace_users (short_uuid, user_uuid, username, orig_squads, orig_traffic_bytes, orig_traffic_strategy, orig_expire, orig_hwid_limit, orig_external_squad, grace_patch, grace_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ";
         if (db_driver() === 'mysql') {
-            $st = $p->prepare($cols . "ON DUPLICATE KEY UPDATE user_uuid=VALUES(user_uuid), username=VALUES(username), orig_squads=VALUES(orig_squads), orig_traffic_bytes=VALUES(orig_traffic_bytes), orig_traffic_strategy=VALUES(orig_traffic_strategy), orig_expire=VALUES(orig_expire), orig_hwid_limit=VALUES(orig_hwid_limit), orig_external_squad=VALUES(orig_external_squad), grace_until=VALUES(grace_until)");
+            $st = $p->prepare($cols . "ON DUPLICATE KEY UPDATE user_uuid=VALUES(user_uuid), username=VALUES(username), orig_squads=VALUES(orig_squads), orig_traffic_bytes=VALUES(orig_traffic_bytes), orig_traffic_strategy=VALUES(orig_traffic_strategy), orig_expire=VALUES(orig_expire), orig_hwid_limit=VALUES(orig_hwid_limit), orig_external_squad=VALUES(orig_external_squad), grace_patch=VALUES(grace_patch), grace_until=VALUES(grace_until)");
         } else {
-            $st = $p->prepare($cols . "ON CONFLICT(short_uuid) DO UPDATE SET user_uuid=excluded.user_uuid, username=excluded.username, orig_squads=excluded.orig_squads, orig_traffic_bytes=excluded.orig_traffic_bytes, orig_traffic_strategy=excluded.orig_traffic_strategy, orig_expire=excluded.orig_expire, orig_hwid_limit=excluded.orig_hwid_limit, orig_external_squad=excluded.orig_external_squad, grace_until=excluded.grace_until");
+            $st = $p->prepare($cols . "ON CONFLICT(short_uuid) DO UPDATE SET user_uuid=excluded.user_uuid, username=excluded.username, orig_squads=excluded.orig_squads, orig_traffic_bytes=excluded.orig_traffic_bytes, orig_traffic_strategy=excluded.orig_traffic_strategy, orig_expire=excluded.orig_expire, orig_hwid_limit=excluded.orig_hwid_limit, orig_external_squad=excluded.orig_external_squad, grace_patch=excluded.grace_patch, grace_until=excluded.grace_until");
         }
-        $st->execute([$short, $uuid, $username, json_encode(array_values($squads)), (int) $bytes, (string) $strategy, (string) $orig_expire, ($hwid_limit === null ? null : (int) $hwid_limit), ($orig_external_squad === null ? null : (string) $orig_external_squad), (int) $grace_until]);
+        $st->execute([$short, $uuid, $username, json_encode(array_values($squads)), (int) $bytes, (string) $strategy, (string) $orig_expire, ($hwid_limit === null ? null : (int) $hwid_limit), ($orig_external_squad === null ? null : (string) $orig_external_squad), ($grace_patch === null ? null : (string) $grace_patch), (int) $grace_until]);
     } catch (Throwable $e) { error_log('submw grace save: ' . $e->getMessage()); }
 }
 
@@ -75,6 +76,107 @@ function grace_squads_from_user($u) {
         elseif (is_string($s) && $s !== '')     $out[] = $s;
     }
     return $out;
+}
+
+// --- Что за время грейса изменили помимо нас ---
+//
+// Восстановление задумано как откат ТОЛЬКО того, что грейс сам натворил. Если за
+// время грейса тариф сменили (человек оплатил другой пакет, админ поправил руками),
+// в панели уже лежат новые сквады и лимиты — накатив поверх них снимок «как было до
+// грейса», прослойка молча возвращает человека на старый тариф.
+//
+// Поэтому перед откатом сверяем текущее состояние с тем, что оставил после себя
+// грейс (колонка grace_patch — то, чем мы патчили на входе; у строк, заведённых
+// старой версией, её нет, тогда берём текущие настройки грейса). Поле совпало —
+// восстанавливаем из снимка, разошлось — не шлём его вовсе, чужую правку не трогаем.
+// Текущее состояние берём из payload вебхука, а где его нет — разовым GET по
+// short_uuid; если панель недоступна, откатываем по-старому, целиком.
+
+function grace_squads_norm($squads) {
+    $out = [];
+    foreach ((array) $squads as $s) {
+        $s = is_array($s) ? (string) ($s['uuid'] ?? '') : (string) $s;
+        if ($s !== '') $out[$s] = true;
+    }
+    $out = array_keys($out);
+    sort($out);
+    return $out;
+}
+
+function grace_state_from_user($u) {
+    if (!is_array($u)) return null;
+    $st = [];
+    if (array_key_exists('activeInternalSquads', $u)) $st['sq'] = grace_squads_norm($u['activeInternalSquads']);
+    if (array_key_exists('trafficLimitBytes', $u))    $st['tl'] = (int) $u['trafficLimitBytes'];
+    if (array_key_exists('trafficLimitStrategy', $u)) $st['ts'] = (string) $u['trafficLimitStrategy'];
+    if (array_key_exists('hwidDeviceLimit', $u))      $st['hw'] = ($u['hwidDeviceLimit'] === null ? null : (int) $u['hwidDeviceLimit']);
+    if (array_key_exists('externalSquadUuid', $u))    $st['ex'] = (string) ($u['externalSquadUuid'] ?? '');
+    return $st ?: null;
+}
+
+function grace_state_fetch($short) {
+    if ((string) $short === '' || remnawave_url() === '' || remnawave_token() === '') return null;
+    $e = '';
+    return grace_state_from_user(remnawave_get_user_by_short((string) $short, $e));
+}
+
+// Что грейс оставил в панели. hwid и внешний сквад грейс трогает не всегда: если не
+// трогал, ожидаемое значение — исходное, и расхождение с ним тоже означает чужую правку.
+function grace_state_applied($existing) {
+    $j = json_decode((string) ($existing['grace_patch'] ?? ''), true);
+    if (!is_array($j)) $j = [];
+    return [
+        'sq' => grace_squads_norm(array_key_exists('sq', $j) ? $j['sq'] : [grace_squad_uuid()]),
+        'tl' => array_key_exists('tl', $j) ? (int) $j['tl'] : grace_traffic_bytes(),
+        'ts' => array_key_exists('ts', $j) ? (string) $j['ts'] : grace_traffic_strategy(),
+        'hw' => array_key_exists('hw', $j)
+            ? ($j['hw'] === null ? null : (int) $j['hw'])
+            : (($existing['orig_hwid_limit'] ?? null) === null ? null : (int) $existing['orig_hwid_limit']),
+        'ex' => array_key_exists('ex', $j)
+            ? (string) $j['ex']
+            : (($existing['orig_external_squad'] ?? null) === null ? '' : (string) $existing['orig_external_squad']),
+    ];
+}
+
+// $kept — список полей, которые изменили за время грейса и которые мы намеренно не откатываем.
+function grace_restore_patch($existing, $cur, &$kept = []) {
+    $kept = [];
+    $exp  = grace_state_applied($existing);
+    $has  = function ($k) use ($cur) { return is_array($cur) && array_key_exists($k, $cur); };
+
+    $squads = json_decode((string) ($existing['orig_squads'] ?? ''), true);
+    if (!is_array($squads)) $squads = [];
+    $squads = array_values(array_filter($squads, function ($s) { return is_string($s) && $s !== ''; }));
+
+    // Сквады — единственное поле, которое нельзя просто «не трогать»: грейс-сквад
+    // так и остался бы висеть на человеке. Если их сменили — шлём их же, без грейсового.
+    if ($has('sq') && $cur['sq'] !== $exp['sq']) {
+        $live = array_values(array_diff($cur['sq'], [grace_squad_uuid()]));
+        if ($live) { $squads = $live; $kept[] = 'sq'; }
+    }
+
+    $patch = [];
+    if ($squads) $patch['activeInternalSquads'] = array_values($squads);
+
+    if ($has('tl') && (int) $cur['tl'] !== (int) $exp['tl']) $kept[] = 'tl';
+    else $patch['trafficLimitBytes'] = (int) $existing['orig_traffic_bytes'];
+
+    if ($has('ts') && (string) $cur['ts'] !== (string) $exp['ts']) $kept[] = 'ts';
+    else $patch['trafficLimitStrategy'] = (string) $existing['orig_traffic_strategy'];
+
+    if ($has('hw') && $cur['hw'] !== $exp['hw']) $kept[] = 'hw';
+    else $patch['hwidDeviceLimit'] = (($existing['orig_hwid_limit'] ?? null) === null ? null : (int) $existing['orig_hwid_limit']);
+
+    if (array_key_exists('orig_external_squad', $existing) && $existing['orig_external_squad'] !== null) {
+        if ($has('ex') && (string) $cur['ex'] !== (string) $exp['ex']) $kept[] = 'ex';
+        else $patch['externalSquadUuid'] = ($existing['orig_external_squad'] === '' ? null : (string) $existing['orig_external_squad']);
+    }
+    return $patch;
+}
+
+function grace_log_kept($where, $short, array $kept) {
+    if (!$kept) return;
+    error_log('submw grace ' . $where . ': за время грейса изменены поля (' . implode(', ', $kept) . '), откат по ним пропущен (short=' . $short . ')');
 }
 
 // --- Идентификатор пользователя в строке грейса ---
@@ -157,21 +259,18 @@ function grace_exit_reset_traffic(&$existing) {
     if (!remnawave_reset_traffic($ref, $re)) error_log('submw grace exit reset-traffic: ' . $re . ' (short=' . $short . ')');
 }
 
-function grace_restore($existing) {
+function grace_restore($existing, $cur = null) {
     if (!is_array($existing)) return false;
-    $short  = (string) ($existing['short_uuid'] ?? '');
-    $squads = json_decode((string) ($existing['orig_squads'] ?? ''), true);
-    if (!is_array($squads)) $squads = [];
-    $squads = array_values(array_filter($squads, fn($s) => is_string($s) && $s !== ''));
-    if (!$squads) { error_log('submw grace end: empty orig_squads for ' . $short); return false; }
+    $short = (string) ($existing['short_uuid'] ?? '');
     api_ctx('grace_end', $short);
+    if (!is_array($cur)) $cur = grace_state_fetch($short);
 
-    $full = [
-        'activeInternalSquads'  => $squads,
-        'trafficLimitBytes'     => (int) $existing['orig_traffic_bytes'],
-        'trafficLimitStrategy'  => (string) $existing['orig_traffic_strategy'],
-        'hwidDeviceLimit'       => ($existing['orig_hwid_limit'] === null ? null : (int) $existing['orig_hwid_limit']),
-    ];
+    $kept = [];
+    $full = grace_restore_patch($existing, $cur, $kept);
+    if (empty($full['activeInternalSquads'])) { error_log('submw grace end: empty orig_squads for ' . $short); return false; }
+    $squads = $full['activeInternalSquads'];
+    grace_log_kept('end', $short, $kept);
+
     // Панель отклоняет expireAt в прошлом («Expiration date cannot be in the past» —
     // проверка есть и в 2.x, и в 3.x). У истёкшего пользователя исходная дата почти
     // всегда в прошлом, поэтому полный патч раньше всегда падал и восстановление
@@ -181,9 +280,6 @@ function grace_restore($existing) {
     if (!empty($existing['orig_expire'])) {
         $oe = strtotime((string) $existing['orig_expire']);
         if ($oe !== false && $oe > time() + 60) $full['expireAt'] = (string) $existing['orig_expire'];
-    }
-    if (array_key_exists('orig_external_squad', $existing) && $existing['orig_external_squad'] !== null) {
-        $full['externalSquadUuid'] = ($existing['orig_external_squad'] === '' ? null : (string) $existing['orig_external_squad']);
     }
 
     $e = '';
@@ -241,7 +337,14 @@ function grace_on_expired($short, $username = null, $allow_start = true) {
     $grace_until = time() + grace_days() * 86400;
     api_ctx('grace_start', $short);
 
-    grace_save($short, $ref['val'], $username, $squads, $bytes, $strategy, $orig_expire, $hwid_orig, $ext_orig, $grace_until);
+    // Слепок того, чем мы сейчас перепишем пользователя: на выходе из грейса по нему
+    // видно, осталось ли поле нашим или его успели поменять под новый тариф.
+    $gh      = grace_hwid_limit_raw();
+    $applied = ['sq' => [grace_squad_uuid()], 'tl' => grace_traffic_bytes(), 'ts' => grace_traffic_strategy()];
+    if ($gh !== '') $applied['hw'] = (int) $gh;
+    if (grace_external_active()) $applied['ex'] = grace_external_squad_uuid();
+
+    grace_save($short, $ref['val'], $username, $squads, $bytes, $strategy, $orig_expire, $hwid_orig, $ext_orig, $grace_until, json_encode($applied));
 
     if (grace_traffic_bytes() > 0) {
         $re = '';
@@ -256,7 +359,6 @@ function grace_on_expired($short, $username = null, $allow_start = true) {
         'trafficLimitStrategy'  => grace_traffic_strategy(),
         'expireAt'              => grace_iso($grace_until),
     ];
-    $gh = grace_hwid_limit_raw();
     if ($gh !== '') $patch['hwidDeviceLimit'] = (int) $gh;
     if (grace_external_active()) $patch['externalSquadUuid'] = grace_external_squad_uuid();
     $e = '';
@@ -265,7 +367,7 @@ function grace_on_expired($short, $username = null, $allow_start = true) {
     return 'grace_started';
 }
 
-function grace_on_renew($short, $new_expire_str) {
+function grace_on_renew($short, $new_expire_str, $data = null) {
     if ($short === '') return false;
     $existing = grace_find($short);
     if (!$existing) return false;
@@ -274,20 +376,18 @@ function grace_on_renew($short, $new_expire_str) {
     $grace_until = (int) $existing['grace_until'];
     if ($new_ts === false || $new_ts <= $grace_until) return false;
 
-    $squads = json_decode((string) $existing['orig_squads'], true);
-    if (!is_array($squads)) $squads = [];
+    // Продление во время грейса почти всегда и есть смена тарифа, поэтому текущее
+    // состояние берём прямо из payload события, без лишнего запроса к панели.
+    $cur = grace_state_from_user($data);
+    if (!is_array($cur)) $cur = grace_state_fetch($short);
+
+    $kept  = [];
+    $patch = grace_restore_patch($existing, $cur, $kept);
+    grace_log_kept('renew', $short, $kept);
+
     $corrected = time() + ($new_ts - $grace_until);
-    $patch = [
-        'status'                => 'ACTIVE',
-        'activeInternalSquads'  => $squads,
-        'trafficLimitBytes'     => (int) $existing['orig_traffic_bytes'],
-        'trafficLimitStrategy'  => (string) $existing['orig_traffic_strategy'],
-        'hwidDeviceLimit'       => ($existing['orig_hwid_limit'] === null ? null : (int) $existing['orig_hwid_limit']),
-        'expireAt'              => grace_iso($corrected),
-    ];
-    if (array_key_exists('orig_external_squad', $existing) && $existing['orig_external_squad'] !== null) {
-        $patch['externalSquadUuid'] = ($existing['orig_external_squad'] === '' ? null : (string) $existing['orig_external_squad']);
-    }
+    $patch['status']   = 'ACTIVE';
+    $patch['expireAt'] = grace_iso($corrected);
     $e = '';
     $ok = grace_patch($existing, $patch, $e);
     if (!$ok) { error_log('submw grace renew: ' . $e); return false; }
