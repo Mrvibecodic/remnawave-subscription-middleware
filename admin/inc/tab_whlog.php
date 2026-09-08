@@ -41,11 +41,17 @@
     .wh-exp{margin-left:auto;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
     .wh-anon{display:inline-flex;align-items:center;gap:.35rem;font-size:.82rem;white-space:nowrap;cursor:pointer}
     .wh-anon input{width:15px;height:15px;margin:0;flex:0 0 auto}
-    .wh-chg details>summary{cursor:pointer;list-style:none;display:flex;gap:.35rem;flex-wrap:wrap;align-items:center}
-    .wh-chg details>summary::-webkit-details-marker{display:none}
-    .wh-chg .wh-dt{margin:.5rem 0 0;border-collapse:collapse;font-size:.8rem}
-    .wh-chg .wh-dt th,.wh-chg .wh-dt td{padding:.25rem .5rem;border:1px solid var(--line);text-align:left;vertical-align:top}
-    .wh-chg .wh-snap{margin:.45rem 0 .2rem;font-size:.78rem}
+    .wh-tg{display:flex;align-items:flex-start;gap:.4rem;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer;text-align:left}
+    .wh-tg .wh-cv{width:13px;height:13px;margin-top:.3rem;flex:0 0 auto;color:var(--muted);transition:transform .15s}
+    .wh-tg:hover .wh-cv{color:var(--accent-text)}
+    .wh-tg[aria-expanded="true"] .wh-cv{transform:rotate(90deg)}
+    .wh-tg .wh-tgs{display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;min-width:0}
+    .wh-det>td{padding:0}
+    .wh-pan{display:flex;flex-direction:column;align-items:center;gap:.55rem;padding:.85rem 1rem;background:var(--hover2)}
+    .wh-dt-w{max-width:100%;overflow-x:auto}
+    .wh-dt{margin:0;border-collapse:collapse;font-size:.8rem;background:var(--card)}
+    .wh-dt th,.wh-dt td{padding:.3rem .7rem;border:1px solid var(--line);text-align:left;vertical-align:top;white-space:nowrap}
+    .wh-snap{margin:0;font-size:.78rem;text-align:center}
     .logtbl a:hover .tag,.logtbl a:hover code{outline:1px solid var(--accent);outline-offset:1px}
     @media(max-width:760px){
         .wh-flt select,.wh-flt input[type=text]{flex:1 1 46%;max-width:none;width:auto}
@@ -116,26 +122,33 @@
                 <td class="wh-chg">
                     <?php $wm = whlog_meta($r); ?>
                     <?php if ($wm && $wm['d']): ?>
-                    <details class="wh-diff">
-                        <summary>
+                    <button type="button" class="wh-tg" aria-expanded="false">
+                        <svg class="wh-cv" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        <span class="wh-tgs">
                             <span class="tag manual"><?= h(implode(', ', array_map('whlog_field_label', array_keys($wm['d'])))) ?></span>
                             <?php if ($wm['mw'] === 1): ?><span class="tag normal" title="Это изменение сделала прослойка<?= $wm['src'] !== '' ? ': ' . h($wm['src']) : '' ?>">прослойка</span>
                             <?php elseif ($wm['mw'] === 0): ?><span class="tag error" title="Перед этим событием прослойка ничего такого в панель не писала">извне</span><?php endif; ?>
-                        </summary>
-                        <table class="wh-dt">
-                            <tr><th>Поле</th><th>Было</th><th>Стало</th></tr>
-                            <?php foreach ($wm['d'] as $dk => $dv): ?>
-                            <tr>
-                                <td><?= h(whlog_field_label($dk)) ?></td>
-                                <td class="muted"><?= $whlog_cell($dk, $dv[0] ?? null) ?></td>
-                                <td><?= $whlog_cell($dk, $dv[1] ?? null) ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </table>
-                        <?php if ($wm['s']): ?>
-                        <p class="muted wh-snap">Снимок: сквады <?= h(whlog_fmt_value('sq', whlog_squad_names($wm['s']['sq'] ?? []))) ?> · лимит <?= h(whlog_fmt_value('tl', $wm['s']['tl'] ?? null)) ?> · израсходовано <?= h(whlog_fmt_value('used', $wm['s']['used'] ?? null)) ?> · устройств <?= h(whlog_fmt_value('hw', $wm['s']['hw'] ?? null)) ?> · истекает <?= $whlog_cell('exp', $wm['s']['exp'] ?? null) ?></p>
-                        <?php endif; ?>
-                    </details>
+                        </span>
+                    </button>
+                    <template class="wh-tpl">
+                        <div class="wh-pan">
+                            <div class="wh-dt-w">
+                                <table class="wh-dt">
+                                    <tr><th>Поле</th><th>Было</th><th>Стало</th></tr>
+                                    <?php foreach ($wm['d'] as $dk => $dv): ?>
+                                    <tr>
+                                        <td><?= h(whlog_field_label($dk)) ?></td>
+                                        <td class="muted"><?= $whlog_cell($dk, $dv[0] ?? null) ?></td>
+                                        <td><?= $whlog_cell($dk, $dv[1] ?? null) ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </table>
+                            </div>
+                            <?php if ($wm['s']): ?>
+                            <p class="muted wh-snap">Снимок: сквады <?= h(whlog_fmt_value('sq', whlog_squad_names($wm['s']['sq'] ?? []))) ?> · лимит <?= h(whlog_fmt_value('tl', $wm['s']['tl'] ?? null)) ?> · израсходовано <?= h(whlog_fmt_value('used', $wm['s']['used'] ?? null)) ?> · устройств <?= h(whlog_fmt_value('hw', $wm['s']['hw'] ?? null)) ?> · истекает <?= $whlog_cell('exp', $wm['s']['exp'] ?? null) ?></p>
+                            <?php endif; ?>
+                        </div>
+                    </template>
                     <?php elseif ($wm && $wm['s']): ?><span class="muted" title="Состояние пользователя не изменилось">без изменений</span>
                     <?php else: ?><span class="muted">—</span><?php endif; ?>
                 </td>
@@ -151,6 +164,50 @@
             function whLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);if(isNaN(d.getTime()))return '';function p(n){return(n<10?'0':'')+n;}return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
             document.querySelectorAll('.wh-time[data-ts]').forEach(function(td){var v=whLocal(td.getAttribute('data-ts'));if(v)td.textContent=v;});
             if(window.LogPager) LogPager({bodyId:'whBody', topId:'wh_pgrTop', botId:'wh_pgrBot', colspan:<?= $wh_cols ?>, storeKey:'pg_whlog_<?= $wh_full ? 'user' : 'other' ?>'});
+            var whBody=document.getElementById('whBody');
+            if(whBody){
+                // Панель раскрытия живёт отдельной строкой на всю ширину, а не в ячейке
+                // «Изменения»: иначе её содержимое расширяет колонку и тянет всю таблицу.
+                // До первого клика она лежит в теге template — не рисуется и не сбивает
+                // ни анти-FOUC отсечку по nth-child, ни счёт строк в LogPager.
+                function whSync(){
+                    whBody.querySelectorAll('tr.wh-det').forEach(function(tr){
+                        var p=tr.previousElementSibling;
+                        var vis=tr.classList.contains('open') && !(p && p.style.display==='none');
+                        tr.style.display=vis?'':'none';
+                    });
+                }
+                whBody.addEventListener('click',function(e){
+                    var b=e.target.closest ? e.target.closest('.wh-tg') : null;
+                    if(!b||!whBody.contains(b))return;
+                    var tr=b.parentNode;
+                    while(tr&&tr.tagName!=='TR')tr=tr.parentNode;
+                    if(!tr)return;
+                    var det=tr.nextElementSibling;
+                    if(!det||!det.classList.contains('wh-det')){
+                        var tpl=tr.querySelector('.wh-tpl');
+                        if(!tpl)return;
+                        det=document.createElement('tr');
+                        det.className='wh-det';
+                        var td=document.createElement('td');
+                        td.colSpan=<?= $wh_cols ?>;
+                        td.appendChild(tpl.content.cloneNode(true));
+                        det.appendChild(td);
+                        det.style.display='none';
+                        tr.parentNode.insertBefore(det,tr.nextSibling);
+                    }
+                    var open=!det.classList.contains('open');
+                    det.classList.toggle('open',open);
+                    b.setAttribute('aria-expanded',open?'true':'false');
+                    whSync();
+                });
+                ['wh_pgrTop','wh_pgrBot'].forEach(function(id){
+                    var el=document.getElementById(id);
+                    if(!el)return;
+                    el.addEventListener('click',function(){setTimeout(whSync,0);});
+                    el.addEventListener('change',function(){setTimeout(whSync,0);});
+                });
+            }
         })();
         </script>
     </div>
