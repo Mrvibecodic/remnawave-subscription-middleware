@@ -454,6 +454,12 @@ function whlog_ensure_meta() {
             ? 'ALTER TABLE webhook_log ADD INDEX idx_wh_short (short_uuid)'
             : 'CREATE INDEX IF NOT EXISTS idx_wh_short ON webhook_log(short_uuid)');
     } catch (Throwable $e) {}
+    // Флаг ставим, только когда колонка действительно на месте. Неудачный ALTER
+    // (у пользователя БД нет права ALTER, таблица залочена) иначе запомнился бы
+    // как «сделано», а запись в журнал вебхуков падала бы на каждой вставке —
+    // молча и навсегда. Без флага следующий запрос попробует ещё раз.
+    try { $p->query('SELECT meta FROM webhook_log LIMIT 1'); }
+    catch (Throwable $e) { $done = false; error_log('submw whlog meta: колонка не создана — ' . $e->getMessage()); return; }
     set_setting('whlog_meta_col', '1');
 }
 
