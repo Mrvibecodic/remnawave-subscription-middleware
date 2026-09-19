@@ -387,8 +387,21 @@ function squadconf_user_state($short) {
         return ['squads' => is_array($a) ? $a : [], 'status' => strtoupper(trim((string) ($r['st'] ?? '')))];
     };
     if ($row && ($now - (int) $row['ts'] < 300)) return $memo[$short] = $from_row($row);
-    $e = '';
-    $u = remnawave_get_user_by_short($short, $e);
+    $e = ''; $hc = 0;
+    $u = remnawave_get_user_by_short($short, $e, $hc);
+    if (!is_array($u) && (int) $hc === 404) {
+        if ($row) return $memo[$short] = $none;
+        try {
+            if (db_driver() === 'mysql') {
+                $st = $p->prepare('INSERT INTO squad_cache (su, squads, st, ts) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE squads = VALUES(squads), st = VALUES(st), ts = VALUES(ts)');
+            } else {
+                $st = $p->prepare('INSERT INTO squad_cache (su, squads, st, ts) VALUES (?, ?, ?, ?) ON CONFLICT(su) DO UPDATE SET squads = excluded.squads, st = excluded.st, ts = excluded.ts');
+            }
+            $st->execute([$short, '[]', '', $now]);
+            if (random_int(1, 200) === 1) $p->prepare("DELETE FROM squad_cache WHERE ts < ? AND squads = '[]' AND (st IS NULL OR st = '')")->execute([$now - 86400]);
+        } catch (Throwable $e2) {}
+        return $memo[$short] = $none;
+    }
     if (!is_array($u)) return $memo[$short] = ($row ? $from_row($row) : $none);
     $squads = function_exists('grace_squads_from_user') ? grace_squads_from_user($u) : [];
     $status = strtoupper(trim((string) ($u['status'] ?? '')));
@@ -775,7 +788,7 @@ function squadconf_supported_types($body, $format) {
     }
     $trim = ltrim((string) $body);
     $is_json = !($trim === '' || ($trim[0] !== '[' && $trim[0] !== '{'));
-    if ($wg_ok) $t[] = 'wireguard';
+    if ($wg_ok && (!$is_json || squadconf_is_singbox(json_decode((string) $body, true)) || squadconf_xray_json_enabled())) $t[] = 'wireguard';
     if (!$is_json && $awg_ok) {
         // AmneziaWG уходит клиенту только когда отдаётся схема wg:// (она несёт оба типа).
         // Если панель вернула wireguard:// без wg://, клиент получит только wireguard,

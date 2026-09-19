@@ -125,6 +125,8 @@ function wglease_set_mode($squad_uuid, $mode) {
 
 function wglease_reclaim_days() { return max(1, (int) (setting('wgpool_reclaim_days', '14') ?: 14)); }
 
+function wglease_dev_cap() { return max(1, (int) (setting('wgpool_dev_cap', '10') ?: 10)); }
+
 function wglease_select($short_uuid, $hwid, array $u_squads, $types = null) {
     $short_uuid = (string) $short_uuid;
     $hwid = (string) $hwid;
@@ -216,6 +218,9 @@ function wglease_pick($pool_id, $subkey, $short_uuid, $hwid, array $cands, $ua =
             if ($m !== false && isset($by_id[(int) $m])) return $by_id[(int) $m];
         } catch (Throwable $e) {}
     }
+    $held = wglease_rekey($p, $pool_id, $lease_key, $short_uuid, $hwid, $cand_ids, $by_id, $now, $ua);
+    if ($held !== null) return $held;
+    if ($hwid !== '' && wglease_dev_capped($p, $pool_id, $short_uuid, $hwid, $cand_ids)) return null;
     $cfg = wglease_assign($p, $pool_id, $lease_key, $short_uuid, $hwid, $cand_ids, $by_id, $now, $ua);
     if ($cfg === null) {
         try {
@@ -226,6 +231,51 @@ function wglease_pick($pool_id, $subkey, $short_uuid, $hwid, array $cands, $ua =
         $cfg = wglease_assign($p, $pool_id, $lease_key, $short_uuid, $hwid, $cand_ids, $by_id, $now, $ua);
     }
     return $cfg;
+}
+
+function wglease_take_row($p, $id, $lease_key, $hwid, $now, $ua, $by_id) {
+    try {
+        $sql = 'UPDATE wg_lease SET lease_key = ?, seen_ts = ?' . ($hwid !== '' ? ', hwid = ?, created_ts = ?' : '') . ((string) $ua !== '' ? ', ua = ?' : '') . ' WHERE id = ?';
+        $args = [$lease_key, $now];
+        if ($hwid !== '') { $args[] = $hwid; $args[] = $now; }
+        if ((string) $ua !== '') $args[] = (string) $ua;
+        $args[] = (int) $id;
+        $p->prepare($sql)->execute($args);
+    } catch (Throwable $e) {}
+    try {
+        $st = $p->prepare('SELECT config_id FROM wg_lease WHERE lease_key = ? LIMIT 1');
+        $st->execute([$lease_key]);
+        $cid = $st->fetchColumn();
+        if ($cid !== false && isset($by_id[(int) $cid])) return $by_id[(int) $cid];
+    } catch (Throwable $e) {}
+    return null;
+}
+
+function wglease_rekey($p, $pool_id, $lease_key, $short_uuid, $hwid, array $cand_ids, array $by_id, $now, $ua = '') {
+    if ((string) $short_uuid === '' || !$cand_ids) return null;
+    try {
+        $in = implode(',', array_fill(0, count($cand_ids), '?'));
+        $sql = 'SELECT id FROM wg_lease WHERE pool_id = ? AND manual = 0 AND short_uuid = ? AND '
+             . ($hwid === '' ? 'hwid IS NULL' : 'hwid = ?')
+             . " AND config_id IN ($in) ORDER BY seen_ts DESC LIMIT 1";
+        $args = [(string) $pool_id, (string) $short_uuid];
+        if ($hwid !== '') $args[] = (string) $hwid;
+        $st = $p->prepare($sql);
+        $st->execute(array_merge($args, $cand_ids));
+        $id = $st->fetchColumn();
+    } catch (Throwable $e) { return null; }
+    if ($id === false) return null;
+    return wglease_take_row($p, (int) $id, $lease_key, '', $now, $ua, $by_id);
+}
+
+function wglease_dev_capped($p, $pool_id, $short_uuid, $hwid, array $cand_ids) {
+    if ((string) $short_uuid === '' || (string) $hwid === '' || !$cand_ids) return false;
+    try {
+        $in = implode(',', array_fill(0, count($cand_ids), '?'));
+        $st = $p->prepare("SELECT COUNT(*) FROM wg_lease WHERE pool_id = ? AND manual = 0 AND short_uuid = ? AND hwid IS NOT NULL AND hwid <> ? AND config_id IN ($in)");
+        $st->execute(array_merge([(string) $pool_id, (string) $short_uuid, (string) $hwid], $cand_ids));
+        return (int) $st->fetchColumn() >= wglease_dev_cap();
+    } catch (Throwable $e) { return false; }
 }
 
 function wglease_assign($p, $pool_id, $lease_key, $short_uuid, $hwid, array $cand_ids, array $by_id, $now, $ua = '') {
