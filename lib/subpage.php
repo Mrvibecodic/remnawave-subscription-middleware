@@ -101,8 +101,22 @@ function subpage_dispatch($path, $query, $wire_path = null) {
 
     if (strpos($p, '/assets/') === 0 || subpage_is_browser($ua)) {
         $GLOBALS['submw_skip_metric'] = true;
+        if (strpos($p, '/assets/') !== 0 && subpage_denied($path)) {
+            header_remove('X-Powered-By');
+            http_response_code(404);
+            return true;
+        }
         subpage_external_proxy($wire_path === null ? $path : $wire_path, $query);
         return true;
     }
     return false;
+}
+
+function subpage_denied($path) {
+    $segs = path_segments($path);
+    if (!$segs) return false;
+    $ov = find_override_in('shortuuid', $segs);
+    if ($ov && ($ov['reason'] ?? '') === 'blocked') return true;
+    $short = $ov ? (string) $ov['match_value'] : (string) $segs[0];
+    return !chan_active() && chan_page_404() && chan_state_get($short) !== null;
 }
