@@ -365,16 +365,17 @@ function clientver_refresh_all($deadline = 25) {
     return [$ok, $bad, $left];
 }
 
-function clientver_autocheck($budget = 1) {
+function clientver_autocheck($budget = 1, $deadline = 0) {
     if (!clientver_enabled()) return 0;
     $now = time();
     $n = 0;
     foreach (clientver_catalog() as $r) {
-        if ($n >= $budget) break;
+        if ($n >= $budget || ($deadline > 0 && time() - $now >= $deadline)) break;
         if (empty($r['on']) || ($r['cmp'] ?? '') === 'dead' || ($r['src'] ?? '') === 'man') continue;
         $st = clientver_state();
-        $id = clientver_row_id($r);
-        if ($now - (int) ($st['rows'][$id]['t'] ?? 0) < clientver_ttl()) continue;
+        $row = $st['rows'][clientver_row_id($r)] ?? [];
+        $age = $now - (int) ($row['t'] ?? 0);
+        if ($age < clientver_ttl() && !((string) ($row['e'] ?? '') !== '' && $age >= 3600)) continue;
         clientver_refresh_row($r);
         $n++;
     }
