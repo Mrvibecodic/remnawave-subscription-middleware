@@ -1,5 +1,3 @@
--- Remnawave Subscription Middleware — схема БД (SQLite).
--- Создаётся автоматически при установке; этот файл — справочный.
 PRAGMA journal_mode=WAL;
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -175,25 +173,20 @@ CREATE TABLE IF NOT EXISTS addsub_cache (
     ts INTEGER NOT NULL DEFAULT 0
 );
 
--- Защищённый канал c1 (клиент ↔ прослойка).
--- chan_kid — метки подписок на трое суток: вчера, сегодня, завтра.
 CREATE TABLE IF NOT EXISTS chan_kid (
     kid TEXT NOT NULL PRIMARY KEY,
     short_uuid TEXT NOT NULL,
     epoch INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chan_kid_epoch ON chan_kid(epoch);
--- Под точечное снятие меток, когда юзера удалили в панели.
 CREATE INDEX IF NOT EXISTS idx_chan_kid_short ON chan_kid(short_uuid);
 
--- chan_nonce — защита от повтора перехваченного запроса, живёт 10 минут.
 CREATE TABLE IF NOT EXISTS chan_nonce (
     n TEXT NOT NULL PRIMARY KEY,
     ts INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_chan_nonce_ts ON chan_nonce(ts);
 
--- chan_key — ключи прослойки: текущий и предыдущий на время ротации.
 CREATE TABLE IF NOT EXISTS chan_key (
     spid TEXT NOT NULL PRIMARY KEY,
     secret TEXT NOT NULL,
@@ -201,7 +194,6 @@ CREATE TABLE IF NOT EXISTS chan_key (
     is_current INTEGER NOT NULL DEFAULT 0
 );
 
--- chan_state — кто уже ходит защищённо: для вкладки и для жёсткого режима.
 CREATE TABLE IF NOT EXISTS chan_state (
     short_uuid TEXT NOT NULL PRIMARY KEY,
     first_seen INTEGER NOT NULL DEFAULT 0,
@@ -212,8 +204,6 @@ CREATE TABLE IF NOT EXISTS chan_state (
     ua TEXT NULL
 );
 
--- chan_debug — диагностический журнал канала. Пишется, только когда включён
--- руками в админке: в записи попадает расшифрованное тело подписки.
 CREATE TABLE IF NOT EXISTS chan_debug (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts INTEGER NOT NULL DEFAULT 0,

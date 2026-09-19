@@ -89,9 +89,6 @@ function subpage_external_proxy($path, $query) {
     echo $resp;
 }
 
-// $wire_path — путь как он пришёл снаружи (с префиксом subscription-page,
-// если он есть): решение «браузер или нет» принимается по $path без префикса,
-// а к внешней странице уходит исходный адрес.
 function subpage_dispatch($path, $query, $wire_path = null) {
     if (!subpage_render_active()) return false;
     if (subpage_external_url() === '') return false;

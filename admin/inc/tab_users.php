@@ -126,9 +126,6 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
                 $un  = $u['username'] ?? '';
                 $st  = $u['status'] ?? '';
                 $su  = $u['shortUuid'] ?? '';
-                // Идентификатор пользователя: uuid на панели 2.x, числовой id на 3.x.
-                // На проводе остаётся один параметр — тип восстанавливается по значению
-                // (rw_ref_coerce), поэтому JS и ajax-контракт менять не нужно.
                 $uref = rw_user_ref($u);
                 $uuid = rw_ref_ok($uref) ? (string) $uref['val'] : '';
                 $lim  = (isset($u['hwidDeviceLimit']) && $u['hwidDeviceLimit'] !== null && $u['hwidDeviceLimit'] !== '') ? (string) $u['hwidDeviceLimit'] : '';

@@ -3,8 +3,6 @@ set -e
 DEST=/var/www/html
 mkdir -p "$DEST/data"
 
-# Старые установки хранили config.php в корне; новый путь — data/config.php.
-# Переносим, если новый ещё не создан, чтобы установка не сбрасывалась после обновления образа.
 if [ ! -f "$DEST/data/config.php" ] && [ -f "$DEST/config.php" ]; then
   cp "$DEST/config.php" "$DEST/data/config.php" 2>/dev/null && echo "submw: перенёс config.php в data/"
 fi
@@ -16,8 +14,6 @@ JSON
 fi
 chown -R www-data:www-data "$DEST/data"
 
-# Запускаем php-fpm и nginx под простым присмотром: если любой из них падает,
-# выходим с ошибкой, чтобы docker (restart) перезапустил контейнер, а не висел с 502.
 php-fpm -F &
 FPM=$!
 nginx -g 'daemon off;' &

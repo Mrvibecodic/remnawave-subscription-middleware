@@ -3,29 +3,14 @@ declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
-/**
- * Генератор общих тестовых векторов протокола c1.
- *
- * Файл `lib/chan_vectors.json` — единственный источник правды для трёх
- * реализаций: прослойки (PHP), клиента ПК (Rust) и Android-ядра (Go). После
- * запуска этот же файл надо разложить в клиентские репозитории:
- *
- *   clod-clash/src-tauri/src/config/chan_vectors.json
- *   clod-clash-android/core/src/main/golang/native/chanx/vectors.json
- *
- * Векторы намеренно не зависят от порядка полей в JSON: там, где важна
- * криптография, вектор задаёт готовую строку открытого текста. Иначе тест
- * проверял бы сериализатор конкретного языка, а не протокол.
- */
 
 require __DIR__ . '/../lib/chan.php';
 
 $token = 'a7Kd93mQz1Lp0Xr8';
 $psk   = chan_psk($token);
-$epoch = 20678;                      // 12.08.2026
+$epoch = 20678;
 $kid   = chan_kid($psk, $epoch);
 
-// Фиксированные ключи: 0x01, 0x02, … — чтобы вектор читался глазами.
 $spSecret  = str_repeat("\x01", 32);
 $spPublic  = sodium_crypto_box_publickey_from_secretkey($spSecret);
 $ephSecret = str_repeat("\x02", 32);
@@ -34,9 +19,6 @@ $srvSecret = str_repeat("\x03", 32);
 
 $dh = sodium_crypto_scalarmult($ephSecret, $spPublic);
 
-// --- запрос -----------------------------------------------------------------
-// Ровно 512 байт: клиент дополняет запрос полем `pad` до кратного
-// CHAN_REQ_PAD_BLOCK, иначе длина адреса выдаёт длину карточки устройства.
 $head = '{"v":1,"t":1786500000,"n":"AAECAwQFBgcICQoLDA0ODw","hwid":"3f9c1d2e","os":"windows","pad":"';
 $plain = $head . str_repeat('.', CHAN_REQ_PAD_BLOCK - strlen($head) - 2) . '"}';
 if (strlen($plain) !== CHAN_REQ_PAD_BLOCK) {
@@ -53,7 +35,6 @@ $cipher = sodium_crypto_aead_chacha20poly1305_ietf_encrypt(
 );
 $blob = chan_b64($ephPublic . $cipher);
 
-// Первый контакт: ключ прослойки ещё не закреплён, DH в деривации не участвует.
 $keyReq0 = chan_hkdf($psk, $kid, 'req' . $ephPublic);
 $cipher0 = sodium_crypto_aead_chacha20poly1305_ietf_encrypt(
     $plain,
@@ -62,7 +43,6 @@ $cipher0 = sodium_crypto_aead_chacha20poly1305_ietf_encrypt(
     $keyReq0
 );
 
-// --- ответ ------------------------------------------------------------------
 $ctx = [
     'token'  => $token,
     'kid'    => $kid,
@@ -77,7 +57,6 @@ $sealedAt = 1786500000;
 $status   = 200;
 $sealed   = chan_seal($ctx, $meta, $body, $spPublic, false, $status, $srvSecret, $sealedAt);
 
-// Ответ с телом, которого не бывает в UTF-8: тело уезжает полем `body_b64`.
 $binary   = "proxies: \xff\xfe\n";
 $sealedB  = chan_seal($ctx, $meta, $binary, $spPublic, false, $status, $srvSecret, $sealedAt);
 
@@ -110,8 +89,8 @@ $vectors = [
     ],
     'response'      => [
         'srv_secret' => bin2hex($srvSecret),
-        'body'       => $sealed,    // уже в виде провода: base64url
-        'body_binary' => $sealedB,  // то же, но тело не в UTF-8 — поле body_b64
+        'body'       => $sealed,
+        'body_binary' => $sealedB,
         'expect'     => [
             'meta_announce' => 'Тест',
             'config'        => $body,

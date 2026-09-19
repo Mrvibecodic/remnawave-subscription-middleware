@@ -1,8 +1,6 @@
     :root,html[data-theme="dark"]{
         --bg:#0b1020;--bg2:#111827;--card:#151c2c;--line:#293348;
         --text:#dbe4f0;--text-strong:#f8fafc;--muted:#95a3b8;
-        /* --on-accent: текст на бирюзовой заливке. Белый на #14b8a6 — 2,5:1 (ниже AA),
-           тёмный #06231f на той же бирюзе — 7,6:1. Цвет кнопок не меняется. */
         --accent:#14b8a6;--accent-h:#0f9f90;--accent-light:rgba(20,184,166,.16);--accent-text:#5eead4;--on-accent:#06231f;--red:#f04452;--amber:#f59e0b;
         --hover:rgba(255,255,255,.07);--hover2:rgba(255,255,255,.045);
         --c-ok-bg:rgba(16,185,129,.16);--c-ok-fg:#6ee7b7;--c-warn-bg:rgba(245,158,11,.16);--c-warn-fg:#fbbf24;
@@ -13,8 +11,6 @@
     }
     html[data-theme="light"]{
         --bg:#f4f7fb;--bg2:#edf2f7;--card:#ffffff;--line:#d8e0ea;
-        /* --muted поднят с #66758a (4,4:1 — ниже AA) до #58657a (5,9:1).
-           --accent затемнён до #0f766e: белый текст на нём 5,5:1 (на #0f9f90 было 3,3:1). */
         --text:#263241;--text-strong:#0f172a;--muted:#58657a;
         --accent:#0f766e;--accent-h:#0d5f59;--accent-light:rgba(15,118,110,.11);--accent-text:#0f766e;--on-accent:#ffffff;--red:#d92d3b;--amber:#d97706;
         --hover:rgba(15,23,42,.055);--hover2:rgba(15,23,42,.035);
@@ -25,8 +21,6 @@
         --focus:0 0 0 3px rgba(15,159,144,.18);--radius:8px;
     }
     html[data-theme="black"]{
-        /* Чёрная (OLED): тень на чистом чёрном не читается, поэтому --shadow:none,
-           а --line заметно светлее — граница остаётся единственным сигналом слоя. */
         --bg:#000000;--bg2:#0a0e17;--card:#0b0f18;--line:#232c40;
         --text:#e6edf6;--text-strong:#ffffff;--muted:#9aa6ba;
         --accent:#14b8a6;--accent-h:#0f9f90;--accent-light:rgba(20,184,166,.17);--accent-text:#5eead4;--on-accent:#04120f;--red:#f87171;--amber:#fbbf24;
@@ -88,7 +82,6 @@
     .theme-seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
     .theme-seg button{flex:1;min-width:0;background:transparent;color:var(--muted);border:0;border-radius:0;padding:.4rem .1rem;font-size:.72rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.2rem}
     .theme-seg button span{white-space:nowrap}
-    /* С четырьмя кнопками иконки не влезают — подписи важнее */
     .theme-seg button svg{display:none}
     .theme-seg button.on{background:var(--accent-light);color:var(--accent-text)}
     .theme-seg button svg{width:14px;height:14px}
@@ -162,9 +155,6 @@
     th{color:var(--muted);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.03em}
     td{font-variant-numeric:tabular-nums}
     @media(min-width:901px){
-        /* Шапка таблицы не уезжает при прокрутке длинных логов. top = высота .rw-header.
-           Внутри overflow-обёрток sticky липнет к самой обёртке и наезжает на строки,
-           поэтому там шапка остаётся обычной. */
         thead th{position:sticky;top:64px;z-index:5;background:var(--card)}
         .rl-wrap thead th,.cv-wrap thead th,.ua-rules-wrap thead th{position:static}
     }
@@ -240,8 +230,6 @@
     .sq-n{flex:1;font-weight:600;color:var(--text-strong);font-size:.9rem;word-break:break-word}
     @media(max-width:760px){.subprev{width:100%}.sq-grid{grid-template-columns:1fr}}
     code{background:var(--bg2);padding:.1rem .4rem;border-radius:5px;overflow-wrap:break-word;word-break:normal;font-size:.82em;border:1px solid var(--line)}
-    /* Внутри кнопки с заливкой чип кода нечитаем (тёмный фон чипа + --on-accent-текст),
-       поэтому там код — просто жирный моноширинный тем же цветом, что и текст кнопки. */
     button:not(.btn) code,.btn:not(.ghost) code{background:transparent;border:0;padding:0;color:inherit;font-weight:700;font-size:.95em}
     .sublink{width:100%;font-size:.78rem}
     pre{background:var(--bg2);padding:1rem;border-radius:8px;overflow:auto;font-size:.8rem;white-space:pre-wrap;border:1px solid var(--line)}

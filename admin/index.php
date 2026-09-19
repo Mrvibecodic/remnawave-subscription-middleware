@@ -288,9 +288,6 @@ if (isset($_GET['ajax']) && is_auth()) {
     header('Content-Type: application/json; charset=utf-8');
     $a = $_GET['ajax'];
 
-    // Параметр uuid здесь — идентификатор пользователя в любом из двух видов:
-    // UUID (панель 2.x) или числовой id (панель 3.x). Тип восстанавливается по
-    // значению внутри remnawave_* (rw_ref_coerce), формат запроса не менялся.
     if ($a === 'hwids') {
         $uuid = $_GET['uuid'] ?? '';
         $err = '';
@@ -349,7 +346,6 @@ if (isset($_GET['ajax']) && is_auth()) {
 
     if ($a === 'test_forward' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
-        // Тестируем то, что сейчас в форме (если передано), иначе — сохранённых адресатов.
         $targets = null;
         $tj = (string) ($_POST['targets'] ?? '');
         if ($tj !== '') {
@@ -413,24 +409,17 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
-    // Автопроверка версий клиентов. Уходит отдельным ajax'ом после загрузки
-    // «Лога запросов» — тем же паттерном, что panelmeta: рендер страницы читает
-    // только кэш и никогда не ходит в интернет сам.
     if ($a === 'cv_autocheck') {
         $cv_n = clientver_autocheck(2);
         echo json_encode(['ok' => true, 'checked' => $cv_n, 'outdated' => db() ? clientver_outdated(24) : 0], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
-    // Звёзды клиентов канала — тем же паттерном: вкладка рисуется из кэша
-    // (трое суток), а в GitHub ходит уже этот запрос, и только если протухло.
     if ($a === 'clod_stars') {
         echo json_encode(['ok' => true, 'stars' => chan_stars_refresh(false)], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
-    // Имена учётных записей для таблицы «кто ходит защищённо». Тем же паттерном:
-    // вкладка рисуется из кэша (15 минут), а в панель ходит уже этот запрос.
     if ($a === 'clod_names') {
         echo json_encode(['ok' => true, 'names' => chan_names_refresh(!empty($_GET['force']))], JSON_UNESCAPED_UNICODE);
         exit();
@@ -443,16 +432,10 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
-    // Версия панели для бейджа в шапке. Запрашивается отдельным ajax'ом, чтобы не
-    // добавлять обращение к панели в каждую загрузку админки.
     if ($a === 'panelmeta') {
         $merr = '';
         $age = !empty($_GET['force']) ? 0 : 600;
         $meta = remnawave_panel_meta($age, $merr);
-        // Конфигурацию панели освежаем тем же ajax'ом: версия уже известна, а
-        // отдельный запрос из каждой вкладки был бы лишним обращением к панели.
-        // Если панель только что не ответила на мету — второй запрос не делаем,
-        // иначе ajax висел бы два таймаута подряд и держал сессию залоченной.
         $cerr = '';
         $conf = null;
         if (!empty($meta['ok'])) $conf = remnawave_panel_config($age > 0 ? 600 : 0, $cerr);
@@ -460,9 +443,6 @@ if (isset($_GET['ajax']) && is_auth()) {
             'ok'        => true,
             'meta'      => $meta,
             'conf'      => $conf,
-            // Отпечаток берётся из кэша настроек — ровно того же источника, из
-            // которого рендерится блок в «О системе»: иначе сравнение никогда
-            // не сойдётся и кнопка «Обновить» перезагружала бы страницу всегда.
             'conf_sig'  => panel_config_sig(panel_config_cached()),
             'supported' => panel_version_supported(),
             'min'       => panel_min_supported(),
@@ -581,7 +561,6 @@ if (isset($_GET['ajax']) && is_auth()) {
         $u = $q !== '' ? remnawave_get_user_by_short($q, $pe) : null;
         if (!is_array($u)) { $pe2 = ''; $u = $q !== '' ? remnawave_get_user_by_username($q, $pe2) : null; }
         if (!is_array($u)) { echo json_encode(['ok' => false, 'error' => 'Пользователь не найден']); exit(); }
-        // uuid на панели 2.x, числовой id на 3.x — см. rw_user_ref в lib/api.php.
         $uref = rw_user_ref($u);
         $uuid = rw_ref_ok($uref) ? (string) $uref['val'] : '';
         $devs = [];
@@ -680,8 +659,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         form_saved('subst');
     }
 
-    // Разовый пересчёт идентификаторов в таблице грейса. Нужен после обновления
-    // панели до 3.x: в старых строках лежат UUID, которые панель больше не принимает.
     if ($action === 'grace_refresh_refs') {
         $r = grace_refresh_refs();
         if ($r['error'] !== '') {
@@ -846,7 +823,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'save_clientver') {
         set_setting('clientver_enabled', empty($_POST['cv_enabled']) ? '0' : '1');
         $cv_in = is_array($_POST['cv_k'] ?? null) ? $_POST['cv_k'] : [];
-        // Вложенные массивы в POST дали бы «Array to string conversion» — гасим до каста.
         $cv_s = fn($v, $d = '') => is_scalar($v) ? (string) $v : $d;
         $cv_new = [];
         foreach ($cv_in as $cv_i => $cv_k) {
@@ -1318,7 +1294,6 @@ $wh_hours = (int) ($_GET['wh_hours'] ?? 0);
 if (!in_array($wh_hours, [0, 1, 24, 168], true)) $wh_hours = 0;
 $wh_events = []; $wh_actions = []; $wh_total = 0; $wh_matched = 0;
 if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
-    // Обе вкладки — один код: у «прочих» просто нет фильтров по юзеру/действию.
     $wh_scope = $tab === 'whlog' ? $wh_user_cond : "NOT $wh_user_cond";
     $wh_conds = [$wh_scope]; $wh_args = [];
     if ($wh_event !== '') { $wh_conds[] = 'event = ?'; $wh_args[] = $wh_event; }
@@ -1332,8 +1307,6 @@ if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
     }
     $wh_where = implode(' AND ', $wh_conds);
     try {
-        // Дозаполнение старых hwid-строк, записанных до фикса имени: берём последнее
-        // известное имя по тому же shortUuid из соседних записей лога.
         $wh_bf_cond = "event LIKE 'user_hwid%' AND (username IS NULL OR username = '') AND short_uuid IS NOT NULL AND short_uuid <> ''";
         if ((int) $pdo->query("SELECT COUNT(*) FROM webhook_log WHERE $wh_bf_cond")->fetchColumn() > 0) {
             $wh_nm = $pdo->prepare("SELECT username FROM webhook_log WHERE short_uuid = ? AND username IS NOT NULL AND username <> '' ORDER BY id DESC LIMIT 1");
@@ -1357,7 +1330,6 @@ if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
                 }
             }
         }
-        // Селект «Событие» строится по фактическим типам в хранимом логе (со счётчиками).
         foreach ($pdo->query("SELECT event, COUNT(*) AS c FROM webhook_log WHERE $wh_scope GROUP BY event ORDER BY c DESC, event") as $r) $wh_events[(string) $r['event']] = (int) $r['c'];
         $wh_total = array_sum($wh_events);
         if ($tab === 'whlog') foreach ($pdo->query("SELECT DISTINCT action FROM webhook_log WHERE $wh_scope AND action IS NOT NULL ORDER BY action") as $r) $wh_actions[] = (string) $r['action'];
@@ -1365,17 +1337,13 @@ if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
         $wh_st->execute($wh_args);
         $wh_matched = (int) $wh_st->fetchColumn();
         if (isset($_GET['wh_csv'])) {
-            // Выгрузка текущей выборки целиком (по SQL-фильтру, не по видимой странице).
-            // wh_mask — обезличивание: shortUuid по сути пароль от подписки, имя и uuid
-            // сквадов — чужие данные, а файл уходит из админки наружу. Метка стабильна
-            // внутри одной выгрузки, поэтому строки между собой сопоставляются.
             $wh_mask = isset($_GET['wh_mask']);
             $wh_st = $pdo->prepare("SELECT ts, event, short_uuid, username, status, sig_ok, action, meta FROM webhook_log WHERE $wh_where ORDER BY id DESC LIMIT 20000");
             $wh_st->execute($wh_args);
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="webhook_log_' . ($tab === 'whlog' ? 'users' : 'other') . ($wh_mask ? '_anon' : '') . '_' . date('Ymd_His') . '.csv"');
             $wh_out = fopen('php://output', 'w');
-            fwrite($wh_out, "\xEF\xBB\xBF"); // BOM, чтобы Excel понял UTF-8
+            fwrite($wh_out, "\xEF\xBB\xBF");
             fputcsv($wh_out, ['ts', 'event', 'short_uuid', 'username', 'status', 'sig_ok', 'action', 'changed', 'by', 'diff', 'snapshot'], ';', '"', '\\');
             foreach ($wh_st as $r) {
                 $wm = whlog_meta($r);
@@ -1416,7 +1384,6 @@ $junk_top = []; $junk_wl = [];
 $rl_outdated = 0;
 $cv_rows = []; $cv_builtin = []; $cv_groups = []; $cv_seen = []; $cv_checked = 0;
 if ($tab === 'reqlog') {
-    // Только кэш: сами источники опрашивает ?ajax=cv_autocheck после загрузки.
     if ($db_ok) $rl_outdated = clientver_outdated(24);
 }
 if ($rl_view === 'clients') {
@@ -1537,12 +1504,6 @@ $fav_href = $brand_icon !== '' ? $brand_icon : ($emoji_favicon !== '' ? $emoji_f
 <title><?= h($brand['name']) ?> · админка</title>
 <link rel="icon" href="<?= $brand_icon !== '' ? h($brand_icon) : $fav_href ?>">
 <?php
-// Шрифты объявлены с font-display:optional: если файл не пришёл за отведённые
-// браузером ~100 мс, страница до конца загрузки останется на системном шрифте.
-// Без preload запрос стартует только после загрузки и разбора fonts.css — это
-// лишний круг до сервера, в который уложиться почти нельзя, и начертание
-// прыгает от перезагрузки к перезагрузке. Пути обязаны совпадать с url()
-// внутри fonts.css (без ?v=), иначе файл скачается дважды.
 foreach (['cyrillic', 'latin'] as $f_sub) {
     echo '<link rel="preload" as="font" type="font/woff2" crossorigin href="assets/fonts/onest-'
         . $f_sub . ".woff2\">\n";
@@ -1727,7 +1688,7 @@ function nav_link($key, $it, $active, $badge = false) {
     <aside class="rw-side">
         <div class="rw-brand"><?php if ($brand_icon !== ''): ?><img src="<?= h($brand_icon) ?>" alt=""><?php elseif ($brand_emoji !== ''): ?><span class="rw-emoji"><?= $brand_emoji ?></span><?php else: ?><img src="<?= $default_logo ?>" alt=""><?php endif; ?><b><?= h($brand['name']) ?></b></div>
         <nav class="rw-nav">
-            <?php $tab_nav = $tab === 'whlog_other' ? 'whlog' : $tab; // под-вкладка живёт внутри пункта «Лог вебхуков» ?>
+            <?php $tab_nav = $tab === 'whlog_other' ? 'whlog' : $tab;?>
             <?php foreach ($nav_sections as $sec): $active_in = in_array($tab_nav, $sec['items'], true); ?>
                 <?php if (empty($sec['coll'])): ?>
                     <div class="navgroup"><?= h($sec['l']) ?></div>
@@ -1778,8 +1739,6 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg width="20" height="20" class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
                 <a class="hbtn hbtn-ver" href="?tab=update" title="<?= update_available() ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if (update_available()): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
 <?php
-    // Бейдж версии панели. Рендерится из кэша — обращение к панели делает ajax
-    // panelmeta уже после загрузки страницы, чтобы не тормозить админку.
     $pm_meta = panel_meta_cached();
     $pm_ver  = trim((string) ($pm_meta['version'] ?? ''));
     $pm_sup  = panel_version_supported();
@@ -1999,7 +1958,6 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
     ok.addEventListener('click',function(){var f=cb; uiDlgClose(); if(f)f();});
     document.addEventListener('keydown',function(e){if(e.key==='Escape')uiDlgClose();});
     (function(){var el=document.getElementById('ghStarCount');if(!el)return;try{var c=JSON.parse(localStorage.getItem('gh_stars')||'null');if(c&&Date.now()-c.t<21600000){el.textContent=c.n;return;}}catch(e){}fetch('https://api.github.com/repos/Mrvibecodic/remnawave-subscription-middleware').then(function(r){return r.json();}).then(function(d){if(d&&typeof d.stargazers_count==='number'){el.textContent=d.stargazers_count;try{localStorage.setItem('gh_stars',JSON.stringify({n:d.stargazers_count,t:Date.now()}));}catch(e){}}}).catch(function(){});})();
-    // Версия панели: бейдж уже отрисован из кэша, здесь только освежаем значение.
     (function(){
         var badge=document.getElementById('panelVerBadge'), txt=document.getElementById('panelVerText');
         if(!badge||!txt)return;

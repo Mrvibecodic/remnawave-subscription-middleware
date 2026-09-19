@@ -287,8 +287,6 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
     function siPanelFetch(force){
         var st=document.getElementById('p_status'); if(force&&st) st.textContent='· обновление…';
         fetch('?ajax=panelstats'+(force?'&force=1':'')).then(function(r){return r.json();}).then(function(d){ if(d&&d.stats){ SI_PANEL=d.stats; siPanelApply(d.stats); } }).catch(function(){ if(st) st.textContent='· ошибка запроса'; });
-        // Мету (версия/сборка/коммит) обновляем только по кнопке: блок собирается на
-        // сервере, поэтому при реальном изменении версии проще перерисовать страницу.
         if(force){
             var cur=document.getElementById('si_panel_ver');
             var conf=document.getElementById('siPanelConf');

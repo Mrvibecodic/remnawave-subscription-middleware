@@ -1,7 +1,6 @@
     <?php
     $wh_full   = ($tab === 'whlog');
     $wh_tabkey = $wh_full ? 'whlog' : 'whlog_other';
-    // База текущих фильтров — чтобы клик по значению в таблице не сбрасывал остальные.
     $wh_qbase = ['tab' => $wh_tabkey];
     if ($wh_event !== '') $wh_qbase['wh_event'] = $wh_event;
     if ($wh_sig === '1' || $wh_sig === '0') $wh_qbase['wh_sig'] = $wh_sig;
@@ -20,8 +19,6 @@
         if (strpos((string) $e, 'user.') === 0) return 'webhook';
         return '';
     };
-    // Даты отдаём через .wh-time[data-ts]: их локализует тот же скрипт, что и колонку
-    // «Время», иначе в раскрытии висел бы UTC-ISO из панели.
     $whlog_cell = function ($k, $v) {
         if (whlog_is_date($k) && ($ep = whlog_epoch($v)) > 0) {
             return '<span class="wh-time" data-ts="' . $ep . '">' . h(whlog_fmt_value($k, $v)) . '</span>';
@@ -169,10 +166,6 @@
             if(window.LogPager) LogPager({bodyId:'whBody', topId:'wh_pgrTop', botId:'wh_pgrBot', colspan:<?= $wh_cols ?>, storeKey:'pg_whlog_<?= $wh_full ? 'user' : 'other' ?>'});
             var whBody=document.getElementById('whBody');
             if(whBody){
-                // Панель раскрытия живёт отдельной строкой на всю ширину, а не в ячейке
-                // «Изменения»: иначе её содержимое расширяет колонку и тянет всю таблицу.
-                // До первого клика она лежит в теге template — не рисуется и не сбивает
-                // ни анти-FOUC отсечку по nth-child, ни счёт строк в LogPager.
                 function whSync(){
                     whBody.querySelectorAll('tr.wh-det').forEach(function(tr){
                         var p=tr.previousElementSibling;
@@ -198,8 +191,6 @@
                         det.appendChild(td);
                         det.style.display='none';
                         tr.parentNode.insertBefore(det,tr.nextSibling);
-                        // Панель рождается после загрузки, поэтому даты в ней
-                        // локализуем отдельно — общий проход уже отработал.
                         whTimes(det);
                     }
                     var open=!det.classList.contains('open');
