@@ -410,7 +410,14 @@ if (isset($_GET['ajax']) && is_auth()) {
     }
 
     if ($a === 'cv_autocheck') {
-        $cv_n = clientver_autocheck(2);
+        session_write_close();
+        $cv_n = 0;
+        if (clientver_enabled() && time() - (int) setting('clientver_tick', '0') >= 300) {
+            set_setting('clientver_tick', (string) time());
+            ignore_user_abort(true);
+            @set_time_limit(60);
+            $cv_n = clientver_autocheck(100, 25);
+        }
         echo json_encode(['ok' => true, 'checked' => $cv_n, 'outdated' => db() ? clientver_outdated(24) : 0], JSON_UNESCAPED_UNICODE);
         exit();
     }
@@ -1958,6 +1965,11 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
     ok.addEventListener('click',function(){var f=cb; uiDlgClose(); if(f)f();});
     document.addEventListener('keydown',function(e){if(e.key==='Escape')uiDlgClose();});
     (function(){var el=document.getElementById('ghStarCount');if(!el)return;try{var c=JSON.parse(localStorage.getItem('gh_stars')||'null');if(c&&Date.now()-c.t<21600000){el.textContent=c.n;return;}}catch(e){}fetch('https://api.github.com/repos/Mrvibecodic/remnawave-subscription-middleware').then(function(r){return r.json();}).then(function(d){if(d&&typeof d.stargazers_count==='number'){el.textContent=d.stargazers_count;try{localStorage.setItem('gh_stars',JSON.stringify({n:d.stargazers_count,t:Date.now()}));}catch(e){}}}).catch(function(){});})();
+    fetch('?ajax=cv_autocheck').then(function(r){return r.json();}).then(function(d){
+        if(!d||!d.ok||!d.checked)return;
+        var a=document.getElementById('rlSegReq');
+        if(a)a.textContent='Запросы'+(d.outdated?' ('+d.outdated+' устаревших)':'');
+    }).catch(function(){});
     (function(){
         var badge=document.getElementById('panelVerBadge'), txt=document.getElementById('panelVerText');
         if(!badge||!txt)return;

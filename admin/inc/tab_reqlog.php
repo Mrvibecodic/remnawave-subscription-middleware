@@ -124,15 +124,6 @@
         <a class="on" href="?tab=reqlog" id="rlSegReq">Запросы<?= $rl_outdated ? ' (' . (int) $rl_outdated . ' устаревших)' : '' ?></a>
         <a href="?tab=reqlog&amp;view=clients">Клиенты</a>
     </div>
-    <script>
-    (function(){
-        fetch('?ajax=cv_autocheck').then(function(r){return r.json();}).then(function(d){
-            if(!d || !d.ok || !d.checked) return;
-            var a=document.getElementById('rlSegReq');
-            if(a) a.textContent='Запросы'+(d.outdated ? ' ('+d.outdated+' устаревших)' : '');
-        }).catch(function(){});
-    })();
-    </script>
     <div class="rl-kpis">
         <div class="rl-kpi"><div class="k">Обновили подписку</div><div class="v"><span id="rlKpiUsers"><?= (int) $rl_today_users ?></span><small id="rlKpiUsersTot"><?= $rl_total_users ? ' / ' . (int) $rl_total_users : '' ?></small></div><div class="d">сегодня, <?= h($rl_today_label) ?></div></div>
         <div class="rl-kpi"><div class="k">Устройств (HWID)</div><div class="v" id="rlKpiDev"><?= (int) $rl_today_devices ?></div><div class="d"><?= $rl_total_devices ? 'из ' . (int) $rl_total_devices . ' известных в логе' : 'за сегодня' ?></div></div>
