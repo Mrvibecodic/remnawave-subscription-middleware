@@ -18,6 +18,16 @@ $request_uri = $_SERVER['REQUEST_URI'] ?? '/';
 $parsed_url  = parse_url($request_uri);
 $path        = isset($parsed_url['path']) ? ltrim($parsed_url['path'], '/') : '';
 $query       = isset($parsed_url['query']) ? $parsed_url['query'] : '';
+$path_pct    = strpos($path, '%') !== false;
+if ($path_pct) $path = rawurldecode($path);
+if ($path !== '' && preg_match('~(^|/)\.{1,2}(/|$)~', $path)) {
+    header_remove('X-Powered-By');
+    http_response_code(404);
+    exit();
+}
+$path_wire = function ($p) use ($path_pct) {
+    return $path_pct ? implode('/', array_map('rawurlencode', explode('/', (string) $p))) : (string) $p;
+};
 
 $apisub_in = false;
 if ($path !== '' && apisub_accept_active() && remnawave_url() !== '' && preg_match('~^api/sub/(.+)~is', $path, $m)) {
@@ -39,7 +49,7 @@ if (empty($path) || $path === 'index.php') {
     exit();
 }
 
-if (!$apisub_in && subpage_dispatch($path, $query, $wire_path)) {
+if (!$apisub_in && subpage_dispatch($path, $query, $path_wire($wire_path))) {
     exit();
 }
 
@@ -71,9 +81,9 @@ $junk_path = $skip_log && !junk_excluded($path);
 
 $to_panel = subpage_active() || $apisub_in;
 if ($to_panel) {
-    $target_url = remnawave_url() . '/api/sub/' . $path;
+    $target_url = remnawave_url() . '/api/sub/' . $path_wire($path);
 } else {
-    $target_url = 'https://' . $target_domain . '/' . $wire_path;
+    $target_url = 'https://' . $target_domain . '/' . $path_wire($wire_path);
 }
 if ($query) $target_url .= '?' . $query;
 
