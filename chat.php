@@ -90,6 +90,7 @@ if ($api === 'send') {
     if ($method !== 'POST') chat_json(['ok' => false, 'error' => 'method'], 405);
     $body = trim((string) ($_POST['body'] ?? ''));
     if ($body === '') chat_json(['ok' => false, 'error' => 'empty'], 400);
+    if (!chat_rate_ok($session)) chat_json(['ok' => false, 'error' => 'rate'], 429);
     if (!$session) {
         if (chat_recent_sessions_from_ip(client_ip()) >= chat_max_sessions_per_ip()) chat_json(['ok' => false, 'error' => 'rate'], 429);
         $session = chat_session_create(client_ip(), $_SERVER['HTTP_USER_AGENT'] ?? '');

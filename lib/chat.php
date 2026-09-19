@@ -162,6 +162,21 @@ function chat_recent_sessions_from_ip($ip, $window = 3600) {
     } catch (Throwable $e) { return 0; }
 }
 
+function chat_recent_count($sql_tail, array $args, $cap, $window) {
+    if (!($p = db())) return 0;
+    try {
+        $st = $p->prepare('SELECT COUNT(*) FROM (SELECT created_at FROM ' . $sql_tail . ' ORDER BY id DESC LIMIT ' . (int) $cap . ') t WHERE ' . sql_epoch('t.created_at') . ' > ?');
+        $st->execute(array_merge($args, [time() - (int) $window]));
+        return (int) $st->fetchColumn();
+    } catch (Throwable $e) { return 0; }
+}
+
+function chat_rate_ok($session) {
+    if (chat_recent_count("chat_messages WHERE sender = 'visitor'", [], 300, 60) >= 300) return false;
+    if (!$session) return chat_recent_count('chat_sessions', [], 1000, 3600) < 1000;
+    return chat_recent_count("chat_messages WHERE sender = 'visitor' AND session_id = ?", [(int) $session['id']], 10, 60) < 10;
+}
+
 function chat_session_msg_count($sid) {
     if (!($p = db())) return 0;
     try {
@@ -275,16 +290,26 @@ function chat_tg_format_history($session, $msgs, $note = '') {
     $lines = ["💬 <b>" . $esc($who) . "</b>  <code>#s" . (int) $session['id'] . "</code>"];
     if ($note !== '') $lines[] = "<i>" . $esc($note) . "</i>";
     $lines[] = "──────────";
+    $body = [];
     foreach ($msgs as $m) {
         $t = date('H:i', (int) ($m['ts'] ?? time()));
         $b = $esc(mb_substr((string) $m['body'], 0, 600));
-        if ($m['sender'] === 'visitor')      $lines[] = "👤 <b>" . $esc($who) . "</b> <i>" . $t . "</i>\n" . $b;
-        elseif ($m['sender'] === 'agent')    $lines[] = "🛟 <b>" . $esc($agent) . "</b> <i>" . $t . "</i>\n" . $b;
-        else                                  $lines[] = "<i>" . $b . "</i>";
+        if ($m['sender'] === 'visitor')      $body[] = "👤 <b>" . $esc($who) . "</b> <i>" . $t . "</i>\n" . $b;
+        elseif ($m['sender'] === 'agent')    $body[] = "🛟 <b>" . $esc($agent) . "</b> <i>" . $t . "</i>\n" . $b;
+        else                                  $body[] = "<i>" . $b . "</i>";
     }
-    $text = implode("\n\n", $lines);
-    if (mb_strlen($text) > 3900) $text = "…\n" . mb_substr($text, -3890);
-    return $text;
+    $head = implode("\n\n", $lines);
+    $len = mb_strlen($head);
+    $keep = [];
+    for ($i = count($body) - 1; $i >= 0; $i--) {
+        $l = mb_strlen($body[$i]) + 2;
+        if ($len + $l > 3880 && $keep) break;
+        $keep[] = $body[$i];
+        $len += $l;
+    }
+    $keep = array_reverse($keep);
+    if (count($keep) < count($body)) $head .= "\n\n…";
+    return $keep ? $head . "\n\n" . implode("\n\n", $keep) : $head;
 }
 
 function chat_sessions_list($limit = 100) {
@@ -723,12 +748,12 @@ function chat_widget_render() {
         api('?api=send',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'body='+encodeURIComponent(t)})
             .then(function(d){
                 sendBtn.disabled=false;
-                if(!d||!d.ok)return;
+                if(!d||!d.ok){ if(!inp.value) inp.value=t; return; }
                 hasSession=true; startPolling();
                 if(firstMsg){ started=false; seen={}; lastId=0; body.innerHTML=''; start(); }
                 else { poll(); }
             })
-            .catch(function(){sendBtn.disabled=false;});
+            .catch(function(){sendBtn.disabled=false; if(!inp.value) inp.value=t;});
     }
     document.getElementById('swcLaunch').addEventListener('click',open);
     document.getElementById('swcClose').addEventListener('click',close);
