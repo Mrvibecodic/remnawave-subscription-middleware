@@ -128,6 +128,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                         <span class="muted" style="font-size:.8rem">Метки потом можно переименовать в списке.</span>
                     </div>
                 </div>
+                <p class="muted" style="font-size:.8rem;margin-top:.5rem;line-height:1.5">Флаг страны подставится сам, если страна стоит в начале префикса: «Нидерланды» → 🇳🇱. Без префикса флаг берётся из имени файла: <code>Germany-1.conf</code> → 🇩🇪, <code>NL-2.conf</code> → 🇳🇱.</p>
                 <p class="muted" style="font-size:.8rem;margin-top:.5rem;line-height:1.5">💡 <b>Группа/подпул</b> делит конфиги внутри одного сквада на независимые пулы. В режиме «на пользователя/устройство» юзер получит <b>по одному из каждой группы</b>: загрузи германские с группой <code>DE</code>, нидерландские — с <code>NL</code>, и в одном скваде каждый получит 1 DE + 1 NL. Пусто — общий пул по типу, как раньше.</p>
             </form>
         </div>
@@ -473,6 +474,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                     <div style="margin-bottom:.85rem">
                         <label>Метка</label>
                         <input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required style="width:100%;box-sizing:border-box">
+                        <div class="muted" style="font-size:.8rem;margin-top:.4rem;line-height:1.5">Страна в начале метки — флаг подставится сам (Нидерланды → 🇳🇱, Европа → 🇪🇺).</div>
                     </div>
                     <div style="margin-bottom:.85rem">
                         <label>Группа / подпул <span class="muted" style="font-weight:400">— необязательно</span></label>

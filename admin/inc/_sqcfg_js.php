@@ -30,24 +30,30 @@
         ta.addEventListener('input',function(){ clearTimeout(t); t=setTimeout(check,400); });
     })();
     (function(){
-        var C={'нидерланды':'NL','голландия':'NL','netherlands':'NL','holland':'NL','германия':'DE','germany':'DE','deutschland':'DE','сша':'US','америка':'US','usa':'US','united states':'US','america':'US','великобритания':'GB','британия':'GB','англия':'GB','united kingdom':'GB','britain':'GB','england':'GB','франция':'FR','france':'FR','финляндия':'FI','finland':'FI','швеция':'SE','sweden':'SE','норвегия':'NO','norway':'NO','дания':'DK','denmark':'DK','польша':'PL','poland':'PL','чехия':'CZ','czechia':'CZ','czech':'CZ','австрия':'AT','austria':'AT','швейцария':'CH','switzerland':'CH','италия':'IT','italy':'IT','испания':'ES','spain':'ES','португалия':'PT','portugal':'PT','ирландия':'IE','ireland':'IE','бельгия':'BE','belgium':'BE','люксембург':'LU','luxembourg':'LU','россия':'RU','russia':'RU','украина':'UA','ukraine':'UA','беларусь':'BY','belarus':'BY','казахстан':'KZ','kazakhstan':'KZ','турция':'TR','turkey':'TR','türkiye':'TR','оаэ':'AE','эмираты':'AE','uae':'AE','emirates':'AE','израиль':'IL','israel':'IL','канада':'CA','canada':'CA','бразилия':'BR','brazil':'BR','аргентина':'AR','argentina':'AR','япония':'JP','japan':'JP','корея':'KR','южная корея':'KR','korea':'KR','south korea':'KR','китай':'CN','china':'CN','гонконг':'HK','hong kong':'HK','hongkong':'HK','тайвань':'TW','taiwan':'TW','сингапур':'SG','singapore':'SG','индия':'IN','india':'IN','индонезия':'ID','indonesia':'ID','вьетнам':'VN','vietnam':'VN','таиланд':'TH','thailand':'TH','малайзия':'MY','malaysia':'MY','австралия':'AU','australia':'AU','новая зеландия':'NZ','new zealand':'NZ','юар':'ZA','south africa':'ZA','египет':'EG','egypt':'EG','сербия':'RS','serbia':'RS','румыния':'RO','romania':'RO','болгария':'BG','bulgaria':'BG','венгрия':'HU','hungary':'HU','греция':'GR','greece':'GR','латвия':'LV','latvia':'LV','литва':'LT','lithuania':'LT','эстония':'EE','estonia':'EE','исландия':'IS','iceland':'IS','молдова':'MD','молдавия':'MD','moldova':'MD','грузия':'GE','georgia':'GE','армения':'AM','armenia':'AM','азербайджан':'AZ','azerbaijan':'AZ','мексика':'MX','mexico':'MX','чили':'CL','chile':'CL','кипр':'CY','cyprus':'CY','мальта':'MT','malta':'MT','словакия':'SK','slovakia':'SK','словения':'SI','slovenia':'SI','хорватия':'HR','croatia':'HR'};
-        var ISO={}; for(var k in C) ISO[C[k]]=1;
+        var C=<?= json_encode(squadconf_country_map(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        var ISO={}; <?= json_encode(squadconf_flag_codes()) ?>.forEach(function(c){ ISO[c]=1; });
         function flag(iso){ if(!/^[A-Z]{2}$/.test(iso)) return ''; return String.fromCodePoint(0x1F1E6+iso.charCodeAt(0)-65)+String.fromCodePoint(0x1F1E6+iso.charCodeAt(1)-65); }
         function hasFlag(s){ try{ return /^[\u{1F1E6}-\u{1F1FF}]{2}/u.test(s); }catch(e){ return false; } }
-        function detect(v){
-            var t=v.trim().split(/\s+/), raw0=t[0]||'', low=v.trim().toLowerCase().split(/\s+/);
-            var c2=low.slice(0,2).join(' '), c1=low[0]||'';
-            if(C[c2]) return C[c2];
-            if(C[c1]) return C[c1];
-            if(/^[A-Z]{2}$/.test(raw0) && ISO[raw0]) return raw0;
+        function detect(s){
+            var low=s.toLowerCase().replace(/ё/g,'е'), vs=[low, low.replace(/-/g,' ')], i, n, w, k, c;
+            for(i=0;i<2;i++){
+                w=vs[i].trim().split(/\s+/);
+                for(n=3;n>=1;n--){ if(w.length<n) continue; k=w.slice(0,n).join(' '); if(Object.prototype.hasOwnProperty.call(C,k)) return C[k]; }
+            }
+            vs=[s, s.replace(/-/g,' ')];
+            for(i=0;i<2;i++){
+                c=vs[i].trim().split(/\s+/)[0]||''; if(c==='UK') c='GB';
+                if(/^[A-Z]{2}$/.test(c) && ISO[c]) return c;
+            }
             return '';
         }
         function apply(inp){
-            var v=inp.value; if(!v.trim() || hasFlag(v)) return;
-            var iso=detect(v); if(!iso) return;
-            inp.value=flag(iso)+' '+v.trim();
+            var t=inp.value.trim(); if(!t || hasFlag(t)) return;
+            var iso=detect(t); if(!iso) return;
+            inp.value=flag(iso)+' '+t;
         }
         document.querySelectorAll('.sqcfg-flag').forEach(function(i){ i.addEventListener('blur',function(){ apply(i); }); });
+        document.addEventListener('submit',function(e){ var f=e.target; if(f && f.querySelectorAll) f.querySelectorAll('.sqcfg-flag').forEach(apply); },true);
     })();
     (function(){
         function sync(cb){ var l = cb.closest('.sq-item'); if(l) l.classList.toggle('on', cb.checked); }

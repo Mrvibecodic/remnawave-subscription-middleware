@@ -1020,6 +1020,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         $name  = trim($_POST['name'] ?? '');
         $grp   = trim($_POST['grp'] ?? '');
         $kind  = (($_POST['kind'] ?? 'simple') === 'wg') ? 'wg' : 'simple';
+        $name  = mb_substr(squadconf_flag_label($name), 0, 191);
         $ret   = (($_POST['ret'] ?? '') === 'wg_pool') ? 'wg_pool' : 'squad_configs';
         if (!$squads || $name === '' || trim($raw) === '') {
             flash('Выберите хотя бы один сквад, укажите метку и вставьте конфиг');
@@ -1081,7 +1082,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
                 if (!is_array($parsed) || empty($parsed['ok']) || !in_array($parsed['type'] ?? '', ['wireguard', 'amneziawg'], true)) { $skipped++; continue; }
                 if ($lbl === '') { $auto++; $lbl = (($parsed['type'] === 'amneziawg') ? 'AWG' : 'WG') . ' ' . $auto; }
                 if ($prefix !== '') $lbl = $prefix . ' · ' . $lbl;
-                squadconf_add($squads, $parsed['type'], mb_substr($lbl, 0, 191), $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE), $grp);
+                squadconf_add($squads, $parsed['type'], mb_substr(squadconf_flag_label($lbl), 0, 191), $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE), $grp);
                 $added++;
             }
             flash('Добавлено WG/AWG: ' . $added . ($skipped ? (', пропущено (не WG/AWG или ошибка): ' . $skipped) : ''));
@@ -1102,7 +1103,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
             if (!$parsed['ok']) {
                 flash('Конфиг не распознан: ' . (implode(' ', $parsed['warnings']) ?: 'неизвестный формат'));
             } else {
-                squadconf_update($id, $squads, $parsed['type'], $name, $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE), $grp);
+                squadconf_update($id, $squads, $parsed['type'], mb_substr(squadconf_flag_label($name), 0, 191), $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE), $grp);
                 flash('Конфиг обновлён (' . squadconf_summary($parsed) . ')');
             }
         }
