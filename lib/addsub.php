@@ -302,7 +302,9 @@ function addsub_fetch_prepare($url) {
         'if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range',
     ];
     $client_headers = [];
-    if (function_exists('getallheaders')) {
+    if (!empty($GLOBALS['chan_headers']) && is_array($GLOBALS['chan_headers'])) {
+        foreach ($GLOBALS['chan_headers'] as $k => $v) $client_headers[(string) $k] = $v;
+    } elseif (function_exists('getallheaders')) {
         foreach (getallheaders() as $k => $v) $client_headers[(string) $k] = $v;
     } else {
         foreach ($_SERVER as $sk => $sv) {
@@ -313,12 +315,21 @@ function addsub_fetch_prepare($url) {
     }
     $headers = [];
     $seen_ua = false; $seen_accept = false;
+    $seen = []; $ua_val = '';
     foreach ($client_headers as $k => $v) {
         $lk = strtolower((string) $k);
         if (in_array($lk, $skip, true)) continue;
-        if ($lk === 'user-agent') $seen_ua = true;
+        if ($lk === 'user-agent') { $seen_ua = true; $ua_val = (string) $v; }
         if ($lk === 'accept')     $seen_accept = true;
+        $seen[$lk] = true;
         $headers[] = $k . ': ' . $v;
+    }
+    if ($ua_val !== '' && function_exists('ua_hwid_parse') && ua_hwid_parse()) {
+        foreach (ua_hwid_keys() as $uk) {
+            if (isset($seen[$uk])) continue;
+            $uv = ua_hwid_extract($ua_val, $uk);
+            if ($uv !== '') $headers[] = $uk . ': ' . $uv;
+        }
     }
     if (!$seen_ua)     $headers[] = 'User-Agent: submw';
     if (!$seen_accept) $headers[] = 'Accept: */*';
@@ -336,7 +347,8 @@ function addsub_fetch_prepare($url) {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_MAXREDIRS      => 5,
-        CURLOPT_TIMEOUT        => proxy_timeout(),
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT        => min(proxy_timeout(), 15),
         CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
         CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
         CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
@@ -345,6 +357,7 @@ function addsub_fetch_prepare($url) {
         CURLOPT_HEADER         => false,
         CURLOPT_HEADERFUNCTION => function ($curl, $h) use ($st) {
             $t = trim($h);
+            if (strpos($t, 'HTTP/') === 0) { $st->info = null; return strlen($h); }
             $parts = explode(':', $t, 2);
             if (count($parts) === 2 && strtolower(trim($parts[0])) === 'subscription-userinfo') {
                 $st->info = addsub_parse_userinfo(trim($parts[1]));
@@ -373,6 +386,8 @@ function addsub_fetch_body($url) {
 
 function addsub_label_uri($line, $label) {
     if ($label === '') return $line;
+    if (stripos($line, 'vmess://') === 0) return addsub_label_vmess($line, $label);
+    if (stripos($line, 'ssr://') === 0) return $line;
     $hash = strpos($line, '#');
     if ($hash === false) return $line . '#' . rawurlencode($label);
     $rem = rawurldecode(substr($line, $hash + 1));
@@ -473,6 +488,26 @@ function addsub_clash_extract($yaml) {
         $names[] = $name;
     }
     return [$blocks, $names];
+}
+
+function addsub_label_vmess($line, $label) {
+    $raw = substr($line, 8);
+    $frag = '';
+    if (($h = strpos($raw, '#')) !== false) { $frag = substr($raw, $h + 1); $raw = substr($raw, 0, $h); }
+    $b64 = strtr(trim($raw), '-_', '+/');
+    $pad = strlen($b64) % 4;
+    if ($pad) $b64 .= str_repeat('=', 4 - $pad);
+    $dec = base64_decode($b64, true);
+    $o = is_string($dec) ? json_decode($dec) : null;
+    if (!is_object($o)) {
+        if ($frag === '') return $line;
+        return substr($line, 0, 8) . $raw . '#' . rawurlencode($label . ' ' . rawurldecode($frag));
+    }
+    $ps = isset($o->ps) ? trim((string) $o->ps) : '';
+    $o->ps = $ps !== '' ? ($label . ' ' . $ps) : $label;
+    $enc = json_encode($o, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($enc === false) return $line;
+    return 'vmess://' . base64_encode($enc);
 }
 
 function addsub_merge_clash($a, $b) {

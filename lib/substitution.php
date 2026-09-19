@@ -13,7 +13,7 @@ function detect_body_format($body, $format) {
     $t = ltrim((string) $body);
     if ($t === '' || $t[0] === '<') return $format;
     if ($t[0] === '{' || $t[0] === '[') return 'base64';
-    if (preg_match('/^(proxies|proxy-groups|proxy-providers|mixed-port|port|socks-port|allow-lan|mode|dns|rules)\s*:/m', $t)) return 'clash';
+    if (preg_match('/^(proxies|proxy-groups|proxy-providers|mixed-port|port|socks-port|allow-lan|mode|dns|rules)[ \t]*:(?!\/\/)/m', $t)) return 'clash';
     if ($format === 'clash' && preg_match('~^[A-Za-z0-9+/=\r\n]+$~', $t)) {
         $d = base64_decode($t, true);
         if (is_string($d) && strpos($d, '://') !== false) return 'base64';
