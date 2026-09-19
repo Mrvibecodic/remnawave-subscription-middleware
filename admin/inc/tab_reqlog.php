@@ -330,7 +330,9 @@
             var b = e.target.closest('.rl-copy'); if(!b) return;
             e.preventDefault();
             var v = b.getAttribute('data-copy') || '';
-            if(navigator.clipboard) navigator.clipboard.writeText(v).then(function(){ if(window.toast) toast('HWID скопирован'); });
+            var done = function(){ if(window.uiToast) uiToast('HWID скопирован'); };
+            var legacy = function(){ try{ var ta=document.createElement('textarea'); ta.value=v; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(); }catch(err){} };
+            if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(v).then(done, legacy); else legacy();
         });
         function kpi(id, val){ var el = document.getElementById(id); if(el && val !== undefined && val !== null) el.textContent = val; }
         window.rlRefresh = function(){

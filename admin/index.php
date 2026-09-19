@@ -216,22 +216,24 @@ function csrf_token() {
     if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
     return $_SESSION['csrf'];
 }
-function csrf_ok() { return isset($_POST['csrf'], $_SESSION['csrf']) && hash_equals($_SESSION['csrf'], $_POST['csrf']); }
-function csrf_ok_get() { return isset($_GET['csrf'], $_SESSION['csrf']) && hash_equals($_SESSION['csrf'], (string) $_GET['csrf']); }
+function csrf_ok() { return isset($_POST['csrf'], $_SESSION['csrf']) && is_string($_POST['csrf']) && hash_equals((string) $_SESSION['csrf'], $_POST['csrf']); }
+function csrf_ok_get() { return isset($_GET['csrf'], $_SESSION['csrf']) && is_string($_GET['csrf']) && hash_equals((string) $_SESSION['csrf'], $_GET['csrf']); }
 function is_auth() { return !empty($_SESSION['auth']); }
 function flash($m) { $_SESSION['flash'] = $m; }
 function take_flash() { $m = $_SESSION['flash'] ?? null; unset($_SESSION['flash']); return $m; }
 function form_saved($tab) { if (!empty($_POST['xhr'])) { header('Content-Type: application/json; charset=utf-8'); echo json_encode(['ok' => true, 'msg' => take_flash()], JSON_UNESCAPED_UNICODE); exit(); } header('Location: index.php?tab=' . $tab); exit(); }
 
 if (isset($_GET['logout'])) {
-    $_SESSION = []; session_destroy();
+    if (!is_auth() || csrf_ok_get()) { $_SESSION = []; session_destroy(); }
     header('Location: index.php'); exit();
 }
 
 if (!is_auth()) {
     $err = '';
     $just_installed = isset($_GET['installed']);
-    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !csrf_ok()) {
+        $err = 'Страница входа устарела. Попробуйте ещё раз.';
+    } elseif (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $lip = login_remote_ip();
         if (login_is_locked($lip)) {
             $err = 'Слишком много попыток входа. Подождите 15 минут и попробуйте снова.';
@@ -242,6 +244,7 @@ if (!is_auth()) {
             if (hash_equals((string) $C['admin_user'], (string) $u) && password_verify($p, $C['admin_pass_hash'])) {
                 login_clear($lip);
                 session_regenerate_id(true);
+                unset($_SESSION['csrf']);
                 $_SESSION['auth'] = true;
                 header('Location: index.php'); exit();
             }
@@ -272,6 +275,7 @@ if (!is_auth()) {
         <h1>Прослойка подписки · вход</h1>
         <?php if ($just_installed): ?><div class="ok">Установка завершена. Войдите.</div><?php endif; ?>
         <label for="username">Логин</label><input id="username" name="user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
+        <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
         <label for="password">Пароль</label><input id="password" name="pass" type="password" autocomplete="current-password" required>
         <button type="submit">🔑 Войти</button>
         <div class="err"><?= h($err) ?></div>
@@ -1787,7 +1791,7 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
             . (!$pm_sup ? ' · ниже минимально поддерживаемой ' . panel_min_supported() : ''));
 ?>
                 <a class="hbtn hbtn-ver hbtn-panel" href="?tab=sysinfo" id="panelVerBadge" data-min="<?= h(panel_min_supported()) ?>" title="<?= h($pm_ttl) ?>">Панель <code id="panelVerText"><?= $pm_ver !== '' ? h($pm_ver) : '—' ?></code><?php if ($pm_ver !== '' && !$pm_sup): ?><span class="hbtn-dot" id="panelVerDot" title="Версия панели ниже поддерживаемой"></span><?php endif; ?></a>
-                <a class="hbtn" href="?logout=1" title="Выйти" aria-label="Выйти"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+                <a class="hbtn" href="?logout=1&amp;csrf=<?= h(csrf_token()) ?>" title="Выйти" aria-label="Выйти"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>
         <div class="rw-content">
