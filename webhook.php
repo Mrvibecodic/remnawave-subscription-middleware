@@ -31,22 +31,29 @@ if (!$sig_ok) {
     exit();
 }
 
-$ts_raw = $_SERVER['HTTP_X_REMNAWAVE_TIMESTAMP'] ?? '';
-if ($ts_raw !== '') {
-    $ts = strtotime((string) $ts_raw);
-    if ($ts !== false && (time() - $ts) > 3600) {
-        error_log('submw webhook: stale timestamp ' . $ts_raw . ' from ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
-        http_response_code(409);
-        echo 'Stale webhook';
-        exit();
-    }
-}
-
 $payload = json_decode($raw, true);
 if (!is_array($payload)) {
     http_response_code(400);
     echo 'Bad JSON';
     exit();
+}
+
+$ts_raw = (isset($payload['timestamp']) && is_scalar($payload['timestamp']) && (string) $payload['timestamp'] !== '')
+    ? (string) $payload['timestamp']
+    : (string) ($_SERVER['HTTP_X_REMNAWAVE_TIMESTAMP'] ?? '');
+if ($ts_raw !== '') {
+    if (ctype_digit($ts_raw)) {
+        $ts = (int) $ts_raw;
+        if ($ts > 100000000000) $ts = intdiv($ts, 1000);
+    } else {
+        $ts = strtotime($ts_raw);
+    }
+    if ($ts !== false && abs(time() - $ts) > 3600) {
+        error_log('submw webhook: stale timestamp ' . $ts_raw . ' from ' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
+        http_response_code(409);
+        echo 'Stale webhook';
+        exit();
+    }
 }
 
 $event = $payload['event'] ?? '';
