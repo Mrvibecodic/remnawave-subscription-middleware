@@ -169,7 +169,8 @@ function install_statements_sqlite() {
             short_uuid TEXT NOT NULL PRIMARY KEY, user_uuid TEXT NOT NULL, username TEXT NULL,
             orig_squads TEXT NULL, orig_traffic_bytes INTEGER NOT NULL DEFAULT 0,
             orig_traffic_strategy TEXT NOT NULL DEFAULT 'NO_RESET', orig_expire TEXT NULL,
-            orig_hwid_limit INTEGER NULL, grace_until INTEGER NOT NULL DEFAULT 0,
+            orig_hwid_limit INTEGER NULL, orig_external_squad TEXT NULL, grace_patch TEXT NULL, grace_until INTEGER NOT NULL DEFAULT 0,
+            ended_ts INTEGER NOT NULL DEFAULT 0, retry_ts INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )",
         "CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -228,7 +229,8 @@ function install_statements_mysql() {
             short_uuid VARCHAR(191) NOT NULL, user_uuid VARCHAR(191) NOT NULL, username VARCHAR(191) NULL,
             orig_squads MEDIUMTEXT NULL, orig_traffic_bytes BIGINT NOT NULL DEFAULT 0,
             orig_traffic_strategy VARCHAR(32) NOT NULL DEFAULT 'NO_RESET', orig_expire VARCHAR(40) NULL,
-            orig_hwid_limit INT NULL, grace_until INT NOT NULL DEFAULT 0,
+            orig_hwid_limit INT NULL, orig_external_squad VARCHAR(191) NULL, grace_patch MEDIUMTEXT NULL, grace_until INT NOT NULL DEFAULT 0,
+            ended_ts INT NOT NULL DEFAULT 0, retry_ts INT NOT NULL DEFAULT 0,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (short_uuid)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -476,6 +478,8 @@ function migrate_extra_ddl($drv) {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "ALTER TABLE grace_users ADD COLUMN orig_external_squad VARCHAR(191) NULL",
             "ALTER TABLE grace_users ADD COLUMN grace_patch MEDIUMTEXT NULL",
+            "ALTER TABLE grace_users ADD COLUMN ended_ts INT NOT NULL DEFAULT 0",
+            "ALTER TABLE grace_users ADD COLUMN retry_ts INT NOT NULL DEFAULT 0",
         ];
     }
     return [
@@ -519,6 +523,8 @@ function migrate_extra_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS chan_state (short_uuid TEXT NOT NULL PRIMARY KEY, first_seen INTEGER NOT NULL DEFAULT 0, last_seen INTEGER NOT NULL DEFAULT 0, hits INTEGER NOT NULL DEFAULT 0, downgrades INTEGER NOT NULL DEFAULT 0, hard INTEGER NOT NULL DEFAULT 0, ua TEXT NULL)",
         "ALTER TABLE grace_users ADD COLUMN orig_external_squad TEXT NULL",
         "ALTER TABLE grace_users ADD COLUMN grace_patch TEXT NULL",
+        "ALTER TABLE grace_users ADD COLUMN ended_ts INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE grace_users ADD COLUMN retry_ts INTEGER NOT NULL DEFAULT 0",
     ];
 }
 

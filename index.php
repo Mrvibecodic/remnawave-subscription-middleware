@@ -53,6 +53,9 @@ register_shutdown_function(function () {
 register_shutdown_function(function () {
     if (!function_exists('grace_retry_pending') || !empty($GLOBALS['submw_skip_metric'])) return;
     if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+    if (!empty($GLOBALS['submw_grace_touch'])) {
+        try { grace_touch($GLOBALS['submw_grace_touch'][0], $GLOBALS['submw_grace_touch'][1]); } catch (Throwable $e) { error_log('submw grace touch: ' . $e->getMessage()); }
+    }
     grace_retry_pending();
 });
 
@@ -447,6 +450,4 @@ if (!$skip_log) {
     }
 }
 
-if ($decision === 'expired' && $short_uuid !== '') {
-    try { grace_restore_due($short_uuid); } catch (Throwable $e) { error_log('submw grace restore-due: ' . $e->getMessage()); }
-}
+if ($short_uuid !== '' && !$junk_path) $GLOBALS['submw_grace_touch'] = [$short_uuid, $expire_ts];

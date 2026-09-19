@@ -3,16 +3,16 @@
             <h2>Грейс-юзеры (<?= count($grace_list) ?>)</h2>
             <div class="loghead-r"><div id="gr_pgrTop" class="pgr"></div></div>
         </div>
-        <p class="muted">Юзеры, переведённые в грейс-сквад. «Грейс до» — момент окончания грейса: юзер вернётся в исходный сквад и истечёт, если не продлит. Время — по вашему часовому поясу.</p>
+        <p class="muted">Юзеры, переведённые в грейс-сквад. «Грейс до» — момент окончания грейса: юзер вернётся в исходный сквад и истечёт, если не продлит. Любое изменение юзера в панели во время грейса (дата, сквады, лимиты) снимает грейс: что задано в панели — остаётся, остальное возвращается к исходному. Время — по вашему часовому поясу.</p>
         <table class="logtbl">
             <thead><tr><th>Пользователь</th><th>Переведён</th><th>Грейс до</th><th>Статус</th></tr></thead>
             <tbody id="grBody" class="lp-cap">
-            <?php foreach ($grace_list as $g): $active = (int) $g['grace_until'] > time(); ?>
+            <?php foreach ($grace_list as $g): $g_ended = (int) ($g['ended_ts'] ?? 0) > 0; $active = !$g_ended && (int) $g['grace_until'] > time(); ?>
             <tr>
                 <td><?php if (($g['username'] ?? '') !== ''): ?><b><?= h($g['username']) ?></b><?php else: ?><code style="font-size:.78rem"><?= h($g['short_uuid']) ?></code><?php endif; ?></td>
                 <td class="gt-time muted" data-ts="<?= (int) ($g['created_epoch'] ?? 0) ?>"><?= h((string) ($g['created_at'] ?? '')) ?></td>
                 <td class="gt-time" data-ts="<?= (int) $g['grace_until'] ?>"><?= h(date('Y-m-d H:i', (int) $g['grace_until'])) ?></td>
-                <td><?php if ($active): ?><span class="tag normal">активен</span><?php else: ?><span class="tag expired">завершён</span><?php endif; ?></td>
+                <td><?php if ($active): ?><span class="tag normal">активен</span><?php elseif ($g_ended): ?><span class="tag expired">завершён</span><?php else: ?><span class="tag LIMITED" data-tip="срок вышел, ждёт ответа панели">завершается</span><?php endif; ?></td>
             </tr>
             <?php endforeach; ?>
             <?php if (!$grace_list): ?><tr><td colspan="4" class="muted">Пусто — грейс-юзеров нет.</td></tr><?php endif; ?>

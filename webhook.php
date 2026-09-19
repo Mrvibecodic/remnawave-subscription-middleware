@@ -148,29 +148,42 @@ if ($short_uuid !== '') {
         if (addsub_is_secondary($short_uuid, $username) && !grace_find($short_uuid)) {
             $action = 'addsub_skip';
         } else {
-            $g = grace_on_expired($short_uuid, $username, $event === 'user.expired');
-            if ($g === 'grace_started' || $g === 'grace_ended' || $g === 'grace_active') {
+            $g = grace_on_expired($short_uuid, $username, $event === 'user.expired', $data);
+            if ($g === 'grace_started' || $g === 'grace_active' || $g === 'grace_renewed') {
                 delete_override('shortuuid', $short_uuid, 'webhook');
                 $action = $g;
+            } elseif ($g === 'grace_ended') {
+                $action = $g;
+            } elseif ($g === 'grace_stale') {
+                $action = 'stale';
             } else {
                 upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
                 $action = 'set_expired';
             }
         }
     } elseif ($status === 'DISABLED' || $status === 'LIMITED') {
-        $renewed = $status === 'LIMITED' && $expire_future
-            && grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''), $data);
-        if ($renewed) {
-            delete_override('shortuuid', $short_uuid, 'webhook');
-            $action = 'grace_renewed';
+        $g = grace_check($short_uuid, $data);
+        if ($g === 'grace_ended' || ($g === 'grace_renewed' && $status === 'LIMITED')) {
+            $action = $g;
+        } elseif ($g === 'grace_stale') {
+            $action = 'stale';
         } else {
             upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
             $action = 'set_expired';
         }
     } elseif ($is_active) {
-        $renewed = grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''), $data);
-        delete_override('shortuuid', $short_uuid, 'webhook');
-        $action = $renewed ? 'grace_renewed' : 'reactivate';
+        $g = grace_check($short_uuid, $data);
+        if ($g === 'grace_ended') {
+            $action = $g;
+        } elseif ($g === 'grace_done' && !$expire_future) {
+            upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
+            $action = 'set_expired';
+        } elseif ($g === 'grace_stale') {
+            $action = 'stale';
+        } else {
+            delete_override('shortuuid', $short_uuid, 'webhook');
+            $action = $g === 'grace_renewed' ? 'grace_renewed' : 'reactivate';
+        }
     } elseif ($is_inactive) {
         upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
         $action = 'set_expired';
