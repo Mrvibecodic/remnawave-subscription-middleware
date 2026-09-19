@@ -232,7 +232,7 @@ if ($addsub_pre !== null && $addsub_pre['ch'] !== null) {
 $ip     = client_ip();
 $ua     = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $segs   = path_segments($path);
-$format = detect_client_format();
+$format = ((int) $http_code >= 200 && (int) $http_code < 300 && is_string($response)) ? detect_body_format($response, detect_client_format()) : detect_client_format();
 
 $short_ov = find_override_in('shortuuid', $segs);
 
