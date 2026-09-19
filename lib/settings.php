@@ -28,9 +28,6 @@ function api_tls_verify() { return setting('tls_verify', '1') === '1'; }
 
 function sub_link_apisub() { return setting('sub_link_apisub', '0') === '1'; }
 
-// Префикс штатного subscription-page (CUSTOM_SUB_PREFIX): подписка живёт на
-// /<prefix>/<shortUuid>. Пока тумблер выключен — пустая строка, и весь разбор
-// пути идёт как раньше. Слэши по краям режем: в .env панели их тоже не бывает.
 function sub_prefix() {
     if (setting('sub_prefix_enabled', '0') !== '1') return '';
     return trim((string) setting('sub_prefix', ''), "/ \t\r\n");
@@ -38,9 +35,6 @@ function sub_prefix() {
 
 function sub_link_prefix() { return sub_prefix() !== '' && setting('sub_link_prefix', '0') === '1'; }
 
-// Срезает префикс с начала пути. Возвращает [путь без префикса, был ли он].
-// Голый /<prefix> без хвоста считается корнем (лендинг), а путь без префикса
-// проходит нетронутым — старые ссылки продолжают работать.
 function sub_prefix_strip($path) {
     $pre  = sub_prefix();
     $path = (string) $path;
@@ -51,8 +45,6 @@ function sub_prefix_strip($path) {
     return [$path, false];
 }
 
-// Префикс для ссылок, которые прослойка показывает и строит сама: пусто, если
-// не нужен, иначе `<prefix>/` — подставляется между доменом и shortUuid.
 function sub_prefix_seg() {
     $pre = sub_prefix();
     return $pre === '' ? '' : $pre . '/';

@@ -80,19 +80,6 @@ function grace_squads_from_user($u) {
     return $out;
 }
 
-// --- Что за время грейса изменили помимо нас ---
-//
-// Восстановление задумано как откат ТОЛЬКО того, что грейс сам натворил. Если за
-// время грейса тариф сменили (человек оплатил другой пакет, админ поправил руками),
-// в панели уже лежат новые сквады и лимиты — накатив поверх них снимок «как было до
-// грейса», прослойка молча возвращает человека на старый тариф.
-//
-// Поэтому перед откатом сверяем текущее состояние с тем, что оставил после себя
-// грейс (колонка grace_patch — то, чем мы патчили на входе; у строк, заведённых
-// старой версией, её нет, тогда берём текущие настройки грейса). Поле совпало —
-// восстанавливаем из снимка, разошлось — не шлём его вовсе, чужую правку не трогаем.
-// Текущее состояние берём из payload вебхука, а где его нет — разовым GET по
-// short_uuid; если панель недоступна, откатываем по-старому, целиком.
 
 function grace_squads_norm($squads) {
     $out = [];
@@ -122,8 +109,6 @@ function grace_state_fetch($short) {
     return grace_state_from_user(remnawave_get_user_by_short((string) $short, $e));
 }
 
-// Что грейс оставил в панели. hwid и внешний сквад грейс трогает не всегда: если не
-// трогал, ожидаемое значение — исходное, и расхождение с ним тоже означает чужую правку.
 function grace_state_applied($existing) {
     $j = json_decode((string) ($existing['grace_patch'] ?? ''), true);
     if (!is_array($j)) $j = [];
@@ -140,7 +125,6 @@ function grace_state_applied($existing) {
     ];
 }
 
-// $kept — список полей, которые изменили за время грейса и которые мы намеренно не откатываем.
 function grace_restore_patch($existing, $cur, &$kept = []) {
     $kept = [];
     $exp  = grace_state_applied($existing);
@@ -150,8 +134,6 @@ function grace_restore_patch($existing, $cur, &$kept = []) {
     if (!is_array($squads)) $squads = [];
     $squads = array_values(array_filter($squads, function ($s) { return is_string($s) && $s !== ''; }));
 
-    // Сквады — единственное поле, которое нельзя просто «не трогать»: грейс-сквад
-    // так и остался бы висеть на человеке. Если их сменили — шлём их же, без грейсового.
     if ($has('sq') && $cur['sq'] !== $exp['sq']) {
         $live = array_values(array_diff($cur['sq'], [grace_squad_uuid()]));
         if ($live) { $squads = $live; $kept[] = 'sq'; }
@@ -181,17 +163,6 @@ function grace_log_kept($where, $short, array $kept) {
     error_log('submw grace ' . $where . ': за время грейса изменены поля (' . implode(', ', $kept) . '), откат по ним пропущен (short=' . $short . ')');
 }
 
-// --- Идентификатор пользователя в строке грейса ---
-//
-// В колонке user_uuid лежит идентификатор, которым панель пользовалась в момент
-// ухода в грейс: UUID (панель 2.x) или числовой id (панель 3.x). Что именно —
-// однозначно видно по самому значению, UUID никогда не состоит из одних цифр,
-// поэтому отдельная колонка под тип не нужна (см. rw_ref_coerce в lib/api.php).
-//
-// Между уходом в грейс и возвратом админ мог обновить панель до 3.x — тогда
-// сохранённый UUID протух. Такие строки чиним лениво: если точно знаем, что панель
-// мажора 3, перерезолвим id по short_uuid заранее; если версия неизвестна — ловим
-// 400/404 от PATCH и перерезолвим по факту (см. grace_patch).
 
 function grace_set_ref($short, $ref) {
     if (!($p = db()) || (string) $short === '' || !rw_ref_ok($ref)) return;
@@ -199,7 +170,6 @@ function grace_set_ref($short, $ref) {
     catch (Throwable $e) { error_log('submw grace set ref: ' . $e->getMessage()); }
 }
 
-// Перезапрашивает пользователя по short_uuid и переписывает идентификатор в строке.
 function grace_ref_resolve($short, &$err = '', &$http_code = 0) {
     $err = ''; $http_code = 0;
     $short = (string) $short;
@@ -212,8 +182,6 @@ function grace_ref_resolve($short, &$err = '', &$http_code = 0) {
     return $ref;
 }
 
-// $existing по ссылке: свежий идентификатор кладём обратно в массив, иначе
-// следующий вызов для той же строки полез бы за ним в панель заново.
 function grace_ref(&$existing, &$err = '') {
     $err = '';
     $short = (string) ($existing['short_uuid'] ?? '');
@@ -224,7 +192,6 @@ function grace_ref(&$existing, &$err = '') {
     return $fresh ?: $ref;
 }
 
-// PATCH пользователя из строки грейса с одним авто-ретраем на протухший идентификатор.
 function grace_patch(&$existing, array $patch, &$err = '') {
     $err = '';
     $short = (string) ($existing['short_uuid'] ?? '');
@@ -244,12 +211,6 @@ function grace_patch(&$existing, array $patch, &$err = '') {
     return remnawave_update_user($ref2, $patch, $err);
 }
 
-// Сброс счётчика трафика на выходе из грейса. К этому моменту в счётчике лежит
-// то, что человек скачал за грейс (на входе в грейс счётчик обнуляется, если задана
-// грейсовая квота), — без сброса этот расход съедал бы часть следующего оплаченного
-// периода, а при упоре в квоту панель ещё и держала бы статус LIMITED.
-// Зовём только ПОСЛЕ удачного PATCH и перед удалением строки: иначе зависший грейс
-// сбрасывал бы трафик на каждом ретрае, раздавая его тому, кто не платил.
 function grace_exit_reset_traffic(&$existing) {
     if (!grace_reset_traffic_on_exit()) return;
     $short = (string) ($existing['short_uuid'] ?? '');
@@ -273,12 +234,6 @@ function grace_restore($existing, $cur = null) {
     $squads = $full['activeInternalSquads'];
     grace_log_kept('end', $short, $kept);
 
-    // Панель отклоняет expireAt в прошлом («Expiration date cannot be in the past» —
-    // проверка есть и в 2.x, и в 3.x). У истёкшего пользователя исходная дата почти
-    // всегда в прошлом, поэтому полный патч раньше всегда падал и восстановление
-    // сваливалось в фолбэк «только сквады» — лимиты трафика и устройств не
-    // возвращались. Просроченную дату просто не шлём: срок грейса к этому моменту
-    // тоже вышел, так что пользователь и без неё становится истёкшим.
     if (!empty($existing['orig_expire'])) {
         $oe = strtotime((string) $existing['orig_expire']);
         if ($oe !== false && $oe > time() + 60) $full['expireAt'] = (string) $existing['orig_expire'];
@@ -306,12 +261,6 @@ function grace_restore_due($short) {
     return grace_restore($existing);
 }
 
-// $allow_start — можно ли ЗАВОДИТЬ новый грейс. Существующую строку (grace_active /
-// grace_ended) обрабатываем на любом событии, а старт разрешён только на настоящем
-// user.expired. Иначе петля: restore-PATCH в конце грейса порождает user.modified
-// со status=EXPIRED, строка grace_users уже удалена — и юзеру, только что вышедшему
-// из грейса, тут же выдавался новый. Панель шлёт user.modified на PATCH и в 2.x,
-// и в 3.x, так что без флага цикл повторялся бы каждые grace_days бесконечно.
 function grace_on_expired($short, $username = null, $allow_start = true) {
     if ($short === '') return 'grace_off';
     $existing = grace_find($short);
@@ -326,7 +275,6 @@ function grace_on_expired($short, $username = null, $allow_start = true) {
 
     $e = '';
     $u = remnawave_get_user_by_short($short, $e);
-    // Панель 3.x не отдаёт uuid — идентификатор берём через rw_user_ref (uuid или id).
     $ref = rw_user_ref($u);
     if (!is_array($u) || !rw_ref_ok($ref)) { error_log('submw grace start get: ' . $e); return 'grace_err'; }
     $squads      = array_values(array_diff(grace_squads_from_user($u), [grace_squad_uuid()]));
@@ -339,8 +287,6 @@ function grace_on_expired($short, $username = null, $allow_start = true) {
     $grace_until = time() + grace_days() * 86400;
     api_ctx('grace_start', $short);
 
-    // Слепок того, чем мы сейчас перепишем пользователя: на выходе из грейса по нему
-    // видно, осталось ли поле нашим или его успели поменять под новый тариф.
     $gh      = grace_hwid_limit_raw();
     $applied = ['sq' => [grace_squad_uuid()], 'tl' => grace_traffic_bytes(), 'ts' => grace_traffic_strategy()];
     if ($gh !== '') $applied['hw'] = (int) $gh;
@@ -378,8 +324,6 @@ function grace_on_renew($short, $new_expire_str, $data = null) {
     $grace_until = (int) $existing['grace_until'];
     if ($new_ts === false || $new_ts <= $grace_until) return false;
 
-    // Продление во время грейса почти всегда и есть смена тарифа, поэтому текущее
-    // состояние берём прямо из payload события, без лишнего запроса к панели.
     $cur = grace_state_from_user($data);
     if (!is_array($cur)) $cur = grace_state_fetch($short);
 
@@ -400,12 +344,6 @@ function grace_on_renew($short, $new_expire_str, $data = null) {
 
 function grace_cleanup($short) { grace_delete($short); }
 
-// Разовый прогон по всем строкам грейса: перерезолвить идентификатор пользователя
-// через by-short-uuid. Нужен после обновления панели до 3.x, чтобы не ждать события
-// по каждому юзеру, и чтобы было видно строки, которых в панели уже нет.
-// $limit ограничивает число обращений к панели за один прогон, а не число строк:
-// записи, чей идентификатор уже нужного вида, пропускаются без запроса, поэтому
-// повторный прогон продвигается дальше, а не топчется на первых строках.
 function grace_refresh_refs($limit = 200) {
     ensure_grace_table();
     $out = ['total' => 0, 'updated' => 0, 'same' => 0, 'missing' => 0, 'errors' => 0, 'left' => 0, 'error' => '', 'error_net' => ''];
@@ -424,10 +362,7 @@ function grace_refresh_refs($limit = 200) {
         $short = (string) ($r['short_uuid'] ?? '');
         $old   = (string) ($r['user_uuid'] ?? '');
         $ref   = rw_ref_coerce($old);
-        // Версия панели известна и идентификатор уже нужного вида — трогать нечего.
         if ($want !== '' && rw_ref_ok($ref) && $ref['key'] === $want) { $out['same']++; continue; }
-        // Три сетевые ошибки подряд — панель лежит: дальше не долбимся, остаток
-        // уходит в left, повторный клик продолжит с этого же места.
         if ($calls >= $limit || $err_streak >= 3) { $out['left']++; continue; }
         $calls++;
         $err = ''; $code = 0;
@@ -438,8 +373,6 @@ function grace_refresh_refs($limit = 200) {
             else $out['same']++;
             continue;
         }
-        // «Не найдено» — только честный 404. Таймаут, 5xx и обрыв связи — это
-        // недоступность панели, а не мёртвая запись: считаем отдельно.
         if ($code === 404) {
             $out['missing']++;
             $err_streak = 0;
@@ -462,8 +395,6 @@ function grace_retry_pending($limit = 2) {
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) { return; }
     foreach ($rows as $r) {
-        // allow_start=false: ретрай только ДОВОДИТ зависшие грейсы до восстановления;
-        // если строка исчезла между SELECT и вызовом — новый грейс отсюда не заводим.
         $g = grace_on_expired((string) $r['short_uuid'], $r['username'] ?? null, false);
         if ($g === 'grace_ended') delete_override('shortuuid', (string) $r['short_uuid'], 'webhook');
     }

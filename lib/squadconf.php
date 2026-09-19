@@ -114,7 +114,6 @@ function squadconf_add($squad_uuids, $type, $name, $raw, $parsed, $grp = '') {
     } catch (Throwable $e) { error_log('submw squadconf add: ' . $e->getMessage()); return false; }
 }
 
-// $grp === null → группу не трогаем (для массовых правок параметров конфига).
 function squadconf_set_group(array $ids, $grp) {
     squadconf_ensure();
     $ids = array_values(array_filter(array_map('intval', $ids), fn($i) => $i > 0));
@@ -420,11 +419,6 @@ function squadconf_user_squads($short) {
     return squadconf_user_state($short)['squads'];
 }
 
-// Панель не шлёт вебхук мгновенно (а при упоре в лимит устройств не меняет статус
-// вообще), поэтому перед подмешиванием конфигов статус сверяем с самой панелью.
-// Ответ уже кэшируется в squad_cache на 300 с и сбрасывается вебхуком, так что
-// лишних запросов к API это не добавляет. Панель недоступна -> статус пустой и
-// прежнее поведение сохраняется.
 function squadconf_user_inactive($short) {
     if (trim((string) $short) === '') return false;
     if (!squadconf_any() && !addsub_enabled()) return false;
@@ -433,8 +427,6 @@ function squadconf_user_inactive($short) {
 }
 
 function squadconf_inject_clash($body, array $configs) {
-    // Тело должно быть YAML-подпиской Clash, а не base64/JSON/страницей ошибки —
-    // иначе не дописываем ничего, чтобы не испортить ответ.
     $s = ltrim((string) $body);
     if ($s === '' || $s[0] === '{' || $s[0] === '[') return $body;
     if (!preg_match('~(^|\n)\s*(proxies|proxy-groups|proxy-providers|mixed-port|port|mode)\s*:~i', $s)) return $body;
@@ -489,8 +481,6 @@ function wg_to_uri_wg($parsed, $name) {
     return 'wg://' . $host . ':' . (int) $port . '?' . implode('&', $q) . '#' . rawurlencode($name);
 }
 
-// Единый справочник клиентов — источник и для правил выдачи (core/no_awg/no_wg),
-// и для каталога «Правил ответа» (rk = ключ, rg = группа в UI). Добавлять клиента здесь одним местом.
 function client_catalog() {
     return [
         ['ua' => 'mihomo',       'label' => 'Clash Meta / Mihomo', 'core' => 'mihomo',   'no_awg' => 0, 'no_wg' => 0, 'rk' => 'clashmeta',    'rg' => 'other'],
@@ -724,11 +714,6 @@ function squadconf_xray_tpl_fetch($name, &$error = '') {
     return $tpl;
 }
 
-// Скелет для доп. конфигов берётся из шаблона панели, а не из отрендеренного
-// профиля: у профиля свой шаблон хоста (clientOverrides.xrayJsonTemplate), и
-// первый в списке хост навязывал доп. конфигам чужие правила маршрутизации.
-// Отрицательный результат кэшируется наравне с удачным — иначе панель без
-// нужных прав токена опрашивалась бы на каждый запрос подписки.
 function squadconf_xray_tpl($maxAge = null, &$error = '') {
     $error = '';
     if ($maxAge === null) $maxAge = squadconf_xray_tpl_ttl();
@@ -790,9 +775,6 @@ function squadconf_supported_types($body, $format) {
     $is_json = !($trim === '' || ($trim[0] !== '[' && $trim[0] !== '{'));
     if ($wg_ok && (!$is_json || squadconf_is_singbox(json_decode((string) $body, true)) || squadconf_xray_json_enabled())) $t[] = 'wireguard';
     if (!$is_json && $awg_ok) {
-        // AmneziaWG уходит клиенту только когда отдаётся схема wg:// (она несёт оба типа).
-        // Если панель вернула wireguard:// без wg://, клиент получит только wireguard,
-        // поэтому амнезию не бронируем — иначе адрес пула занимается впустую.
         $decoded = base64_decode(trim((string) $body), true);
         $scheme = (is_string($decoded) && strpos($decoded, 'wireguard://') !== false && strpos($decoded, 'wg://') === false) ? 'wireguard' : 'wg';
         if ($scheme === 'wg') $t[] = 'amneziawg';
@@ -865,9 +847,6 @@ function xray_tpl_make_single($el, $proxy) {
     }
     array_unshift($kept, $proxy);
     $el->outbounds = $kept;
-    // remnawave — инструкция панели по сборке профиля, в готовом конфиге ей
-    // делать нечего; meta описывает хост, с которого снят скелет, и к доп.
-    // конфигу отношения не имеет.
     unset($el->observatory, $el->burstObservatory, $el->remnawave, $el->meta);
     if (isset($el->routing) && is_object($el->routing)) {
         unset($el->routing->balancers);

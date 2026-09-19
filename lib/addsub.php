@@ -187,7 +187,7 @@ function addsub_build_sub_url($short) {
 
 function addsub_normalize_host($h) {
     $h = strtolower(trim((string) $h));
-    if ($h === '' || $h[0] === '[') return $h; // IPv6 в скобках не трогаем
+    if ($h === '' || $h[0] === '[') return $h;
     $pos = strpos($h, ':');
     if ($pos !== false) $h = substr($h, 0, $pos);
     return $h;
@@ -202,11 +202,6 @@ function addsub_self_hosts() {
     return $out;
 }
 
-// Ручная привязка часто содержит публичную ссылку самой прослойки — тогда запрос
-// делал бы полный круг (клиент -> прослойка A -> прослойка B -> панель): второй
-// PHP-проход, лишний хоп и мусор в логах. Здесь такой адрес на лету переписывается
-// на прямой источник (панель/target), путь и query сохраняются. В БД и наружу
-// ничего не меняется.
 function addsub_rewrite_selfurl($url) {
     $url = trim((string) $url);
     if ($url === '') return $url;
@@ -296,9 +291,6 @@ function addsub_fetch_prepare($url) {
         'host', 'connection', 'content-length', 'content-type', 'accept-encoding',
         'cookie', 'authorization', 'x-forwarded-for', 'x-forwarded-proto',
         'x-remnawave-real-ip',
-        // Условные заголовки клиента относятся к телу ОСНОВНОЙ подписки —
-        // источнику B они чужие: панель может ответить 304 без тела
-        // (особенно на If-Modified-Since), и слияние молча не произойдёт.
         'if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range',
     ];
     $client_headers = [];

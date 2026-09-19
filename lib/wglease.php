@@ -58,9 +58,6 @@ function wglease_ensure() {
             $p->exec("CREATE INDEX IF NOT EXISTS idx_hwd_hwid ON hwid_devices(hwid)");
         }
     } catch (Throwable $e) { error_log('submw wglease ensure: ' . $e->getMessage()); }
-    // Индекс по hwid нужен чистке дублей в wglease_hwid_upsert: PRIMARY KEY начинается
-    // с user_uuid, поэтому поиск по одному hwid без него шёл бы полным сканом.
-    // На уже созданных таблицах CREATE TABLE выше ничего не делает, добавляем отдельно.
     if (setting('wgl_hwd_idx', '') !== '1') {
         try {
             if (db_driver() === 'mysql') $p->exec('ALTER TABLE hwid_devices ADD INDEX idx_hwd_hwid (hwid)');
@@ -99,7 +96,6 @@ function wglease_ensure_cfg_uidx($p) {
     if (setting('wgl_cfg_uidx', '') === '1') return;
     if (wglease_cfg_uidx_exists($p)) { set_setting('wgl_cfg_uidx', '1'); return; }
     if (wglease_try_cfg_uidx($p)) { set_setting('wgl_cfg_uidx', '1'); return; }
-    // индекс не создался — в таблице есть повторяющиеся config_id; оставляем по одной аренде на config_id
     try {
         $dups = $p->query('SELECT config_id FROM wg_lease GROUP BY config_id HAVING COUNT(*) > 1')->fetchAll(PDO::FETCH_COLUMN);
         foreach ($dups as $cid) {
@@ -162,7 +158,6 @@ function wglease_select($short_uuid, $hwid, array $u_squads, $types = null) {
             if ($t === 'vless') { $added[$id] = true; $out[] = $c; continue; }
             if ($types !== null && !in_array($t, $types, true)) continue;
             $g = trim((string) ($c['grp'] ?? ''));
-            // пустая группа → старый формат ключа (t:тип), чтобы уже выданные аренды не перевыдавались
             $sub = ($g === '') ? ('t:' . $t) : ('t:' . $t . '|g:' . $g);
             $by_group[$sub][] = $c;
         }
@@ -418,9 +413,6 @@ function wglease_hwid_upsert($user_uuid, $hwid, $short_uuid = '', $platform = ''
     if (!($p = db()) || $user_uuid === '' || $hwid === '') return;
     $now = time();
     try {
-        // Один hwid принадлежит одному пользователю. После обновления панели до 3.x тот
-        // же девайс приходит уже под числовым id, и без этой чистки в таблице остаётся
-        // дубль под старым UUID-ключом.
         $p->prepare('DELETE FROM hwid_devices WHERE hwid = ? AND user_uuid <> ?')->execute([$hwid, $user_uuid]);
     } catch (Throwable $e) { error_log('submw wglease hwid_dedupe: ' . $e->getMessage()); }
     try {
@@ -437,10 +429,6 @@ function wglease_hwid_delete($user_uuid, $hwid, $short_uuid = '') {
     wglease_ensure();
     $user_uuid = trim((string) $user_uuid); $hwid = trim((string) $hwid); $short_uuid = trim((string) $short_uuid);
     if (!($p = db())) return;
-    // Записи одного юзера могут лежать под двумя ключами: uuid (панель 2.x)
-    // и числовой id (после обновления на 3.x событие удаления приходит уже с ним).
-    // Удаление по одному ключу оставляло бы старые uuid-строки навсегда, поэтому
-    // shortUuid — он стабилен между версиями панели — накрывает оба ключа.
     $key_sql  = $short_uuid !== '' ? '(user_uuid = ? OR short_uuid = ?)' : 'user_uuid = ?';
     $key_args = $short_uuid !== '' ? [$user_uuid, $short_uuid] : [$user_uuid];
     try {
@@ -490,8 +478,6 @@ function wglease_sizing(&$err = '', &$warn = '', &$totals = null) {
     $te = '';
     $devices = remnawave_hwid_all_devices($te);
     $warn = $te;
-    // Ключ у устройства: userUuid на панели 2.x, userId на 3.x — считаем по обоим,
-    // ниже пользователь ищется сначала по id, потом по uuid.
     $dev_by_user = []; $uniq_hwid = [];
     foreach ($devices as $d) {
         if (!is_array($d)) continue;

@@ -115,15 +115,6 @@ function remnawave_api_request($method, $path, $body = null) {
     return [true, $code, $data, ''];
 }
 
-// --- Идентификатор пользователя: uuid (панель 2.x) или числовой id (панель 3.x) ---
-//
-// В панели 2.x у пользователя есть и uuid, и числовой id, но PATCH /api/users и
-// hwid-эндпоинты принимают там только uuid. В 3.x поле uuid удалено совсем, и всё
-// работает по числовому id. Поэтому правило — uuid вперёд: есть uuid, значит панель
-// 2.x и обращаемся по нему; нет uuid — панель 3.x, обращаемся по id. Знать версию
-// панели для этого не нужно, признак берётся из самого объекта пользователя.
-//
-// Формат ссылки: ['key' => 'uuid'|'id', 'val' => '...'].
 
 function rw_ref($key, $val) {
     $key = ($key === 'id') ? 'id' : 'uuid';
@@ -136,7 +127,6 @@ function rw_ref_ok($ref) {
     return is_array($ref) && isset($ref['val']) && (string) $ref['val'] !== '';
 }
 
-// Ссылка по объекту пользователя из ответа панели.
 function rw_user_ref($u) {
     if (!is_array($u)) return rw_ref('uuid', '');
     $uuid = isset($u['uuid']) ? trim((string) $u['uuid']) : '';
@@ -146,15 +136,12 @@ function rw_user_ref($u) {
     return rw_ref('uuid', '');
 }
 
-// Приведение «сырого» значения к ссылке: только цифры — это id, иначе uuid.
-// UUID никогда не состоит из одних цифр, так что догадка однозначна.
 function rw_ref_coerce($x) {
     if (is_array($x)) return rw_ref($x['key'] ?? 'uuid', $x['val'] ?? '');
     $s = trim((string) $x);
     return preg_match('/^\d+$/', $s) ? rw_ref('id', $s) : rw_ref('uuid', $s);
 }
 
-// Значение для тела запроса: id уходит числом, uuid — строкой.
 function rw_ref_body_value($ref) {
     return $ref['key'] === 'id' ? (int) $ref['val'] : (string) $ref['val'];
 }
@@ -182,7 +169,6 @@ function remnawave_delete_hwid($ref, $hwid) {
 function remnawave_hwid_top_users(&$error = '') {
     $error = '';
     $all = [];
-    // У top-users предел size = 100 (и в 2.x, и в 3.x) — прежние 250 отклонялись.
     $start = 0; $size = 100; $guard = 0;
     do {
         [$ok, $code, $data, $e] = remnawave_api_get("/api/hwid/devices/top-users?size={$size}&start={$start}");
@@ -264,8 +250,6 @@ function remnawave_sub_templates(&$error = '') {
     return $out;
 }
 
-// Список шаблонов панель отдаёт без содержимого, поэтому за телом нужен второй
-// запрос по uuid.
 function remnawave_sub_template_json($uuid, &$error = '') {
     $error = '';
     $uuid = trim((string) $uuid);
@@ -278,8 +262,6 @@ function remnawave_sub_template_json($uuid, &$error = '') {
     return $tpl;
 }
 
-// $http_code по ссылке: вызывающему нужно отличать 404 (пользователя больше
-// нет) от сетевой ошибки или 5xx (панель недоступна, запись живая).
 function remnawave_get_user_by_short($shortUuid, &$error = '', &$http_code = 0) {
     $error = ''; $http_code = 0;
     if ($shortUuid === '') { $error = 'Пустой shortUuid'; return null; }
@@ -302,17 +284,12 @@ function remnawave_get_user_by_username($username, &$error = '') {
     return is_array($resp) ? $resp : null;
 }
 
-// Кто из нашего кода сейчас пишет в панель. Сам PATCH знает только идентификатор
-// пользователя, а разбирать журнал потом надо по shortUuid и по причине, поэтому
-// вызывающий выставляет контекст перед обращением к панели.
 function api_ctx($src = null, $short = null) {
     static $ctx = ['src' => '', 'short' => ''];
     if ($src !== null) $ctx = ['src' => (string) $src, 'short' => (string) $short];
     return $ctx;
 }
 
-// $http_code возвращается по ссылке: грейсу нужно отличить 400/404 (протухший
-// идентификатор — стоит перерезолвить и повторить) от прочих ошибок.
 function remnawave_update_user($ref, array $fields, &$error = '', &$http_code = 0) {
     $error = ''; $http_code = 0;
     $ref = rw_ref_coerce($ref);
@@ -342,13 +319,6 @@ function remnawave_reset_traffic($ref, &$error = '') {
 }
 
 
-// --- Версия панели ---
-//
-// GET /api/system/metadata есть в панели начиная с 2.5.0, то есть на всём
-// поддерживаемом диапазоне. Ответ кэшируется в настройках: версия нужна для бейджа
-// в шапке и как подсказка грейсу (см. grace_ref в lib/grace.php), но никогда не
-// должна блокировать выдачу подписки — при недоступности работаем по форме объекта
-// пользователя (rw_user_ref).
 function panel_min_supported() { return '2.7.4'; }
 
 function remnawave_panel_meta($maxAge = 600, &$error = '') {
@@ -373,8 +343,6 @@ function remnawave_panel_meta($maxAge = 600, &$error = '') {
     if (!$ok) {
         $error = $e ?: ('HTTP ' . $code);
         $out['error'] = $error;
-        // Последнюю известную версию не теряем — показываем её как устаревшую,
-        // это полезнее пустого прочерка при кратковременной недоступности панели.
         $out['version'] = (string) ($prev['version'] ?? '');
         $out['stale']   = $out['version'] !== '';
     } else {
@@ -397,7 +365,6 @@ function remnawave_panel_meta($maxAge = 600, &$error = '') {
     return $out;
 }
 
-// Чтение из кэша без обращения к панели — безопасно звать на горячем пути.
 function panel_meta_cached() {
     $c = json_decode((string) setting('panelmeta_json', ''), true);
     return is_array($c) ? $c : [];
@@ -408,13 +375,11 @@ function panel_version() {
     return trim((string) ($c['version'] ?? ''));
 }
 
-// 0 — версия неизвестна (нет связи, нет токена, панель ещё не опрашивалась).
 function panel_major() {
     $v = panel_version();
     return preg_match('/^\s*v?(\d+)/', $v, $m) ? (int) $m[1] : 0;
 }
 
-// true только когда точно знаем, что панель мажора 3+. Неизвестность — не «да».
 function panel_api_v3() { return panel_major() >= 3; }
 
 function panel_version_supported() {
@@ -423,13 +388,6 @@ function panel_version_supported() {
     return version_compare(ltrim($v, 'vV'), panel_min_supported(), '>=');
 }
 
-// --- Конфигурация панели ---
-//
-// GET /api/system/configuration появился только в 3.2.0, поэтому запрос делается
-// строго по версии из кэша меты: неизвестная версия — не «да», обращения нет.
-// Ответ кэшируется в настройках, на горячем пути читается panel_config_cached()
-// без похода в панель. Ничего критичного отсюда не берётся: любое поле может
-// остаться пустым, и прослойка обязана работать как раньше.
 function panel_config_min() { return '3.2.0'; }
 
 function panel_supports_config() {
@@ -450,8 +408,6 @@ function panel_config_num_list($v) {
     return $out;
 }
 
-// Строковые "false"/"0"/"" от панели должны читаться как false, а не как
-// непустая строка: иначе выключенный вебхук показался бы включённым.
 function panel_config_bool($v) {
     if ($v === null) return null;
     if (is_string($v)) {
@@ -463,8 +419,6 @@ function panel_config_bool($v) {
     return (bool) $v;
 }
 
-// SUB_PUBLIC_DOMAIN панели может прийти со схемой и путём — прослойке нужен
-// голый домен, ровно в том виде, в каком он лежит в target_domain.
 function panel_config_domain($v) {
     if (!is_string($v) && !is_numeric($v)) return '';
     $s = strtolower(trim((string) $v));
@@ -521,8 +475,6 @@ function remnawave_panel_config($maxAge = 600, &$error = '') {
         'sub_public_domain' => '',
     ];
     if (!$out['supported']) {
-        // Панель ниже 3.2.0 либо версия ещё не получена — запроса не делаем и
-        // прежний кэш не трогаем: он пригодится, если версию просто не успели узнать.
         return $out;
     }
     if ($maxAge > 0) {
@@ -538,8 +490,6 @@ function remnawave_panel_config($maxAge = 600, &$error = '') {
     if ($ok && is_array($resp)) {
         $out = panel_config_from_response($resp, $out);
     } else {
-        // Ни ошибка сети, ни мусор вместо JSON не должны стирать уже известные
-        // значения: домен подписки и длина shortUuid переезжают из прошлого кэша.
         $error = $ok ? 'Неожиданный ответ /api/system/configuration' : ($e ?: ('HTTP ' . $code));
         $out['error'] = $error;
         foreach (panel_config_value_keys() as $k) {
@@ -552,8 +502,6 @@ function remnawave_panel_config($maxAge = 600, &$error = '') {
     return $out;
 }
 
-// Отпечаток значимых полей: по нему админка понимает, что настройки панели
-// изменились, и перерисовывает блок. Время запроса в отпечаток не входит.
 function panel_config_sig($c) {
     if (!is_array($c) || !$c) return '';
     $v = [];
@@ -561,21 +509,17 @@ function panel_config_sig($c) {
     return md5(json_encode($v, JSON_UNESCAPED_UNICODE));
 }
 
-// Домен подписки панели (SUB_PUBLIC_DOMAIN) — пусто, если панель старая или молчит.
 function panel_sub_public_domain() {
     $c = panel_config_cached();
     return panel_config_domain($c['sub_public_domain'] ?? '');
 }
 
-// Длина shortUuid в панели. 0 — неизвестна; значения вне разумного диапазона
-// игнорируются, чтобы кривой ответ не превратил живые подписки в «мусор».
 function panel_short_uuid_len() {
     $c = panel_config_cached();
     $n = (int) ($c['short_uuid_length'] ?? 0);
     return ($n >= 8 && $n <= 64) ? $n : 0;
 }
 
-// true/false — вебхуки в панели включены/выключены, null — неизвестно.
 function panel_webhook_enabled() {
     $c = panel_config_cached();
     $v = $c['webhook'] ?? null;

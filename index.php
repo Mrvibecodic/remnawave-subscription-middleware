@@ -5,11 +5,6 @@ error_reporting(E_ALL);
 
 require __DIR__ . '/lib.php';
 
-// Защищённый канал c1. Врезка обязана стоять здесь, до разбора адреса: ниже на
-// $request_uri висят лендинг, страница подписки, детектор мусора и адрес
-// апстрима. Расшифрованный запрос дальше выглядит как обычный, поэтому весь
-// конвейер — оверрайды, HWID, squadconf_inject, addsub_merge, правила ответа —
-// работает без единой правки. Шифрование ответа висит на завершении скрипта.
 chan_intercept();
 
 $target_domain = target_domain();
@@ -35,10 +30,6 @@ if ($path !== '' && apisub_accept_active() && remnawave_url() !== '' && preg_mat
     $apisub_in = true;
 }
 
-// Префикс штатного subscription-page (CUSTOM_SUB_PREFIX, ишью #7): режем его
-// здесь, до лендинга, страницы подписки и разбора shortUuid, — иначе первым
-// сегментом пути оказывается сам префикс, и грейс/HWID/лог склеивают всех
-// пользователей в одну запись. На проводе к origin префикс возвращается.
 $prefix_in = false;
 if (!$apisub_in) [$path, $prefix_in] = sub_prefix_strip($path);
 $wire_path = ($prefix_in ? sub_prefix_seg() : '') . $path;
@@ -74,9 +65,6 @@ $skip_log =
     || preg_match('~(^|/)(favicon\.ico|robots\.txt|sitemap\.xml|browserconfig\.xml|apple-touch-icon[\w-]*\.png)$~i', $path)
     || junk_short_len_mismatch($path);
 
-// «Мусорный» путь (файлы, сканеры ботов): для таких не дёргаем API панели.
-// Реальная подписка (shortUuid) сюда не попадает; при ложном срабатывании путь
-// можно исключить в админке (Лог запросов → Мусорные запросы).
 $junk_path = $skip_log && !junk_excluded($path);
 
 $to_panel = subpage_active() || $apisub_in;
@@ -87,21 +75,12 @@ if ($to_panel) {
 }
 if ($query) $target_url .= '?' . $query;
 
-// Когда тело подписки может быть модифицировано (слияние доп-подписки или
-// подмешивание конфигов), условные заголовки клиента пробрасывать нельзя:
-// панель ответит 304 без тела, модификация не произойдёт, и клиент навсегда
-// останется со старым закэшированным списком (заметно на iOS — Happ шлёт
-// If-None-Match). Срезаем их — панель всегда отдаёт полное тело. Для чистого
-// зеркала (обе функции выключены) поведение остаётся байт-в-байт прежним.
 $strip_conditional = !$junk_path && (addsub_enabled() || squadconf_any());
 $conditional_hdrs = ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range'];
 
 $request_headers = [];
 $strip_fwd = $to_panel;
 if (!empty($GLOBALS['chan_headers'])) {
-    // Защищённый запрос: снаружи заголовков опознания нет вовсе — они приехали
-    // внутри шифра. Берём только их и ничего больше: всё, что добавил по дороге
-    // посредник, панели видеть незачем.
     foreach ($GLOBALS['chan_headers'] as $key => $value) {
         $request_headers[] = $key . ': ' . $value;
     }
@@ -176,10 +155,6 @@ curl_setopt_array($ch, [
         return $len;
     },
 ]);
-// Параллельная загрузка второй подписки (тумблер, по умолчанию выкл):
-// адрес B известен из пути ещё до основного запроса, поэтому оба апстрима
-// можно скачать одновременно. Любая ошибка здесь -> $addsub_pre = null и
-// дальше всё идёт прежним последовательным путём.
 $addsub_pre = null;
 if (!$junk_path && addsub_enabled() && addsub_parallel_enabled()) {
     $addsub_segs = path_segments($path);
@@ -270,8 +245,6 @@ if ($short_ov) {
 
 if ($short_uuid === '' && $segs) $short_uuid = $segs[0];
 
-// Упор в лимит устройств панель не отражает ни в статусе юзера, ни вебхуком —
-// только этими заголовками ответа, поэтому других способов узнать о нём нет.
 $panel_hwid_block = isset($grabbed_headers['x-hwid-limit'])
     || isset($grabbed_headers['x-hwid-max-devices-reached'])
     || isset($grabbed_headers['x-hwid-not-supported']);
@@ -292,9 +265,6 @@ if ($trust_header) {
     $expired = $db_says_expired;
 }
 
-// Блокировка и лимит трафика прилетают вебхуком как reason=expired, но дата
-// окончания у такого юзера часто ещё в будущем: без сверки с панелью оверрайд
-// снимался бы сам, и подписка снова считалась бы нормальной.
 if ($db_says_expired && $header_says_valid && $short_ov['source'] === 'webhook' && !squadconf_user_inactive($gate_short)) {
     delete_override('shortuuid', $short_ov['match_value'], 'webhook');
 }
@@ -320,9 +290,6 @@ $passthrough = ['profile-title', 'support-url', 'profile-update-interval',
 $is_page = stripos($grabbed_headers['content-type'] ?? '', 'text/html') === 0;
 if ($is_page || preg_match('~^(assets|\.well-known|cdn-cgi)(/|$)~i', $path)) $GLOBALS['submw_skip_metric'] = true;
 
-// Страница подписки в браузере для той, что уже ходит защищённо: провайдер
-// может её закрыть. Открытая страница показывает посреднику адрес подписки
-// целиком, то есть отменяет весь смысл канала.
 if (!chan_active() && $is_page && chan_page_404() && $short_uuid !== '' && !$junk_path
     && chan_state_get($short_uuid) !== null) {
     header_remove('X-Powered-By');
@@ -330,10 +297,6 @@ if (!chan_active() && $is_page && chan_page_404() && $short_uuid !== '' && !$jun
     die();
 }
 
-// Жёсткий режим: подписка уже ходила защищённо, а этот запрос пришёл открытым.
-// Сам клиент на открытый HTTP не откатывается — значит откат сделали за него,
-// и отдавать по такому запросу рабочий конфиг нельзя. Каждый случай считается
-// отдельно: это единственный способ увидеть посредника, режущего /c1/.
 if (!chan_active() && $decision === 'normal' && $short_uuid !== '' && !$junk_path
     && chan_hard($short_uuid)) {
     chan_state_downgrade($short_uuid);
@@ -396,9 +359,6 @@ $response_premod = $response;
 
 $log_wg = 0;
 $log_as = ['s' => 'off'];
-// Панель заблокированному юзеру, юзеру с исчерпанным трафиком и юзеру, упёршемуся
-// в лимит устройств, отдаёт тело-заглушку без единого рабочего хоста. Дописывать
-// в такое тело свои конфиги нельзя — иначе доступ остаётся ровно через них.
 if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any()
     && !$panel_hwid_block && !squadconf_user_inactive($gate_short)) {
     $u_squads = squadconf_user_squads($short_uuid);
@@ -460,9 +420,6 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
 }
 
 $unsafe = ['host', 'connection', 'transfer-encoding', 'content-length', 'content-encoding'];
-// Если тело изменено, ETag/Last-Modified панели описывают уже другое тело —
-// их нельзя отдавать клиенту, иначе он снова начнёт слать условные запросы
-// и закэширует слитый список под чужим валидатором.
 $body_modified = ($response !== $response_premod);
 http_response_code($http_code ?: 200);
 foreach ($grabbed_headers as $name => $value) {

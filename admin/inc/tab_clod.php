@@ -1,5 +1,4 @@
 <?php
-// Вкладка «Защищённый канал» (протокол c1, клиенты Clod Clash).
 $chan_ok    = chan_ext_ok();
 $chan_fp    = $chan_ok ? chan_fingerprint() : '';
 $chan_idx   = chan_index_info();
@@ -9,12 +8,8 @@ $chan_len   = function_exists('panel_short_uuid_len') ? (int) panel_short_uuid_l
 $chan_api   = remnawave_url() !== '' && remnawave_token() !== '';
 $chan_marks = implode("\n", chan_hard_remarks());
 $chan_dbg   = chan_debug_on() ? chan_debug_list(chan_debug_keep()) : [];
-// Звёзды рисуем из кэша (трое суток). В GitHub ходит ajax уже после загрузки
-// страницы и только если кэш протух — вкладка не должна ждать сеть.
 $chan_stars = chan_stars_cache();
 $chan_upd   = chan_stars_stale($chan_stars);
-// Имена учётных записей — тем же путём: рендер читает только кэш, за панелью
-// уходит ajax после загрузки. В канале имени нет, прослойка знает shortUuid.
 $chan_ncache = chan_names_cache();
 $chan_names  = chan_names_map($chan_ncache);
 $chan_nupd   = chan_names_stale($chan_ncache);
@@ -36,16 +31,10 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .cdbg summary:hover{background:var(--accent-light)}
     .cdbg .w{flex:0 0 auto;width:11rem;min-width:0;overflow:hidden;text-overflow:ellipsis}
     .cdbg .w .nm{color:var(--text-strong);font-weight:600}
-    /* Пока имя не приехало (или подписки уже нет в панели) — в той же колонке
-       стоит сам адрес, моноширинным и приглушённо. */
     .cdbg .w .nm.pend{font-family:ui-monospace,monospace;font-size:.72rem;font-weight:500;color:var(--muted)}
     .cdbg .n{font-variant-numeric:tabular-nums;flex:0 0 auto}
     .cdbg .g{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
     .cdbg .lbl{font-weight:600;margin:.5rem 0 .15rem;font-size:.74rem}
-    /* Раскрытая запись не должна ехать вбок: перенос по любому месту, включая
-       длинные прогоны пробелов и табуляций из выравнивания запроса
-       (`break-spaces`), а горизонтальная прокрутка запрещена совсем — с таким
-       переносом переезжать вбок уже нечему. */
     .cdbg pre{margin:0;padding:.45rem .55rem;font-size:.7rem;line-height:1.35;max-width:100%;max-height:13rem;overflow-x:hidden;overflow-y:auto;white-space:break-spaces;word-break:break-all;overflow-wrap:anywhere;background:var(--bg2);border:1px solid var(--line)}
     .capps{display:flex;gap:.7rem;flex-wrap:wrap;margin:.9rem 0 0}
     .capp{flex:1 1 16rem;min-width:0;display:flex;align-items:center;gap:.7rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);color:var(--text);text-decoration:none;transition:border-color .18s,background .18s,transform .18s,box-shadow .18s}
@@ -55,8 +44,6 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .capp .nm{font-weight:600;font-size:.92rem;color:var(--text-strong)}
     .capp .os{font-size:.74rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .capp .st{flex:0 0 auto;display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .5rem;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--muted);font-size:.78rem;font-weight:600;font-variant-numeric:tabular-nums}
-    /* Иначе `display:inline-flex` перебивает браузерное `[hidden]`, и пустой
-       бейдж висел бы одинокой звездой, пока не ответит GitHub. */
     .capp .st[hidden]{display:none}
     .capp:hover .st{border-color:var(--accent);color:var(--accent-text)}
     .capp .st svg{color:var(--amber)}
@@ -64,18 +51,12 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .cwho .nm{color:var(--text-strong);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cwho .nm.pend{color:var(--muted);font-weight:500}
     .cwho .su{font-family:ui-monospace,monospace;font-size:.75rem;color:var(--muted)}
-    /* Тумблеры в две колонки: карточка перестаёт уезжать вниз на страницу.
-       Отступ снимаем обоими селекторами сразу — `.set-row+.set-row` той же
-       специфичности, и полагаться на порядок правил тут не хочется. */
     .ctg{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem;align-items:stretch}
     .ctg .set-row,.ctg .set-row+.set-row{margin:0}
     @media(max-width:1000px){.ctg{grid-template-columns:1fr}}
     .cdbg-h{margin:1.1rem 0 .6rem}
     .cdbg-h>h2{font-size:.92rem}
-    /* .btn поднимает min-height до 38px, а постраничник рядом — 36px. */
     .cdbg-h .btn{min-height:36px}
-    /* Состояние жёсткого режима было видно только текстом кнопки: две одинаковые
-       пилюли, «вкл» и «выкл», и не понять, это состояние или действие. */
     .chard{display:inline-flex;align-items:center;justify-content:center;min-width:3.6rem;padding:.35rem .7rem;font-size:.82rem}
     .chard.on{border-color:var(--accent);color:var(--accent-text);background:var(--accent-light)}
     </style>
@@ -309,10 +290,6 @@ $chan_plu   = function ($n, $one, $few, $many) {
             </div>
             <div id="cdbg_pgrBot" class="pgr-bot"></div>
             <script>
-            // Тот же постраничник, что в логах запросов и вебхуков: 10/25/50/все,
-            // выбор запоминается в localStorage. Записи журнала — не строки
-            // таблицы, а раскрывающиеся блоки, но LogPager работает с любыми
-            // детьми контейнера: строк с td[colspan] среди них нет.
             (function(){ if(window.LogPager) LogPager({bodyId:'cdbgBody', topId:'cdbg_pgrTop', botId:'cdbg_pgrBot', storeKey:'pg_clod_dbg'}); })();
             </script>
             <?php endif; ?>
@@ -367,11 +344,6 @@ $chan_plu   = function ($n, $one, $few, $many) {
         </div>
     </section>
     <script>
-    // Звёзды: разметка уже отрисована из серверного кэша (трое суток), здесь
-    // только освежаем — и только когда серверу пора идти в GitHub. Если у сервера
-    // с api.github.com не вышло (там лимит на адрес, и датацентрам он достаётся
-    // чаще), доспрашиваем из браузера, как счётчик в шапке, со своим кэшем на те
-    // же трое суток. Всё молча: не получилось — остаётся то, что было.
     (function(){
         var w=document.getElementById('clodApps');
         if(!w)return;
@@ -398,9 +370,6 @@ $chan_plu   = function ($n, $one, $few, $many) {
             });
         }).catch(function(){}).then(fallback);
     })();
-    // Имена учётных записей: разметка уже отрисована из серверного кэша (15
-    // минут), здесь только освежаем — и только когда серверу пора в панель.
-    // Не ответила — остаётся то, что было, прочерк вместо имени.
     (function(){
         var t=document.getElementById('clodWho');
         if(!t||t.getAttribute('data-upd')!=='1')return;

@@ -145,8 +145,6 @@ function clientver_save_catalog(array $rows) {
     }
     set_setting('clientver_catalog', json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     $GLOBALS['submw_cv_cat'] = $out;
-    // Стейт хранится по ключу k|os — записи удалённых/переименованных строк
-    // иначе копятся в настройке вечно.
     $st = clientver_state();
     if (is_array($st['rows'] ?? null) && $st['rows']) {
         $ids = [];
@@ -220,8 +218,6 @@ function clientver_http($url, &$err = null, $accept = 'application/json', $heade
         CURLOPT_HTTPHEADER     => array_merge(['Accept: ' . $accept], $headers),
         CURLOPT_WRITEFUNCTION  => function ($c, $chunk) use (&$buf, $max, &$capped) {
             $buf .= $chunk;
-            // Вернуть не-длину = оборвать передачу: без этого лимит экономит только
-            // память, а хвост тела всё равно выкачивается целиком.
             if (strlen($buf) >= $max) { $capped = true; return 0; }
             return strlen($chunk);
         },
@@ -231,9 +227,6 @@ function clientver_http($url, &$err = null, $accept = 'application/json', $heade
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     $body = $buf;
-    // Свой обрыв по лимиту — не ошибка: нужного объёма уже достаточно.
-    // А вот сеть, оборвавшаяся посреди тела, — ошибка, даже если что-то накачалось:
-    // регулярки по обрезанной странице промахиваются молча.
     if ($ok === false && !$capped) { $err = 'сеть: ' . $neterr; return null; }
     if ($code === 403 || $code === 429) { $err = 'лимит запросов (' . $code . '), попробуйте позже'; return null; }
     if ($code === 404) { $err = 'не найдено (404) — проверьте адрес источника'; return null; }
@@ -389,10 +382,6 @@ function clientver_autocheck($budget = 1) {
 }
 
 function clientver_firstrun($limit = 15, $deadline = 8) {
-    // Первый прогон каталога идёт в рендере страницы, поэтому кроме лимита строк
-    // обязателен лимит времени: один медленный источник (Play — 4 МБ HTML) иначе
-    // держит вкладку до таймаута fpm. Недоопрошенные строки покажут статус
-    // «источник ещё не опрошен» и доедут следующими заходами или кнопкой.
     if (!clientver_enabled()) return 0;
     $n = 0;
     $t0 = time();
@@ -490,8 +479,6 @@ function clientver_seen($hours = 168, $limit = 300) {
         }
         $id = $cl['key'] . '|' . $os;
         if (!isset($out[$id])) {
-            // Имя без хвоста-версии: reqlog_client() приклеивает версию к названию,
-            // а имя строки каталога с версией протухает с первым же обновлением.
             $app = (string) $cl['app'];
             $cv  = (string) ($cl['ver'] ?? '');
             if ($cv !== '' && substr($app, -strlen(' ' . $cv)) === ' ' . $cv) $app = substr($app, 0, -strlen(' ' . $cv));

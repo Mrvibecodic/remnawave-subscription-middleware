@@ -161,9 +161,6 @@ function reqlog_fmt_label($fmt, $short = false) {
     return $map[(string) $fmt] ?? '';
 }
 
-// Модель и ОС клиент шлёт отдельными заголовками (панель показывает их в списке
-// устройств), а в User-Agent их кладут далеко не все — поэтому берём из заголовков,
-// а разбор UA оставляем запасным вариантом.
 function reqlog_device($ua_vals = []) {
     $pick = function ($key, $limit) use ($ua_vals) {
         $sk = 'HTTP_' . strtoupper(str_replace('-', '_', $key));
@@ -434,13 +431,6 @@ function reqlog_plural($n) {
     return 'обновлений';
 }
 
-// --- Снимок состояния пользователя и «до → после» ---
-//
-// Панель кладёт в payload user-вебхука полное состояние пользователя, поэтому
-// снимок стоит ноль обращений к API. «До» берём из предыдущей записи журнала по
-// тому же shortUuid: так у события видно не только что оно было, но и что именно
-// поменялось. Расход трафика в дифф не входит — он растёт сам по себе и забивал
-// бы список; в снимке он есть.
 
 function whlog_ensure_meta() {
     static $done = false;
@@ -454,10 +444,6 @@ function whlog_ensure_meta() {
             ? 'ALTER TABLE webhook_log ADD INDEX idx_wh_short (short_uuid)'
             : 'CREATE INDEX IF NOT EXISTS idx_wh_short ON webhook_log(short_uuid)');
     } catch (Throwable $e) {}
-    // Флаг ставим, только когда колонка действительно на месте. Неудачный ALTER
-    // (у пользователя БД нет права ALTER, таблица залочена) иначе запомнился бы
-    // как «сделано», а запись в журнал вебхуков падала бы на каждой вставке —
-    // молча и навсегда. Без флага следующий запрос попробует ещё раз.
     try { $p->query('SELECT meta FROM webhook_log LIMIT 1'); }
     catch (Throwable $e) { $done = false; error_log('submw whlog meta: колонка не создана — ' . $e->getMessage()); return; }
     set_setting('whlog_meta_col', '1');
@@ -556,12 +542,6 @@ function whlog_prev_snapshot($short) {
     } catch (Throwable $e) { return null; }
 }
 
-// --- Журнал наших записей в панель ---
-//
-// Прослойка пишет в панель тремя вызовами (PATCH пользователя, сброс трафика,
-// удаление устройства). Журнал нужен, чтобы у изменения был автор: событие от
-// панели само по себе не говорит, чьё оно, а по этому журналу видно, что PATCH
-// с ровно такими полями только что ушёл от нас.
 
 function panel_write_field_map() {
     return [
@@ -605,9 +585,6 @@ function log_panel_write($short, $ref, $op, $src, $body, $ok, $http_code = 0, $e
     } catch (Throwable $e) { error_log('submw log_panel_write: ' . $e->getMessage()); }
 }
 
-// Наш ли это PATCH: ищем свою удачную запись по тому же shortUuid за последние
-// $sec секунд и сверяем набор полей. Совпадение по времени без совпадения по
-// полям — это уже чужое изменение, приехавшее следом за нашим.
 function panel_write_recent($short, $sec = 300) {
     ensure_panel_write_log();
     if ((string) $short === '' || !($p = db())) return null;
@@ -631,12 +608,6 @@ function whlog_attribute(array $diff, $short) {
     return 0;
 }
 
-// --- Обезличивание для выгрузки ---
-//
-// Журнал уезжает из админки файлом: в нём shortUuid — это фактически пароль от
-// подписки, а имя пользователя и uuid сквадов — чужие данные. Заменяем их
-// короткой солёной меткой: она стабильна внутри одной выгрузки, поэтому строки
-// по-прежнему можно сопоставлять между собой, но восстановить исходник нельзя.
 function whlog_mask_id($v, $prefix = 'id') {
     $v = (string) $v;
     if ($v === '') return '';
@@ -655,9 +626,6 @@ function whlog_mask_diff($diff) {
 
 function whlog_is_date($k) { return $k === 'exp' || $k === 'rst' || $k === 'rev'; }
 
-// Отметки события, а не состояния: в них лежит время ПРЕДЫДУЩЕГО отзыва подписки
-// или сброса трафика, и сравнивать его с новым незачем — значение несёт только
-// сам факт «сейчас произошло» и время в колонке «Стало».
 function whlog_is_marker($k) { return $k === 'rst' || $k === 'rev'; }
 
 function whlog_epoch($v) {

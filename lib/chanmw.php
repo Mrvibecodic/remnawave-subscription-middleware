@@ -1,25 +1,5 @@
 <?php
 
-/**
- * Защищённый канал c1 — серверная половина: база, настройки и врезки.
- *
- * Ядро протокола лежит в `chan.php` и про прослойку не знает ничего. Здесь всё
- * остальное: таблицы, индекс меток, ключи, память о повторах, жёсткий режим и
- * две врезки в `index.php`.
- *
- * Врезок ровно две:
- *   chan_intercept() — в самом начале, до разбора адреса. Расшифровывает запрос
- *                      и притворяется обычным: подменяет путь и заголовки, чтобы
- *                      весь конвейер (оверрайды, HWID, squadconf_inject,
- *                      addsub_merge, правила ответа) работал без единой правки.
- *   chan_flush()     — на завершении скрипта. Забирает буфер вывода, заголовки
- *                      и код ответа и отдаёт вместо них шифротекст.
- *
- * Вторая работает через register_shutdown_function, а не по месту `echo`,
- * сознательно: у прослойки четыре выхода (обычная отдача, 502 при обрыве,
- * замаскированный 404 и подстановка заблокированному), и якорь на одном из них
- * означал бы, что на трёх остальных клиент получает открытый текст.
- */
 
 function chan_ext_ok() { return extension_loaded('sodium'); }
 
@@ -31,19 +11,12 @@ function chan_hard_default() { return setting('chan_hard_default', '0') === '1';
 
 function chan_page_404() { return setting('chan_page_404', '0') === '1'; }
 
-// Диагностический журнал. Выключен по умолчанию не из осторожности вообще,
-// а по делу: в записи попадает расшифрованное тело подписки и карточка
-// устройства, то есть ровно то, что канал и прячет от посредника.
 function chan_debug_on() { return setting('chan_debug', '0') === '1'; }
 
 function chan_debug_keep() { return max(5, min(500, (int) (setting('chan_debug_keep', '50') ?: 50))); }
 
-// Потолок на каждое длинное поле записи: диагностика не должна раздувать базу.
 const CHAN_DEBUG_CUT = 8192;
 
-// Пересбор индекса меток по промаху — не чаще, чем раз в столько секунд.
-// Промах вызывает полный обход пользователей панели, и без дросселя мусорный
-// трафик по /c1/ превратился бы в постоянный опрос API.
 function chan_index_ttl() { return max(60, (int) (setting('chan_index_ttl', '900') ?: 900)); }
 
 function chan_hard_remarks() {
@@ -54,7 +27,6 @@ function chan_hard_remarks() {
     return ['⬆️ Обновите приложение', 'Подписка работает только через защищённое соединение', 'Обратитесь в поддержку'];
 }
 
-// ---------------------------------------------------------------- таблицы ---
 
 function chan_ensure() {
     static $done = false;
@@ -119,9 +91,6 @@ function chan_ensure() {
         }
     } catch (Throwable $e) { error_log('submw chan tables: ' . $e->getMessage()); return false; }
 
-    // Индекс по short_uuid появился позже самой таблицы — под точечное снятие
-    // меток, когда юзера удалили в панели. Отдельным try, потому что в MySQL
-    // нет `CREATE INDEX IF NOT EXISTS` и на уже созданном индексе запрос падает.
     try {
         if (db_driver() === 'mysql') {
             $has = $p->query("SHOW INDEX FROM chan_kid WHERE Key_name = 'idx_chan_kid_short'")->fetch();
@@ -134,15 +103,7 @@ function chan_ensure() {
     return true;
 }
 
-// ------------------------------------------------------------------ ключи ---
 
-/**
- * Ключи прослойки: [spid => секрет]. Текущий и, пока идёт ротация, предыдущий.
- *
- * Первый ключ создаётся сам при первом обращении. Никаких «сгенерируйте ключ
- * для клиентов»: клиентам ключ приезжает внутри первого зашифрованного ответа,
- * и они его запоминают.
- */
 function chan_keys() {
     static $cache = null;
     if ($cache !== null) return $cache;
@@ -182,16 +143,11 @@ function chan_public_key() {
     catch (Throwable $e) { return ''; }
 }
 
-/** Отпечаток текущего ключа — то, что видно на вкладке рядом с тумблером. */
 function chan_fingerprint() {
     $pub = chan_public_key();
     return $pub === '' ? '' : chan_spid($pub);
 }
 
-/**
- * Ротация ключа. Предыдущий остаётся живым: клиенты, закрепившие его, узнают
- * о новом из первого же ответа — он едет внутри шифра полем `sp`.
- */
 function chan_rotate() {
     if (!chan_ext_ok() || !chan_ensure() || !($p = db())) return false;
     try {
@@ -200,8 +156,6 @@ function chan_rotate() {
         $p->exec('UPDATE chan_key SET is_current = 0');
         $st = $p->prepare('INSERT INTO chan_key (spid, secret, created, is_current) VALUES (?, ?, ?, 1)');
         $st->execute([$spid, base64_encode($secret), time()]);
-        // Держим только два: текущий и предыдущий. Третий уже никому не нужен,
-        // а каждый лишний — это ещё один ключ, которым можно расшифровать запрос.
         $old = $p->query('SELECT spid FROM chan_key ORDER BY created DESC')->fetchAll(PDO::FETCH_COLUMN);
         foreach (array_slice($old, 2) as $dead) {
             $p->prepare('DELETE FROM chan_key WHERE spid = ?')->execute([$dead]);
@@ -210,15 +164,7 @@ function chan_rotate() {
     } catch (Throwable $e) { error_log('submw chan rotate: ' . $e->getMessage()); return false; }
 }
 
-// ------------------------------------------------------------ индекс меток ---
 
-/**
- * Токен подписки по метке.
- *
- * Промах — обычное дело для мусорного трафика, поэтому он стоит одного SELECT.
- * Пересбор по промаху нужен ради подписки, созданной уже после последнего
- * обхода: без него человек не смог бы подключиться до следующих суток.
- */
 function chan_lookup_token($kid) {
     if (!chan_ensure() || !($p = db())) return null;
     $epoch = chan_epoch();
@@ -236,12 +182,6 @@ function chan_lookup_token($kid) {
     } catch (Throwable $e) { error_log('submw chan lookup: ' . $e->getMessage()); return null; }
 }
 
-/**
- * Пересбор индекса меток на трое суток: вчера, сегодня, завтра.
- *
- * Десять тысяч подписок — это тридцать тысяч HMAC, то есть миллисекунды.
- * Дорогая часть — обход пользователей панели, поэтому он под дросселем.
- */
 function chan_index_rebuild($force = false) {
     if (!chan_ext_ok() || !chan_ensure() || !($p = db())) return false;
 
@@ -256,8 +196,6 @@ function chan_index_rebuild($force = false) {
     $lock = @fopen(rtrim(sys_get_temp_dir(), '/\\') . '/submw_chan_index_' . substr(md5(__DIR__), 0, 12) . '.lock', 'c');
     @set_time_limit(300);
     if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return false; }
-    // Отметку ставим до обхода: неудачный обход не должен превращаться
-    // в попытку на каждом следующем запросе.
     set_setting('chan_index_ts', (string) $now);
 
     $err   = '';
@@ -294,13 +232,6 @@ function chan_index_rebuild($force = false) {
     return true;
 }
 
-/**
- * Досыпать метки одной подписке — вызывается вебхуком на создание юзера.
- *
- * Счётчик подписок тут намеренно не трогается: его считает `chan_index_info()`
- * прямо по таблице. Держать отдельное число в настройках означало бы, что после
- * каждого вебхука оно расходится с тем, что в индексе на самом деле лежит.
- */
 function chan_index_add($short) {
     $short = trim((string) $short);
     if ($short === '' || !chan_ext_ok() || !chan_ensure() || !($p = db())) return;
@@ -314,13 +245,6 @@ function chan_index_add($short) {
     } catch (Throwable $e) { error_log('submw chan index add: ' . $e->getMessage()); }
 }
 
-/**
- * Снять метки удалённой подписки.
- *
- * Без этого метки живут до следующего полного обхода — а он не обязан случиться
- * ни сегодня, ни завтра. Всё это время удалённый в панели человек продолжал бы
- * ходить по каналу: прослойка узнаёт подписку по метке, а не по панели.
- */
 function chan_index_drop($short) {
     $short = trim((string) $short);
     if ($short === '' || !chan_ensure() || !($p = db())) return;
@@ -328,7 +252,6 @@ function chan_index_drop($short) {
     catch (Throwable $e) { error_log('submw chan index drop: ' . $e->getMessage()); }
 }
 
-/** Забыть подписку в таблице «кто ходит защищённо» — вебхук на удаление юзера. */
 function chan_state_drop($short) {
     $short = trim((string) $short);
     if ($short === '' || !chan_ensure() || !($p = db())) return;
@@ -336,17 +259,6 @@ function chan_state_drop($short) {
     catch (Throwable $e) { error_log('submw chan state drop: ' . $e->getMessage()); }
 }
 
-/**
- * Что показывать в «Готовности».
- *
- * `count` считается по самой таблице, а не берётся из настроек: между полными
- * обходами индекс правят вебхуки — создание юзера досыпает метки, удаление их
- * снимает, — и сохранённое при обходе число к этому моменту уже враньё.
- *
- * `fresh` — покрыт ли меткой сегодняшний день. Обход строит метки сразу на трое
- * суток (вчера, сегодня, завтра), поэтому вчерашний обход — это норма, а не
- * «устарел»: сравнение эпохи «в лоб» зажигало предупреждение через день.
- */
 function chan_index_info() {
     $epoch = chan_epoch();
     $built = (int) setting('chan_index_epoch', '0');
@@ -357,7 +269,7 @@ function chan_index_info() {
             $st->execute([$epoch]);
             $v = $st->fetchColumn();
             if ($v !== false && $v !== null) $count = (int) $v;
-        } catch (Throwable $e) {} // таблицы может ещё не быть — тогда остаётся число из настроек
+        } catch (Throwable $e) {}
     }
     return [
         'count' => $count,
@@ -367,9 +279,7 @@ function chan_index_info() {
     ];
 }
 
-// ------------------------------------------------------ клиенты и звёзды ---
 
-/** Приложения канала: то, что показано кнопками наверху вкладки. */
 function chan_client_apps() {
     return [
         ['repo' => 'Mrvibecodic/clod-clash',         'name' => 'Clod Clash', 'os' => 'Windows · macOS · Linux'],
@@ -377,12 +287,8 @@ function chan_client_apps() {
     ];
 }
 
-// Трое суток: число звёзд — украшение, а неавторизованный лимит GitHub
-// (60 запросов в час на адрес) делится со всем, что уже ходит в api.github.com.
 function chan_stars_ttl() { return 3 * 86400; }
 
-// Неудачную попытку не повторяем чаще раза в час, иначе упавший GitHub
-// превращается в поход на каждое открытие вкладки.
 function chan_stars_retry() { return 3600; }
 
 function chan_stars_cache() {
@@ -390,7 +296,6 @@ function chan_stars_cache() {
     return is_array($j) ? $j : [];
 }
 
-/** Есть ли репозиторий, за которым пора сходить. */
 function chan_stars_stale($cache = null) {
     $c   = is_array($cache) ? $cache : chan_stars_cache();
     $now = time();
@@ -402,13 +307,6 @@ function chan_stars_stale($cache = null) {
     return false;
 }
 
-/**
- * Освежить число звёзд.
- *
- * Рендер страницы сюда не ходит и читает только кэш — тем же путём, что версия
- * панели и автопроверка версий клиентов: вкладка не должна ждать GitHub.
- * Ошибка не стирает прежнее число, оно так и висит до следующей удачной попытки.
- */
 function chan_stars_refresh($force = false) {
     $cache = chan_stars_cache();
     $now   = time();
@@ -438,20 +336,9 @@ function chan_stars_refresh($force = false) {
     return $cache;
 }
 
-// ------------------------------------------------- имена учётных записей ---
 
-/**
- * Имена подписок для таблицы «кто ходит защищённо».
- *
- * В самом канале имени нет и быть не может: прослойка знает только shortUuid,
- * а имя живёт в панели. Ходить туда на каждое открытие вкладки незачем —
- * поэтому кэш в настройках и обновление отдельным ajax'ом после загрузки, тем
- * же путём, что звёзды клиентов и версия панели.
- */
 function chan_names_ttl() { return 900; }
 
-// Молчащую панель не переспрашиваем чаще, чем раз в две минуты, иначе её
-// таймаут превращается в ожидание на каждое открытие вкладки.
 function chan_names_retry() { return 120; }
 
 function chan_names_cache() {
@@ -459,17 +346,11 @@ function chan_names_cache() {
     return is_array($j) ? $j : [];
 }
 
-/** Карта shortUuid → имя из кэша. */
 function chan_names_map($cache = null) {
     $c = is_array($cache) ? $cache : chan_names_cache();
     return is_array($c['map'] ?? null) ? $c['map'] : [];
 }
 
-/**
- * Кого показываем по имени: и таблица канала, и журнал диагностики. В журнал
- * попадают отказы — в том числе от подписок, которые ни разу не прошли и в
- * chan_state поэтому не значатся, — а без имени по отказу не понять, кто это.
- */
 function chan_names_wanted($limit = 500) {
     $out = [];
     foreach (chan_state_shorts($limit) as $s) $out[$s] = true;
@@ -483,7 +364,6 @@ function chan_names_wanted($limit = 500) {
     return array_keys($out);
 }
 
-/** shortUuid всех, кто уже ходил по каналу, — свежие сверху. */
 function chan_state_shorts($limit = 500) {
     if (!chan_ensure() || !($p = db())) return [];
     try {
@@ -492,11 +372,6 @@ function chan_state_shorts($limit = 500) {
     } catch (Throwable $e) { return []; }
 }
 
-/**
- * Пора ли идти в панель: протух кэш либо в нём нет кого-то из таблицы.
- * Вторая половина важнее первой — подписка, сходившая по каналу впервые,
- * иначе осталась бы без имени до конца TTL.
- */
 function chan_names_stale($cache = null) {
     if (remnawave_url() === '' || remnawave_token() === '') return false;
     $c   = is_array($cache) ? $cache : chan_names_cache();
@@ -508,20 +383,10 @@ function chan_names_stale($cache = null) {
     return false;
 }
 
-/**
- * Освежить имена. Рендер вкладки сюда не ходит и читает только кэш.
- * Неудача прежние имена не стирает: они висят до следующей удачной попытки.
- *
- * В карту кладутся все, кого мы собирались показать, — в том числе удалённые
- * из панели, с пустым именем. Иначе отсутствующий ключ каждый раз читался бы как
- * «кэш неполон» и гнал в панель новый обход каждые две минуты.
- */
 function chan_names_refresh($force = false) {
     $c = chan_names_cache();
     if (!$force && !chan_names_stale($c)) return chan_names_map($c);
     $now = time();
-    // Отметку о попытке пишем до запроса, а не после: панель может молчать до
-    // таймаута, и следующее открытие вкладки не должно ждать её ещё раз.
     $c['try'] = $now;
     set_setting('chan_names', json_encode($c, JSON_UNESCAPED_UNICODE));
     $err   = '';
@@ -542,12 +407,7 @@ function chan_names_refresh($force = false) {
     return $map;
 }
 
-// ----------------------------------------------------------------- повторы ---
 
-/**
- * Метка запроса: принимается один раз. Перехваченный посредником адрес,
- * отправленный повторно, обязан выглядеть так же, как мусорный путь.
- */
 function chan_nonce_take($n) {
     $n = (string) $n;
     if ($n === '' || !chan_ensure() || !($p = db())) return false;
@@ -555,7 +415,7 @@ function chan_nonce_take($n) {
     try {
         $p->prepare('INSERT INTO chan_nonce (n, ts) VALUES (?, ?)')->execute([$n, $now]);
     } catch (Throwable $e) {
-        return false;   // дубль первичного ключа — это и есть повтор
+        return false;
     }
     try {
         if (random_int(1, 50) === 1) {
@@ -565,7 +425,6 @@ function chan_nonce_take($n) {
     return true;
 }
 
-// -------------------------------------------------------- состояние подписки ---
 
 function chan_state_get($short) {
     $short = trim((string) $short);
@@ -578,7 +437,6 @@ function chan_state_get($short) {
     } catch (Throwable $e) { return null; }
 }
 
-/** Подписка сходила защищённо: отметить и, если так настроено, включить жёсткий режим. */
 function chan_state_hit($short, $ua = '') {
     $short = trim((string) $short);
     if ($short === '' || !chan_ensure() || !($p = db())) return;
@@ -599,12 +457,6 @@ function chan_state_hit($short, $ua = '') {
     } catch (Throwable $e) { error_log('submw chan state: ' . $e->getMessage()); }
 }
 
-/**
- * Открытый запрос по подписке, которая уже ходила защищённо.
- *
- * Это единственный способ увидеть посредника, который режет защищённый путь:
- * клиент сам на открытый HTTP не откатывается, значит откат сделали за него.
- */
 function chan_state_downgrade($short) {
     $short = trim((string) $short);
     if ($short === '' || !chan_ensure() || !($p = db())) return;
@@ -657,9 +509,7 @@ function chan_stats() {
     return $out;
 }
 
-// ------------------------------------------------- диагностический журнал ---
 
-/** Длинное поле — к хранимому виду, с честной пометкой об обрезке. */
 function chan_debug_cut($value) {
     $value = (string) $value;
     if (strlen($value) <= CHAN_DEBUG_CUT) return $value;
@@ -667,12 +517,6 @@ function chan_debug_cut($value) {
     return substr($value, 0, CHAN_DEBUG_CUT) . "\n… обрезано, всего " . strlen($value) . " байт";
 }
 
-/**
- * Заголовки, пришедшие снаружи, — то есть от посредника и клиента вместе.
- *
- * Снимаются ДО подмены: дальше по коду `$_SERVER` уже переписан содержимым
- * шифра, и настоящего входящего запроса в нём не остаётся.
- */
 function chan_debug_incoming_headers() {
     $out = [];
     if (function_exists('getallheaders')) {
@@ -714,8 +558,6 @@ function chan_debug_record(array $r) {
             isset($r['body_bytes']) ? (int) $r['body_bytes'] : null,
             isset($r['wire_bytes']) ? (int) $r['wire_bytes'] : null,
         ]);
-        // Кольцо: журнал не должен расти. Мусорный трафик по /c1/ тоже сюда
-        // попадает, иначе непонятно, что вообще стучится.
         $keep = chan_debug_keep();
         $p->exec('DELETE FROM chan_debug WHERE id <= (SELECT MAX(id) - ' . (int) $keep . ' FROM (SELECT id FROM chan_debug) t)');
     } catch (Throwable $e) { error_log('submw chan debug: ' . $e->getMessage()); }
@@ -733,7 +575,6 @@ function chan_debug_clear() {
     try { $p->exec('DELETE FROM chan_debug'); } catch (Throwable $e) {}
 }
 
-/** Причина отказа — человеческим языком. */
 function chan_debug_why($why) {
     $map = [
         'blob'   => 'блок в адресе не разбирается — не наш клиент или мусор',
@@ -750,14 +591,7 @@ function chan_debug_why($why) {
     return $map[(string) $why] ?? (string) $why;
 }
 
-// ------------------------------------------------------------- заглушка ---
 
-/**
- * Тело для открытого запроса по подписке в жёстком режиме.
- *
- * Механизм тот же, что у заблокированных: строки-пустышки, которые клиент
- * покажет как список серверов. Ни одного рабочего хоста в нём нет.
- */
 function chan_stub_body($format = 'base64') {
     $lines = chan_hard_remarks();
     if ($format === 'clash') {
@@ -778,17 +612,7 @@ function chan_stub_body($format = 'base64') {
     return base64_encode(implode("\n", $out));
 }
 
-// ------------------------------------------------------------------ врезки ---
 
-/**
- * Ранняя врезка. Возвращает контекст канала либо null.
- *
- * null означает «это не наш запрос» ЛИБО «расшифровать не удалось», и разницы
- * снаружи быть не должно: в обоих случаях запрос идёт дальше обычным путём и
- * получает ровно то же, что любой мусорный адрес. Отдельный синтетический 404
- * тут не годится — у прослойки мусорный путь не 404, а проксирование на origin,
- * и подделать его ответ всё равно не выйдет.
- */
 function chan_intercept() {
     $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
     if (strpos($uri, '/c1/') === false) return null;
@@ -800,16 +624,10 @@ function chan_intercept() {
 
     [$prefix, $kid, $spid, $blob] = $route;
 
-    // Журнал снимает входящее ДО подмены: после неё настоящего запроса
-    // в $_SERVER уже не остаётся.
     $dbg  = chan_debug_on();
     $head = $dbg ? chan_debug_incoming_headers() : [];
 
     $why = null;
-    // Адрес подписки достаём из самого поиска метки: у отказа его иначе нет, и
-    // в журнале не видно, чья метка не расшифровалась или пришла повторно.
-    // Повторный chan_lookup_token тут звать нельзя — на промахе он тянет
-    // полный обход панели.
     $found = null;
     $look  = static function ($k) use (&$found) { $found = chan_lookup_token($k); return $found; };
     $ctx = chan_open($kid, $spid, $blob, $look, chan_keys(), null, $why);
@@ -831,9 +649,6 @@ function chan_intercept() {
         return null;
     }
 
-    // Дальше запрос обязан выглядеть как обычный: подменяем путь, строку
-    // запроса и заголовки опознания. Иначе половина конвейера — формат клиента,
-    // лимит устройств, addsub — увидит не то, что в открытом режиме.
     $query = chan_request_query($ctx);
     $_SERVER['REQUEST_URI']  = $prefix . '/' . $ctx['token'] . ($query !== '' ? '?' . $query : '');
     $_SERVER['QUERY_STRING'] = $query;
@@ -842,8 +657,6 @@ function chan_intercept() {
     foreach ($headers as $name => $value) {
         $_SERVER['HTTP_' . strtoupper(str_replace('-', '_', $name))] = $value;
     }
-    // Заголовки к панели собираются из getallheaders(), а не из $_SERVER,
-    // поэтому одной подменой $_SERVER не обойтись: index.php берёт этот массив.
     $GLOBALS['chan_headers'] = $headers;
     $GLOBALS['chan_ctx']     = $ctx;
 
@@ -860,8 +673,6 @@ function chan_intercept() {
         ];
     }
 
-    // Всё, что скрипт напишет дальше, — включая ветки с die() и exit() —
-    // осядет здесь и уедет внутрь шифра.
     ob_start();
     $GLOBALS['chan_ob'] = ob_get_level();
     register_shutdown_function('chan_flush');
@@ -869,27 +680,19 @@ function chan_intercept() {
     return $ctx;
 }
 
-/** Идёт ли текущий запрос по защищённому каналу. */
 function chan_active() { return !empty($GLOBALS['chan_ctx']); }
 
-/**
- * Поздняя врезка: вместо тела и заголовков — шифротекст.
- *
- * Снаружи остаются только `content-type` и `cache-control`, а код ответа всегда
- * 200: настоящий уезжает внутрь шифра полем `st`. Иначе посредник читал бы по
- * коду, чем кончилось дело, — 404 у неизвестной подписки, 502 при обрыве.
- */
 function chan_flush() {
     $ctx = $GLOBALS['chan_ctx'] ?? null;
     if (empty($ctx)) return;
-    $GLOBALS['chan_ctx'] = null;   // защита от повторного входа
+    $GLOBALS['chan_ctx'] = null;
 
     $body  = '';
     $floor = max(1, (int) ($GLOBALS['chan_ob'] ?? 1));
     while (ob_get_level() >= $floor && ob_get_level() > 0) {
         $chunk = ob_get_clean();
         if ($chunk === false) break;
-        $body = $chunk . $body;   // внешний буфер держит то, что записано раньше
+        $body = $chunk . $body;
     }
 
     if (headers_sent()) {
@@ -900,9 +703,8 @@ function chan_flush() {
     $status = http_response_code();
     if (!is_int($status) || $status < 100) $status = 200;
 
-    // Заголовки не отправляем, а забираем: они уезжают внутрь шифра.
     $drop = ['content-length', 'transfer-encoding', 'connection', 'content-encoding',
-             'etag', 'last-modified'];   // последние два описывают тело, которого клиент уже не увидит
+             'etag', 'last-modified'];
     $meta = [];
     foreach (headers_list() as $line) {
         $parts = explode(':', $line, 2);
@@ -913,9 +715,6 @@ function chan_flush() {
     }
     header_remove();
 
-    // `Date` ставит веб-сервер при отправке, в headers_list() его нет никогда.
-    // Клиент считает по нему сдвиг часов устройства: без него поедет отсчёт
-    // срока подписки, поэтому подставляем сами.
     if (!isset($meta['date'])) $meta['date'] = [gmdate('D, d M Y H:i:s') . ' GMT'];
 
     $sealed = chan_seal($ctx, $meta, $body, chan_public_key(), chan_pad_on(), $status);

@@ -107,12 +107,6 @@ PKGS="php-fpm php-cli php-sqlite3 php-mysql php-curl php-mbstring php-xml git op
 [ "$CERT_MODE" = "2" ] && PKGS="$PKGS python3-certbot-dns-cloudflare"
 apt-get install -y $PKGS >/dev/null
 
-# sodium нужен защищённому каналу подписки. В Debian и Ubuntu он вкомпилен
-# в сам PHP, и отдельного пакета там нет: `apt install php-sodium` уронил бы
-# установку целиком. Пакет с таким именем бывает только в стороннем
-# репозитории и называется по версии — phpX.Y-sodium. Поэтому сначала
-# смотрим, есть ли расширение, и лишь потом пробуем доставить, не роняя
-# установку, если и это не вышло: без sodium канал просто выключен.
 if ! php -m 2>/dev/null | grep -qi "^sodium$"; then
     PHP_MM="$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;' 2>/dev/null || true)"
     if [ -n "$PHP_MM" ]; then
@@ -262,8 +256,6 @@ server {
     gzip on;
     gzip_min_length 1024;
     gzip_proxied expired no-cache no-store private auth;
-    # Панель Remnawave с 3.0 не сжимает тело ответа сама — сжатие делает прокси.
-    # text/plain и yaml здесь важны: в них отдаются base64- и clash-подписки.
     gzip_types text/css application/javascript application/json image/svg+xml text/plain text/yaml application/yaml application/x-yaml;
     gzip_comp_level 5;
 

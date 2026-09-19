@@ -149,7 +149,6 @@ function chat_session_create($ip, $ua) {
 
 function chat_max_sessions_per_ip() { $n = (int) setting('chat_max_sessions_ip', '20'); return $n > 0 ? $n : 20; }
 function chat_max_msgs_per_session() { $n = (int) setting('chat_max_msgs', '200'); return $n > 0 ? $n : 200; }
-// 0 (по умолчанию) = не удалять автоматически. Чистка включается заданием положительного числа дней.
 function chat_retention_days() { return max(0, (int) setting('chat_retention_days', '0')); }
 
 function chat_recent_sessions_from_ip($ip, $window = 3600) {
@@ -189,7 +188,7 @@ function chat_session_msg_count($sid) {
 function chat_gc() {
     if (!ensure_chat_tables() || !($p = db())) return;
     $days = chat_retention_days();
-    if ($days <= 0) return; // ретеншен выключен — ничего не удаляем
+    if ($days <= 0) return;
     $cut = time() - $days * 86400;
     try {
         $st = $p->prepare('SELECT id FROM chat_sessions WHERE ' . sql_epoch('COALESCE(last_msg_at, last_seen, created_at)') . ' < ? LIMIT 200');

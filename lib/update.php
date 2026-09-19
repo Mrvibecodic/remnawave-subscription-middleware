@@ -155,15 +155,12 @@ function update_compare($base, $head, &$err = null) {
     return [
         'ahead_by'      => (int) ($j['ahead_by'] ?? 0),
         'total_commits' => $total_commits,
-        // GitHub отдаёт максимум ~300 файлов и 250 коммитов в ответе; если упёрлись — список неполный.
         'truncated'     => (count($files) >= 300) || (count($commits) < $total_commits),
         'commits'       => $commits,
         'files'         => $files,
     ];
 }
 
-// Проверка целостности: git-хэш blob = sha1("blob <len>\0<content>").
-// Если хэша нет (или не SHA-1) — не блокируем.
 function update_verify_blob($data, $sha) {
     $sha = strtolower(trim((string) $sha));
     if (!preg_match('/^[0-9a-f]{40}$/', $sha)) return true;
@@ -180,7 +177,7 @@ function update_prune_backups($keep = 5) {
         if ($it === '.' || $it === '..' || $it === '' || $it[0] === '.') continue;
         if (is_dir($bdir . '/' . $it)) $dirs[] = $it;
     }
-    sort($dirs); // имена начинаются с даты YYYYmmdd-His → сортировка = хронология
+    sort($dirs);
     $extra = count($dirs) - (int) $keep;
     for ($i = 0; $i < $extra; $i++) update_rmrf($bdir . '/' . $dirs[$i]);
 }

@@ -125,8 +125,6 @@
         <a href="?tab=reqlog&amp;view=clients">Клиенты</a>
     </div>
     <script>
-    // Автопроверка версий клиентов — фоном после загрузки, по паттерну panelmeta:
-    // рендер страницы читает только кэш и не ходит в интернет.
     (function(){
         fetch('?ajax=cv_autocheck').then(function(r){return r.json();}).then(function(d){
             if(!d || !d.ok || !d.checked) return;

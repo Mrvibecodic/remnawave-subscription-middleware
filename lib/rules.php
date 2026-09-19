@@ -21,8 +21,6 @@ function rules_encode_value($name, $value) {
     return 'base64:' . base64_encode($value);
 }
 
-// Производный от единого справочника client_catalog() (см. lib/squadconf.php):
-// берём клиентов с ключом rk, «популярные» — вперёд. Список клиентов правится в одном месте.
 function rules_client_catalog() {
     $pop = []; $oth = [];
     foreach (client_catalog() as $c) {

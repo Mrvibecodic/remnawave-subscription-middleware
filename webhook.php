@@ -66,19 +66,14 @@ $status     = isset($data['status'])   ? (string) $data['status']   : null;
 if ($event === 'user_hwid_devices.added' || $event === 'user_hwid_devices.deleted') {
     $hw_dev   = is_array($data['hwidUserDevice'] ?? null) ? $data['hwidUserDevice'] : [];
     $hw_usr   = is_array($data['user'] ?? null) ? $data['user'] : [];
-    // Панель 3.x не кладёт в payload uuid пользователя — только числовой id.
     $hw_ref   = rw_user_ref($hw_usr);
     if (!rw_ref_ok($hw_ref)) $hw_ref = rw_ref_coerce((string) ($data['userId'] ?? $data['userUuid'] ?? ''));
     $hw_uuid  = rw_ref_ok($hw_ref) ? (string) $hw_ref['val'] : '';
     $hw_hwid  = (string) ($hw_dev['hwid'] ?? $data['hwid'] ?? '');
     $hw_short = (string) ($hw_usr['shortUuid'] ?? $data['shortUuid'] ?? $short_uuid);
     $hw_plat  = (string) ($hw_dev['platform'] ?? $data['platform'] ?? '');
-    // Имя и статус юзера лежат внутри объекта user, а не на верхнем уровне payload —
-    // без этого юзер-лог показывал hwid-события с пустой колонкой «Пользователь».
     $hw_name  = trim((string) ($hw_usr['username'] ?? '')) !== '' ? (string) $hw_usr['username'] : $username;
     $hw_stat  = trim((string) ($hw_usr['status'] ?? '')) !== '' ? (string) $hw_usr['status'] : null;
-    // Страховка для панелей, не кладущих объект user в hwid-payload: имя сначала
-    // ищем в своём же логе по shortUuid, и только если его там нет — спрашиваем панель.
     if (trim((string) $hw_name) === '' && $hw_short !== '') {
         if ($p = db()) {
             try {
@@ -99,9 +94,6 @@ if ($event === 'user_hwid_devices.added' || $event === 'user_hwid_devices.delete
         }
     }
     if (trim((string) $hw_name) === '') $hw_name = null;
-    // Без идентификатора запись в hwid_devices не попадёт, а тихо потерянные события
-    // выглядят как «дедикейт-режим просто перестал работать» — поэтому пишем в лог.
-    // У удаления пустой hwid по-прежнему означает «снести все устройства юзера».
     if ($hw_uuid === '') {
         error_log('submw webhook ' . $event . ': нет идентификатора пользователя, событие пропущено (short=' . $hw_short . ')');
     } elseif ($event === 'user_hwid_devices.added') {
@@ -130,9 +122,6 @@ if ($short_uuid !== '') squadconf_cache_drop($short_uuid);
 if ($short_uuid !== '') addsub_cache_drop($short_uuid);
 if ($short_uuid !== '' && addsub_is_secondary($short_uuid, $username)) addsub_cache_drop_by_target($short_uuid);
 
-// Метки защищённого канала для новой подписки. Индекс пересобирается раз в
-// сутки, и без этого человек, созданный сразу после обхода, не смог бы
-// подключиться защищённо до следующего.
 if ($short_uuid !== '' && $event !== 'user.deleted' && function_exists('chan_index_add') && chan_enabled()) {
     try { chan_index_add($short_uuid); } catch (Throwable $e) { error_log('submw chan index add: ' . $e->getMessage()); }
 }
@@ -150,19 +139,12 @@ if ($short_uuid !== '') {
         delete_override('shortuuid', $short_uuid, 'webhook');
         grace_cleanup($short_uuid);
         wglease_purge_user($short_uuid);
-        // Метки канала снимаем сразу, а не ждём полного обхода: до него удалённый
-        // человек продолжал бы ходить по /c1/ — подписку прослойка узнаёт по метке,
-        // а не по панели. Без оглядки на chan_enabled(): канал могли выключить
-        // вчера, а метки в индексе от этого никуда не делись.
         if (function_exists('chan_index_drop')) {
             try { chan_index_drop($short_uuid); chan_state_drop($short_uuid); }
             catch (Throwable $e) { error_log('submw chan index drop: ' . $e->getMessage()); }
         }
         $action = 'clear';
     } elseif ($status === 'EXPIRED' || $event === 'user.expired') {
-        // Новый грейс стартует только на настоящем user.expired: событие user.modified
-        // со status=EXPIRED прилетает и от нашего же restore-PATCH в конце грейса —
-        // без этого ограничения грейс тут же выдавался заново (вечная петля).
         if (addsub_is_secondary($short_uuid, $username) && !grace_find($short_uuid)) {
             $action = 'addsub_skip';
         } else {
@@ -176,11 +158,6 @@ if ($short_uuid !== '') {
             }
         }
     } elseif ($status === 'DISABLED' || $status === 'LIMITED') {
-        // Оплата во время грейса приходит со статусом LIMITED, если человек успел
-        // выбрать грейсовую квоту: панель снимает LIMITED сбросом трафика, а не новой
-        // датой. Без этой ветки продление попадало в set_expired, строка грейса
-        // оставалась, и оплативший сидел на заглушке «истекло» до конца грейса.
-        // DISABLED сюда не пускаем: там юзера выключил админ, поднимать его нельзя.
         $renewed = $status === 'LIMITED' && $expire_future
             && grace_on_renew($short_uuid, (string) ($data['expireAt'] ?? ''), $data);
         if ($renewed) {
@@ -202,8 +179,6 @@ if ($short_uuid !== '') {
 
 log_webhook($event, $short_uuid ?: null, $username, $status, true, $action, $data);
 
-// Отвечаем панели сразу и закрываем соединение, а пересылку делаем после —
-// чтобы медленный получатель не задерживал ответ и панель не ретраила событие.
 ignore_user_abort(true);
 http_response_code(200);
 header('Content-Type: text/plain; charset=utf-8');
@@ -222,15 +197,10 @@ try {
 } catch (Throwable $e) {
     error_log('submw forward_webhook: ' . $e->getMessage());
 }
-// Освежаем кэш версии панели: ответ клиенту уже отправлен, так что задержки нет.
-// Без этого версия обновлялась бы только при заходе в админку, и грейс не мог бы
-// заранее понять, что панель перешла на числовые id.
 try {
     if (remnawave_url() !== '' && remnawave_token() !== '') {
         $pm_err = '';
         $pm = remnawave_panel_meta(3600, $pm_err);
-        // Конфигурацию тянем только если панель сейчас отвечает: иначе воркер
-        // ждал бы два таймаута подряд уже после ответа на вебхук.
         if (!empty($pm['ok'])) { $pc_err = ''; remnawave_panel_config(3600, $pc_err); }
     }
 } catch (Throwable $e) {

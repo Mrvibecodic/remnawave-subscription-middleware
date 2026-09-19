@@ -1,7 +1,4 @@
 FROM php:8.3-fpm-bookworm
-# sodium нужен защищённому каналу (протокол c1). В официальном образе он уже
-# встроен, поэтому ниже он собирается только если его вдруг нет: вторая копия
-# расширения дала бы «module already loaded» на каждом запросе.
 ARG SUBMW_VERSION=dev
 ENV SUBMW_DOCKER=1 SUBMW_VERSION=${SUBMW_VERSION}
 RUN set -eux; \
