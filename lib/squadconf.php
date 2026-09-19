@@ -311,11 +311,11 @@ function wg_to_uri($parsed, $name) {
     $q = [];
     $addr = str_replace(' ', '', (string) ($if['Address'] ?? ''));
     if ($addr !== '') $q[] = 'address=' . $addr;
-    $q[] = 'publickey=' . (string) $pe['PublicKey'];
-    if (!empty($pe['PresharedKey'])) $q[] = 'presharedkey=' . (string) $pe['PresharedKey'];
+    $q[] = 'publickey=' . strtr((string) $pe['PublicKey'], ['+' => '%2B', '/' => '%2F']);
+    if (!empty($pe['PresharedKey'])) $q[] = 'presharedkey=' . strtr((string) $pe['PresharedKey'], ['+' => '%2B', '/' => '%2F']);
     if (!empty($if['MTU'])) $q[] = 'mtu=' . (int) $if['MTU'];
     if (!empty($pe['PersistentKeepalive'])) $q[] = 'keepalive=' . (int) $pe['PersistentKeepalive'];
-    return 'wireguard://' . $pk . '@' . $host . ':' . (int) $port . '?' . implode('&', $q) . '#' . rawurlencode($name);
+    return 'wireguard://' . strtr($pk, ['+' => '%2B', '/' => '%2F']) . '@' . $host . ':' . (int) $port . '?' . implode('&', $q) . '#' . rawurlencode($name);
 }
 
 function squadconf_any() {
