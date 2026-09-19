@@ -7,11 +7,11 @@ function ensure_reqlog_hwid() {
     if (!($p = db())) return;
     if (setting('reqlog_hwid_col', '') !== '1') {
         try { $p->exec('ALTER TABLE request_log ADD COLUMN hwid TEXT NULL'); } catch (Throwable $e) {}
-        set_setting('reqlog_hwid_col', '1');
+        if (db_has_cols($p, 'request_log', ['hwid'])) set_setting('reqlog_hwid_col', '1');
     }
     if (setting('reqlog_isapp_col', '') !== '1') {
         try { $p->exec('ALTER TABLE request_log ADD COLUMN is_app INTEGER NOT NULL DEFAULT 1'); } catch (Throwable $e) {}
-        set_setting('reqlog_isapp_col', '1');
+        if (db_has_cols($p, 'request_log', ['is_app'])) set_setting('reqlog_isapp_col', '1');
     }
     if (setting('reqlog_hwid_idx', '') !== '1') {
         try {
@@ -28,7 +28,7 @@ function ensure_reqlog_hwid() {
         foreach ($cols as $c) {
             try { $p->exec('ALTER TABLE request_log ADD COLUMN ' . $c); } catch (Throwable $e) {}
         }
-        set_setting('reqlog_meta_cols', '1');
+        if (db_has_cols($p, 'request_log', ['fmt', 'ctype', 'bytes', 'meta'])) set_setting('reqlog_meta_cols', '1');
     }
     if (setting('reqlog_browser_purge', '') !== '2') {
         try { $p->exec("DELETE FROM request_log WHERE decision = 'browser' OR user_agent LIKE 'Mozilla/%'"); } catch (Throwable $e) {}

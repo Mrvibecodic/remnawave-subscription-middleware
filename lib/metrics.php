@@ -61,7 +61,7 @@ function ensure_metrics_tables() {
     }
     if (setting('metrics_subcol', '') !== '1') {
         try { $p->exec('ALTER TABLE metrics_minute ADD COLUMN hits_sub ' . (db_driver() === 'mysql' ? 'BIGINT UNSIGNED' : 'INTEGER') . ' NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
-        set_setting('metrics_subcol', '1');
+        if (db_has_cols($p, 'metrics_minute', ['hits_sub'])) set_setting('metrics_subcol', '1');
     }
     $done = true;
     return true;

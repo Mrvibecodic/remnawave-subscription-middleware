@@ -24,8 +24,10 @@ function ensure_grace_table() {
             )");
         }
     } catch (Throwable $e) { error_log('submw grace table: ' . $e->getMessage()); }
+    if (setting('grace_cols', '') === '1') return;
     try { $p->exec('ALTER TABLE grace_users ADD COLUMN orig_external_squad ' . (db_driver() === 'mysql' ? 'VARCHAR(191)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
     try { $p->exec('ALTER TABLE grace_users ADD COLUMN grace_patch ' . (db_driver() === 'mysql' ? 'MEDIUMTEXT' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
+    if (db_has_cols($p, 'grace_users', ['orig_external_squad', 'grace_patch'])) set_setting('grace_cols', '1');
 }
 
 function grace_iso($ts) { return gmdate('Y-m-d\TH:i:s.000\Z', (int) $ts); }

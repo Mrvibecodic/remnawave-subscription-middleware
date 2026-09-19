@@ -61,14 +61,17 @@ function wglease_ensure() {
     // Индекс по hwid нужен чистке дублей в wglease_hwid_upsert: PRIMARY KEY начинается
     // с user_uuid, поэтому поиск по одному hwid без него шёл бы полным сканом.
     // На уже созданных таблицах CREATE TABLE выше ничего не делает, добавляем отдельно.
-    try {
-        if (db_driver() === 'mysql') $p->exec('ALTER TABLE hwid_devices ADD INDEX idx_hwd_hwid (hwid)');
-        else $p->exec('CREATE INDEX IF NOT EXISTS idx_hwd_hwid ON hwid_devices(hwid)');
-    } catch (Throwable $e) {}
+    if (setting('wgl_hwd_idx', '') !== '1') {
+        try {
+            if (db_driver() === 'mysql') $p->exec('ALTER TABLE hwid_devices ADD INDEX idx_hwd_hwid (hwid)');
+            else $p->exec('CREATE INDEX IF NOT EXISTS idx_hwd_hwid ON hwid_devices(hwid)');
+        } catch (Throwable $e) {}
+        set_setting('wgl_hwd_idx', '1');
+    }
     wglease_ensure_cfg_uidx($p);
     if (setting('wgl_ua_col', '') !== '1') {
         try { $p->exec('ALTER TABLE wg_lease ADD COLUMN ua ' . (db_driver() === 'mysql' ? 'VARCHAR(255)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
-        set_setting('wgl_ua_col', '1');
+        if (db_has_cols($p, 'wg_lease', ['ua'])) set_setting('wgl_ua_col', '1');
     }
 }
 

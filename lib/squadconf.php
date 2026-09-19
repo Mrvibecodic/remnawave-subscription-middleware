@@ -38,11 +38,11 @@ function squadconf_ensure() {
         }
         if (setting('sqcfg_squads_col', '') !== '1') {
             try { $p->exec('ALTER TABLE squad_configs ADD COLUMN squads ' . (db_driver() === 'mysql' ? 'MEDIUMTEXT' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
-            set_setting('sqcfg_squads_col', '1');
+            if (db_has_cols($p, 'squad_configs', ['squads'])) set_setting('sqcfg_squads_col', '1');
         }
         if (setting('sqcfg_grp_col', '') !== '1') {
             try { $p->exec('ALTER TABLE squad_configs ADD COLUMN grp ' . (db_driver() === 'mysql' ? 'VARCHAR(64)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
-            set_setting('sqcfg_grp_col', '1');
+            if (db_has_cols($p, 'squad_configs', ['grp'])) set_setting('sqcfg_grp_col', '1');
         }
     } catch (Throwable $e) { error_log('submw squadconf ensure: ' . $e->getMessage()); }
 }
@@ -353,7 +353,7 @@ function squadconf_cache_ensure() {
         }
         if (setting('sqcache_st_col', '') !== '1') {
             try { $p->exec('ALTER TABLE squad_cache ADD COLUMN st ' . (db_driver() === 'mysql' ? 'VARCHAR(32)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
-            set_setting('sqcache_st_col', '1');
+            if (db_has_cols($p, 'squad_cache', ['st'])) set_setting('sqcache_st_col', '1');
         }
     } catch (Throwable $e) { error_log('submw squad_cache ensure: ' . $e->getMessage()); }
 }
