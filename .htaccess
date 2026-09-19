@@ -2,7 +2,8 @@ RewriteEngine On
 
 RewriteRule ^(config\.php|config\.example\.php|lib\.php|schema\.sql|README\.md|INSTALL\.md|install\.sh|Dockerfile)$ - [F,L]
 
-RewriteRule ^(lib|data|docs|docker|\.backups|\.git|\.github)(/|$) - [F,L]
+RewriteRule ^(lib|data|docs|docker|tools|\.backups|\.git|\.github)(/|$) - [F,L]
+RewriteRule ^admin/inc(/|$) - [F,L]
 
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d

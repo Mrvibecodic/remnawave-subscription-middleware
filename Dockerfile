@@ -23,6 +23,7 @@ RUN set -eux; \
     rm -f /etc/nginx/sites-enabled/default; \
     sed -i 's/^listen = .*/listen = 127.0.0.1:9000/' /usr/local/etc/php-fpm.d/zz-docker.conf; \
     { echo 'pm = ondemand'; echo 'pm.max_children = 8'; echo 'pm.process_idle_timeout = 10s'; echo 'pm.max_requests = 500'; } >> /usr/local/etc/php-fpm.d/zz-docker.conf; \
+    printf 'display_errors = Off\ndisplay_startup_errors = Off\nlog_errors = On\n' > /usr/local/etc/php/conf.d/zz-submw.ini; \
     mkdir -p /var/www/html/data; \
     chown -R www-data:www-data /var/www/html; \
     chmod +x /entrypoint.sh
