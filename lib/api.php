@@ -20,7 +20,7 @@ function panel_auth_headers(array $headers) {
     return $headers;
 }
 
-function remnawave_api_get($path) {
+function remnawave_api_get($path, $assoc = true) {
     $base  = remnawave_url();
     $token = remnawave_token();
     if ($base === '' || $token === '') {
@@ -51,7 +51,7 @@ function remnawave_api_get($path) {
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     if ($err) return [false, $code, null, $err];
-    $json = json_decode($body, true);
+    $json = json_decode($body, $assoc);
     if ($code < 200 || $code >= 300) {
         return [false, $code, $json, 'HTTP ' . $code];
     }
@@ -269,11 +269,11 @@ function remnawave_sub_template_json($uuid, &$error = '') {
     $error = '';
     $uuid = trim((string) $uuid);
     if ($uuid === '') { $error = 'Пустой uuid шаблона'; return null; }
-    [$ok, $code, $data, $e] = remnawave_api_get('/api/subscription-templates/' . rawurlencode($uuid));
+    [$ok, $code, $data, $e] = remnawave_api_get('/api/subscription-templates/' . rawurlencode($uuid), false);
     if (!$ok) { $error = $e ?: ('HTTP ' . $code); return null; }
-    $resp = $data['response'] ?? $data;
-    $tpl = is_array($resp) ? ($resp['templateJson'] ?? null) : null;
-    if (!is_array($tpl) || !$tpl) { $error = 'Шаблон без templateJson'; return null; }
+    $resp = (is_object($data) && isset($data->response)) ? $data->response : $data;
+    $tpl = is_object($resp) ? ($resp->templateJson ?? null) : null;
+    if (!is_object($tpl) || !get_object_vars($tpl)) { $error = 'Шаблон без templateJson'; return null; }
     return $tpl;
 }
 
