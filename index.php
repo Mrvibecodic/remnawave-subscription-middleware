@@ -167,7 +167,8 @@ curl_setopt_array($ch, [
     CURLOPT_HEADERFUNCTION => function ($curl, $header) use (&$grabbed_headers) {
         $len = strlen($header);
         $trim = trim($header);
-        if ($trim === '' || strpos($trim, 'HTTP/') === 0) return $len;
+        if ($trim === '') return $len;
+        if (strpos($trim, 'HTTP/') === 0) { $grabbed_headers = []; return $len; }
         $parts = explode(':', $trim, 2);
         if (count($parts) === 2) {
             $grabbed_headers[strtolower(trim($parts[0]))] = trim($parts[1]);
