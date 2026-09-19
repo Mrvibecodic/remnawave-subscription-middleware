@@ -204,10 +204,16 @@ if ($addsub_pre !== null && $addsub_pre['ch'] !== null) {
         $mrc = curl_multi_exec($mh, $mactive);
         if ($mactive && curl_multi_select($mh, 1.0) === -1) usleep(10000);
     } while ($mactive && $mrc === CURLM_OK);
+    $ch_res = CURLE_OK;
+    while (($mi = curl_multi_info_read($mh)) !== false) {
+        if ($mi['handle'] === $ch) $ch_res = $mi['result'];
+    }
     $response  = curl_multi_getcontent($ch);
     if ($response === null) $response = false;
     $curl_err  = curl_error($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if ($curl_err === '' && $ch_res !== CURLE_OK) $curl_err = curl_strerror($ch_res);
+    if ($curl_err === '' && (int) $http_code === 0) $curl_err = 'no response';
     [$addsub_pre['body'], $addsub_pre['info']] = addsub_fetch_collect($addsub_pre['ch'], $addsub_pre['st'], curl_multi_getcontent($addsub_pre['ch']));
     $addsub_pre['ms'] = (int) round(((float) curl_getinfo($addsub_pre['ch'], CURLINFO_TOTAL_TIME)) * 1000);
     curl_multi_remove_handle($mh, $addsub_pre['ch']);
