@@ -251,7 +251,11 @@ function chan_index_rebuild($force = false) {
         $ts   = (int) setting('chan_index_ts', '0');
         $done = (int) setting('chan_index_epoch', '0');
         if ($done === $epoch && ($now - $ts) < chan_index_ttl()) return false;
+        if ($done !== $epoch && ($now - $ts) < 60) return false;
     }
+    $lock = @fopen(rtrim(sys_get_temp_dir(), '/\\') . '/submw_chan_index_' . substr(md5(__DIR__), 0, 12) . '.lock', 'c');
+    @set_time_limit(300);
+    if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return false; }
     // Отметку ставим до обхода: неудачный обход не должен превращаться
     // в попытку на каждом следующем запросе.
     set_setting('chan_index_ts', (string) $now);
@@ -284,6 +288,7 @@ function chan_index_rebuild($force = false) {
         return false;
     }
 
+    if ($err !== '') { error_log('submw chan index: ' . $err); return $count > 0; }
     set_setting('chan_index_epoch', (string) $epoch);
     set_setting('chan_index_count', (string) $count);
     return true;
