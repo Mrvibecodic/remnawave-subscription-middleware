@@ -681,8 +681,14 @@ function squadconf_xray_tpl_name() {
 function squadconf_xray_tpl_ttl() { return 600; }
 
 function squadconf_xray_tpl_cached() {
-    $c = json_decode((string) setting('sqcfg_xtpl', ''), true);
-    return is_array($c) ? $c : [];
+    $c = json_decode((string) setting('sqcfg_xtpl', ''));
+    if (!is_object($c)) return [];
+    return [
+        'name' => (string) ($c->name ?? ''),
+        'ts'   => (int) ($c->ts ?? 0),
+        'err'  => (string) ($c->err ?? ''),
+        'tpl'  => (isset($c->tpl) && is_object($c->tpl)) ? $c->tpl : null,
+    ];
 }
 
 function squadconf_xray_tpl_fetch($name, &$error = '') {
@@ -701,7 +707,7 @@ function squadconf_xray_tpl_fetch($name, &$error = '') {
     }
     if ($uuid === '') { $error = 'Шаблон xray-json «' . $name . '» в панели не найден'; return null; }
     $tpl = remnawave_sub_template_json($uuid, $e);
-    if (!is_array($tpl)) { $error = $e ?: 'Пустое тело шаблона'; return null; }
+    if (!is_object($tpl)) { $error = $e ?: 'Пустое тело шаблона'; return null; }
     return $tpl;
 }
 
@@ -719,7 +725,7 @@ function squadconf_xray_tpl($maxAge = null, &$error = '') {
     if (($c['name'] ?? '') === $name && (int) ($c['ts'] ?? 0) > 0 && ($now - (int) $c['ts']) <= $maxAge) {
         $error = (string) ($c['err'] ?? '');
         $tpl = $c['tpl'] ?? null;
-        return (is_array($tpl) && $tpl) ? $tpl : null;
+        return (is_object($tpl) && get_object_vars($tpl)) ? $tpl : null;
     }
     $tpl = squadconf_xray_tpl_fetch($name, $error);
     set_setting('sqcfg_xtpl', json_encode(
@@ -881,7 +887,7 @@ function squadconf_inject_xray_json($body, array $configs) {
         }
         $tpl = null;
         $def = squadconf_xray_tpl();
-        if (is_array($def) && $def) $tpl = json_decode(json_encode($def));
+        if (is_object($def)) $tpl = json_decode(json_encode($def, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         if (!is_object($tpl)) {
             foreach ($obj as $el) { if (is_object($el) && isset($el->outbounds) && is_array($el->outbounds)) { $tpl = $el; break; } }
         }
