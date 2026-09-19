@@ -311,8 +311,6 @@ if (!chan_active() && $decision === 'normal' && $short_uuid !== '' && !$junk_pat
     if (!$skip_log && !$is_page) {
         $GLOBALS['submw_real_sub'] = true;
         log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts, $current_hwid, [
-            'fmt'   => reqlog_detect_fmt($grabbed_headers['content-type'] ?? '', $path, $ua),
-            'ctype' => $grabbed_headers['content-type'] ?? '',
             'bytes' => strlen($chan_stub),
             'as'    => ['s' => 'skip'],
             'dv'    => reqlog_device($ua_hwid_vals),
@@ -341,8 +339,6 @@ if ($do_substitute) {
     if (!$skip_log && !$is_page && reqlog_is_real($grabbed_headers, $decision, $short_ov)) {
         $GLOBALS['submw_real_sub'] = true;
         log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts, $current_hwid, [
-            'fmt'   => reqlog_detect_fmt($grabbed_headers['content-type'] ?? '', $path, $ua),
-            'ctype' => $grabbed_headers['content-type'] ?? '',
             'bytes' => strlen($sub_body),
             'as'    => ['s' => 'skip'],
             'dv'    => reqlog_device($ua_hwid_vals),
@@ -436,8 +432,6 @@ echo $response;
 if (!$skip_log) {
     $log_decision = $is_grace ? 'grace' : $decision;
     $log_meta = [
-        'fmt'   => reqlog_detect_fmt($grabbed_headers['content-type'] ?? '', $path, $ua),
-        'ctype' => $grabbed_headers['content-type'] ?? '',
         'bytes' => strlen($response),
         'as'    => $log_as,
         'wg'    => $log_wg,

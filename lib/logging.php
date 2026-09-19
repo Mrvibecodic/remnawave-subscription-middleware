@@ -127,40 +127,6 @@ function reqlog_addsub_count($body, $format) {
     return 0;
 }
 
-function reqlog_detect_fmt($ctype, $path, $ua = '') {
-    $ct  = strtolower(trim(explode(';', (string) $ctype)[0]));
-    $seg = path_segments($path);
-    $suf = strtolower((string) end($seg));
-    $u   = strtolower((string) $ua);
-    if ($ct === 'text/html') return 'page';
-    if (in_array($suf, ['sing-box', 'singbox', 'sing_box'], true)) return 'singbox';
-    if (in_array($suf, ['clash', 'clash-meta', 'mihomo', 'yaml', 'yml'], true)) return 'clash';
-    if (in_array($suf, ['wireguard', 'wg', 'awg', 'amneziawg'], true)) return 'wg';
-    if (in_array($suf, ['json', 'v2ray-json', 'xray'], true)) return 'json';
-    if ($ct === 'application/yaml' || $ct === 'text/yaml' || $ct === 'application/x-yaml') return 'clash';
-    if ($ct === 'application/json') {
-        if (strpos($u, 'sing-box') !== false || strpos($u, 'sfa') !== false || strpos($u, 'sfi') !== false) return 'singbox';
-        return 'json';
-    }
-    if (strpos($u, 'mihomo') !== false || strpos($u, 'clash') !== false || strpos($u, 'flclash') !== false || strpos($u, 'verge') !== false) return 'clash';
-    if (strpos($u, 'sing-box') !== false) return 'singbox';
-    if ($ct === 'text/plain' || $ct === '') return 'base64';
-    return 'other';
-}
-
-function reqlog_fmt_label($fmt, $short = false) {
-    $map = [
-        'base64'  => 'base64',
-        'json'    => 'json',
-        'clash'   => 'clash (yaml)',
-        'singbox' => 'sing-box',
-        'wg'      => 'wireguard',
-        'page'    => $short ? 'страница' : 'страница подписки',
-        'other'   => 'другой',
-    ];
-    return $map[(string) $fmt] ?? '';
-}
-
 function reqlog_device($ua_vals = []) {
     $pick = function ($key, $limit) use ($ua_vals) {
         $sk = 'HTTP_' . strtoupper(str_replace('-', '_', $key));
@@ -302,18 +268,15 @@ function reqlog_filters($src = null) {
     $src = is_array($src) ? $src : $_GET;
     $dec = (string) ($src['rl_dec'] ?? '');
     if (!in_array($dec, ['normal', 'blocked', 'grace', 'expired', 'error'], true)) $dec = '';
-    $fmt = (string) ($src['rl_fmt'] ?? '');
-    if (!in_array($fmt, ['base64', 'json', 'clash', 'singbox', 'wg', 'page', 'other'], true)) $fmt = '';
     $hours = (int) ($src['rl_hours'] ?? 24);
     if (!in_array($hours, [0, 1, 24, 168], true)) $hours = 24;
-    return ['dec' => $dec, 'fmt' => $fmt, 'hours' => $hours, 'q' => trim((string) ($src['rl_q'] ?? ''))];
+    return ['dec' => $dec, 'hours' => $hours, 'q' => trim((string) ($src['rl_q'] ?? ''))];
 }
 
 function reqlog_where(array $f, array $name2short = []) {
     $conds = ["decision <> 'browser'"];
     $args  = [];
     if ($f['dec'] !== '')  { $conds[] = 'decision = ?'; $args[] = $f['dec']; }
-    if ($f['fmt'] !== '')  { $conds[] = 'fmt = ?';      $args[] = $f['fmt']; }
     if ($f['hours'] > 0)   { $conds[] = sql_epoch('ts') . ' >= ?'; $args[] = time() - $f['hours'] * 3600; }
     if ($f['q'] !== '') {
         $like = '%' . strtr($f['q'], ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';

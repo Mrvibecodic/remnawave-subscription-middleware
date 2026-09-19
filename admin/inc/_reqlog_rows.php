@@ -64,14 +64,6 @@ function rl_dec_why($dec, $meta) {
     return 'подписка активна';
 }
 
-function rl_fmt_tag($fmt, $short = false) {
-    $label = reqlog_fmt_label($fmt, $short);
-    if ($label === '') return '<span class="dim">—</span>';
-    $cls = ['base64' => 'base64', 'json' => 'json', 'clash' => 'clash', 'singbox' => 'singbox', 'wg' => 'wg', 'page' => 'page'];
-    $ttl = $short && $fmt === 'page' ? ' data-tip="страница подписки"' : '';
-    return '<span class="ft ' . h($cls[$fmt] ?? 'other') . '"' . $ttl . '><span class="dt"></span>' . h($label) . '</span>';
-}
-
 function rl_as_badge($as) {
     $s = (string) ($as['s'] ?? '');
     $n = (int) ($as['n'] ?? 0);
@@ -144,7 +136,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
     $hist  = $ctx['hist'] ?? [];
     $ov    = $ctx['ov'] ?? [];
     $base  = $ctx['base'] ?? ['tab' => 'reqlog'];
-    $cols  = 8;
+    $cols  = 7;
 
     if (!$rows) return '<tr><td colspan="' . $cols . '" class="muted">Пусто</td></tr>';
 
@@ -172,7 +164,6 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $u    = $users[$su] ?? [];
         $day  = (int) ($idx[$su]['day'] ?? 0);
         $hwid = (string) ($r['hwid'] ?? '');
-        $fmt  = (string) ($r['fmt'] ?? '');
         $dup  = (int) ($r['dup'] ?? 1);
         $exp  = (int) ($r['expire_ts'] ?? 0);
         [$left, $lcls] = rl_left($exp);
@@ -184,7 +175,6 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '<td><span class="tgl">›</span></td>'
               . '<td class="dim mono rl-time" data-label="Время" data-ts="' . (int) ($r['ts_epoch'] ?? 0) . '">' . h(mb_substr((string) ($r['ts'] ?? ''), 11)) . ($dup > 1 ? '<span class="rep">×' . $dup . '</span>' : '') . '</td>'
               . '<td data-label="Решение">' . rl_dec_tag($dec, true) . '</td>'
-              . '<td data-label="Тип ответа">' . rl_fmt_tag($fmt, true) . '</td>'
               . '<td data-label="Доп. подписка">' . rl_as_badge($as) . '</td>'
               . '<td data-label="Пользователь"><span class="u-cell"><span class="nm">' . $who . '</span>' . $sub . '</span></td>'
               . '<td data-label="Клиент"><span class="cl"><span class="c1"><span class="nm">' . ($cl['app'] !== '' ? h($cl['app']) : '<span class="dim">—</span>') . '</span>' . rl_cv_dot($cv) . '</span>'
@@ -196,10 +186,6 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $asn = (int) ($as['n'] ?? 0);
         $asb = (int) ($as['b'] ?? 0);
         $asm = (int) ($as['ms'] ?? 0);
-        $done = [];
-        if (!empty($meta['wg']))    $done[] = '+' . (int) $meta['wg'] . ' из пула WG';
-        if (!empty($meta['grace'])) $done[] = 'грейс-сквад';
-        if (($as['s'] ?? '') === 'on') $done[] = 'доп. подписка';
 
         $as_s    = (string) ($as['s'] ?? '');
         $as_full = in_array($as_s, ['on', 'stub', 'err'], true);
@@ -213,31 +199,23 @@ function reqlog_render_rows(array $rows, array $ctx) {
         }
 
         $out .= '<tr class="row-x" data-x="' . $i . '"><td colspan="' . $cols . '"><div class="xin">'
-              . '<div class="xcol"><div class="xh">Запрос</div>'
-              . '<div class="xr"><span class="l">Время</span><span class="v mono rl-full" data-ts="' . (int) ($r['ts_epoch'] ?? 0) . '">' . h((string) ($r['ts'] ?? '')) . '</span></div>'
-              . '<div class="xr"><span class="l">IP</span><span class="v mono">' . h((string) ($r['ip'] ?? '')) . '</span></div>'
-              . '<div class="xr"><span class="l">Путь</span><span class="v mono">' . h((string) ($r['path'] ?? '')) . '</span></div>'
-              . '<div class="xr"><span class="l">Тип ответа</span><span class="v">' . rl_fmt_tag($fmt) . '</span></div>'
-              . '<div class="xr"><span class="l">Content-Type</span><span class="v mono">' . ((string) ($r['ctype'] ?? '') !== '' ? h((string) $r['ctype']) : '—') . '</span></div>'
-              . '</div>'
-              . '<div class="xcol"><div class="xh">Клиент</div>'
-              . '<div class="xr"><span class="l">Приложение</span><span class="v">' . ($cl['app'] !== '' ? h($cl['app']) : '—') . '</span></div>'
-              . rl_cv_row($cv)
-              . '<div class="xr"><span class="l">Устройство</span><span class="v">' . ($cl['dev'] !== '' ? h($cl['dev']) : '<span class="dim">клиент не прислал</span>') . '</span></div>'
-              . '<div class="xr"><span class="l">HWID</span><span class="v mono">' . ($hwid !== '' ? h($hwid) . ($ovl !== '' ? ' <span class="dim">· ' . h($ovl) . '</span>' : '') : '—') . '</span></div>'
-              . '<div class="xr"><span class="l">User-Agent</span><span class="v mono">' . ((string) ($r['user_agent'] ?? '') !== '' ? h((string) $r['user_agent']) : '—') . '</span></div>'
-              . '</div>'
               . '<div class="xcol"><div class="xh">Подписка</div>'
               . '<div class="xr"><span class="l">Пользователь</span><span class="v">' . ($name !== '' ? h($name) . ' · ' : '') . '<span class="mono">' . h($su !== '' ? $su : '—') . '</span></span></div>'
               . '<div class="xr"><span class="l">Статус</span><span class="v">' . (($u['status'] ?? '') !== '' ? '<span class="tag ' . h((string) $u['status']) . '">' . h((string) $u['status']) . '</span>' : '<span class="dim">неизвестен</span>') . '</span></div>'
               . '<div class="xr"><span class="l">Expire</span><span class="v">' . ($exp > 0 ? '<span class="mono">' . h(date('Y-m-d H:i', $exp)) . '</span> · <span class="' . $lcls . '">' . h($left) . '</span>' : '—') . '</span></div>'
               . '<div class="xr"><span class="l">Решение</span><span class="v">' . rl_dec_tag($dec) . ' — ' . h(rl_dec_why($dec, $meta)) . '</span></div>'
               . '</div>'
-              . '<div class="xcol"><div class="xh">Что отдано</div>'
-              . '<div class="xr"><span class="l">Формат</span><span class="v">' . rl_fmt_tag($fmt) . '</span></div>'
-              . '<div class="xr"><span class="l">Размер</span><span class="v mono">' . rl_size($r['bytes'] ?? 0) . '</span></div>'
-              . '<div class="xr"><span class="l">Добавлено</span><span class="v">' . ($done ? h(implode(' · ', $done)) : '<span class="dim">ничего</span>') . '</span></div>'
-              . '<div class="xr"><span class="l">Грейс</span><span class="v">' . (!empty($meta['grace']) ? 'да' : 'нет') . '</span></div>'
+              . '<div class="xcol"><div class="xh">Клиент</div>'
+              . '<div class="xr"><span class="l">Приложение</span><span class="v">' . ($cl['app'] !== '' ? h($cl['app']) : '—') . '</span></div>'
+              . rl_cv_row($cv)
+              . '<div class="xr"><span class="l">Устройство</span><span class="v">' . ($cl['dev'] !== '' ? h($cl['dev']) : '<span class="dim">клиент не прислал</span>') . '</span></div>'
+              . '<div class="xr"><span class="l">HWID</span><span class="v mono">' . ($hwid !== '' ? h($hwid) . ($ovl !== '' ? ' <span class="dim">· ' . h($ovl) . '</span>' : '') : '—') . '</span></div>'
+              . '</div>'
+              . '<div class="xcol"><div class="xh">Запрос</div>'
+              . '<div class="xr"><span class="l">Время</span><span class="v mono rl-full" data-ts="' . (int) ($r['ts_epoch'] ?? 0) . '">' . h((string) ($r['ts'] ?? '')) . '</span></div>'
+              . '<div class="xr"><span class="l">IP</span><span class="v mono">' . h((string) ($r['ip'] ?? '')) . '</span></div>'
+              . '<div class="xr"><span class="l">Путь</span><span class="v mono">' . h((string) ($r['path'] ?? '')) . '</span></div>'
+              . '<div class="xr"><span class="l">User-Agent</span><span class="v mono">' . ((string) ($r['user_agent'] ?? '') !== '' ? h((string) $r['user_agent']) : '—') . '</span></div>'
               . '</div>'
               . '<div class="xcol"><div class="xh">Доп. подписка</div>'
               . '<div class="xr"><span class="l">Состояние</span><span class="v">' . rl_as_badge($as) . '</span></div>'
