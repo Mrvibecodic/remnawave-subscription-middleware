@@ -108,7 +108,7 @@ function ensure_chat_tables() {
     }
     if (setting('chat_tg_msgid_col', '') !== '1') {
         try { $p->exec('ALTER TABLE chat_sessions ADD COLUMN tg_msg_id BIGINT NULL'); } catch (Throwable $e) {}
-        set_setting('chat_tg_msgid_col', '1');
+        if (db_has_cols($p, 'chat_sessions', ['tg_msg_id'])) set_setting('chat_tg_msgid_col', '1');
     }
     $done = true;
     return true;

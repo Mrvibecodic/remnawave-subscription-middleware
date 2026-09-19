@@ -374,6 +374,23 @@ function set_setting($key, $value) {
     return $ok;
 }
 
+function db_has_cols($p, $table, array $cols) {
+    try { $p->query('SELECT ' . implode(', ', $cols) . ' FROM ' . $table . ' LIMIT 1'); return true; }
+    catch (Throwable $e) { return false; }
+}
+
+function db_table_columns($pdo, $drv, $table) {
+    $out = [];
+    try {
+        if ($drv === 'mysql') {
+            foreach ($pdo->query('SHOW COLUMNS FROM ' . $table) as $r) $out[] = (string) $r['Field'];
+        } else {
+            foreach ($pdo->query('PRAGMA table_info(' . $table . ')') as $r) $out[] = (string) $r['name'];
+        }
+    } catch (Throwable $e) { return []; }
+    return $out;
+}
+
 function sql_epoch($col) {
     return db_driver() === 'mysql' ? "UNIX_TIMESTAMP($col)" : "CAST(strftime('%s', $col) AS INTEGER)";
 }
@@ -397,7 +414,7 @@ function migrate_extra_ddl($drv) {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "CREATE TABLE IF NOT EXISTS squad_cache (
                 su VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-                squads TEXT NULL, ts INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (su)
+                squads TEXT NULL, st VARCHAR(32) NULL, ts INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (su)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "CREATE TABLE IF NOT EXISTS wg_lease (
                 id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -469,7 +486,7 @@ function migrate_extra_ddl($drv) {
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )",
         "CREATE INDEX IF NOT EXISTS idx_squad_cfg ON squad_configs(squad_uuid)",
-        "CREATE TABLE IF NOT EXISTS squad_cache (su TEXT NOT NULL PRIMARY KEY, squads TEXT NULL, ts INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE IF NOT EXISTS squad_cache (su TEXT NOT NULL PRIMARY KEY, squads TEXT NULL, st TEXT NULL, ts INTEGER NOT NULL DEFAULT 0)",
         "CREATE TABLE IF NOT EXISTS wg_lease (
             id INTEGER PRIMARY KEY AUTOINCREMENT, pool_id TEXT NOT NULL, lease_key TEXT NOT NULL,
             config_id INTEGER NOT NULL, short_uuid TEXT NULL, hwid TEXT NULL, manual INTEGER NOT NULL DEFAULT 0,
@@ -552,6 +569,18 @@ function db_migrate(array $from, array $to, &$err = '') {
                    'squad_cache', 'wg_lease', 'hwid_devices', 'wg_user_cache', 'addsub_map', 'addsub_cache', 'login_attempts', 'junk_hits'];
     }
     $verb = ($drv === 'mysql') ? 'REPLACE' : 'INSERT OR REPLACE';
+    $dst_cols = [];
+    foreach ($tables as $t) {
+        if (!db_table_exists($dst, $drv, $t)) continue;
+        $scols = db_table_columns($src, $sdrv, $t);
+        $dcols = db_table_columns($dst, $drv, $t);
+        if (!$scols || !$dcols) continue;
+        foreach ($scols as $c) {
+            if (in_array($c, $dcols, true)) continue;
+            try { $dst->exec('ALTER TABLE ' . $t . ' ADD COLUMN ' . $c . ($drv === 'mysql' ? ' TEXT NULL' : ' TEXT')); } catch (Throwable $e) {}
+        }
+        $dst_cols[$t] = db_table_columns($dst, $drv, $t);
+    }
     $tx = false;
     try {
         $dst->beginTransaction(); $tx = true;
@@ -562,6 +591,11 @@ function db_migrate(array $from, array $to, &$err = '') {
             catch (Throwable $e) { continue; }
             if (!$rows) continue;
             $cols = array_keys($rows[0]);
+            if (isset($dst_cols[$t]) && $dst_cols[$t]) {
+                $cols = array_values(array_filter($cols, fn($c) => in_array($c, $dst_cols[$t], true)));
+                if (!$cols) continue;
+                $rows = array_map(fn($r) => array_intersect_key($r, array_flip($cols)), $rows);
+            }
             $collist = implode(',', $cols);
             $ph = implode(',', array_fill(0, count($cols), '?'));
             $ins = $dst->prepare("$verb INTO $t ($collist) VALUES ($ph)");
