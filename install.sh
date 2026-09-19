@@ -277,6 +277,8 @@ server {
     location ^~ /lib/  { deny all; }
     location ^~ /backups/ { deny all; }
     location ^~ /docker/ { deny all; }
+    location ^~ /tools/ { deny all; }
+    location ^~ /admin/inc/ { deny all; }
 
     location = /webhook.php { fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name; include fastcgi_params; fastcgi_pass unix:${PHP_SOCK}; }
 
