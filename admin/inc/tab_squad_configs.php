@@ -105,7 +105,7 @@
                     <div>
                         <label for="sqcfg_name">Метка</label>
                         <input type="text" id="sqcfg_name" name="name" class="sqcfg-flag" placeholder="напр.: Нидерланды · VLESS" maxlength="191" required style="width:100%;box-sizing:border-box">
-                        <div class="muted" style="font-size:.8rem;margin-top:.5rem;line-height:1.5">Введёшь страну — флаг подставится сам (Нидерланды → 🇳🇱).</div>
+                        <div class="muted" style="font-size:.8rem;margin-top:.5rem;line-height:1.5">Страну пиши в начале метки — флаг подставится сам: «Нидерланды · VLESS» → 🇳🇱, «Европа» → 🇪🇺. Можно и кодом: NL, DE, UK.</div>
                     </div>
                     <div>
                         <label for="sqcfg_raw">Конфиг</label>
@@ -265,6 +265,7 @@
                     <div style="margin-bottom:.85rem">
                         <label>Метка</label>
                         <input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required style="width:100%;box-sizing:border-box">
+                        <div class="muted" style="font-size:.8rem;margin-top:.4rem;line-height:1.5">Страна в начале метки — флаг подставится сам (Нидерланды → 🇳🇱, Европа → 🇪🇺).</div>
                     </div>
                     <div style="margin-bottom:.85rem">
                         <label>Конфиг</label>

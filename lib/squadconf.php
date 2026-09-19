@@ -965,3 +965,44 @@ function squadconf_summary($parsed) {
     if (is_array($parsed) && ($parsed['type'] ?? '') === 'vless') return vless_summary($parsed);
     return awg_summary($parsed);
 }
+
+function squadconf_country_map() {
+    static $m = null;
+    if ($m === null) $m = ['нидерланды'=>'NL','голландия'=>'NL','netherlands'=>'NL','the netherlands'=>'NL','holland'=>'NL','германия'=>'DE','germany'=>'DE','deutschland'=>'DE','сша'=>'US','америка'=>'US','соединенные штаты'=>'US','usa'=>'US','united states'=>'US','america'=>'US','великобритания'=>'GB','британия'=>'GB','англия'=>'GB','шотландия'=>'GB','united kingdom'=>'GB','great britain'=>'GB','britain'=>'GB','england'=>'GB','scotland'=>'GB','европа'=>'EU','евросоюз'=>'EU','ес'=>'EU','europe'=>'EU','european union'=>'EU','франция'=>'FR','france'=>'FR','финляндия'=>'FI','finland'=>'FI','швеция'=>'SE','sweden'=>'SE','норвегия'=>'NO','norway'=>'NO','дания'=>'DK','denmark'=>'DK','польша'=>'PL','poland'=>'PL','чехия'=>'CZ','czechia'=>'CZ','czech'=>'CZ','австрия'=>'AT','austria'=>'AT','швейцария'=>'CH','switzerland'=>'CH','италия'=>'IT','italy'=>'IT','испания'=>'ES','spain'=>'ES','португалия'=>'PT','portugal'=>'PT','ирландия'=>'IE','ireland'=>'IE','бельгия'=>'BE','belgium'=>'BE','люксембург'=>'LU','luxembourg'=>'LU','лихтенштейн'=>'LI','liechtenstein'=>'LI','монако'=>'MC','monaco'=>'MC','андорра'=>'AD','andorra'=>'AD','сан марино'=>'SM','san marino'=>'SM','россия'=>'RU','russia'=>'RU','украина'=>'UA','ukraine'=>'UA','беларусь'=>'BY','белоруссия'=>'BY','belarus'=>'BY','казахстан'=>'KZ','kazakhstan'=>'KZ','узбекистан'=>'UZ','uzbekistan'=>'UZ','киргизия'=>'KG','кыргызстан'=>'KG','kyrgyzstan'=>'KG','таджикистан'=>'TJ','tajikistan'=>'TJ','туркменистан'=>'TM','turkmenistan'=>'TM','монголия'=>'MN','mongolia'=>'MN','турция'=>'TR','turkey'=>'TR','türkiye'=>'TR','turkiye'=>'TR','оаэ'=>'AE','эмираты'=>'AE','объединенные арабские эмираты'=>'AE','uae'=>'AE','emirates'=>'AE','united arab emirates'=>'AE','саудовская аравия'=>'SA','saudi arabia'=>'SA','катар'=>'QA','qatar'=>'QA','бахрейн'=>'BH','bahrain'=>'BH','кувейт'=>'KW','kuwait'=>'KW','оман'=>'OM','oman'=>'OM','израиль'=>'IL','israel'=>'IL','иордания'=>'JO','jordan'=>'JO','ливан'=>'LB','lebanon'=>'LB','иран'=>'IR','iran'=>'IR','ирак'=>'IQ','iraq'=>'IQ','канада'=>'CA','canada'=>'CA','мексика'=>'MX','mexico'=>'MX','бразилия'=>'BR','brazil'=>'BR','аргентина'=>'AR','argentina'=>'AR','чили'=>'CL','chile'=>'CL','колумбия'=>'CO','colombia'=>'CO','перу'=>'PE','peru'=>'PE','венесуэла'=>'VE','venezuela'=>'VE','эквадор'=>'EC','ecuador'=>'EC','уругвай'=>'UY','uruguay'=>'UY','парагвай'=>'PY','paraguay'=>'PY','боливия'=>'BO','bolivia'=>'BO','панама'=>'PA','panama'=>'PA','коста рика'=>'CR','costa rica'=>'CR','куба'=>'CU','cuba'=>'CU','доминикана'=>'DO','доминиканская республика'=>'DO','dominican republic'=>'DO','пуэрто рико'=>'PR','puerto rico'=>'PR','ямайка'=>'JM','jamaica'=>'JM','япония'=>'JP','japan'=>'JP','корея'=>'KR','южная корея'=>'KR','korea'=>'KR','south korea'=>'KR','китай'=>'CN','china'=>'CN','гонконг'=>'HK','hong kong'=>'HK','hongkong'=>'HK','макао'=>'MO','macau'=>'MO','macao'=>'MO','тайвань'=>'TW','taiwan'=>'TW','сингапур'=>'SG','singapore'=>'SG','индия'=>'IN','india'=>'IN','индонезия'=>'ID','indonesia'=>'ID','вьетнам'=>'VN','vietnam'=>'VN','viet nam'=>'VN','таиланд'=>'TH','тайланд'=>'TH','thailand'=>'TH','малайзия'=>'MY','malaysia'=>'MY','филиппины'=>'PH','philippines'=>'PH','камбоджа'=>'KH','cambodia'=>'KH','лаос'=>'LA','laos'=>'LA','мьянма'=>'MM','myanmar'=>'MM','пакистан'=>'PK','pakistan'=>'PK','бангладеш'=>'BD','bangladesh'=>'BD','шри ланка'=>'LK','sri lanka'=>'LK','непал'=>'NP','nepal'=>'NP','австралия'=>'AU','australia'=>'AU','новая зеландия'=>'NZ','new zealand'=>'NZ','юар'=>'ZA','south africa'=>'ZA','египет'=>'EG','egypt'=>'EG','марокко'=>'MA','morocco'=>'MA','тунис'=>'TN','tunisia'=>'TN','алжир'=>'DZ','algeria'=>'DZ','нигерия'=>'NG','nigeria'=>'NG','кения'=>'KE','kenya'=>'KE','гана'=>'GH','ghana'=>'GH','эфиопия'=>'ET','ethiopia'=>'ET','танзания'=>'TZ','tanzania'=>'TZ','сербия'=>'RS','serbia'=>'RS','черногория'=>'ME','montenegro'=>'ME','босния'=>'BA','босния и герцеговина'=>'BA','bosnia'=>'BA','bosnia and herzegovina'=>'BA','македония'=>'MK','северная македония'=>'MK','macedonia'=>'MK','north macedonia'=>'MK','албания'=>'AL','albania'=>'AL','румыния'=>'RO','romania'=>'RO','болгария'=>'BG','bulgaria'=>'BG','венгрия'=>'HU','hungary'=>'HU','греция'=>'GR','greece'=>'GR','латвия'=>'LV','latvia'=>'LV','литва'=>'LT','lithuania'=>'LT','эстония'=>'EE','estonia'=>'EE','исландия'=>'IS','iceland'=>'IS','гренландия'=>'GL','greenland'=>'GL','молдова'=>'MD','молдавия'=>'MD','moldova'=>'MD','грузия'=>'GE','georgia'=>'GE','армения'=>'AM','armenia'=>'AM','азербайджан'=>'AZ','azerbaijan'=>'AZ','кипр'=>'CY','cyprus'=>'CY','мальта'=>'MT','malta'=>'MT','словакия'=>'SK','slovakia'=>'SK','словения'=>'SI','slovenia'=>'SI','хорватия'=>'HR','croatia'=>'HR'];
+    return $m;
+}
+
+function squadconf_flag_codes() {
+    return ['AE','AM','AR','AT','AU','AZ','BE','BG','BR','BY','CA','CH','CL','CN','CY','CZ','DE','DK','EE','EG','ES','EU','FI','FR','GB','GE','GR','HK','HR','HU','ID','IE','IL','IN','IS','IT','JP','KR','KZ','LT','LU','LV','MD','MT','MX','MY','NL','NO','NZ','PL','PT','RO','RS','RU','SE','SG','SI','SK','TH','TR','TW','UA','US','VN','ZA'];
+}
+
+function squadconf_flag_iso($s) {
+    $s = trim((string) $s);
+    if ($s === '') return '';
+    $m = squadconf_country_map();
+    $low = str_replace('ё', 'е', mb_strtolower($s, 'UTF-8'));
+    foreach ([$low, str_replace('-', ' ', $low)] as $v) {
+        $w = preg_split('/\s+/u', trim($v));
+        for ($n = 3; $n >= 1; $n--) {
+            if (count($w) < $n) continue;
+            $k = implode(' ', array_slice($w, 0, $n));
+            if (isset($m[$k])) return $m[$k];
+        }
+    }
+    $codes = array_flip(squadconf_flag_codes());
+    foreach ([$s, str_replace('-', ' ', $s)] as $v) {
+        $w = preg_split('/\s+/u', trim($v));
+        $c = (string) ($w[0] ?? '');
+        if ($c === 'UK') $c = 'GB';
+        if (preg_match('/^[A-Z]{2}$/', $c) && isset($codes[$c])) return $c;
+    }
+    return '';
+}
+
+function squadconf_flag_label($s) {
+    $t = trim((string) $s);
+    if ($t === '' || preg_match('/^[\x{1F1E6}-\x{1F1FF}]{2}/u', $t)) return $t;
+    $iso = squadconf_flag_iso($t);
+    if ($iso === '') return $t;
+    return mb_chr(0x1F1E6 + ord($iso[0]) - 65, 'UTF-8') . mb_chr(0x1F1E6 + ord($iso[1]) - 65, 'UTF-8') . ' ' . $t;
+}
