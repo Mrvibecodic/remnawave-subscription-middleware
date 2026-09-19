@@ -72,7 +72,8 @@ function remnawave_all_users(&$error = '') {
         foreach ($users as $u) $all[] = $u;
         $start += $size;
         $guard++;
-    } while (count($all) < $total && $guard < 40 && count($users) > 0);
+    } while (count($all) < $total && $guard < 4000 && count($users) > 0);
+    if ($error === '' && $guard >= 4000 && count($all) < $total) $error = 'Список пользователей получен не полностью';
     return $all;
 }
 
