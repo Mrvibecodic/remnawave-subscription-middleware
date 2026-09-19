@@ -124,6 +124,14 @@ function remnawave_branding(&$error = '') {
     return ['name' => $name, 'logo' => $logo, 'name_score' => $name !== '' ? 3 : 0];
 }
 
+function brand_same_host($a, $b) {
+    $pa = parse_url((string) $a);
+    $pb = parse_url((string) $b);
+    if (!is_array($pa) || !is_array($pb) || empty($pa['host']) || empty($pb['host'])) return false;
+    $port = function ($p) { return (int) ($p['port'] ?? (strtolower((string) ($p['scheme'] ?? '')) === 'http' ? 80 : 443)); };
+    return strtolower($pa['host']) === strtolower($pb['host']) && $port($pa) === $port($pb);
+}
+
 function brand_download_logo($url) {
     $url = trim((string) $url);
     if ($url === '' || !preg_match('~^https?://~i', $url)) return '';
@@ -137,8 +145,8 @@ function brand_download_logo($url) {
         CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
         CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
     ]);
-    $auth = panel_auth_headers([]);
-    if ($auth) curl_setopt($ch, CURLOPT_HTTPHEADER, $auth);
+    $auth = brand_same_host($url, remnawave_url()) ? panel_auth_headers([]) : [];
+    if ($auth) curl_setopt_array($ch, [CURLOPT_HTTPHEADER => $auth, CURLOPT_FOLLOWLOCATION => false]);
     $body = curl_exec($ch);
     $ct   = strtolower((string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
