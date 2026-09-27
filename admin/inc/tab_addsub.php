@@ -1,9 +1,3 @@
-    <style>
-    .codeblk{position:relative;margin:.5rem 0}
-    .codeblk pre{margin:0;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:2.3rem .9rem .85rem;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.5;white-space:pre;color:var(--text)}
-    .codeblk .copybtn{position:absolute;top:.45rem;right:.45rem;padding:.28rem .62rem;font-size:.72rem;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--text);cursor:pointer;font-weight:600;line-height:1}
-    .codeblk .copybtn:hover{filter:brightness(1.1)}
-    </style>
     <section class="<?= coll_cls('addsub_intro') ?>" data-coll="addsub_intro">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Слияние подписок</span>
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
@@ -33,7 +27,7 @@
                 <label class="switch"><input type="checkbox" name="addsub_stub_on_traffic" <?= addsub_stub_on_traffic() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
             <label style="margin-top:1rem">Текст заглушки трафика</label>
-            <input type="text" name="addsub_stub_label" value="<?= h(addsub_stub_label()) ?>" placeholder="Трафик доп-сервера истёк" style="max-width:480px;box-sizing:border-box">
+            <input type="text" name="addsub_stub_label" value="<?= h(addsub_stub_label()) ?>" placeholder="Трафик доп-сервера истёк" style="max-width:480px">
             <div class="set-row" style="margin-top:1.25rem">
                 <div class="set-info"><div class="set-t">Слияние для xray-json</div><div class="set-d">Влить outbounds второй подписки в xray-json. По умолчанию выкл (как у доп-конфигов). base64 / Clash / sing-box работают всегда при включённом слиянии.</div></div>
                 <label class="switch"><input type="checkbox" name="addsub_merge_xray" <?= addsub_xray_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>

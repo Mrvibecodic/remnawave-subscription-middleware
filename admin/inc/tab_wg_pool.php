@@ -10,55 +10,38 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
     $wgp_msg0 = 'Последний расчёт: ' . $ago . '. ' . $wgp_hint;
 }
 ?>
+    <?php include __DIR__ . '/_sqcfg_css.php'; ?>
     <style>
         .ua-rules-wrap{overflow-x:auto}
-        .ua-rules-tbl td{vertical-align:middle}
-        .ua-rules-tbl input[type="text"]{width:100%;box-sizing:border-box;font-size:.82rem;padding:.35rem .5rem;background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--text)}
+        .ua-rules-tbl input[type="text"]{font-size:.82rem;padding:.35rem .5rem;background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--text)}
         .ua-rules-tbl .ua-mono{font-family:monospace}
         .ua-rules-tbl .ua-core{max-width:8rem}
         .ua-rules-tbl .ua-c{text-align:center;white-space:nowrap;width:1%}
         .ua-rules-tbl .ua-del{padding:.3rem .55rem}
         .ua-rules-tbl .ua-ck{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;margin:0}
-    </style>
-    <style>
-        .wg-up-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
-        .mc-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
-        @media(max-width:720px){.wg-up-grid,.mc-grid{grid-template-columns:1fr}}
         .file-btn{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--line);background:var(--bg2);color:var(--text);border-radius:9px;padding:.6rem .95rem;font-size:.86rem;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s}
         .file-btn:hover{border-color:var(--accent);background:var(--accent-light)}
         .file-btn svg{color:var(--accent-text)}
-        .sqcfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem 1rem;align-items:end}
-        .sqcfg-grid select,.sqcfg-grid input{width:100%;box-sizing:border-box}
-        .sqcfg-grid label{display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
-        .sqcfg-sel{appearance:none;-webkit-appearance:none;-moz-appearance:none;padding-right:2.2rem;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .75rem center;background-size:.95rem}
-        #sqEditModal label:not(.sq-item){display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
-        .card label{display:block;margin-bottom:.35rem;font-weight:600;font-size:.85rem}
-        .sq-tag{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:.08rem .45rem;font-size:.74rem;margin:.1rem .25rem .1rem 0;white-space:nowrap}
-        .wgpool-tbl td,.wgpool-tbl th{vertical-align:middle}
         .wgpool-tbl .sqcfg-sel{padding:.3rem 2rem .3rem .6rem;font-size:.82rem}
         .wgp-warn{color:var(--c-warn-fg);font-weight:700}
-        .sq-manual{padding-top:.4rem;padding-bottom:.4rem}
-        .sq-manual .sq-mtxt{display:flex;flex-direction:column;justify-content:center;gap:.05rem;flex:1;min-width:0}
-        .sq-manual .sq-n{flex:none;line-height:1.15;font-size:.86rem}
         .wg-bulkbar{display:flex;align-items:center;gap:.75rem;margin:0 0 .8rem;flex-wrap:wrap}
         .wg-leasebar{display:flex;align-items:center;gap:.75rem;margin:0 0 .7rem;flex-wrap:wrap}
         .wg-editbar{margin:0 0 .8rem}
         .wg-editbar .we-lbl{font-size:.82rem;margin-bottom:.4rem}
         .wg-editbar .we-grid{display:grid;grid-template-columns:minmax(150px,240px) 1fr;gap:.6rem;align-items:center}
-        .wg-editbar .we-grid select,.wg-editbar .we-grid input{width:100%;box-sizing:border-box;margin:0}
+        .wg-editbar .we-grid select,.wg-editbar .we-grid input{margin:0}
         .wg-editbar .we-btns{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.5rem}
         .wg-dupe-warn{color:var(--red);font-weight:600;font-size:.82rem}
         #wgTbl td:first-child,#wgTbl th:first-child{text-align:center}
         .osico{display:inline-block;width:15px;height:15px;vertical-align:-2px;background:var(--text-strong);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
         .wg-issued-dev{display:inline-flex;align-items:center;gap:3px;opacity:.85}
-        .wg-issued-name{font-weight:600}
         .wg-cli{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:.02rem .4rem;font-size:.72rem;color:var(--muted);vertical-align:1px}
         .wg-tip{position:relative;cursor:help}
         #wgTbl td:nth-child(7),#wgTbl th:nth-child(7){min-width:210px}
         #wgTbl td:nth-child(6){white-space:nowrap}
         .wg-issued{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .3rem;max-width:100%;vertical-align:bottom}
         .wg-issued>.wg-tip{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .3rem;min-width:0;max-width:100%}
-        .wg-issued-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+        .wg-issued-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
     </style>
     <section class="<?= coll_cls('wgpool_help') ?>" data-coll="wgpool_help">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Как работает пул и почему так</span>
@@ -111,17 +94,17 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                     </div>
                     <div>
                         <label>…и/или вставка текстом</label>
-                        <textarea name="raw_batch" rows="7" spellcheck="false" placeholder="[Interface]&#10;PrivateKey = …&#10;[Peer]&#10;…&#10;&#10;[Interface]&#10;… следующий конфиг …" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
+                        <textarea name="raw_batch" rows="7" spellcheck="false" placeholder="[Interface]&#10;PrivateKey = …&#10;[Peer]&#10;…&#10;&#10;[Interface]&#10;… следующий конфиг …" style="font-family:monospace;font-size:.82rem"></textarea>
                     </div>
                 </div>
                 <div class="mc-grid" style="margin-top:1rem;align-items:end">
                     <div>
                         <label>Префикс метки <span class="muted" style="font-weight:400">— необязательно</span></label>
-                        <input type="text" name="label_prefix" class="sqcfg-flag" maxlength="120" placeholder="напр.: Нидерланды" style="width:100%;box-sizing:border-box">
+                        <input type="text" name="label_prefix" class="sqcfg-flag" maxlength="120" placeholder="напр.: Нидерланды">
                     </div>
                     <div>
                         <label>Группа / подпул <span class="muted" style="font-weight:400">— необязательно</span></label>
-                        <input type="text" name="grp" maxlength="64" placeholder="напр.: NL" style="width:100%;box-sizing:border-box">
+                        <input type="text" name="grp" maxlength="64" placeholder="напр.: NL">
                     </div>
                     <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
                         <button type="submit" class="btn">Загрузить</button>
@@ -173,7 +156,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                     <button type="submit" class="btn">Сохранить режимы</button>
                     <button type="button" class="sqcfg-btn" id="wgpCalc">Рассчитать потребность</button>
                     <label class="muted" style="display:flex;align-items:center;gap:.4rem;margin:0;font-weight:400">авто-возврат слота через
-                        <input type="number" name="wgpool_reclaim_days" value="<?= (int) $sqcfg_reclaim_days ?>" min="1" max="365" style="width:5rem;box-sizing:border-box"> дн. неактивности</label>
+                        <input type="number" name="wgpool_reclaim_days" value="<?= (int) $sqcfg_reclaim_days ?>" min="1" max="365" style="width:5rem"> дн. неактивности</label>
                 </div>
                 <div id="wgpCalcMsg" class="muted" style="font-size:.8rem;margin-top:.5rem"><?= h($wgp_msg0) ?></div>
                 <div class="muted" style="font-size:.78rem;line-height:1.6;margin-top:.7rem">
@@ -257,7 +240,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                 <div class="sqcfg-grid">
                     <div>
                         <label>Пользователь (shortUuid или имя)</label>
-                        <div style="display:flex;gap:.4rem"><input type="text" id="wgm_q" placeholder="shortUuid / username" style="flex:1;box-sizing:border-box"><button type="button" class="sqcfg-btn" id="wgm_find">Найти</button></div>
+                        <div style="display:flex;gap:.4rem"><input type="text" id="wgm_q" placeholder="shortUuid / username" style="flex:1"><button type="button" class="sqcfg-btn" id="wgm_find">Найти</button></div>
                     </div>
                     <div>
                         <label>Конфиг</label>
@@ -473,16 +456,16 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                     </div>
                     <div style="margin-bottom:.85rem">
                         <label>Метка</label>
-                        <input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required style="width:100%;box-sizing:border-box">
+                        <input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required>
                         <div class="muted" style="font-size:.8rem;margin-top:.4rem;line-height:1.5">Страна в начале метки — флаг подставится сам (Нидерланды → 🇳🇱, Европа → 🇪🇺).</div>
                     </div>
                     <div style="margin-bottom:.85rem">
                         <label>Группа / подпул <span class="muted" style="font-weight:400">— необязательно</span></label>
-                        <input type="text" name="grp" id="sqedit_grp" maxlength="64" placeholder="напр.: NL" style="width:100%;box-sizing:border-box">
+                        <input type="text" name="grp" id="sqedit_grp" maxlength="64" placeholder="напр.: NL">
                     </div>
                     <div style="margin-bottom:.85rem">
                         <label>Конфиг</label>
-                        <textarea name="raw" id="sqedit_raw" rows="11" spellcheck="false" required style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
+                        <textarea name="raw" id="sqedit_raw" rows="11" spellcheck="false" required style="font-family:monospace;font-size:.82rem"></textarea>
                     </div>
                     <div style="display:flex;gap:.6rem">
                         <button type="submit" class="btn">Сохранить изменения</button>

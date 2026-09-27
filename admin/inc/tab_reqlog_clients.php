@@ -1,10 +1,11 @@
     <style>
     .cv-wrap{border:1px solid var(--line);border-radius:12px;overflow-x:auto}
-    .cv-tbl{width:100%;min-width:64rem;border-collapse:separate;border-spacing:0;font-size:.85rem}
-    .cv-tbl th{background:var(--bg2);color:var(--muted);font-weight:600;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:.55rem .6rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
-    .cv-tbl td{padding:.4rem .6rem;box-shadow:inset 0 -1px 0 var(--line);vertical-align:middle}
-    .cv-tbl input[type=text]{width:100%;height:32px;min-height:32px;box-sizing:border-box;padding:0 .5rem;font-size:.82rem;border-radius:var(--radius)}
-    .cv-tbl select{width:100%;height:32px;min-height:32px;box-sizing:border-box;padding:0 .4rem;font-size:.82rem;border-radius:var(--radius)}
+    .cv-tbl{min-width:64rem;border-collapse:separate;font-size:.85rem}
+    .cv-tbl th{background:var(--bg2);font-size:.7rem;padding:.55rem .6rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
+    .cv-tbl td{padding:.4rem .6rem;box-shadow:inset 0 -1px 0 var(--line)}
+    .cv-tbl input[type=text]{width:100%;height:32px;min-height:32px;padding:0 .5rem;font-size:.82rem}
+    .cv-tbl select{width:100%;height:32px;min-height:32px;padding:0 .4rem;font-size:.82rem}
+    @supports not (appearance:base-select){.cv-tbl select{background-image:none}}
     .cv-c-on{width:52px}.cv-c-key{width:15%}.cv-c-name{width:16%}.cv-c-os{width:9%}.cv-c-src{width:10%}.cv-c-ref{width:19%}.cv-c-how{width:12%}.cv-c-cmp{width:11%}.cv-c-cur{width:12%}.cv-c-del{width:44px}
     .cv-tbl .cv-del{padding:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--radius);background:transparent;border:1px solid var(--line);color:var(--muted);cursor:pointer}
     .cv-tbl .cv-del:hover{border-color:var(--red);color:var(--red)}
@@ -21,7 +22,6 @@
     .cv-item .i-n{font-weight:600;color:var(--text-strong);min-width:0;flex:0 1 15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cv-item .i-r{color:var(--muted);font-size:.78rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cv-item .btn{height:30px;min-height:30px;padding:0 .7rem;font-size:.79rem;flex:0 0 auto}
-    .cv-seen td .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
     .cv-hl{box-shadow:inset 0 0 0 2px var(--accent)!important}
     @media(max-width:900px){.cv-item{flex-wrap:wrap}.cv-item .i-n{flex:1 1 100%}}
     </style>
@@ -35,7 +35,7 @@
             <h2>Версии клиентов <span class="muted" style="font-weight:400;font-size:.78rem">строк в каталоге: <?= count($cv_rows) ?></span></h2>
             <div class="loghead-r">
                 <span class="muted" style="font-size:.78rem"><?= $cv_checked ? 'последняя проверка: <span class="cv-ts" data-ts="' . (int) $cv_checked . '" data-f="1">' . h(gmdate('d.m.Y H:i', $cv_checked)) . '</span>' : 'проверок ещё не было' ?></span>
-                <form method="post" style="margin:0" onsubmit="return cvBusy(this,'Проверяю источники…')">
+                <form method="post" onsubmit="return cvBusy(this,'Проверяю источники…')">
                     <input type="hidden" name="csrf" value="<?= h($token) ?>">
                     <input type="hidden" name="action" value="clientver_refresh">
                     <button class="btn ghost" type="submit">Проверить сейчас</button>

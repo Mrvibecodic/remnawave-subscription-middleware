@@ -1,6 +1,6 @@
     <style>
         .cn-spd{font-size:.8rem;color:var(--muted);margin-top:.45rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-        .cn-spd-btn{width:auto;min-height:0;padding:.25rem .65rem;font-size:.78rem;line-height:1.3}
+        .cn-spd-btn{min-height:0;padding:.25rem .65rem;font-size:.78rem;line-height:1.3}
         .set-grid2{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem}
         .set-grid2 .set-row{margin-top:0}
         @media(max-width:720px){.set-grid2{grid-template-columns:1fr}}

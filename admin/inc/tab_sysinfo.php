@@ -104,9 +104,9 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
                     <form method="post" data-autosave style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;margin:0">
                         <input type="hidden" name="csrf" value="<?= h($token) ?>">
                         <input type="hidden" name="action" value="save_metrics_cfg">
-                        <div><label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.3rem">Множитель (×средней)</label><input type="number" step="0.1" min="1.5" name="metrics_peak_factor" value="<?= h(number_format($si_factor, 1)) ?>" style="width:120px;padding:.5rem;border:1px solid var(--line);border-radius:8px;background:var(--bg2);color:var(--text)"></div>
-                        <div><label style="display:block;font-size:.8rem;font-weight:600;margin-bottom:.3rem">Мин. порог, запр/мин</label><input type="number" min="5" name="metrics_peak_floor" value="<?= (int) $si_floor ?>" style="width:120px;padding:.5rem;border:1px solid var(--line);border-radius:8px;background:var(--bg2);color:var(--text)"></div>
-                        <button class="btn" type="submit" style="width:auto;padding:.55rem 1.1rem">Сохранить</button>
+                        <div><label style="font-size:.8rem;font-weight:600;margin-bottom:.3rem">Множитель (×средней)</label><input type="number" step="0.1" min="1.5" name="metrics_peak_factor" value="<?= h(number_format($si_factor, 1)) ?>" style="width:120px;padding:.5rem;border:1px solid var(--line)"></div>
+                        <div><label style="font-size:.8rem;font-weight:600;margin-bottom:.3rem">Мин. порог, запр/мин</label><input type="number" min="5" name="metrics_peak_floor" value="<?= (int) $si_floor ?>" style="width:120px;padding:.5rem;border:1px solid var(--line)"></div>
+                        <button class="btn" type="submit" style="padding:.55rem 1.1rem">Сохранить</button>
                     </form>
                     <form method="post" onsubmit="return uiConfirmForm(this,'Очистить лог пиков нагрузки?')" style="margin:0">
                         <input type="hidden" name="csrf" value="<?= h($token) ?>">

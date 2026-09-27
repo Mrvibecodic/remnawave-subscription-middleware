@@ -29,11 +29,11 @@
     ?>
     <style>
     .wh-flt{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.2rem 0 .8rem}
-    .wh-flt select,.wh-flt input[type=text],.wh-flt .btn{height:38px;min-height:38px;box-sizing:border-box;padding-top:0;padding-bottom:0;font-size:.84rem;border-radius:var(--radius)}
+    .wh-flt select,.wh-flt input[type=text],.wh-flt .btn{height:38px;min-height:38px;padding-top:0;padding-bottom:0;font-size:.84rem}
     .wh-flt select{width:auto;max-width:300px;flex:0 1 auto;text-overflow:ellipsis;font-weight:500}
     .wh-flt select:hover{border-color:var(--accent)}
     .wh-flt input[type=text]{width:190px;flex:0 1 auto}
-    .wh-flt .btn{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;line-height:1;font-weight:600}
+    .wh-flt .btn{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;line-height:1}
     .wh-flt .btn svg{width:15px;height:15px;flex:0 0 auto}
     .wh-exp{margin-left:auto;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
     .wh-anon{display:inline-flex;align-items:center;gap:.35rem;font-size:.82rem;white-space:nowrap;cursor:pointer}
@@ -41,7 +41,7 @@
     .wh-tg{display:flex;align-items:flex-start;gap:.4rem;padding:0;margin:0;border:0;color:inherit;font:inherit;cursor:pointer;text-align:left}
     .wh-tg,.wh-tg:hover,.wh-tg:active{background:none;border-radius:0;filter:none;transform:none}
     .wh-tg:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
-    .wh-tg .wh-cv{width:20px;height:20px;padding:4px;margin-top:1px;box-sizing:border-box;flex:0 0 auto;color:var(--accent-text);background:var(--bg2);border:1px solid var(--line);border-radius:7px;transition:transform .2s,background .2s,border-color .2s}
+    .wh-tg .wh-cv{width:20px;height:20px;padding:4px;margin-top:1px;flex:0 0 auto;color:var(--accent-text);background:var(--bg2);border:1px solid var(--line);border-radius:7px;transition:transform .2s,background .2s,border-color .2s}
     .wh-tg:hover .wh-cv{background:var(--hover);border-color:var(--accent)}
     .wh-tg[aria-expanded="true"] .wh-cv{transform:rotate(90deg)}
     .wh-tg .wh-tgs{display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;min-width:0}

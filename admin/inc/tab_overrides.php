@@ -1,6 +1,6 @@
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Добавить оверрайд вручную</h2>
-        <p class="muted"><b>blocked</b> — жёсткая блокировка по HWID: прослойка отдаёт конфиг-заглушку, снимается только здесь. Тексты заглушки — во вкладке <a href="?tab=hwid" style="color:var(--accent-text)">HWID</a>. <b>expired</b> — пометка истёкшей подписки (будущий expire из заголовка перебьёт); подменой для истёкших занимается грейс-сквад, см. вкладку <a href="?tab=subst" style="color:var(--accent-text)">Грейс-сквад</a>.</p>
+        <p class="muted"><b>blocked</b> — жёсткая блокировка по HWID: прослойка отдаёт конфиг-заглушку, снимается только здесь. Тексты заглушки — во вкладке <a href="?tab=hwid">HWID</a>. <b>expired</b> — пометка истёкшей подписки (будущий expire из заголовка перебьёт); подменой для истёкших занимается грейс-сквад, см. вкладку <a href="?tab=subst">Грейс-сквад</a>.</p>
         <form method="post">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="add_override">

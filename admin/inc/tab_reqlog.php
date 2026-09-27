@@ -13,23 +13,22 @@
     .spark i.hi{background:var(--accent)}
     .sparkx{display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-top:.35rem;font-variant-numeric:tabular-nums}
     .rl-flt{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.2rem 0 .9rem}
-    .rl-flt select,.rl-flt input[type=text],.rl-flt .btn{height:38px;min-height:38px;box-sizing:border-box;padding-top:0;padding-bottom:0;font-size:.84rem;border-radius:var(--radius)}
+    .rl-flt select,.rl-flt input[type=text],.rl-flt .btn{height:38px;min-height:38px;padding-top:0;padding-bottom:0;font-size:.84rem}
     .rl-flt select{width:auto;max-width:220px;flex:0 1 auto;font-weight:500}
     .rl-flt select:hover{border-color:var(--accent)}
-    .rl-flt .btn{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;line-height:1;font-weight:600}
+    .rl-flt .btn{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;line-height:1}
     .rl-flt .btn svg{flex:0 0 auto}
     .rl-search{position:relative;flex:1 1 250px;max-width:360px}
     .rl-search input{width:100%;padding-left:2.1rem}
     .rl-search svg{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
-    .rl-right{margin-left:auto;display:flex;gap:.5rem}
     .rl-wrap{border:1px solid var(--line);border-radius:12px;overflow-x:auto;overflow-y:hidden}
-    .rl-tbl{width:100%;min-width:58rem;border-collapse:separate;border-spacing:0;font-size:.88rem;table-layout:fixed}
-    .rl-tbl th{background:var(--bg2);color:var(--muted);font-weight:600;font-size:.71rem;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:.6rem .75rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
-    .rl-tbl td{padding:.5rem .75rem;box-shadow:inset 0 -1px 0 var(--line);vertical-align:middle}
+    .rl-tbl{min-width:58rem;border-collapse:separate;font-size:.88rem;table-layout:fixed}
+    .rl-tbl th{background:var(--bg2);font-size:.71rem;padding:.6rem .75rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
+    .rl-tbl td{padding:.5rem .75rem;box-shadow:inset 0 -1px 0 var(--line)}
     .rl-tbl tr.rowb td{overflow:hidden;text-overflow:ellipsis}
     .rl-tbl td:first-child{text-overflow:clip;padding-right:.3rem}
     .rl-tbl tr.rowb{cursor:pointer}
-    .rl-tbl tr.rowb:hover td,.rl-tbl tr.rowb.open td{background:var(--hover2)}
+    .rl-tbl tr.rowb.open td{background:var(--hover2)}
     .c-tgl{width:4%}.c-time{width:10%}.c-dec{width:11%}.c-as{width:15%}.c-user{width:20%}.c-client{width:22%}.c-cnt{width:18%}
     .tgl{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid var(--line);border-radius:6px;background:var(--bg2);color:var(--muted);font-size:.9rem;line-height:1;transition:transform .15s,border-color .15s}
     tr.open .tgl{border-color:var(--accent);color:var(--accent-text);transform:rotate(90deg)}
@@ -63,7 +62,7 @@
     .as.off{color:var(--muted);border-color:var(--line)}
     .row-x{display:none}
     .row-x.show{display:table-row}
-    .row-x>td{padding:0;background:var(--bg2);box-shadow:inset 0 -1px 0 var(--line);overflow:visible}
+    .row-x>td{padding:0;background:var(--bg2);box-shadow:inset 0 -1px 0 var(--line)}
     .rl-tbl tr.row-x:hover>td{background:var(--bg2)}
     .xin{padding:.9rem 1rem 1rem;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.15rem 1.6rem;align-items:start}
     @media(max-width:1100px){.xin{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -76,7 +75,7 @@
     .xr>.v{color:var(--text);overflow-wrap:anywhere;min-width:0}
     .xr>.v.mono{font-size:.78rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
     .xacts{grid-column:1/-1;display:flex;gap:.5rem;flex-wrap:wrap;padding-top:.9rem;margin-top:.5rem;border-top:1px solid var(--line)}
-    .xacts .btn{height:32px;min-height:32px;padding:0 .75rem;font-size:.79rem;display:inline-flex;align-items:center;gap:.4rem;border-radius:var(--radius)}
+    .xacts .btn{height:32px;min-height:32px;padding:0 .75rem;font-size:.79rem;display:inline-flex;align-items:center;gap:.4rem}
     .hist{display:flex;gap:3px;align-items:center}
     .hist i{width:10px;height:18px;border-radius:3px;background:var(--c-ok-bg);border:1px solid var(--c-ok-fg);opacity:.65;flex:0 0 auto}
     .hist i.b{background:var(--c-bad-bg);border-color:var(--c-bad-fg);opacity:1}
@@ -138,7 +137,7 @@
             <div class="loghead-r">
                 <div id="rl_pgrTop" class="pgr"></div>
                 <span id="rlAuto" class="muted" style="font-size:.78rem"></span>
-                <form method="post" onsubmit="return uiConfirmForm(this,'Очистить весь лог запросов?')" style="margin:0">
+                <form method="post" onsubmit="return uiConfirmForm(this,'Очистить весь лог запросов?')">
                     <input type="hidden" name="csrf" value="<?= h($token) ?>">
                     <input type="hidden" name="action" value="clear_reqlog">
                     <button class="danger" type="submit">Очистить</button>
