@@ -145,12 +145,15 @@ $c_color  = chat_widget_color();
     <script>
     var CB_CSRF = <?= json_encode($token) ?>;
     var CB_SESS = <?= json_encode($chat_sessions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    var cbCur = 0, cbLast = 0, cbPoll = null, cbSeen = {}, cbBusy = false;
+    var cbCur = 0, cbLast = 0, cbSeen = {}, cbBusy = false, cbSBusy = false, cbSAgain = false, cbListSig = null;
     function cbEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function cbLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);function p(n){return(n<10?'0':'')+n;}return p(d.getHours())+':'+p(d.getMinutes());}
     document.querySelectorAll('.cb-pre').forEach(function(el){el.addEventListener('click',function(){document.querySelectorAll('.cb-pre').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');});});
     function cbRenderList(rows){
         var box=document.getElementById('cbList');
+        var sig=cbCur+'|'+JSON.stringify(rows);
+        if(sig===cbListSig)return;
+        cbListSig=sig;
         if(!rows||!rows.length){box.innerHTML='<div class="cb-empty" style="height:80px">Пока нет диалогов</div>';return;}
         box.innerHTML=rows.map(function(s){
             var nm=s.name||('IP '+(s.ip||'—'));
@@ -162,22 +165,33 @@ $c_color  = chat_widget_color();
         }).join('');
     }
     function cbLoadSessions(){
+        if(cbSBusy){cbSAgain=true;return;}
+        cbSBusy=true;
         var a=document.getElementById('cbAuto');
         fetch('?ajax=chat_sessions',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
             if(d.ok){CB_SESS=d.sessions||[];cbRenderList(CB_SESS);}
             if(a)a.textContent='· обновлено '+new Date().toLocaleTimeString();
-        }).catch(function(){});
+        }).catch(function(){}).then(function(){
+            cbSBusy=false;
+            if(cbSAgain){cbSAgain=false;cbLoadSessions();}
+        });
     }
-    function cbAddMsg(m){
-        if(m.id && cbSeen[m.id]) return;
+    function cbPutMsg(m){
+        if(m.id && cbSeen[m.id]) return false;
         if(m.id) cbSeen[m.id]=1;
         var box=document.getElementById('cbMsgs');
         var el=document.createElement('div');
         el.className='cb-m '+m.sender;
         var src=(m.source&&m.sender==='agent'&&m.source!=='admin')?('<div class="cb-src">via '+cbEsc(m.source)+'</div>'):'';
         el.innerHTML=cbEsc(m.body)+src;
-        box.appendChild(el);box.scrollTop=box.scrollHeight;
+        box.appendChild(el);
         if(m.id>cbLast)cbLast=m.id;
+        return true;
+    }
+    function cbAddMsg(m){
+        if(!cbPutMsg(m))return;
+        var box=document.getElementById('cbMsgs');
+        box.scrollTop=box.scrollHeight;
     }
     function cbOpen(id){
         cbCur=id;cbLast=0;cbSeen={};
@@ -188,7 +202,10 @@ $c_color  = chat_widget_color();
         var box=document.getElementById('cbMsgs');box.innerHTML='';
         document.getElementById('cbReplyBox').style.display='flex';
         fetch('?ajax=chat_msgs&sid='+id+'&after=0&csrf='+encodeURIComponent(CB_CSRF),{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
-            if(d.ok)(d.messages||[]).forEach(cbAddMsg);
+            if(!d.ok)return;
+            var n=0;
+            (d.messages||[]).forEach(function(m){if(cbPutMsg(m))n++;});
+            if(n)box.scrollTop=box.scrollHeight;
         });
     }
     function cbDelete(){
@@ -251,5 +268,5 @@ $c_color  = chat_widget_color();
     }
     document.getElementById('cbReply').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cbSend();}});
     cbRenderList(CB_SESS);
-    cbPoll=setInterval(function(){if(!document.hidden){cbPollMsgs();cbLoadSessions();}},5000);
+    setInterval(function(){if(!document.hidden){cbPollMsgs();cbLoadSessions();}},5000);
     </script>

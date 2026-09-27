@@ -1,7 +1,7 @@
 <?php
 $cur_drv = db_driver();
 $gc_ov   = gc_overview();
-$gc_db   = metrics_db_info();
+$gc_db   = ['size' => metrics_db_size()];
 $gc_free = gc_free_bytes();
 ?>
 <style>

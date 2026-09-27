@@ -296,6 +296,7 @@ if (!is_auth()) {
 }
 
 if (isset($_GET['ajax']) && is_auth()) {
+    session_write_close();
     header('Content-Type: application/json; charset=utf-8');
     $a = $_GET['ajax'];
 
@@ -404,19 +405,19 @@ if (isset($_GET['ajax']) && is_auth()) {
     }
 
     if ($a === 'sysinfo') {
+        $si = metrics_system_info();
         echo json_encode([
             'ok'     => true,
             'load'   => metrics_load_summary(),
             'series' => metrics_minute_series(60),
             'peaks'  => metrics_recent_peaks(200),
-            'sys'    => ['load' => metrics_system_info()['load'], 'cores' => metrics_system_info()['cores'], 'mem_peak' => memory_get_peak_usage(true)],
-            'db'     => ['size' => metrics_db_info()['size']],
+            'sys'    => ['load' => $si['load'], 'cores' => $si['cores'], 'mem_peak' => memory_get_peak_usage(true)],
+            'db'     => ['size' => metrics_db_size()],
         ], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
     if ($a === 'cv_autocheck') {
-        session_write_close();
         $cv_n = 0;
         if (clientver_enabled() && time() - (int) setting('clientver_tick', '0') >= 300) {
             set_setting('clientver_tick', (string) time());
@@ -424,7 +425,7 @@ if (isset($_GET['ajax']) && is_auth()) {
             @set_time_limit(60);
             $cv_n = clientver_autocheck(100, 25);
         }
-        echo json_encode(['ok' => true, 'checked' => $cv_n, 'outdated' => db() ? clientver_outdated(24) : 0], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => true, 'checked' => $cv_n, 'outdated' => ($cv_n > 0 && db()) ? clientver_outdated(24) : 0], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -508,7 +509,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     }
 
     if ($a === 'chat_sessions') {
-        echo json_encode(['ok' => true, 'sessions' => chat_sessions_list(100), 'unread' => chat_unread_total()], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => true, 'sessions' => chat_sessions_list(100)], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -1264,13 +1265,15 @@ $pdo   = db();
 $db_ok = $pdo !== null;
 
 $overrides = [];
-if ($db_ok) foreach ($pdo->query('SELECT * FROM overrides ORDER BY updated_at DESC LIMIT 500') as $r) $overrides[] = $r;
+if ($db_ok && ($tab === 'users' || $tab === 'overrides')) foreach ($pdo->query('SELECT * FROM overrides ORDER BY updated_at DESC LIMIT 500') as $r) $overrides[] = $r;
 $ov_index = [];
 foreach ($overrides as $o) if ($o['match_type'] === 'shortuuid') $ov_index[$o['match_value']] = $o;
 $blocked_hwid_users = [];
 foreach ($overrides as $o) if (($o['match_type'] ?? '') === 'hwid' && ($o['reason'] ?? '') === 'blocked') { $bn = mb_strtolower(trim((string) ($o['username'] ?? ''))); if ($bn !== '') $blocked_hwid_users[$bn] = true; }
 $ov_expire = [];
-if ($tab === 'overrides' && $overrides && remnawave_url() !== '' && remnawave_token() !== '') {
+$ov_need_exp = false;
+foreach ($overrides as $o) if (($o['reason'] ?? '') === 'expired' && ($o['match_type'] ?? '') === 'shortuuid') { $ov_need_exp = true; break; }
+if ($tab === 'overrides' && $ov_need_exp && remnawave_url() !== '' && remnawave_token() !== '') {
     $ov_e = '';
     foreach (remnawave_all_users($ov_e) as $u) {
         if (!empty($u['shortUuid']) && !empty($u['expireAt'])) {
@@ -1321,12 +1324,13 @@ if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
     $wh_where = implode(' AND ', $wh_conds);
     try {
         $wh_bf_cond = "event LIKE 'user_hwid%' AND (username IS NULL OR username = '') AND short_uuid IS NOT NULL AND short_uuid <> ''";
-        if ((int) $pdo->query("SELECT COUNT(*) FROM webhook_log WHERE $wh_bf_cond")->fetchColumn() > 0) {
+        $wh_bf = $tab === 'whlog' ? $pdo->query("SELECT DISTINCT short_uuid FROM webhook_log WHERE $wh_bf_cond LIMIT 200")->fetchAll(PDO::FETCH_COLUMN) : [];
+        if ($wh_bf) {
             $wh_nm = $pdo->prepare("SELECT username FROM webhook_log WHERE short_uuid = ? AND username IS NOT NULL AND username <> '' ORDER BY id DESC LIMIT 1");
             $wh_up = $pdo->prepare("UPDATE webhook_log SET username = ? WHERE short_uuid = ? AND (username IS NULL OR username = '')");
             $wh_miss = [];
-            foreach ($pdo->query("SELECT DISTINCT short_uuid FROM webhook_log WHERE $wh_bf_cond LIMIT 200") as $r) {
-                $wh_bs = (string) $r['short_uuid'];
+            foreach ($wh_bf as $wh_bs) {
+                $wh_bs = (string) $wh_bs;
                 $wh_nm->execute([$wh_bs]);
                 $wh_bn = $wh_nm->fetchColumn();
                 if (is_string($wh_bn) && $wh_bn !== '') $wh_up->execute([$wh_bn, $wh_bs]);
@@ -1447,7 +1451,9 @@ if ($tab === 'sysinfo') {
 $grace_list = [];
 if ($db_ok && $tab === 'grace_users') {
     ensure_grace_table();
-    try { foreach ($pdo->query('SELECT *, ' . sql_epoch('created_at') . ' AS created_epoch FROM grace_users ORDER BY grace_until DESC LIMIT 500') as $r) $grace_list[] = $r; } catch (Throwable $e) {}
+    $gr_tail = ', ' . sql_epoch('created_at') . ' AS created_epoch FROM grace_users ORDER BY grace_until DESC LIMIT 500';
+    try { $grace_list = $pdo->query('SELECT short_uuid, username, grace_until, ended_ts, created_at' . $gr_tail)->fetchAll(); }
+    catch (Throwable $e) { try { foreach ($pdo->query('SELECT *' . $gr_tail) as $r) $grace_list[] = $r; } catch (Throwable $e) {} }
 }
 
 $blocked_text  = implode("\n", get_blocked_remarks());
@@ -1469,12 +1475,18 @@ if ($tab === 'squad_configs' || $tab === 'wg_pool') {
         if (in_array((string) ($c['type'] ?? ''), ['wireguard', 'amneziawg'], true)) $sqcfg_wg[] = $c;
         else $sqcfg_simple[] = $c;
     }
-    $sqcfg_leases = wglease_list();
+    if ($tab === 'wg_pool') {
+        $sqcfg_leases = wglease_list();
+    } else {
+        wglease_ensure();
+        if ($db_ok) { try { $sqcfg_leases = $pdo->query('SELECT * FROM wg_lease WHERE manual = 1 ORDER BY pool_id, seen_ts DESC')->fetchAll(); } catch (Throwable $e) {} }
+    }
 }
 if ($tab === 'wg_pool') {
     $sqcfg_reclaim_days = wglease_reclaim_days();
     foreach ($sqcfg_squads as $s) $sqcfg_modes[$s['uuid']] = wglease_mode($s['uuid']);
-    foreach ($sqcfg_leases as $l) $sqcfg_lease_by_cfg[(int) $l['config_id']] = $l;
+    $sqcfg_lease_n = [];
+    foreach ($sqcfg_leases as $l) { $sqcfg_lease_by_cfg[(int) $l['config_id']] = $l; $sqcfg_lease_n[(int) $l['config_id']] = ($sqcfg_lease_n[(int) $l['config_id']] ?? 0) + 1; }
     foreach ($sqcfg_wg as $c) {
         if ((int) $c['enabled'] !== 1) continue;
         $leased = isset($sqcfg_lease_by_cfg[(int) $c['id']]);
@@ -1484,7 +1496,7 @@ if ($tab === 'wg_pool') {
         }
     }
     $sqcfg_hwid_plat = wglease_hwid_platforms();
-    $sqcfg_dupes = wglease_dupes();
+    $sqcfg_dupes = array_filter($sqcfg_lease_n, fn($n) => $n > 1);
     $sqcfg_sizing = wglease_sizing_cached();
 }
 $addsub_list = [];
