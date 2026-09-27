@@ -247,7 +247,7 @@
     <script>
     (function(){
         var body = document.getElementById('rlBody');
-        var rlPager = window.LogPager ? LogPager({bodyId:'rlBody', topId:'rl_pgrTop', botId:'rl_pgrBot', colspan:8, storeKey:'pg_reqlog'}) : null;
+        var rlPager = LogPager({bodyId:'rlBody', topId:'rl_pgrTop', botId:'rl_pgrBot', storeKey:'pg_reqlog'});
         function p2(n){return (n<10?'0':'')+n;}
         function loc(ep, withDate){
             ep = parseInt(ep,10); if(!ep) return '';

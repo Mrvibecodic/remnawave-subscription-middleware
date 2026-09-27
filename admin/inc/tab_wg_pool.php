@@ -647,11 +647,8 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
     })();
     (function(){
         var NAMES = <?= json_encode($sqcfg_names, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-        var SIZING = <?= json_encode($sqcfg_sizing['rows'] ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-        var SIZING_TS = <?= (int) ($sqcfg_sizing['ts'] ?? 0) ?>;
         sqcfgInitManual(NAMES);
         function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':s); return d.innerHTML.replace(/"/g,'&quot;'); }
-        function wgpFmtAgo(ts){ if(!ts) return ''; var s=Math.max(0,Math.floor(Date.now()/1000-ts)); if(s<60) return 'только что'; if(s<3600) return Math.floor(s/60)+' мин назад'; if(s<86400) return Math.floor(s/3600)+' ч назад'; return Math.floor(s/86400)+' дн назад'; }
         function wgpApply(rows){
             document.querySelectorAll('.wgp-u').forEach(function(td){
                 var row = td.parentNode, su = td.dataset.su, r = (rows || {})[su];

@@ -798,27 +798,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         header('Location: index.php?tab=update'); exit();
     }
 
-    if ($action === 'save_app_headers') {
-        $arr = json_decode((string) ($_POST['app_headers_json'] ?? '[]'), true);
-        $clean = [];
-        if (is_array($arr)) {
-            foreach ($arr as $t) {
-                if (!is_array($t)) continue;
-                $name = trim((string) ($t['name'] ?? ''));
-                if ($name === '') continue;
-                $clean[] = [
-                    'name'    => $name,
-                    'value'   => (string) ($t['value'] ?? ''),
-                    'note'    => trim((string) ($t['note'] ?? '')),
-                    'enabled' => !empty($t['enabled']),
-                ];
-            }
-        }
-        set_setting('app_headers', json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        flash('Заголовки приложений сохранены');
-        form_saved('headers');
-    }
-
     if ($action === 'add_override') {
         $mt = $_POST['match_type'] === 'hwid' ? 'hwid' : 'shortuuid';
         $mv = trim($_POST['match_value'] ?? '');
@@ -1288,8 +1267,6 @@ $nolog_set = [];
 if ($tab === 'users') { $users = remnawave_all_users($users_err); $nolog_set = nolog_shortuuids(); }
 $addsub_links = [];
 if ($tab === 'users') { foreach (addsub_map_all() as $__r) $addsub_links[(string) $__r['main_short']] = (string) $__r['add_url']; }
-$panel_headers = []; $panel_headers_err = '';
-if ($tab === 'headers') $panel_headers = remnawave_panel_headers($panel_headers_err);
 
 $reqlog = [];
 $rl_over = ['total' => 0, 'blocked' => 0, 'blocked_users' => 0, 'hourly' => array_fill(0, 24, 0), 'peak' => 0, 'peak_h' => 0];
@@ -1394,8 +1371,6 @@ if ($db_ok && $tab === 'fwdlog') {
 $chat_sessions = [];
 if ($db_ok && $tab === 'chat') { $chat_sessions = chat_sessions_list(100); }
 
-$short2name = [];
-$hwid2info  = [];
 $rl_total_users = 0; $rl_today_users = 0; $rl_today_devices = 0; $rl_total_devices = 0; $rl_today_label = date('d.m.Y');
 $junk_top = []; $junk_wl = [];
 $rl_outdated = 0;
@@ -1426,9 +1401,7 @@ if ($tab === 'reqlog' && $rl_view === '') {
     $junk_top = junk_top(100);
     $junk_wl  = junk_whitelist();
     require_once __DIR__ . '/inc/_reqlog_rows.php';
-    [, , $rl_pctx, $rl_total_users] = reqlog_prepare();
-    $short2name = $rl_pctx['names'];
-    $hwid2info  = $rl_pctx['ov'];
+    [, , , $rl_total_users] = reqlog_prepare();
     if ($db_ok) {
         $rl_stats = reqlog_today_stats();
         $rl_today_users   = $rl_stats['today_users'];
@@ -1504,7 +1477,7 @@ if ($tab === 'addsub') $addsub_list = addsub_map_all();
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'headers' => 'Заголовки приложений', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'clod' => 'Защищённый канал (Clod Clash)'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'clod' => 'Защищённый канал (Clod Clash)'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -1527,14 +1500,14 @@ $fav_href = $brand_icon !== '' ? $brand_icon : ($emoji_favicon !== '' ? $emoji_f
 <!DOCTYPE html><html lang="ru" class="lp"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($brand['name']) ?> · админка</title>
-<link rel="icon" href="<?= $brand_icon !== '' ? h($brand_icon) : $fav_href ?>">
+<link rel="icon" href="<?= h($fav_href) ?>">
 <?php
 foreach (['cyrillic', 'latin'] as $f_sub) {
     echo '<link rel="preload" as="font" type="font/woff2" crossorigin href="assets/fonts/onest-'
         . $f_sub . ".woff2\">\n";
 }
 ?>
-<script>(function(){try{var t=localStorage.getItem('submw_theme');if(!t||t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();document.documentElement.classList.add('lp');</script>
+<script>(function(){try{var t=localStorage.getItem('submw_theme');if(!t||t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
 <?php
 $lp_map = [
     'users'       => ['utbl_size', 50],
@@ -1556,11 +1529,6 @@ document.addEventListener('DOMContentLoaded',function(){d.classList.remove('lp')
 <script>document.documentElement.classList.remove('lp')</script>
 <?php endif; ?>
 <script>
-window.phEsc=function(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;};
-window.phLines=function(id){var el=document.getElementById(id);if(!el)return [];return el.value.split('\n').map(function(s){return s.trim();}).filter(function(s){return s.length;});};
-window.phSupportName=function(id){var el=document.getElementById(id);if(!el)return '';var v=el.value.trim();if(!v)return '';var h=v.indexOf('#');if(h<0)return 'Тех. поддержка';var f=v.substring(h+1);try{f=decodeURIComponent(f);}catch(e){}return f||'Тех. поддержка';};
-window.phRow=function(name,support){return '<div class="srow'+(support?' support':'')+'"><span class="dot"></span><span class="nm">'+phEsc(name)+(support?'<span class="ph-badge">рабочий</span>':'')+'</span><span class="pg">'+(support?'42 ms':'—')+'</span></div>';};
-window.phRender=function(o){var rows=[];(o.list||[]).forEach(function(lid){phLines(lid).forEach(function(n){rows.push(phRow(n,false));});});if(o.support){var en=o.supportChk?document.getElementById(o.supportChk):null;if(!en||en.checked){var sn=phSupportName(o.support);if(sn)rows.push(phRow(sn,true));}}var t=o.title?((document.getElementById(o.title).value||'').trim()||'(как у origin)'):(o.titleText||'');var te=document.getElementById(o.titleEl);if(te)te.textContent=t;var se=document.getElementById(o.subEl);if(se)se.textContent=o.sub||'';var le=document.getElementById(o.listEl);if(le)le.innerHTML=rows.length?rows.join(''):'<div class="ph-empty">пусто — добавьте строки слева</div>';};
 window.LogPager=function(opts){
     var sizes = opts.sizes || [10,25,50,0];
     var body  = document.getElementById(opts.bodyId);
@@ -1650,7 +1618,6 @@ $nav = [
     'connection'=> ['Подключение', '<path d="m19 5 3-3" /> <path d="m2 22 3-3" /> <path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z" /> <path d="M7.5 13.5 10 11" /> <path d="M10.5 16.5 13 14" /> <path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z" />'],
     'webhooks'  => ['Настройки', '<g transform="scale(.09375)" fill="currentColor" stroke="none"><path d="M40,88H73a32,32,0,0,0,62,0h81a8,8,0,0,0,0-16H135a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16Zm64-24A16,16,0,1,1,88,80,16,16,0,0,1,104,64ZM216,168H199a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16h97a32,32,0,0,0,62,0h17a8,8,0,0,0,0-16Zm-48,24a16,16,0,1,1,16-16A16,16,0,0,1,168,192Z"/></g>'],
     'subst'     => ['Грейс-сквад', '<path d="M5 22h14" /> <path d="M5 2h14" /> <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" /> <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />'],
-    'headers'   => ['Заголовки', '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1" /> <path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1" />'],
     'rules'     => ['Правила ответа', '<circle cx="6" cy="19" r="3" /> <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" /> <circle cx="18" cy="5" r="3" />'],
     'hwid'      => ['HWID', '<path d="M18.9 7a8 8 0 0 1 1.1 5v1a6 6 0 0 0 .8 3" /> <path d="M8 11a4 4 0 0 1 8 0v1a10 10 0 0 0 2 6" /> <path d="M12 11v2a14 14 0 0 0 2.5 8" /> <path d="M8 15a18 18 0 0 0 1.8 6" /> <path d="M4.9 19a22 22 0 0 1 -.9 -7v-1a8 8 0 0 1 12 -6.95" />'],
     'overrides' => ['Оверрайды', '<path d="M3 4a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M15 16a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M21 11v-3a2 2 0 0 0 -2 -2h-6l3 3m0 -6l-3 3" /> <path d="M3 13v3a2 2 0 0 0 2 2h6l-3 -3m0 6l3 -3" />'],
@@ -1669,6 +1636,7 @@ $nav = [
 ];
 ?>
 <?php
+$upd_avail = update_available();
 $nav_sections = [
     ['l' => 'Главное',          'coll' => false, 'k' => 'main',   'items' => ['users', 'chat', 'reqlog']],
     ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
@@ -1718,7 +1686,7 @@ function nav_link($key, $it, $active, $badge = false) {
                 <?php if (empty($sec['coll'])): ?>
                     <div class="navgroup"><?= h($sec['l']) ?></div>
                     <?php foreach ($sec['items'] as $key): ?>
-                        <?= nav_link($key, $nav[$key], $tab_nav === $key, $key === 'update' && update_available()) ?>
+                        <?= nav_link($key, $nav[$key], $tab_nav === $key, $key === 'update' && $upd_avail) ?>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="<?= navacc_cls($sec['k'], $active_in) ?>" data-acc="<?= h($sec['k']) ?>">
@@ -1728,7 +1696,7 @@ function nav_link($key, $it, $active, $badge = false) {
                         </button>
                         <div class="navacc-b">
                             <?php foreach ($sec['items'] as $key): ?>
-                                <?= nav_link($key, $nav[$key], $tab_nav === $key, $key === 'update' && update_available()) ?>
+                                <?= nav_link($key, $nav[$key], $tab_nav === $key, $key === 'update' && $upd_avail) ?>
                             <?php endforeach; ?>
                         </div>
                     </div>
@@ -1762,7 +1730,7 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
             </div>
             <div class="rw-hcontrols">
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg width="20" height="20" class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
-                <a class="hbtn hbtn-ver" href="?tab=update" title="<?= update_available() ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if (update_available()): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
+                <a class="hbtn hbtn-ver" href="?tab=update" title="<?= $upd_avail ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if ($upd_avail): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
 <?php
     $pm_meta = panel_meta_cached();
     $pm_ver  = trim((string) ($pm_meta['version'] ?? ''));
@@ -1775,7 +1743,7 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
             . (!$pm_sup ? ' · ниже минимально поддерживаемой ' . panel_min_supported() : ''));
 ?>
                 <a class="hbtn hbtn-ver hbtn-panel" href="?tab=sysinfo" id="panelVerBadge" data-min="<?= h(panel_min_supported()) ?>" title="<?= h($pm_ttl) ?>">Панель <code id="panelVerText"><?= $pm_ver !== '' ? h($pm_ver) : '—' ?></code><?php if ($pm_ver !== '' && !$pm_sup): ?><span class="hbtn-dot" id="panelVerDot" title="Версия панели ниже поддерживаемой"></span><?php endif; ?></a>
-                <a class="hbtn" href="?logout=1&amp;csrf=<?= h(csrf_token()) ?>" title="Выйти" aria-label="Выйти"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+                <a class="hbtn" href="?logout=1&amp;csrf=<?= h($token) ?>" title="Выйти" aria-label="Выйти"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>
         <div class="rw-content">
@@ -1793,9 +1761,6 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
 
 <?php elseif ($tab === 'subst'): ?>
     <?php include __DIR__ . '/inc/tab_subst.php'; ?>
-
-<?php elseif ($tab === 'headers'): ?>
-    <?php include __DIR__ . '/inc/tab_headers.php'; ?>
 
 <?php elseif ($tab === 'rules'): ?>
     <?php include __DIR__ . '/inc/tab_rules.php'; ?>
@@ -1882,10 +1847,10 @@ var HELP={
 };
 function help(k){var d=HELP[k];if(!d)return;document.getElementById('helpTitle').textContent=d.t;document.getElementById('helpBody').innerHTML=d.h;document.getElementById('helpOv').classList.add('open');}
 function helpClose(){var o=document.getElementById('helpOv');if(o)o.classList.remove('open');}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')helpClose();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){helpClose();if(window.uiDlgClose)uiDlgClose();}});
 function themeMark(t){if(!t){try{t=localStorage.getItem('submw_theme')||'system';}catch(e){t='system';}}document.querySelectorAll('.theme-seg button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-theme-set')===t);});}
 function setTheme(t){try{localStorage.setItem('submw_theme',t);}catch(e){}var eff=t;if(t==='system'){eff=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',eff);themeMark(t);}
-document.addEventListener('DOMContentLoaded',function(){themeMark();});
+themeMark();
 if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(e){var t='system';try{t=localStorage.getItem('submw_theme')||'system';}catch(_){}if(t==='system')document.documentElement.setAttribute('data-theme',e.matches?'dark':'light');});}
 (function(){
     var dlg=document.getElementById('uiDlg'), msg=document.getElementById('uiDlgMsg'),
@@ -1944,7 +1909,7 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
         form.addEventListener('submit',function(e){e.preventDefault();send(null);});
     });
     function uiCookieSet(k,v){try{var raw=(document.cookie.match(/(?:^|;\s*)submw_ui=([^;]*)/)||[])[1]||'';var parts=raw?decodeURIComponent(raw).split(';').filter(Boolean):[];var map={};parts.forEach(function(p){var i=p.indexOf(':');if(i>0)map[p.slice(0,i)]=p.slice(i+1);});map[k]=v?'1':'0';var out=Object.keys(map).map(function(x){return x+':'+map[x];}).join(';');document.cookie='submw_ui='+encodeURIComponent(out)+';path=/;max-age=31536000;samesite=Lax';}catch(e){}}
-    window.collToggle=function(b){var s=b.closest('.coll');if(!s)return;s.classList.toggle('collapsed');var k=s.dataset.coll||'';if(k&&!/^next_/.test(k))uiCookieSet('c_'+k,s.classList.contains('collapsed'));};
+    window.collToggle=function(b){var s=b.closest('.coll');if(!s)return;s.classList.toggle('collapsed');var k=s.dataset.coll||'';if(k)uiCookieSet('c_'+k,s.classList.contains('collapsed'));};
     window.navAcc=function(b){var s=b.closest('.navacc');if(!s)return;s.classList.toggle('closed');var k=s.dataset.acc||'';uiCookieSet('n_'+k,s.classList.contains('closed'));};
     document.addEventListener('click',function(e){var app=document.querySelector('.rw-app');if(app&&app.classList.contains('nav-open')&&!e.target.closest('.rw-side')&&!e.target.closest('.navtoggle'))app.classList.remove('nav-open');});
     try{document.cookie='tzoff='+(-new Date().getTimezoneOffset())+';path=/;max-age=31536000;samesite=Lax';}catch(e){}
@@ -1964,7 +1929,7 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
             box.style.left=x+'px';box.style.top=y+'px';
             cur=el;
         }
-        function hide(){if(box)box.classList.remove('on');cur=null;}
+        function hide(){if(!cur)return;if(box)box.classList.remove('on');cur=null;}
         document.addEventListener('mouseover',function(e){
             if(!e.target||!e.target.closest)return;
             var el=e.target.closest('[data-tip]');
@@ -1981,7 +1946,6 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
         window.addEventListener('resize',hide);
     })();
     ok.addEventListener('click',function(){var f=cb; uiDlgClose(); if(f)f();});
-    document.addEventListener('keydown',function(e){if(e.key==='Escape')uiDlgClose();});
     (function(){var el=document.getElementById('ghStarCount');if(!el)return;try{var c=JSON.parse(localStorage.getItem('gh_stars')||'null');if(c&&Date.now()-c.t<21600000){el.textContent=c.n;return;}}catch(e){}fetch('https://api.github.com/repos/Mrvibecodic/remnawave-subscription-middleware').then(function(r){return r.json();}).then(function(d){if(d&&typeof d.stargazers_count==='number'){el.textContent=d.stargazers_count;try{localStorage.setItem('gh_stars',JSON.stringify({n:d.stargazers_count,t:Date.now()}));}catch(e){}}}).catch(function(){});})();
     fetch('?ajax=cv_autocheck').then(function(r){return r.json();}).then(function(d){
         if(!d||!d.ok||!d.checked)return;

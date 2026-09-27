@@ -127,7 +127,7 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
                 $su  = $u['shortUuid'] ?? '';
                 $uref = rw_user_ref($u);
                 $uuid = rw_ref_ok($uref) ? (string) $uref['val'] : '';
-                $lim  = (isset($u['hwidDeviceLimit']) && $u['hwidDeviceLimit'] !== null && $u['hwidDeviceLimit'] !== '') ? (string) $u['hwidDeviceLimit'] : '';
+                $lim  = (isset($u['hwidDeviceLimit']) && $u['hwidDeviceLimit'] !== '') ? (string) $u['hwidDeviceLimit'] : '';
                 $exp_ts = !empty($u['expireAt']) ? strtotime((string) $u['expireAt']) : null;
                 if ($exp_ts === false) $exp_ts = null;
                 $exp = $exp_ts !== null ? (date('Y-m-d', $exp_ts) . ' в ' . date('H:i', $exp_ts)) : '—';
@@ -386,7 +386,7 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
 
     <script>
     (function(){
-        var CSRF = (typeof HW_CSRF !== 'undefined') ? HW_CSRF : '';
+        var CSRF = HW_CSRF;
         var su = '';
         function el(id){ return document.getElementById(id); }
         window.addsubClose = function(){ var m=el('addsubModal'); if(m) m.classList.remove('open'); };

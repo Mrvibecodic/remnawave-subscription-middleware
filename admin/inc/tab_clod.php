@@ -4,7 +4,7 @@ $chan_fp    = $chan_ok ? chan_fingerprint() : '';
 $chan_idx   = chan_index_info();
 $chan_st    = chan_stats();
 $chan_rows  = chan_state_list(500);
-$chan_len   = function_exists('panel_short_uuid_len') ? (int) panel_short_uuid_len() : 0;
+$chan_len   = (int) panel_short_uuid_len();
 $chan_api   = remnawave_url() !== '' && remnawave_token() !== '';
 $chan_marks = implode("\n", chan_hard_remarks());
 $chan_dbg   = chan_debug_on() ? chan_debug_list(chan_debug_keep()) : [];

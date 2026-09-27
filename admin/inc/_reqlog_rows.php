@@ -13,7 +13,7 @@ function reqlog_prepare() {
         $names[$su] = (string) ($u['username'] ?? '');
         $users[$su] = [
             'status' => (string) ($u['status'] ?? ''),
-            'lim'    => (isset($u['hwidDeviceLimit']) && $u['hwidDeviceLimit'] !== null && $u['hwidDeviceLimit'] !== '') ? (int) $u['hwidDeviceLimit'] : '',
+            'lim'    => (isset($u['hwidDeviceLimit']) && $u['hwidDeviceLimit'] !== '') ? (int) $u['hwidDeviceLimit'] : '',
         ];
     }
     $name2short = [];
@@ -26,12 +26,9 @@ function reqlog_prepare() {
         catch (Throwable $e) { $ov_rows = []; }
     }
     foreach ($ov_rows as $o) {
-        $o['match_type'] = 'hwid';
-        if (($o['match_type'] ?? '') === 'hwid') {
-            $lbl = trim((string) ($o['username'] ?? ''));
-            if ($lbl === '') $lbl = trim((string) ($o['note'] ?? ''));
-            $ov[mb_strtolower((string) $o['match_value'])] = $lbl;
-        }
+        $lbl = trim((string) ($o['username'] ?? ''));
+        if ($lbl === '') $lbl = trim((string) ($o['note'] ?? ''));
+        $ov[mb_strtolower((string) $o['match_value'])] = $lbl;
     }
     $ctx = [
         'names' => $names,
@@ -99,8 +96,8 @@ function rl_hist_bar($list) {
     if (!$list) return '<span class="dim">—</span>';
     $out = '';
     foreach ($list as $d) {
-        $c = $d === 'blocked' ? ' b' : ($d === 'grace' ? ' g' : ($d === 'expired' || $d === 'error' ? ' e' : ''));
-        $out .= '<i class="h' . $c . '" data-tip="' . h($d) . '"></i>';
+        $c = $d === 'blocked' ? 'b' : ($d === 'grace' ? 'g' : ($d === 'expired' || $d === 'error' ? 'e' : ''));
+        $out .= '<i' . ($c !== '' ? ' class="' . $c . '"' : '') . ' data-tip="' . h($d) . '"></i>';
     }
     return '<span class="hist">' . $out . '</span>';
 }
@@ -193,7 +190,8 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '<td data-label="Запросов / сутки"><span class="cnt"><b>' . $day . '</b><span class="bar"><i style="width:' . (int) round($day / $max * 100) . '%"></i></span></span></td>'
               . '</tr>';
 
-        $ovl = $hwid !== '' && isset($ov[mb_strtolower($hwid)]) ? (string) $ov[mb_strtolower($hwid)] : '';
+        $hwl  = mb_strtolower($hwid);
+        $ovl  = $hwid !== '' && isset($ov[$hwl]) ? (string) $ov[$hwl] : '';
         $asn = (int) ($as['n'] ?? 0);
         $asb = (int) ($as['b'] ?? 0);
         $asm = (int) ($as['ms'] ?? 0);

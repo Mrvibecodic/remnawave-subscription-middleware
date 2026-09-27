@@ -75,8 +75,9 @@
                                     <input type="text" name="cv_man[<?= (int) $cv_i ?>]" value="<?= h($cv_r['man']) ?>" spellcheck="false" placeholder="вписать вручную">
                                 <?php else: ?>
                                     <input type="hidden" name="cv_man[<?= (int) $cv_i ?>]" value="<?= h($cv_r['man']) ?>">
+                                    <?php $cv_lv = clientver_latest($cv_r); ?>
                                     <span class="cv-cur">
-                                        <b><?= clientver_latest($cv_r) !== '' ? h(clientver_latest($cv_r)) : '—' ?></b>
+                                        <b><?= $cv_lv !== '' ? h($cv_lv) : '—' ?></b>
                                         <span class="<?= $cv_err !== '' ? 'bad' : '' ?>"><?= $cv_err !== '' ? h(mb_substr($cv_err, 0, 60)) : ($cv_t ? '<span class="cv-ts" data-ts="' . (int) $cv_t . '">' . h(gmdate('d.m H:i', $cv_t)) . '</span>' : 'не проверялась') ?></span>
                                     </span>
                                 <?php endif; ?>

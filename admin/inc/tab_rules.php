@@ -245,7 +245,7 @@
         document.getElementById('rrEmpty').style.display=document.querySelectorAll('#rrList .rr-rule').length?'none':'';
     }
     function rrAutoSave(msg){
-        var body='ajax=1&csrf='+encodeURIComponent(RR_TOKEN)+'&response_rules_json='+encodeURIComponent(document.getElementById('rr_json').value);
+        var body='csrf='+encodeURIComponent(RR_TOKEN)+'&response_rules_json='+encodeURIComponent(document.getElementById('rr_json').value);
         fetch('index.php?ajax=save_rules',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body})
             .then(function(r){return r.json();})
             .then(function(d){if(window.uiToast)uiToast(d&&d.ok?(msg||'Сохранено'):'Ошибка сохранения');})
@@ -256,7 +256,7 @@
         var os=document.getElementById('rrTestOs').value;
         var out=document.getElementById('rrTestOut');
         out.style.display='block';out.innerHTML='Проверяю…';
-        var body='ajax=1&csrf='+encodeURIComponent(RR_TOKEN)+'&ua='+encodeURIComponent(ua)+'&os='+encodeURIComponent(os);
+        var body='csrf='+encodeURIComponent(RR_TOKEN)+'&ua='+encodeURIComponent(ua)+'&os='+encodeURIComponent(os);
         fetch('index.php?ajax=test_rule',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body})
             .then(function(r){return r.json();})
             .then(function(d){
