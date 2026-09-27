@@ -115,6 +115,7 @@ if (!is_installed()) {
         input{width:100%;padding:.55rem;background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:.4rem;box-sizing:border-box}
         .row{display:flex;gap:1rem}.row>div{flex:1}
         button{margin-top:1.25rem;padding:.75rem 1.5rem;background:#4f46e5;color:#fff;border:0;border-radius:.4rem;font-weight:600;cursor:pointer;font-size:1rem}
+        button:disabled{opacity:.6;cursor:default}
         .err{background:#7f1d1d;color:#fecaca;padding:.7rem 1rem;border-radius:.4rem;margin-bottom:1rem;white-space:pre-wrap}
         .muted{color:#94a3b8;font-size:.82rem}
         pre{background:#0b1220;padding:1rem;border-radius:.4rem;overflow:auto;font-size:.8rem}
@@ -184,6 +185,7 @@ if (!is_installed()) {
     <script>
     function submwMode(){var m=document.getElementById('subSource').value;var o=document.getElementById('mirrorOrigin');if(o)o.style.display=(m==='panel')?'none':'';}
     submwMode();
+    (function(){var f=document.querySelector('form'),b=f.querySelector('button[type=submit]');f.addEventListener('submit',function(){b.disabled=true;});addEventListener('pageshow',function(e){if(e.persisted)b.disabled=false;});})();
     </script>
     </body></html>
     <?php
@@ -283,11 +285,8 @@ if (!is_auth()) {
     </form>
     <script>
     (function(){
-        // Повторная отправка (двойной клик/Enter) уходит со старой сессией, которую первый успешный вход
-        // уже пересоздал (session_regenerate_id) — получается ложное «Страница входа устарела».
         var f = document.querySelector('form.card'), b = f.querySelector('button');
-        f.addEventListener('submit', function (e) { if (b.disabled) { e.preventDefault(); return; } b.disabled = true; });
-        // Возврат кнопкой «Назад» из bfcache — кнопка снова активна.
+        f.addEventListener('submit', function () { b.disabled = true; });
         addEventListener('pageshow', function (e) { if (e.persisted) b.disabled = false; });
     })();
     </script>
