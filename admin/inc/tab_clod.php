@@ -256,7 +256,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
                     $d_nm = $d_su !== '' ? (string) ($chan_names[$d_su] ?? '') : ''; ?>
                 <details>
                     <summary>
-                        <span class="n ct-time muted" data-ts="<?= (int) $d['ts'] ?>"><?= h(date('H:i:s', (int) $d['ts'])) ?></span>
+                        <span class="n ct-time ct-sec muted" data-ts="<?= (int) $d['ts'] ?>"><?= h(date('Y-m-d H:i:s', (int) $d['ts'])) ?></span>
                         <span class="n"><?= $ok ? '✅' : '⛔' ?></span>
                         <?php if ($d_su !== ''): ?>
                         <span class="w" data-tip="<?= h($d_su) ?>"><span class="nm<?= $d_nm === '' ? ' pend' : '' ?>" data-unm="<?= h($d_su) ?>"><?= h($d_nm !== '' ? $d_nm : $d_su) ?></span></span>
@@ -383,5 +383,5 @@ $chan_plu   = function ($n, $one, $few, $many) {
             });
         }).catch(function(){});
     })();
-    (function(){function p(n){return(n<10?'0':'')+n;}document.querySelectorAll('.ct-time[data-ts]').forEach(function(el){var ep=parseInt(el.getAttribute('data-ts'),10);if(!ep)return;var d=new Date(ep*1000);if(isNaN(d.getTime()))return;el.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());});})();
+    (function(){function p(n){return(n<10?'0':'')+n;}document.querySelectorAll('.ct-time[data-ts]').forEach(function(el){var ep=parseInt(el.getAttribute('data-ts'),10);if(!ep)return;var d=new Date(ep*1000);if(isNaN(d.getTime()))return;var hm=p(d.getHours())+':'+p(d.getMinutes());el.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+hm+(el.classList.contains('ct-sec')?':'+p(d.getSeconds()):'');});})();
     </script>

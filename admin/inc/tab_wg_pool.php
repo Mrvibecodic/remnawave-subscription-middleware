@@ -54,8 +54,8 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
         .wg-issued-name{font-weight:600}
         .wg-cli{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:.02rem .4rem;font-size:.72rem;color:var(--muted);vertical-align:1px}
         .wg-tip{position:relative;cursor:help}
-        .wg-tip:hover::after{content:attr(data-tip);position:absolute;left:0;bottom:145%;white-space:pre-line;text-align:left;min-width:210px;max-width:340px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:.55rem .75rem;font-size:.76rem;font-weight:500;line-height:1.55;box-shadow:var(--shadow);z-index:30}
-        #wgTbl td:nth-child(6),#wgTbl th:nth-child(6){min-width:210px}
+        #wgTbl td:nth-child(7),#wgTbl th:nth-child(7){min-width:210px}
+        #wgTbl td:nth-child(6){white-space:nowrap}
         .wg-issued{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .3rem;max-width:100%;vertical-align:bottom}
         .wg-issued>.wg-tip{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .3rem;min-width:0;max-width:100%}
         .wg-issued-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
@@ -650,6 +650,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
         var SIZING = <?= json_encode($sqcfg_sizing['rows'] ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         var SIZING_TS = <?= (int) ($sqcfg_sizing['ts'] ?? 0) ?>;
         sqcfgInitManual(NAMES);
+        function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':s); return d.innerHTML.replace(/"/g,'&quot;'); }
         function wgpFmtAgo(ts){ if(!ts) return ''; var s=Math.max(0,Math.floor(Date.now()/1000-ts)); if(s<60) return 'только что'; if(s<3600) return Math.floor(s/60)+' мин назад'; if(s<86400) return Math.floor(s/3600)+' ч назад'; return Math.floor(s/86400)+' дн назад'; }
         function wgpApply(rows){
             document.querySelectorAll('.wgp-u').forEach(function(td){
@@ -672,7 +673,7 @@ if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
                     if (!d.ok) { if (wgpMsg) wgpMsg.textContent = 'Ошибка: ' + (d.error || 'нет данных'); return; }
                     wgpApply(d.rows);
                     if (d.totals) { var tr = document.getElementById('wgpTotRec'), tu = document.getElementById('wgpTotUniq'); if (tr) tr.textContent = d.totals.records || 0; if (tu) tu.textContent = d.totals.unique || 0; }
-                    var extra = d.warn ? (' <span class="wgp-warn">hwid-эндпоинт: ' + d.warn + '</span>') : '';
+                    var extra = d.warn ? (' <span class="wgp-warn">hwid-эндпоинт: ' + esc(d.warn) + '</span>') : '';
                     if (wgpMsg) wgpMsg.innerHTML = 'Рассчитано только что. ' + WGP_HINT + extra;
                 }).catch(function(){ calc.disabled = false; if (wgpMsg) wgpMsg.textContent = 'Ошибка запроса'; });
             });

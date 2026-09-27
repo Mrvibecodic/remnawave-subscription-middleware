@@ -86,7 +86,7 @@
             <form method="post" style="margin:0">
                 <input type="hidden" name="csrf" value="<?= h($token) ?>">
                 <input type="hidden" name="action" value="landing_ack_fp">
-                <button type="submit" class="ghost">Я нажал — скрыть</button>
+                <button type="submit" class="btn ghost">Я нажал — скрыть</button>
             </form>
             <?php endif; ?>
         </div>

@@ -304,6 +304,7 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
         if(name==='panel' && (!SI_PANEL || (SI_PANEL.age||0)>30)) siPanelFetch(false);
     }
     (function(){var b=document.querySelectorAll('#siSeg button'); for(var i=0;i<b.length;i++) b[i].addEventListener('click',function(){siSeg(this.getAttribute('data-seg'));});})();
+    siChart(<?= json_encode($sys_series) ?>);
     document.querySelectorAll('.si-pk-ts[data-ts]').forEach(function(td){var v=siLocal(td.getAttribute('data-ts'),true);if(v)td.textContent=v;});
     siPanelFetch(false);
     setInterval(function(){ if(document.hidden) return; siRefresh(); var on=document.querySelector('#siSeg button.on'); if(on&&on.getAttribute('data-seg')==='panel') siPanelFetch(false); }, 15000);

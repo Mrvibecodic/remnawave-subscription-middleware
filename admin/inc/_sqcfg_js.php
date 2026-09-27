@@ -136,6 +136,7 @@
         NAMES = NAMES || {};
         var cfgSel = document.getElementById('wgm_cfg');
         if(!cfgSel) return;
+        function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
         function chkReady(){
             var btn = document.getElementById('wgm_submit'); if(!btn) return;
             btn.disabled = !(document.getElementById('wgm_short').value && cfgSel.value);
