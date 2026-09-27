@@ -334,19 +334,32 @@ function reqlog_overview() {
     return $out;
 }
 
-function reqlog_user_index() {
+function reqlog_user_index(?array $only = null) {
     $out = [];
+    if ($only !== null) {
+        $only = array_values(array_unique(array_filter(array_map('strval', $only), fn($s) => $s !== '')));
+        if (!$only) return $out;
+    }
     if (!($p = db())) return $out;
     ensure_reqlog_hwid();
     $ep = sql_epoch('ts');
+    $since  = time() - 86400;
+    $chunks = $only === null ? [[]] : array_chunk($only, 400);
+    $in = fn(array $c) => $c ? ' AND short_uuid IN (' . implode(',', array_fill(0, count($c), '?')) . ')' : '';
     try {
-        $st = $p->prepare("SELECT short_uuid, COUNT(*) AS c, COUNT(DISTINCT hwid) AS d FROM request_log
-                           WHERE short_uuid IS NOT NULL AND short_uuid <> '' AND decision <> 'browser' AND $ep >= ? GROUP BY short_uuid");
-        $st->execute([time() - 86400]);
-        foreach ($st as $r) $out[(string) $r['short_uuid']] = ['day' => (int) $r['c'], 'dev' => (int) $r['d'], 'first' => 0];
-        foreach ($p->query("SELECT short_uuid, MIN($ep) AS f FROM request_log WHERE short_uuid IS NOT NULL AND short_uuid <> '' GROUP BY short_uuid") as $r) {
-            $su = (string) $r['short_uuid'];
-            if (isset($out[$su])) $out[$su]['first'] = (int) $r['f'];
+        foreach ($chunks as $c) {
+            $st = $p->prepare("SELECT short_uuid, COUNT(*) AS c, COUNT(DISTINCT hwid) AS d FROM request_log
+                               WHERE short_uuid IS NOT NULL AND short_uuid <> ''" . $in($c) . " AND decision <> 'browser' AND $ep >= ? GROUP BY short_uuid");
+            $st->execute(array_merge($c, [$since]));
+            foreach ($st as $r) $out[(string) $r['short_uuid']] = ['day' => (int) $r['c'], 'dev' => (int) $r['d'], 'first' => 0];
+        }
+        foreach ($chunks as $c) {
+            $st = $p->prepare("SELECT short_uuid, MIN($ep) AS f FROM request_log WHERE short_uuid IS NOT NULL AND short_uuid <> ''" . $in($c) . " GROUP BY short_uuid");
+            $st->execute($c);
+            foreach ($st as $r) {
+                $su = (string) $r['short_uuid'];
+                if (isset($out[$su])) $out[$su]['first'] = (int) $r['f'];
+            }
         }
     } catch (Throwable $e) { error_log('submw reqlog_user_index: ' . $e->getMessage()); }
     return $out;

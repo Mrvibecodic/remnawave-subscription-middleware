@@ -307,15 +307,17 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         var rows=Array.prototype.slice.call(body.rows);
         if(rows.length<2){return;}
         var dir=(uSort.col===col)?-uSort.dir:1; uSort={col:col,dir:dir};
-        rows.sort(function(a,b){
-            var x=(a.cells[col]?a.cells[col].textContent:'').trim().toLowerCase();
-            var y=(b.cells[col]?b.cells[col].textContent:'').trim().toLowerCase();
+        var keyed=rows.map(function(r){return {r:r,k:(r.cells[col]?r.cells[col].textContent:'').trim().toLowerCase()};});
+        keyed.sort(function(a,b){
+            var x=a.k, y=b.k;
             if(x===y) return 0;
             if(x===''||x==='—') return 1;
             if(y===''||y==='—') return -1;
             return (x<y?-1:1)*dir;
         });
-        rows.forEach(function(r){body.appendChild(r);});
+        var frag=document.createDocumentFragment();
+        keyed.forEach(function(o){frag.appendChild(o.r);});
+        body.appendChild(frag);
         var hdr=tbl.tHead?tbl.tHead.rows[0]:tbl.rows[0];
         for(var i=0;i<hdr.cells.length;i++){var s=hdr.cells[i].querySelector('.sar'); if(s) s.textContent='';}
         var ar=hdr.cells[col]?hdr.cells[col].querySelector('.sar'):null; if(ar) ar.textContent=dir>0?'▲':'▼';
@@ -328,9 +330,6 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         try{localStorage.setItem('utbl_dens',c===1?'1':'0');}catch(e){}
     }
     (function(){try{if(localStorage.getItem('utbl_dens')==='1'){var t=document.getElementById('utbl');if(t)t.classList.add('compact');var bs=document.querySelectorAll('.dens button');if(bs.length>1){bs.forEach(function(x){x.classList.remove('on');});bs[1].classList.add('on');}}}catch(e){}})();
-    document.querySelectorAll('.hw-btn').forEach(function(b){
-        b.addEventListener('click',function(){hwOpen(b.dataset.uuid,b.dataset.name||'',b.dataset.limit||'');});
-    });
     function nologToggle(btn){
         var su=btn.dataset.su||'', on=btn.classList.contains('on');
         if(!su) return;
@@ -344,9 +343,6 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
             if(window.uiToast) uiToast(d.nolog?'Запросы пользователя скрыты из лога':'Логирование пользователя включено');
         }).catch(function(){ btn.disabled=false; uiAlert('Сетевая ошибка'); });
     }
-    document.querySelectorAll('.nolog-btn').forEach(function(b){
-        b.addEventListener('click',function(){nologToggle(b);});
-    });
     document.addEventListener('keydown',function(e){if(e.key==='Escape')hwClose();});
     document.querySelectorAll('#utbl td[data-ets]').forEach(function(td){
         var d=new Date(parseInt(td.dataset.ets,10)*1000);
@@ -359,15 +355,12 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         var sizes=[10,25,50], size=50, page=1;
         try{var s=parseInt(localStorage.getItem('utbl_size'),10); if(sizes.indexOf(s)>-1) size=s;}catch(e){}
         function allRows(){ var t=document.getElementById('utbl'); if(!t||!t.tBodies.length) return []; return Array.prototype.slice.call(t.tBodies[0].rows); }
-        function matched(){
-            var q=((document.getElementById('flt')||{}).value||'').toLowerCase();
-            return allRows().filter(function(tr){ return (tr.textContent+' '+(tr.dataset.su||'')).toLowerCase().indexOf(q)>-1; });
-        }
         function render(){
-            var m=matched(), total=m.length, per=size, pages=Math.max(1,Math.ceil(total/per));
+            var q=((document.getElementById('flt')||{}).value||'').toLowerCase(), m=[];
+            allRows().forEach(function(tr){ if((tr.textContent+' '+(tr.dataset.su||'')).toLowerCase().indexOf(q)>-1) m.push(tr); else tr.style.display='none'; });
+            var total=m.length, per=size, pages=Math.max(1,Math.ceil(total/per));
             if(page>pages) page=pages; if(page<1) page=1;
             var start=(page-1)*per, end=start+per;
-            allRows().forEach(function(tr){ tr.style.display='none'; });
             m.forEach(function(tr,i){ tr.style.display=(i>=start&&i<end)?'':'none'; });
             var bot=document.getElementById('utblPager');
             if(bot){
@@ -424,8 +417,13 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
                 else showErr('Ошибка: ' + (d.error || ''));
             }).catch(function(){ showErr('Сетевая ошибка'); });
         };
-        document.querySelectorAll('.addsub-btn').forEach(function(b){
-            b.addEventListener('click', function(){ open(b.dataset.su, b.dataset.name || '', b.dataset.url || ''); });
+        var tb = document.querySelector('#utbl tbody');
+        if (tb) tb.addEventListener('click', function(e){
+            var b = e.target.closest('.hw-btn, .nolog-btn, .addsub-btn');
+            if (!b || !tb.contains(b)) return;
+            if (b.classList.contains('hw-btn')) hwOpen(b.dataset.uuid, b.dataset.name || '', b.dataset.limit || '');
+            else if (b.classList.contains('nolog-btn')) nologToggle(b);
+            else open(b.dataset.su, b.dataset.name || '', b.dataset.url || '');
         });
         document.addEventListener('keydown', function(e){ if (e.key === 'Escape') window.addsubClose(); });
     })();

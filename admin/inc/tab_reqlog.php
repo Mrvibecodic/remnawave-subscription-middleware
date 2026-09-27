@@ -333,7 +333,11 @@
             if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(v).then(done, legacy); else legacy();
         });
         function kpi(id, val){ var el = document.getElementById(id); if(el && val !== undefined && val !== null) el.textContent = val; }
+        var rlBusy = false;
+        function rlIdle(){ rlBusy = false; }
         window.rlRefresh = function(){
+            if(rlBusy) return;
+            rlBusy = true;
             var a = document.getElementById('rlAuto'); if(a) a.textContent = '· обновление…';
             var q = new URLSearchParams(window.location.search); q.set('ajax','reqlog');
             fetch('?'+q.toString()).then(function(r){ return r.json(); }).then(function(d){
@@ -357,7 +361,7 @@
                     if(rlPager) rlPager.refresh();
                 }
                 if(a) a.textContent = '· обновлено в ' + new Date().toLocaleTimeString();
-            }).catch(function(){ if(a) a.textContent = '· ошибка обновления'; });
+            }).catch(function(){ if(a) a.textContent = '· ошибка обновления'; }).then(rlIdle, rlIdle);
         };
         localize(document);
         localizeSpark();

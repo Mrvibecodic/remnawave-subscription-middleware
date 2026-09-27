@@ -36,7 +36,7 @@ function reqlog_prepare() {
     $ctx = [
         'names' => $names,
         'users' => $users,
-        'idx'   => reqlog_user_index(),
+        'idx'   => reqlog_user_index(array_column($rows, 'short_uuid')),
         'hist'  => reqlog_history($rows),
         'ov'    => $ov,
         'base'  => ['tab' => 'reqlog'],

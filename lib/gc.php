@@ -45,14 +45,33 @@ function gc_count($table, $days) {
     } catch (Throwable $e) { return null; }
 }
 
+function gc_overview_counts($name, array $t, array $periods) {
+    $res = ['total' => null, 'old' => array_fill_keys($periods, null)];
+    if (!($p = db())) return $res;
+    $sel = ['COUNT(*)'];
+    $args = [];
+    foreach ($periods as $d) {
+        $sel[] = 'SUM(CASE WHEN ' . $t['col'] . ' < ? THEN 1 ELSE 0 END)';
+        $args[] = gc_cut_value($t['kind'], time() - (int) $d * 86400);
+    }
+    try {
+        $st = $p->prepare('SELECT ' . implode(', ', $sel) . " FROM $name");
+        $st->execute($args);
+        $r = $st->fetch(PDO::FETCH_NUM);
+    } catch (Throwable $e) { return $res; }
+    if (!is_array($r)) $r = [];
+    $res['total'] = (int) ($r[0] ?? 0);
+    foreach (array_values($periods) as $i => $d) $res['old'][$d] = (int) ($r[$i + 1] ?? 0);
+    return $res;
+}
+
 function gc_overview() {
     gc_ensure();
     $out = [];
+    $periods = gc_periods();
     foreach (gc_tables() as $name => $t) {
-        $total = gc_count($name, 0);
-        $row = ['title' => $t['title'], 'total' => $total, 'old' => []];
-        foreach (gc_periods() as $d) $row['old'][$d] = $total === null ? null : gc_count($name, $d);
-        $out[$name] = $row;
+        $c = gc_overview_counts($name, $t, $periods);
+        $out[$name] = ['title' => $t['title'], 'total' => $c['total'], 'old' => $c['old']];
     }
     return $out;
 }

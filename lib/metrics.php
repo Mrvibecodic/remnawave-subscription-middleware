@@ -150,39 +150,37 @@ function metrics_prune($p) {
     } catch (Throwable $e) {}
 }
 
-function metrics_window_hits($p, $seconds) {
+function metrics_window_sums($p, $col, $now, array $windows) {
+    $out = array_fill(0, count($windows), 0);
+    if (!$windows) return $out;
+    $col = $col === 'hits_sub' ? 'hits_sub' : 'hits';
+    $sel = [];
+    $args = [];
+    foreach (array_values($windows) as $i => $sec) {
+        $sel[] = "COALESCE(SUM(CASE WHEN minute_ts >= ? THEN $col ELSE 0 END),0) AS w$i";
+        $args[] = $now - (int) $sec;
+    }
+    $args[] = $now - max(array_map('intval', $windows));
     try {
-        $st = $p->prepare('SELECT COALESCE(SUM(hits),0) FROM metrics_minute WHERE minute_ts >= ?');
-        $st->execute([time() - $seconds]);
-        return (int) $st->fetchColumn();
-    } catch (Throwable $e) { return 0; }
-}
-
-function metrics_window_sub($p, $seconds) {
-    try {
-        $st = $p->prepare('SELECT COALESCE(SUM(hits_sub),0) FROM metrics_minute WHERE minute_ts >= ?');
-        $st->execute([time() - $seconds]);
-        return (int) $st->fetchColumn();
-    } catch (Throwable $e) { return 0; }
+        $st = $p->prepare('SELECT ' . implode(', ', $sel) . ' FROM metrics_minute WHERE minute_ts >= ?');
+        $st->execute($args);
+        $r = $st->fetch(PDO::FETCH_NUM);
+        foreach (array_keys($out) as $i) $out[$i] = (int) ($r[$i] ?? 0);
+    } catch (Throwable $e) {}
+    return $out;
 }
 
 function metrics_load_summary() {
     $out = [
-        'm1' => 0, 'm5' => 0, 'm60' => 0, 'h24' => 0, 'today' => 0,
-        'm1_sub' => 0, 'm5_sub' => 0, 'm60_sub' => 0, 'h24_sub' => 0, 'today_sub' => 0,
-        'avg_ms' => 0, 'max_ms_60' => 0, 'mem_max_60' => 0, 'rpm_60' => 0.0,
+        'm1' => 0, 'm5' => 0, 'm60' => 0, 'today' => 0,
+        'm1_sub' => 0, 'm5_sub' => 0, 'm60_sub' => 0, 'today_sub' => 0,
+        'avg_ms' => 0, 'max_ms_60' => 0, 'rpm_60' => 0.0,
     ];
     if (!($p = db())) return $out;
     if (!ensure_metrics_tables()) return $out;
     $now = time();
-    $out['m1']  = metrics_window_hits($p, 60);
-    $out['m5']  = metrics_window_hits($p, 300);
-    $out['m60'] = metrics_window_hits($p, 3600);
-    $out['h24'] = metrics_window_hits($p, 86400);
-    $out['m1_sub']  = metrics_window_sub($p, 60);
-    $out['m5_sub']  = metrics_window_sub($p, 300);
-    $out['m60_sub'] = metrics_window_sub($p, 3600);
-    $out['h24_sub'] = metrics_window_sub($p, 86400);
+    [$out['m1'], $out['m5'], $out['m60']] = metrics_window_sums($p, 'hits', $now, [60, 300, 3600]);
+    [$out['m1_sub'], $out['m5_sub'], $out['m60_sub']] = metrics_window_sums($p, 'hits_sub', $now, [60, 300, 3600]);
     $tzoff    = isset($_COOKIE['tzoff']) ? max(-720, min(840, (int) $_COOKIE['tzoff'])) * 60 : (int) date('Z');
     $nowLocal = $now + $tzoff;
     $dayStart = $nowLocal - ($nowLocal % 86400) - $tzoff;
@@ -190,13 +188,12 @@ function metrics_load_summary() {
         $st = $p->prepare('SELECT COALESCE(SUM(hits),0) h, COALESCE(SUM(hits_sub),0) s FROM metrics_minute WHERE minute_ts >= ?');
         $st->execute([$dayStart]); $row = $st->fetch(); $out['today'] = (int) ($row['h'] ?? 0); $out['today_sub'] = (int) ($row['s'] ?? 0);
 
-        $st = $p->prepare('SELECT COALESCE(SUM(dur_ms_sum),0) s, COALESCE(SUM(hits),0) h, COALESCE(MAX(dur_ms_max),0) mx, COALESCE(MAX(mem_max),0) mm FROM metrics_minute WHERE minute_ts >= ?');
+        $st = $p->prepare('SELECT COALESCE(SUM(dur_ms_sum),0) s, COALESCE(SUM(hits),0) h, COALESCE(MAX(dur_ms_max),0) mx FROM metrics_minute WHERE minute_ts >= ?');
         $st->execute([$now - 3600]);
         $r = $st->fetch();
         $h = (int) ($r['h'] ?? 0);
         $out['avg_ms']     = $h > 0 ? (int) round(((int) $r['s']) / $h) : 0;
         $out['max_ms_60']  = (int) ($r['mx'] ?? 0);
-        $out['mem_max_60'] = (int) ($r['mm'] ?? 0);
         $out['rpm_60']     = round($out['m60'] / 60, 1);
     } catch (Throwable $e) {}
     return $out;
@@ -236,28 +233,40 @@ function metrics_recent_peaks($limit = 200) {
     return $rows;
 }
 
-function metrics_db_info() {
-    $out = ['driver' => db_driver(), 'size' => 0, 'location' => '', 'tables' => []];
-    if ($out['driver'] === 'sqlite') {
-        $c = db_conf();
-        $path = (is_array($c) && !empty($c['path'])) ? $c['path'] : default_db_path();
-        $out['location'] = $path;
+function metrics_db_sqlite_path() {
+    $c = db_conf();
+    return (is_array($c) && !empty($c['path'])) ? $c['path'] : default_db_path();
+}
+
+function metrics_db_size() {
+    if (db_driver() === 'sqlite') {
+        $path = metrics_db_sqlite_path();
         $size = 0;
         foreach (['', '-wal', '-shm'] as $suf) {
             $f = $path . $suf;
             if (is_file($f)) $size += (int) @filesize($f);
         }
-        $out['size'] = $size;
+        return $size;
+    }
+    $size = 0;
+    if ($p = db()) {
+        try {
+            $st = $p->query('SELECT COALESCE(SUM(data_length + index_length),0) FROM information_schema.tables WHERE table_schema = DATABASE()');
+            $size = (int) $st->fetchColumn();
+        } catch (Throwable $e) {}
+    }
+    return $size;
+}
+
+function metrics_db_info() {
+    $out = ['driver' => db_driver(), 'size' => 0, 'location' => '', 'tables' => []];
+    if ($out['driver'] === 'sqlite') {
+        $out['location'] = metrics_db_sqlite_path();
     } else {
         $c = db_conf();
         $out['location'] = (is_array($c) ? (($c['host'] ?? '') . ':' . ($c['port'] ?? 3306) . '/' . ($c['name'] ?? '')) : '');
-        if ($p = db()) {
-            try {
-                $st = $p->query('SELECT COALESCE(SUM(data_length + index_length),0) FROM information_schema.tables WHERE table_schema = DATABASE()');
-                $out['size'] = (int) $st->fetchColumn();
-            } catch (Throwable $e) {}
-        }
     }
+    $out['size'] = metrics_db_size();
     if ($p = db()) {
         foreach (['overrides', 'request_log', 'webhook_log', 'forward_log', 'grace_users', 'metrics_minute', 'metrics_peak'] as $t) {
             try { $out['tables'][$t] = (int) $p->query("SELECT COUNT(*) FROM $t")->fetchColumn(); }
