@@ -127,8 +127,9 @@
             <h2>Активность по часам <span class="muted" style="font-weight:400;font-size:.78rem">последние 24 часа</span></h2>
             <div class="loghead-r"><button type="button" class="btn ghost" onclick="rlRefresh()">Обновить</button></div>
         </div>
-        <div class="spark" id="rlSpark"><?php $rl_peak = max(1, (int) $rl_over['peak']); foreach ($rl_over['hourly'] as $rl_hi => $rl_hv): ?><i class="<?= $rl_hv >= $rl_peak * .75 ? 'hi' : '' ?>" style="height:<?= max(6, (int) round(pow($rl_hv / $rl_peak, .62) * 100)) ?>%" data-ts="<?= (intdiv(time(), 3600) - 23 + $rl_hi) * 3600 ?>" data-c="<?= (int) $rl_hv ?>" data-tip="<?= h(date('H:i', (intdiv(time(), 3600) - 23 + $rl_hi) * 3600)) ?> — <?= (int) $rl_hv ?>"></i><?php endforeach; ?></div>
-        <div class="sparkx" id="rlSparkX"><span><?= h(date('H:i', (intdiv(time(), 3600) - 23) * 3600)) ?></span><span><?= h(date('H:i', (intdiv(time(), 3600) - 16) * 3600)) ?></span><span><?= h(date('H:i', (intdiv(time(), 3600) - 8) * 3600)) ?></span><span><?= h(date('H:i', intdiv(time(), 3600) * 3600)) ?></span></div>
+        <?php $rl_hn = intdiv(time(), 3600); ?>
+        <div class="spark" id="rlSpark"><?= rl_spark_html($rl_over, $rl_hn) ?></div>
+        <div class="sparkx" id="rlSparkX"><span><?= h(date('H:i', ($rl_hn - 23) * 3600)) ?></span><span><?= h(date('H:i', ($rl_hn - 16) * 3600)) ?></span><span><?= h(date('H:i', ($rl_hn - 8) * 3600)) ?></span><span><?= h(date('H:i', $rl_hn * 3600)) ?></span></div>
     </div>
 
     <div class="card">
@@ -226,7 +227,7 @@
             <tr>
                 <td><code><?= h(mb_substr((string) $j['path'], 0, 120)) ?></code></td>
                 <td><?= (int) $j['hits'] ?></td>
-                <td class="muted"><?= (int) $j['last_ts'] ? h(date('Y-m-d H:i', (int) $j['last_ts'])) : '—' ?></td>
+                <td class="muted"><?= (int) $j['last_ts'] ? '<span class="rl-dt" data-ts="' . (int) $j['last_ts'] . '">' . h(date('Y-m-d H:i', (int) $j['last_ts'])) . '</span>' : '—' ?></td>
                 <td>
                     <form method="post" style="margin:0">
                         <input type="hidden" name="csrf" value="<?= h($token) ?>">
@@ -253,6 +254,12 @@
             var d = new Date(ep*1000); if(isNaN(d.getTime())) return '';
             var t = p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds());
             return withDate ? (d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' '+t) : t;
+        }
+        function locD(ep, withTime){
+            ep = parseInt(ep,10); if(!ep) return '';
+            var d = new Date(ep*1000); if(isNaN(d.getTime())) return '';
+            var s = d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+            return withTime ? (s+' '+p2(d.getHours())+':'+p2(d.getMinutes())) : s;
         }
         function locHM(ep){
             ep = parseInt(ep,10); if(!ep) return '';
@@ -290,8 +297,25 @@
             (root||document).querySelectorAll('.rl-full[data-ts]').forEach(function(el){
                 var v = loc(el.getAttribute('data-ts'), true); if(v) el.textContent = v;
             });
+            (root||document).querySelectorAll('.rl-dt[data-ts]').forEach(function(el){
+                var v = locD(el.getAttribute('data-ts'), true); if(v) el.textContent = v;
+            });
+            (root||document).querySelectorAll('.rl-day[data-ts]').forEach(function(el){
+                var v = locD(el.getAttribute('data-ts'), false); if(v) el.textContent = v;
+            });
         }
         function anyOpen(){ return !!document.querySelector('.row-x.show'); }
+        function rlSync(){
+            body.querySelectorAll('.row-x.show').forEach(function(x){
+                var tr = x.previousElementSibling;
+                if(tr && tr.style.display === 'none'){ x.classList.remove('show'); tr.classList.remove('open'); }
+            });
+        }
+        ['rl_pgrTop','rl_pgrBot'].forEach(function(id){
+            var el = document.getElementById(id); if(!el) return;
+            el.addEventListener('click', function(){ setTimeout(rlSync, 0); });
+            el.addEventListener('change', function(){ setTimeout(rlSync, 0); });
+        });
         body.addEventListener('click', function(e){
             if(e.target.closest('a, button, .xacts')) return;
             var tr = e.target.closest('.rowb'); if(!tr) return;
@@ -320,6 +344,12 @@
                     kpi('rlKpiUsers', d.kpi.users); kpi('rlKpiDev', d.kpi.devices);
                     if(d.kpi.utotal) kpi('rlKpiUsersTot', ' / ' + d.kpi.utotal);
                     kpi('rlKpiTotal', d.kpi.total); kpi('rlKpiBlocked', d.kpi.blocked);
+                    var bu = document.getElementById('rlKpiBlockedU');
+                    if(bu && d.kpi.blocked_users !== undefined && d.kpi.blocked_users !== null){
+                        var bn = parseInt(d.kpi.blocked_users, 10) || 0;
+                        bu.textContent = bn ? ('у ' + bn + ' пользователей') : 'за последние 24 часа';
+                        bu.classList.toggle('alert', bn > 0);
+                    }
                     var sp = document.getElementById('rlSpark'); if(sp && d.spark) sp.innerHTML = d.spark;
                     var pk = document.getElementById('rlKpiPeak');
                     if(pk && d.kpi){ pk.setAttribute('data-ts', d.kpi.peak_h || 0); pk.setAttribute('data-c', d.kpi.peak || 0); }

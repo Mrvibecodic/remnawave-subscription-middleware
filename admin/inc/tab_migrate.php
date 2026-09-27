@@ -52,7 +52,7 @@ $gc_free = gc_free_bytes();
     <form method="post" onsubmit="return uiConfirmForm(this,'Сжать базу? На время работы она будет заблокирована.','Сжать',false)" style="margin-top:.9rem">
         <input type="hidden" name="csrf" value="<?= h($token) ?>">
         <input type="hidden" name="action" value="gc_compact">
-        <button type="submit" class="ghost">Сжать базу</button>
+        <button type="submit" class="btn ghost">Сжать базу</button>
     </form>
 </div>
 <script>

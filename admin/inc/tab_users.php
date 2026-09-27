@@ -78,7 +78,6 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         .btn-del{border-color:var(--red);color:var(--c-bad-fg)}
         .btn-del:hover{border-color:var(--red);color:var(--c-bad-fg);background:var(--c-bad-bg)}
         .tip{position:relative;cursor:help}
-        .tip:hover::after{content:attr(data-tip);position:absolute;left:50%;transform:translateX(-50%);bottom:135%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.45rem .7rem;font-size:.78rem;font-weight:500;white-space:nowrap;box-shadow:var(--shadow);z-index:10}
     </style>
     <div class="card utbl-card">
         <div class="utbl-head">

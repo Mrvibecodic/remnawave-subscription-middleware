@@ -383,13 +383,7 @@ if (isset($_GET['ajax']) && is_auth()) {
         [$rl_f, $rl_rows, $rl_ctx, $rl_tusers] = reqlog_prepare();
         $st   = reqlog_today_stats();
         $ov   = reqlog_overview();
-        $peak = max(1, (int) $ov['peak']);
-        $spark = '';
-        $hbase = intdiv(time(), 3600) - 23;
-        foreach ($ov['hourly'] as $hi => $hv) {
-            $spark .= '<i class="' . ($hv >= $peak * .75 ? 'hi' : '') . '" style="height:' . max(6, (int) round(pow($hv / $peak, .62) * 100)) . '%" data-ts="' . (($hbase + $hi) * 3600) . '" data-c="' . (int) $hv . '" title="'
-                    . h(date('H:i', ($hbase + $hi) * 3600)) . ' — ' . (int) $hv . '"></i>';
-        }
+        $spark = rl_spark_html($ov);
         echo json_encode([
             'ok'    => true,
             'html'  => reqlog_render_rows($rl_rows, $rl_ctx),
@@ -401,6 +395,7 @@ if (isset($_GET['ajax']) && is_auth()) {
                 'devices' => (int) $st['today_devices'],
                 'total'   => (int) $ov['total'],
                 'blocked' => (int) $ov['blocked'],
+                'blocked_users' => (int) $ov['blocked_users'],
                 'peak'    => (int) $ov['peak'],
                 'peak_h'  => (int) $ov['peak_h'],
             ],
@@ -1390,7 +1385,7 @@ if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
 $fwdlog = [];
 if ($db_ok && $tab === 'fwdlog') {
     ensure_forward_log();
-    try { foreach ($pdo->query('SELECT * FROM forward_log ORDER BY id DESC LIMIT 300') as $r) $fwdlog[] = $r; } catch (Throwable $e) {}
+    try { foreach ($pdo->query('SELECT *, ' . sql_epoch('ts') . ' AS ts_epoch FROM forward_log ORDER BY id DESC LIMIT 300') as $r) $fwdlog[] = $r; } catch (Throwable $e) {}
 }
 $chat_sessions = [];
 if ($db_ok && $tab === 'chat') { $chat_sessions = chat_sessions_list(100); }

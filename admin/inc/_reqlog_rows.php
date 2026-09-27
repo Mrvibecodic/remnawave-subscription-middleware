@@ -105,6 +105,17 @@ function rl_hist_bar($list) {
     return '<span class="hist">' . $out . '</span>';
 }
 
+function rl_spark_html(array $ov, ?int $hour = null) {
+    $peak  = max(1, (int) ($ov['peak'] ?? 0));
+    $hbase = ($hour ?? intdiv(time(), 3600)) - 23;
+    $out   = '';
+    foreach (($ov['hourly'] ?? []) as $hi => $hv) {
+        $ts = ($hbase + $hi) * 3600;
+        $out .= '<i class="' . ($hv >= $peak * .75 ? 'hi' : '') . '" style="height:' . max(6, (int) round(pow($hv / $peak, .62) * 100)) . '%" data-ts="' . $ts . '" data-c="' . (int) $hv . '" data-tip="' . h(date('H:i', $ts)) . ' — ' . (int) $hv . '"></i>';
+    }
+    return $out;
+}
+
 function rl_cv_dot($cv) {
     $s = (string) ($cv['s'] ?? '');
     if ($s !== 'patch' && $s !== 'minor') return '';
@@ -202,7 +213,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '<div class="xcol"><div class="xh">Подписка</div>'
               . '<div class="xr"><span class="l">Пользователь</span><span class="v">' . ($name !== '' ? h($name) . ' · ' : '') . '<span class="mono">' . h($su !== '' ? $su : '—') . '</span></span></div>'
               . '<div class="xr"><span class="l">Статус</span><span class="v">' . (($u['status'] ?? '') !== '' ? '<span class="tag ' . h((string) $u['status']) . '">' . h((string) $u['status']) . '</span>' : '<span class="dim">неизвестен</span>') . '</span></div>'
-              . '<div class="xr"><span class="l">Expire</span><span class="v">' . ($exp > 0 ? '<span class="mono">' . h(date('Y-m-d H:i', $exp)) . '</span> · <span class="' . $lcls . '">' . h($left) . '</span>' : '—') . '</span></div>'
+              . '<div class="xr"><span class="l">Expire</span><span class="v">' . ($exp > 0 ? '<span class="mono rl-dt" data-ts="' . $exp . '">' . h(date('Y-m-d H:i', $exp)) . '</span> · <span class="' . $lcls . '">' . h($left) . '</span>' : '—') . '</span></div>'
               . '<div class="xr"><span class="l">Решение</span><span class="v">' . rl_dec_tag($dec) . ' — ' . h(rl_dec_why($dec, $meta)) . '</span></div>'
               . '</div>'
               . '<div class="xcol"><div class="xh">Клиент</div>'
@@ -225,7 +236,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '<div class="xr"><span class="l">Последние</span><span class="v">' . rl_hist_bar($hist[$su] ?? []) . '</span></div>'
               . '<div class="xr"><span class="l">За сутки</span><span class="v">' . $day . '</span></div>'
               . '<div class="xr"><span class="l">Устройств</span><span class="v">' . (int) ($idx[$su]['dev'] ?? 0) . ((string) ($u['lim'] ?? '') !== '' ? ' <span class="dim">· лимит ' . (int) $u['lim'] . '</span>' : '') . '</span></div>'
-              . '<div class="xr"><span class="l">Первый заход</span><span class="v mono">' . (!empty($idx[$su]['first']) ? h(date('Y-m-d', (int) $idx[$su]['first'])) : '—') . '</span></div>'
+              . '<div class="xr"><span class="l">Первый заход</span><span class="v mono">' . (!empty($idx[$su]['first']) ? '<span class="rl-day" data-ts="' . (int) $idx[$su]['first'] . '">' . h(date('Y-m-d', (int) $idx[$su]['first'])) . '</span>' : '—') . '</span></div>'
               . '</div>'
               . ($su !== '' ? '<div class="xacts">'
                   . '<a class="btn ghost" href="' . h(rl_link(['rl_q' => $su], $base)) . '">Фильтр по этому пользователю</a>'
