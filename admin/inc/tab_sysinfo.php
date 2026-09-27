@@ -31,9 +31,6 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
         .si-card .n{font-size:1.5rem;font-weight:700;color:var(--text-strong);line-height:1.1}
         .si-card .l{font-size:.76rem;color:var(--muted);margin-top:.2rem}
         .si-chart{display:flex;align-items:flex-end;gap:2px;height:120px;padding:.6rem;background:var(--bg2);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-        .si-bar{flex:1 1 0;min-width:2px;background:var(--accent);border-radius:2px 2px 0 0;opacity:.85;transition:height .2s}
-        .si-bar.zero{background:var(--line);opacity:.5}
-        .si-bar.peak{background:var(--err)}
         .si-chart-x{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:.3rem}
         .si-leg{display:flex;flex-wrap:wrap;gap:1.1rem;align-items:center;font-size:.8rem;color:var(--muted);margin:.1rem 0 .9rem}
         .si-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:.35rem;vertical-align:middle}
@@ -48,7 +45,6 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
         .si-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.7rem;margin-bottom:1.1rem}
         .si-kpi .si-card .n{font-size:1.75rem}
         .si-panels{min-height:440px}
-        .si-seg-panel[hidden]{display:none}
         .si-sub{font-weight:700;font-size:.95rem;margin:1.1rem 0 .5rem;color:var(--text-strong)}
         .si-sub:first-child{margin-top:.2rem}
         .si-pnote{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin:.1rem 0 .9rem}
@@ -226,11 +222,9 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
     </div>
 
     <script>
-    var SI_MAXBASE = <?= (int) $si_max ?>;
     var SI_PANEL = null;
     function siFmtBytes(n){n=Number(n)||0;var u=['B','KB','MB','GB','TB'],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return (i===0?Math.round(n):(n>=100?Math.round(n):Math.round(n*10)/10))+' '+u[i];}
     function siLocal(ep,withDate){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);function p(n){return(n<10?'0':'')+n;}var t=p(d.getHours())+':'+p(d.getMinutes());return withDate?(d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+t):t;}
-    function siEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function siPnum(v){return (v===null||v===undefined)?'—':Number(v).toLocaleString('ru-RU');}
     function siChart(series){
         var box=document.getElementById('si_chart'); if(!box||!series) return;

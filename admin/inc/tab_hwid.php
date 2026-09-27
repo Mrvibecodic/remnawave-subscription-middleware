@@ -26,6 +26,13 @@
         </form>
     </div>
     <script>
-    function hwRender(){ phRender({list:['hw_blocked'], titleText:'(как у origin)', titleEl:'hw_pvtitle', subEl:'hw_pvsub', listEl:'hw_pvlist', sub:'Сценарий: подписка заблокирована'}); }
+    function hwEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML;}
+    function hwRender(){
+        var el=document.getElementById('hw_blocked');
+        var rows=(el?el.value.split('\n'):[]).map(function(s){return s.trim();}).filter(function(s){return s.length;}).map(function(n){return '<div class="srow"><span class="dot"></span><span class="nm">'+hwEsc(n)+'</span><span class="pg">—</span></div>';});
+        var te=document.getElementById('hw_pvtitle'); if(te) te.textContent='(как у origin)';
+        var se=document.getElementById('hw_pvsub'); if(se) se.textContent='Сценарий: подписка заблокирована';
+        var le=document.getElementById('hw_pvlist'); if(le) le.innerHTML=rows.length?rows.join(''):'<div class="ph-empty">пусто — добавьте строки слева</div>';
+    }
     hwRender();
     </script>

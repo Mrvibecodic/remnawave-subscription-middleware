@@ -30,6 +30,6 @@
         <div id="fl_pgrBot" class="pgr-bot"></div>
         <script>
         (function(){function p(n){return(n<10?'0':'')+n;}document.querySelectorAll('.fl-time[data-ts]').forEach(function(td){var ep=parseInt(td.getAttribute('data-ts'),10);if(!ep)return;var d=new Date(ep*1000);if(isNaN(d.getTime()))return;td.textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());});})();
-        (function(){ if(window.LogPager) LogPager({bodyId:'flBody', topId:'fl_pgrTop', botId:'fl_pgrBot', colspan:6, storeKey:'pg_fwdlog'}); })();
+        LogPager({bodyId:'flBody', topId:'fl_pgrTop', botId:'fl_pgrBot', storeKey:'pg_fwdlog'});
         </script>
     </div>

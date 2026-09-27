@@ -56,7 +56,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
         <h2 style="margin-top:0;font-size:1rem">Ветка (тег образа)</h2>
         <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
         <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Ветка = тег образа в реестре.</p>
-        <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return (function(f){uiConfirm('Переключить отслеживаемую ветку? Проверки обновлений будут сверяться с её последним коммитом.',function(){f.submit();},'Переключить',false);return false;})(this)">
+        <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return uiConfirmForm(this,'Переключить отслеживаемую ветку? Проверки обновлений будут сверяться с её последним коммитом.','Переключить',false)">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_switch_branch">
             <select name="branch" style="min-width:150px;padding:.4rem .6rem">
@@ -129,7 +129,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
         <h2 style="margin-top:0;font-size:1rem">Ветка обновлений</h2>
         <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
         <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Обновления тянутся из выбранной ветки.</p>
-        <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return (function(f){uiConfirm('Переключить ветку обновлений? После этого проверится последний коммит выбранной ветки.',function(){f.submit();},'Переключить',false);return false;})(this)">
+        <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return uiConfirmForm(this,'Переключить ветку обновлений? После этого проверится последний коммит выбранной ветки.','Переключить',false)">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_switch_branch">
             <select name="branch" style="min-width:150px;padding:.4rem .6rem">
@@ -163,7 +163,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
             </div>
         <?php endif; ?>
         <div class="warn" style="margin-top:.8rem">Обновление перезапишет перечисленные файлы версиями из репозитория. Любые локальные правки в коде этих файлов будут потеряны (кастомизацию держите в config.php и настройках). Перед записью делается бэкап в <code>.backups/</code> — есть откат.</div>
-        <form method="post" style="margin-top:.9rem" onsubmit="var f=this;uiConfirm('Применить обновление? Изменённые файлы будут перезаписаны (бэкап в .backups/).',function(){f.submit();},'Обновить',false);return false;">
+        <form method="post" style="margin-top:.9rem" onsubmit="return uiConfirmForm(this,'Применить обновление? Изменённые файлы будут перезаписаны (бэкап в .backups/).','Обновить',false)">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_apply">
             <button type="submit">⬇️ Обновить до <code><?= h(substr($u_latest, 0, 7)) ?></code></button>
@@ -188,7 +188,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
         <div class="card" style="flex:1 1 300px;margin:0">
             <h2 style="margin-top:0;font-size:1rem">Откат</h2>
             <p class="muted" style="margin-top:0">Последний бэкап: <code><?= h($u_backup) ?></code>. Откат вернёт файлы к состоянию до последнего обновления.</p>
-            <form method="post" onsubmit="var f=this;uiConfirm('Откатить последнее обновление из бэкапа?',function(){f.submit();},'Откатить',false);return false;">
+            <form method="post" onsubmit="return uiConfirmForm(this,'Откатить последнее обновление из бэкапа?','Откатить',false)">
                 <input type="hidden" name="csrf" value="<?= h($token) ?>">
                 <input type="hidden" name="action" value="update_rollback">
                 <button type="submit" class="btn ghost">↩️ Откатить последнее обновление</button>

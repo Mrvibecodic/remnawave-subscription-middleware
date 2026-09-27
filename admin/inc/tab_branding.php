@@ -77,7 +77,7 @@
         <?php endif; ?>
         <p style="margin:.3rem 0"><span class="muted">Текущий отпечаток:</span> <code><?= h(substr(landing_fp(), 0, 12)) ?></code></p>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
-            <form method="post" style="margin:0" onsubmit="return (function(f){uiConfirm('Перегенерировать отпечаток страницы-заглушки? Корневая страница станет уникальной для этого сервера.',function(){f.submit();},'Перегенерировать',false);return false;})(this)">
+            <form method="post" style="margin:0" onsubmit="return uiConfirmForm(this,'Перегенерировать отпечаток страницы-заглушки? Корневая страница станет уникальной для этого сервера.','Перегенерировать',false)">
                 <input type="hidden" name="csrf" value="<?= h($token) ?>">
                 <input type="hidden" name="action" value="landing_regen_fp">
                 <button type="submit" class="btn">🔁 Перегенерировать отпечаток</button>

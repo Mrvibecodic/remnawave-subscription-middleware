@@ -71,16 +71,6 @@
                 });
             });
         });
-        document.querySelectorAll('.sq-search').forEach(function(inp){
-            inp.addEventListener('input', function(){
-                var q = inp.value.trim().toLowerCase();
-                var box = inp.parentNode.querySelector('.sq-grid'); if(!box) return;
-                box.querySelectorAll('.sq-item').forEach(function(ch){
-                    var nm = (ch.querySelector('.sq-n') || {}).textContent || '';
-                    ch.style.display = nm.toLowerCase().indexOf(q) > -1 ? '' : 'none';
-                });
-            });
-        });
     })();
     window.sqcfgInitEdit = function(){
         var modal = document.getElementById('sqEditModal');

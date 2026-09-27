@@ -38,22 +38,6 @@ function emit_app_headers() {
     }
 }
 
-function remnawave_panel_headers(&$error = '') {
-    $error = '';
-    $out = [];
-    [$ok, $code, $data, $e] = remnawave_api_get('/api/subscription-settings');
-    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return $out; }
-    $resp = $data['response'] ?? $data;
-    if (!is_array($resp)) return $out;
-    $crh = $resp['customResponseHeaders'] ?? null;
-    if (is_array($crh)) {
-        foreach ($crh as $k => $v) {
-            if (is_string($k) && $k !== '') $out[$k] = is_scalar($v) ? (string) $v : json_encode($v, JSON_UNESCAPED_UNICODE);
-        }
-    }
-    return $out;
-}
-
 function brand_dir() { return dirname(__DIR__) . '/admin/assets'; }
 
 function brand_logo_missing($cache) {

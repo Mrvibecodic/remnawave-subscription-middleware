@@ -118,7 +118,7 @@
                 <td><?= (string) $r['short_uuid'] !== '' ? '<a href="' . h($wh_link(['wh_user' => (string) $r['short_uuid']])) . '" title="Фильтровать по shortUuid"><code>' . h($r['short_uuid']) . '</code></a>' : '<span class="muted">—</span>' ?></td>
                 <td><?= (string) $r['username'] !== '' ? '<a href="' . h($wh_link(['wh_user' => (string) $r['username']])) . '" title="Фильтровать по пользователю">' . h($r['username']) . '</a>' : '<span class="muted">—</span>' ?></td>
                 <td><?= (string) $r['status'] !== '' ? '<span class="tag ' . h($r['status']) . '">' . h($r['status']) . '</span>' : '<span class="muted">—</span>' ?></td>
-                <td class="wh-chg">
+                <td>
                     <?php $wm = whlog_meta($r); ?>
                     <?php if ($wm && $wm['d']): ?>
                     <button type="button" class="wh-tg" aria-expanded="false">
@@ -163,7 +163,7 @@
             function whLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);if(isNaN(d.getTime()))return '';function p(n){return(n<10?'0':'')+n;}return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
             function whTimes(root){(root||document).querySelectorAll('.wh-time[data-ts]').forEach(function(td){var v=whLocal(td.getAttribute('data-ts'));if(v)td.textContent=v;});}
             whTimes(document);
-            if(window.LogPager) LogPager({bodyId:'whBody', topId:'wh_pgrTop', botId:'wh_pgrBot', colspan:<?= $wh_cols ?>, storeKey:'pg_whlog_<?= $wh_full ? 'user' : 'other' ?>'});
+            LogPager({bodyId:'whBody', topId:'wh_pgrTop', botId:'wh_pgrBot', storeKey:'pg_whlog_<?= $wh_full ? 'user' : 'other' ?>'});
             var whBody=document.getElementById('whBody');
             if(whBody){
                 function whSync(){
