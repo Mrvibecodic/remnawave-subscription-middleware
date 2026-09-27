@@ -268,6 +268,7 @@ if (!is_auth()) {
         input:focus{outline:none;border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,.35)}
         input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus{-webkit-text-fill-color:#e2e8f0;-webkit-box-shadow:0 0 0 1000px #0f172a inset;caret-color:#e2e8f0}
         button{width:100%;margin-top:1.25rem;padding:.7rem;background:#4f46e5;color:#fff;border:0;border-radius:.4rem;font-weight:600;cursor:pointer}
+        button:disabled{opacity:.6;cursor:default}
         .err{color:#f87171;font-size:.85rem;margin-top:.75rem;min-height:1rem}
         .ok{color:#4ade80;font-size:.85rem;margin-bottom:.75rem}
     </style></head><body>
@@ -279,7 +280,18 @@ if (!is_auth()) {
         <label for="password">Пароль</label><input id="password" name="pass" type="password" autocomplete="current-password" required>
         <button type="submit">🔑 Войти</button>
         <div class="err"><?= h($err) ?></div>
-    </form></body></html>
+    </form>
+    <script>
+    (function(){
+        // Повторная отправка (двойной клик/Enter) уходит со старой сессией, которую первый успешный вход
+        // уже пересоздал (session_regenerate_id) — получается ложное «Страница входа устарела».
+        var f = document.querySelector('form.card'), b = f.querySelector('button');
+        f.addEventListener('submit', function (e) { if (b.disabled) { e.preventDefault(); return; } b.disabled = true; });
+        // Возврат кнопкой «Назад» из bfcache — кнопка снова активна.
+        addEventListener('pageshow', function (e) { if (e.persisted) b.disabled = false; });
+    })();
+    </script>
+    </body></html>
     <?php
     exit();
 }
