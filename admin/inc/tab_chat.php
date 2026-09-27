@@ -33,7 +33,7 @@ $c_color  = chat_widget_color();
         .cb-m.system{align-self:center;background:transparent;color:var(--muted);font-size:.78rem}
         .cb-m .cb-src{font-size:.66rem;opacity:.7;margin-top:.15rem}
         .cb-reply{display:flex;gap:.5rem;padding:.7rem;border-top:1px solid var(--line);background:var(--card)}
-        .cb-reply textarea{flex:1;border:1px solid var(--line);border-radius:10px;padding:.55rem .8rem;font-family:inherit;font-size:.9rem;resize:none;background:var(--bg2);color:var(--text)}
+        .cb-reply textarea{flex:1;border:1px solid var(--line);border-radius:10px;padding:.55rem .8rem;resize:none}
         .cb-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:.9rem}
     </style>
 
@@ -82,7 +82,7 @@ $c_color  = chat_widget_color();
                 <div><label>Интервал опроса, сек</label><input type="number" min="2" max="30" name="chat_poll_interval" value="<?= (int) chat_poll_interval() ?>"></div>
             </div>
 
-            <label style="display:block;margin:.4rem 0 .2rem">Вид свёрнутого окна</label>
+            <label style="margin:.4rem 0 .2rem">Вид свёрнутого окна</label>
             <div class="cb-presets">
                 <label class="cb-pre <?= $c_preset===1?'sel':'' ?>" data-pre="1"><input type="radio" name="chat_widget_preset" value="1" <?= $c_preset===1?'checked':'' ?>><div class="cb-demo"><span class="cb-bubble"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.3 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span></div><div class="cb-lbl">Круглый пузырь</div></label>
                 <label class="cb-pre <?= $c_preset===2?'sel':'' ?>" data-pre="2"><input type="radio" name="chat_widget_preset" value="2" <?= $c_preset===2?'checked':'' ?>><div class="cb-demo"><span class="cb-pill">💬 Напишите нам</span></div><div class="cb-lbl">Пилюля с текстом</div></label>

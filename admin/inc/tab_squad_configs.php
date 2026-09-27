@@ -1,11 +1,6 @@
 <?php $sq_psize = pager_cookie_size('sqcfg_size'); ?>
+    <?php include __DIR__ . '/_sqcfg_css.php'; ?>
     <style>
-        .mc-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
-        @media(max-width:720px){.mc-grid{grid-template-columns:1fr}}
-        .sqcfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem 1rem;align-items:end}
-        .sqcfg-grid select,.sqcfg-grid input{width:100%;box-sizing:border-box}
-        .sqcfg-grid label{display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
-        .sqcfg-sel{appearance:none;-webkit-appearance:none;-moz-appearance:none;padding-right:2.2rem;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .75rem center;background-size:.95rem}
         .sqcfg-hint{margin-top:1rem;border:1px solid var(--line);border-radius:10px;padding:.8rem 1rem;font-size:.86rem;line-height:1.5;background:var(--bg2)}
         .sqcfg-hint.ok{border-color:var(--accent)}
         .sqcfg-hint.bad{border-color:var(--c-warn-fg)}
@@ -22,12 +17,6 @@
         .sq-tplst b{color:var(--text)}
         .sq-tplst .sub{display:block;color:var(--muted);margin-top:.2rem}
         @media(max-width:560px){.set-row>input.sq-tpl{width:100%}}
-        #sqEditModal label:not(.sq-item){display:block;margin-bottom:.3rem;font-weight:600;font-size:.82rem}
-        .card label{display:block;margin-bottom:.35rem;font-weight:600;font-size:.85rem}
-        .sq-tag{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:.08rem .45rem;font-size:.74rem;margin:.1rem .25rem .1rem 0;white-space:nowrap}
-        .sq-manual{padding-top:.4rem;padding-bottom:.4rem}
-        .sq-manual .sq-mtxt{display:flex;flex-direction:column;justify-content:center;gap:.05rem;flex:1;min-width:0}
-        .sq-manual .sq-n{flex:none;line-height:1.15;font-size:.86rem}
     </style>
     <section class="<?= coll_cls('sqcfg_about') ?>" data-coll="sqcfg_about">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Что это и как настраивать</span>
@@ -104,12 +93,12 @@
                 <div class="mc-grid" style="margin-top:1rem">
                     <div>
                         <label for="sqcfg_name">Метка</label>
-                        <input type="text" id="sqcfg_name" name="name" class="sqcfg-flag" placeholder="напр.: Нидерланды · VLESS" maxlength="191" required style="width:100%;box-sizing:border-box">
+                        <input type="text" id="sqcfg_name" name="name" class="sqcfg-flag" placeholder="напр.: Нидерланды · VLESS" maxlength="191" required>
                         <div class="muted" style="font-size:.8rem;margin-top:.5rem;line-height:1.5">Страну пиши в начале метки — флаг подставится сам: «Нидерланды · VLESS» → 🇳🇱, «Европа» → 🇪🇺. Можно и кодом: NL, DE, UK.</div>
                     </div>
                     <div>
                         <label for="sqcfg_raw">Конфиг</label>
-                        <textarea id="sqcfg_raw" name="raw" rows="5" spellcheck="false" placeholder="vless://…" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
+                        <textarea id="sqcfg_raw" name="raw" rows="5" spellcheck="false" placeholder="vless://…" style="font-family:monospace;font-size:.82rem"></textarea>
                     </div>
                 </div>
                 <div id="sqcfg_hint" class="sqcfg-hint" style="display:none"></div>
@@ -135,7 +124,7 @@
                 <div class="sqcfg-grid">
                     <div>
                         <label>Пользователь (shortUuid или имя)</label>
-                        <div style="display:flex;gap:.4rem"><input type="text" id="wgm_q" placeholder="shortUuid / username" style="flex:1;box-sizing:border-box"><button type="button" class="sqcfg-btn" id="wgm_find">Найти</button></div>
+                        <div style="display:flex;gap:.4rem"><input type="text" id="wgm_q" placeholder="shortUuid / username" style="flex:1"><button type="button" class="sqcfg-btn" id="wgm_find">Найти</button></div>
                     </div>
                     <div>
                         <label>Конфиг</label>
@@ -264,12 +253,12 @@
                     </div>
                     <div style="margin-bottom:.85rem">
                         <label>Метка</label>
-                        <input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required style="width:100%;box-sizing:border-box">
+                        <input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required>
                         <div class="muted" style="font-size:.8rem;margin-top:.4rem;line-height:1.5">Страна в начале метки — флаг подставится сам (Нидерланды → 🇳🇱, Европа → 🇪🇺).</div>
                     </div>
                     <div style="margin-bottom:.85rem">
                         <label>Конфиг</label>
-                        <textarea name="raw" id="sqedit_raw" rows="9" spellcheck="false" required style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box"></textarea>
+                        <textarea name="raw" id="sqedit_raw" rows="9" spellcheck="false" required style="font-family:monospace;font-size:.82rem"></textarea>
                     </div>
                     <div style="display:flex;gap:.6rem">
                         <button type="submit" class="btn">Сохранить изменения</button>

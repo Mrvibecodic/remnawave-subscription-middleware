@@ -35,7 +35,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .cdbg .n{font-variant-numeric:tabular-nums;flex:0 0 auto}
     .cdbg .g{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
     .cdbg .lbl{font-weight:600;margin:.5rem 0 .15rem;font-size:.74rem}
-    .cdbg pre{margin:0;padding:.45rem .55rem;font-size:.7rem;line-height:1.35;max-width:100%;max-height:13rem;overflow-x:hidden;overflow-y:auto;white-space:break-spaces;word-break:break-all;overflow-wrap:anywhere;background:var(--bg2);border:1px solid var(--line)}
+    .cdbg pre{margin:0;padding:.45rem .55rem;font-size:.7rem;line-height:1.35;max-width:100%;max-height:13rem;overflow-x:hidden;overflow-y:auto;white-space:break-spaces;word-break:break-all;overflow-wrap:anywhere}
     .capps{display:flex;gap:.7rem;flex-wrap:wrap;margin:.9rem 0 0}
     .capp{flex:1 1 16rem;min-width:0;display:flex;align-items:center;gap:.7rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);color:var(--text);text-decoration:none;transition:border-color .18s,background .18s,transform .18s,box-shadow .18s}
     .capp:hover{border-color:var(--accent);background:var(--accent-light);transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.12)}
@@ -51,12 +51,11 @@ $chan_plu   = function ($n, $one, $few, $many) {
     .cwho .nm{color:var(--text-strong);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cwho .nm.pend{color:var(--muted);font-weight:500}
     .cwho .su{font-family:ui-monospace,monospace;font-size:.75rem;color:var(--muted)}
-    .ctg{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem;align-items:stretch}
-    .ctg .set-row,.ctg .set-row+.set-row{margin:0}
+    .ctg{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem}
+    .ctg .set-row{margin:0}
     @media(max-width:1000px){.ctg{grid-template-columns:1fr}}
     .cdbg-h{margin:1.1rem 0 .6rem}
     .cdbg-h>h2{font-size:.92rem}
-    .cdbg-h .btn{min-height:36px}
     .chard{display:inline-flex;align-items:center;justify-content:center;min-width:3.6rem;padding:.35rem .7rem;font-size:.82rem}
     .chard.on{border-color:var(--accent);color:var(--accent-text);background:var(--accent-light)}
     </style>

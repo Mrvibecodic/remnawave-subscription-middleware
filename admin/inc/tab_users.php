@@ -19,14 +19,13 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
         .utbl-wrap::-webkit-scrollbar-track{background:transparent}
         .utbl-wrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
         .utbl-wrap:hover::-webkit-scrollbar-thumb{background:var(--muted)}
-        #utbl{width:100%;border-collapse:separate;border-spacing:0;font-size:.88rem}
-        #utbl thead th{position:sticky;top:0;z-index:2;background:var(--bg2);color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
+        #utbl{border-collapse:separate;font-size:.88rem}
+        #utbl thead th{position:sticky;top:0;z-index:2;background:var(--bg2);font-size:.72rem;padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
         #utbl thead th.srt{cursor:pointer;user-select:none}
         #utbl thead th.srt:hover{color:var(--accent-text)}
         #utbl thead th .sar{font-size:.7rem;opacity:.85;margin-left:.2rem}
-        #utbl tbody td{padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line);vertical-align:middle}
+        #utbl tbody td{padding:.7rem .8rem;box-shadow:inset 0 -1px 0 var(--line)}
         #utbl tbody tr:last-child td{box-shadow:none}
-        #utbl tbody tr:hover td{background:var(--hover2)}
         #utbl.compact tbody td{padding:.42rem .8rem}
         #utbl .u-name{color:var(--text-strong);font-weight:600}
         #utbl .tag{display:inline-flex;align-items:center;gap:.3rem}
@@ -195,7 +194,7 @@ $ico_eyeoff = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true
             </div>
             <div class="modal-body">
                 <p class="muted" style="margin-top:0">Вставьте <b>адрес второй подписки</b> (URL) — её серверы подмешаются в основную ссылку этого пользователя. Основная ссылка не меняется. Работает, пока основная подписка активна. Можно вставлять ссылку с этого же домена — при запросе прослойка сама сходит за ней напрямую к источнику, без круга через себя.</p>
-                <input type="text" id="addsubUrl" placeholder="https://…/sub/…" spellcheck="false" style="width:100%;font-family:monospace;font-size:.82rem;box-sizing:border-box">
+                <input type="text" id="addsubUrl" placeholder="https://…/sub/…" spellcheck="false" style="width:100%;font-family:monospace;font-size:.82rem">
                 <div id="addsubErr" class="warn" style="display:none;margin-top:.7rem"></div>
                 <div style="display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap">
                     <button type="button" class="btn" onclick="addsubSave()">Сохранить</button>

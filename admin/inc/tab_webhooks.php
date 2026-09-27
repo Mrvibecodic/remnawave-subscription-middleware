@@ -22,7 +22,6 @@ WEBHOOK_SECRET_HEADER=<?= h(webhook_secret() ?: '<секрет из «Подкл
         .fwd-row{display:grid;grid-template-columns:1fr 2fr 1.4fr auto auto;gap:.6rem;align-items:center;margin-bottom:.55rem}
         .fwd-row input[type=text],.fwd-row input[type=password]{margin:0}
         .fwd-chk{display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--muted);white-space:nowrap}
-        .fwd-chk input{width:auto}
         .fwd-del{background:transparent;border:1px solid var(--line);color:#ff8787;border-radius:7px;padding:.45rem .65rem;font-size:.85rem;cursor:pointer;line-height:1}
         .fwd-del:hover{border-color:var(--red)}
         .fwd-head{display:grid;grid-template-columns:1fr 2fr 1.4fr auto auto;gap:.6rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin:.4rem 0}
@@ -51,7 +50,7 @@ WEBHOOK_SECRET_HEADER=<?= h(webhook_secret() ?: '<секрет из «Подкл
                 <input type="number" name="forward_timeout" min="2" value="<?= h(forward_timeout()) ?>">
             </div>
 
-            <label style="margin-top:1.5rem;margin-bottom:.3rem">Адресаты</label>
+            <label style="margin-top:1.5rem">Адресаты</label>
             <div class="fwd-head" id="fwdHead" style="display:none"><div>Имя</div><div>URL</div><div>Секрет (ключ)</div><div>Вкл</div><div></div></div>
             <div id="fwdRows"></div>
             <div class="fwd-empty" id="fwdEmpty" style="display:none">Адресатов нет — добавьте первый.</div>

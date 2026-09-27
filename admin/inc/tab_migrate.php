@@ -5,7 +5,7 @@ $gc_db   = ['size' => metrics_db_size()];
 $gc_free = gc_free_bytes();
 ?>
 <style>
-.gctbl{width:100%;margin-top:.9rem}
+.gctbl{margin-top:.9rem}
 .gctbl th:first-child,.gctbl td:first-child{width:2.4rem;text-align:center}
 .gctbl td.n,.gctbl th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .gctbl input[type=checkbox]{margin:0;vertical-align:middle}

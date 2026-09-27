@@ -23,7 +23,9 @@ $u_branch    = update_branch();
 $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch])));
 ?>
     <style>
-        .up-sha{font-family:monospace;font-size:.86em;background:var(--bg2);padding:.05rem .35rem;border-radius:5px}
+        .up-br{min-width:150px;padding:.4rem .6rem}
+        @supports not (appearance:base-select){.up-br{padding-right:1.9rem;background-position:right .5rem center}}
+        .up-sha{font-family:monospace;font-size:.86em;padding:.05rem .35rem;border-radius:5px}
         .up-block{margin-top:.8rem}
         .up-hl{font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;margin-bottom:.4rem}
         .up-commit{padding:.25rem 0;line-height:1.5;border-bottom:1px dashed var(--line)}
@@ -59,7 +61,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
         <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return uiConfirmForm(this,'Переключить отслеживаемую ветку? Проверки обновлений будут сверяться с её последним коммитом.','Переключить',false)">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_switch_branch">
-            <select name="branch" style="min-width:150px;padding:.4rem .6rem">
+            <select name="branch" class="up-br">
                 <?php foreach ($u_branches as $b): ?>
                     <option value="<?= h($b) ?>"<?= $b === $u_branch ? ' selected' : '' ?>><?= h($b) ?></option>
                 <?php endforeach; ?>
@@ -132,7 +134,7 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
         <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return uiConfirmForm(this,'Переключить ветку обновлений? После этого проверится последний коммит выбранной ветки.','Переключить',false)">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="update_switch_branch">
-            <select name="branch" style="min-width:150px;padding:.4rem .6rem">
+            <select name="branch" class="up-br">
                 <?php foreach ($u_branches as $b): ?>
                     <option value="<?= h($b) ?>"<?= $b === $u_branch ? ' selected' : '' ?>><?= h($b) ?></option>
                 <?php endforeach; ?>

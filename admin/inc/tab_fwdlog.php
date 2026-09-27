@@ -3,14 +3,14 @@
             <h2>Лог пересылки (последние 300)</h2>
             <div class="loghead-r">
                 <div id="fl_pgrTop" class="pgr"></div>
-                <form method="post" onsubmit="return uiConfirmForm(this,'Очистить лог пересылки?')" style="margin:0">
+                <form method="post" onsubmit="return uiConfirmForm(this,'Очистить лог пересылки?')">
                     <input type="hidden" name="csrf" value="<?= h($token) ?>">
                     <input type="hidden" name="action" value="clear_fwdlog">
                     <button class="danger" type="submit">🧹 Очистить</button>
                 </form>
             </div>
         </div>
-        <p class="muted">Исходящие пересылки вебхука адресатам («тройник»). <code>ok</code> = адресат ответил 2xx. Настройка — во вкладке <a href="?tab=webhooks" style="color:var(--accent-text)">Вебхуки → Раздвоение</a>.</p>
+        <p class="muted">Исходящие пересылки вебхука адресатам («тройник»). <code>ok</code> = адресат ответил 2xx. Настройка — во вкладке <a href="?tab=webhooks">Вебхуки → Раздвоение</a>.</p>
         <table class="logtbl" style="margin-top:1rem">
             <tr><th>Время</th><th>Событие</th><th>Адресат</th><th>Код</th><th>Результат</th><th>Ошибка</th></tr>
             <tbody id="flBody" class="lp-cap">
