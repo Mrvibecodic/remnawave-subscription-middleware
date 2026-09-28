@@ -4,6 +4,7 @@
     @media(max-width:720px){.ga-wrap{grid-template-columns:1fr}}
     .ga-edit textarea{width:100%;resize:vertical;font-family:inherit;font-size:.9rem;line-height:1.5;padding:.6rem .75rem;border:1px solid var(--line);border-radius:9px;background:var(--bg2);color:var(--text)}
     .ga-edit textarea:focus{outline:none;border-color:var(--accent)}
+    #ga-input{field-sizing:content;min-height:108px;max-height:70vh;resize:none;overflow-y:auto;padding-bottom:calc(.6rem + 1lh)}
     .ga-client{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg2);box-shadow:var(--shadow)}
     .ga-c-head{display:flex;align-items:center;gap:.45rem;padding:.55rem .85rem;font-weight:600;font-size:.82rem;background:var(--accent);color:var(--accent-text)}
     .ga-c-body{padding:.75rem .9rem;font-size:.87rem;line-height:1.6;color:var(--text);min-height:3.4rem;word-break:break-word}
@@ -79,7 +80,7 @@
             <p class="muted" style="margin:.2rem 0 .7rem">Прослойка сама подставит этот <code>announce</code> на время грейса (поверх анонса панели). При активном внешнем скваде — игнорируется.</p>
             <div class="ga-wrap">
                 <div class="ga-edit">
-                    <textarea name="grace_announce" id="ga-input" rows="4" maxlength="400" placeholder="Подписка истекла &#10;Продлите — доступ вернётся&#10;Поддержка: @your_bot"><?= h(str_replace('\n', "\n", grace_announce())) ?></textarea>
+                    <textarea name="grace_announce" id="ga-input" rows="1" maxlength="400" placeholder="Подписка истекла &#10;Продлите — доступ вернётся&#10;Поддержка: @your_bot"><?= h(str_replace('\n', "\n", grace_announce())) ?></textarea>
                     <p class="muted" style="font-size:.8rem;margin:.5rem 0 0">Каждая строка — отдельный перенос (работает во всех клиентах, как в панели). Кириллица кодируется в base64 сама, лимит 200 символов.</p>
                 </div>
                 <div class="ga-prev">
@@ -181,6 +182,7 @@
         }
         inp.addEventListener('input', upd); upd();
     })();
+    (function(){var t=document.getElementById('ga-input');if(!t||(window.CSS&&CSS.supports&&CSS.supports('field-sizing','content')))return;function fit(){t.style.height='auto';t.style.height=(t.scrollHeight+t.offsetHeight-t.clientHeight)+'px';}t.addEventListener('input',fit);addEventListener('resize',fit);fit();})();
     function copyGraceCfg(btn){
         var el = document.getElementById('grace-inbound-json');
         if (!el) return;
