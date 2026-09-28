@@ -574,6 +574,9 @@ function db_migrate(array $from, array $to, &$err = '') {
                    'chat_sessions', 'chat_messages', 'metrics_minute', 'metrics_peak', 'squad_configs',
                    'squad_cache', 'wg_lease', 'hwid_devices', 'wg_user_cache', 'addsub_map', 'addsub_cache', 'login_attempts', 'junk_hits'];
     }
+    if (in_array('addsub_swap', $tables, true) && function_exists('addsub_swap_ddl')) {
+        try { $dst->exec(addsub_swap_ddl($drv)); } catch (Throwable $e) {}
+    }
     $verb = ($drv === 'mysql') ? 'REPLACE' : 'INSERT OR REPLACE';
     $dst_cols = [];
     foreach ($tables as $t) {

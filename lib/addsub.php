@@ -639,28 +639,32 @@ function addsub_merge_xray($a, $b) {
     return $enc === false ? $a : $enc;
 }
 
+function addsub_swap_ddl($drv) {
+    if ($drv === 'mysql') {
+        return "CREATE TABLE IF NOT EXISTS addsub_swap (
+            main_short VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+            data MEDIUMTEXT NOT NULL,
+            ts INT UNSIGNED NOT NULL DEFAULT 0,
+            PRIMARY KEY (main_short)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    }
+    return "CREATE TABLE IF NOT EXISTS addsub_swap (
+        main_short TEXT NOT NULL PRIMARY KEY,
+        data TEXT NOT NULL,
+        ts INTEGER NOT NULL DEFAULT 0
+    )";
+}
+
 function addsub_swap_ensure() {
     static $done = false;
     if ($done) return;
     $done = true;
     if (!($p = db())) return;
-    try {
-        if (db_driver() === 'mysql') {
-            $p->exec("CREATE TABLE IF NOT EXISTS addsub_swap (
-                main_short VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-                data MEDIUMTEXT NOT NULL,
-                ts INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (main_short)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        } else {
-            $p->exec("CREATE TABLE IF NOT EXISTS addsub_swap (
-                main_short TEXT NOT NULL PRIMARY KEY,
-                data TEXT NOT NULL,
-                ts INTEGER NOT NULL DEFAULT 0
-            )");
-        }
-    } catch (Throwable $e) { error_log('submw addsub swap ensure: ' . $e->getMessage()); }
+    try { $p->exec(addsub_swap_ddl(db_driver())); }
+    catch (Throwable $e) { error_log('submw addsub swap ensure: ' . $e->getMessage()); }
 }
+
+function addsub_swap_str($v) { return is_scalar($v) ? (string) $v : ''; }
 
 function addsub_swap_load($short) {
     $short = trim((string) $short);
@@ -695,11 +699,14 @@ function addsub_swap_save($short, array $map, array $old) {
 
 function addsub_swap_is_label_addr($addr) {
     $a = strtolower(trim((string) $addr, " []"));
-    if ($a === '' || $a === '0.0.0.0' || $a === '::' || $a === '::1' || $a === 'localhost') return true;
-    return strpos($a, '127.') === 0;
+    if ($a === '' || $a === 'localhost') return true;
+    if (filter_var($a, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) return $a === '0.0.0.0' || strpos($a, '127.') === 0;
+    if (filter_var($a, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) return inet_pton($a) === inet_pton('::') || inet_pton($a) === inet_pton('::1');
+    return false;
 }
 
 function addsub_swap_target($o) {
+    if (!is_object($o) || !isset($o->protocol) || !is_string($o->protocol)) return null;
     if (!addsub_xray_is_node($o)) return null;
     $proto = strtolower((string) $o->protocol);
     $s = (isset($o->settings) && is_object($o->settings)) ? $o->settings : null;
@@ -718,9 +725,9 @@ function addsub_swap_target($o) {
         if (isset($s->servers) && is_array($s->servers)) {
             $v = $s->servers[0] ?? null;
             if (!is_object($v)) return null;
-            $t = ['addr' => $v->address ?? '', 'port' => $v->port ?? 0, 'cred' => $v, 'field' => 'password', 'extra' => (string) ($v->method ?? '')];
+            $t = ['addr' => $v->address ?? '', 'port' => $v->port ?? 0, 'cred' => $v, 'field' => 'password', 'extra' => addsub_swap_str($v->method ?? '')];
         } elseif (isset($s->address)) {
-            $t = ['addr' => $s->address, 'port' => $s->port ?? 0, 'cred' => $s, 'field' => 'password', 'extra' => (string) ($s->method ?? '')];
+            $t = ['addr' => $s->address, 'port' => $s->port ?? 0, 'cred' => $s, 'field' => 'password', 'extra' => addsub_swap_str($s->method ?? '')];
         }
     } elseif ($proto === 'hysteria') {
         $hs = (isset($o->streamSettings) && is_object($o->streamSettings) && isset($o->streamSettings->hysteriaSettings) && is_object($o->streamSettings->hysteriaSettings)) ? $o->streamSettings->hysteriaSettings : null;
@@ -741,17 +748,17 @@ function addsub_swap_key($o) {
     $port = (int) $t['port'];
     if ($port <= 0 || addsub_swap_is_label_addr($addr)) return ['', null];
     $ss = (isset($o->streamSettings) && is_object($o->streamSettings)) ? $o->streamSettings : new stdClass();
-    $net = strtolower((string) ($ss->network ?? ''));
+    $net = strtolower(addsub_swap_str($ss->network ?? ''));
     if ($net === '' || $net === 'raw') $net = 'tcp';
     if ($net === 'splithttp') $net = 'xhttp';
-    $sec = strtolower((string) ($ss->security ?? ''));
+    $sec = strtolower(addsub_swap_str($ss->security ?? ''));
     if ($sec === '') $sec = 'none';
     $sni = ''; $pbk = '';
     if ($sec === 'tls' && isset($ss->tlsSettings) && is_object($ss->tlsSettings)) {
-        $sni = (string) ($ss->tlsSettings->serverName ?? '');
+        $sni = addsub_swap_str($ss->tlsSettings->serverName ?? '');
     } elseif ($sec === 'reality' && isset($ss->realitySettings) && is_object($ss->realitySettings)) {
-        $sni = (string) ($ss->realitySettings->serverName ?? '');
-        $pbk = (string) ($ss->realitySettings->publicKey ?? '');
+        $sni = addsub_swap_str($ss->realitySettings->serverName ?? '');
+        $pbk = addsub_swap_str($ss->realitySettings->publicKey ?? '');
     }
     $path = '';
     $where = [
@@ -783,28 +790,31 @@ function addsub_swap_apply($a, $b, $short) {
     if (!is_string($a) || $a === '') return [$a, []];
     $t = ltrim($a);
     if ($t === '' || ($t[0] !== '[' && $t[0] !== '{')) return [$a, []];
-    $oa = json_decode($a);
-    $cfgs = addsub_xray_configs($oa);
-    if (!$cfgs) return [$a, []];
     $map = [];
     if (is_string($b) && $b !== '') {
         $ob = json_decode($b);
         if (is_object($ob) || is_array($ob)) $map = addsub_swap_collect($ob);
     }
     $saved = addsub_swap_load($short);
+    $from_saved = !$map;
     if ($map) addsub_swap_save($short, $map, $saved);
     else $map = $saved;
     if (!$map) return [$a, []];
-    $hit = []; $changed = false;
+    $oa = json_decode($a);
+    $cfgs = addsub_xray_configs($oa);
+    if (!$cfgs) return [$a, []];
+    $hit = []; $changed = false; $cnt = 0;
     foreach ($cfgs as $cfg) {
         foreach ($cfg->outbounds as $o) {
             [$k, $tg] = addsub_swap_key($o);
             if ($k === '' || !isset($map[$k]) || !is_string($map[$k]) || $map[$k] === '') continue;
             $hit[$k] = true;
+            $cnt++;
             $f = $tg['field'];
             if ($tg['cred']->$f !== $map[$k]) { $tg['cred']->$f = $map[$k]; $changed = true; }
         }
     }
+    if ($cnt > 0) $GLOBALS['addsub_swap_stat'] = ['r' => $cnt, 'rm' => $from_saved ? 1 : 0];
     if (!$changed) return [$a, $hit];
     $enc = json_encode($oa, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     return [$enc === false ? $a : $enc, $hit];
