@@ -33,6 +33,10 @@
                 <label class="switch"><input type="checkbox" name="addsub_merge_xray" <?= addsub_xray_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
             <div class="set-row" style="margin-top:1.25rem">
+                <div class="set-info"><div class="set-t">Резерв от имени второй подписки (xray-json)</div><div class="set-d">Сервер второй подписки, который уже есть в основной — в том числе внутри балансировщика, — получает данные входа второго пользователя и отдельной строкой не добавляется; остальные серверы второй подписки добавляются как обычно. Трафик по таким серверам идёт в лимит второй подписки: кончился трафик, истекла или недоступна вторая подписка — эти серверы перестают подключаться. Совпадение — по адресу, порту, протоколу, транспорту, пути и SNI; адрес или SNI списком через запятую у хоста панели не совпадут. Работает при включённом «Слиянии для xray-json».</div></div>
+                <label class="switch"><input type="checkbox" name="addsub_xray_swap" <?= setting('addsub_xray_swap', '0') === '1' ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
+            <div class="set-row" style="margin-top:1.25rem">
                 <div class="set-info"><div class="set-t">Параллельная загрузка подписок</div><div class="set-d">Обе подписки скачиваются одновременно, а не по очереди — ответ заметно быстрее. Включите, если у мобильных клиентов серверы второй подписки появляются с задержкой или не каждый раз. Работает и для авто-, и для ручных привязок.</div></div>
                 <label class="switch"><input type="checkbox" name="addsub_parallel_fetch" <?= addsub_parallel_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>

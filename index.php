@@ -407,13 +407,16 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
         if ($addsub_src && $addsub_body !== null && $addsub_body !== '') {
             if (addsub_traffic_exhausted($addsub_info)) {
                 $log_as['s'] = 'stub';
+                if (addsub_swap_enabled()) $response = addsub_swap_apply($response, $addsub_body, $short_uuid)[0];
                 if (addsub_stub_on_traffic()) $response = addsub_inject_stub($response, $format, addsub_stub_label());
             } else {
-                $response = addsub_merge($response, $addsub_body, $format);
+                $response = addsub_merge($response, $addsub_body, $format, $short_uuid);
                 $log_as['s'] = 'on';
                 $log_as['n'] = reqlog_addsub_count($addsub_body, $format);
                 $log_as['b'] = strlen($addsub_body);
             }
+        } elseif (addsub_swap_enabled()) {
+            $response = addsub_swap_apply($response, null, $short_uuid)[0];
         }
     } catch (Throwable $e) { $log_as['s'] = 'err'; error_log('submw addsub: ' . $e->getMessage()); }
 }
