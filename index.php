@@ -418,6 +418,10 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
         } elseif (addsub_swap_enabled()) {
             $response = addsub_swap_apply($response, null, $short_uuid)[0];
         }
+        if (!empty($GLOBALS['addsub_swap_stat']) && addsub_swap_enabled()) {
+            $log_as['r']  = (int) $GLOBALS['addsub_swap_stat']['r'];
+            $log_as['rm'] = (int) $GLOBALS['addsub_swap_stat']['rm'];
+        }
     } catch (Throwable $e) { $log_as['s'] = 'err'; error_log('submw addsub: ' . $e->getMessage()); }
 }
 

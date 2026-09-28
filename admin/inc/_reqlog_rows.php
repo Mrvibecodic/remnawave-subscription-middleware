@@ -206,6 +206,9 @@ function reqlog_render_rows(array $rows, array $ctx) {
                      . '<div class="xr"><span class="l">Слито</span><span class="v">' . ($asn > 0 ? $asn . ' конфиг(ов)' : ($asb > 0 ? rl_size($asb) : '—')) . ($asm > 0 ? ' · ' . $asm . ' мс' : '') . '</span></div>'
                      . '<div class="xr"><span class="l">Кэш</span><span class="v">' . (!isset($as['c']) ? '—' : ((int) $as['c'] === 1 ? 'ответ из кэша' : 'загружено при запросе')) . '</span></div>';
         }
+        if ((int) ($as['r'] ?? 0) > 0) {
+            $as_rows .= '<div class="xr"><span class="l">Резерв</span><span class="v">' . (int) $as['r'] . ' подменено · ' . ((int) ($as['rm'] ?? 0) === 1 ? 'запомненные данные' : 'данные второй подписки') . '</span></div>';
+        }
 
         $out .= '<tr class="row-x" data-x="' . $i . '"><td colspan="' . $cols . '"><div class="xin">'
               . '<div class="xcol"><div class="xh">Подписка</div>'
