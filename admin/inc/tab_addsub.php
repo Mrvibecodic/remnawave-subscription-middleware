@@ -1,3 +1,4 @@
+    <style>.set-row.as-exp{border-color:var(--red)}.tag.as-exp-tag{margin-left:.5rem;vertical-align:middle;background:var(--c-bad-bg);color:var(--c-bad-fg);white-space:nowrap}</style>
     <section class="<?= coll_cls('addsub_intro') ?>" data-coll="addsub_intro">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Слияние подписок</span>
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
@@ -32,8 +33,8 @@
                 <div class="set-info"><div class="set-t">Слияние для xray-json</div><div class="set-d">Влить outbounds второй подписки в xray-json. По умолчанию выкл (как у доп-конфигов). base64 / Clash / sing-box работают всегда при включённом слиянии.</div></div>
                 <label class="switch"><input type="checkbox" name="addsub_merge_xray" <?= addsub_xray_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
-            <div class="set-row" style="margin-top:1.25rem">
-                <div class="set-info"><div class="set-t">Резерв от имени второй подписки (xray-json)</div><div class="set-d">Сервер второй подписки, который уже есть в основной — в том числе внутри балансировщика, — получает данные входа второго пользователя и отдельной строкой не добавляется; остальные серверы второй подписки добавляются как обычно. Трафик по таким серверам идёт в лимит второй подписки: кончился трафик, истекла или недоступна вторая подписка — эти серверы перестают подключаться. Совпадение — по адресу, порту, протоколу, транспорту, пути и SNI; адрес или SNI списком через запятую у хоста панели не совпадут. Работает при включённом «Слиянии для xray-json».</div></div>
+            <div class="set-row as-exp" style="margin-top:1.25rem">
+                <div class="set-info"><div class="set-t">Резерв от имени второй подписки (xray-json)<span class="tag as-exp-tag">экспериментально</span></div><div class="set-d">Сервер второй подписки, который уже есть в основной — в том числе внутри балансировщика, — получает данные входа второго пользователя и отдельной строкой не добавляется; остальные серверы второй подписки добавляются как обычно. Трафик по таким серверам идёт в лимит второй подписки: кончился трафик, истекла или недоступна вторая подписка — эти серверы перестают подключаться. Совпадение — по адресу, порту, протоколу, транспорту, пути и SNI; адрес или SNI списком через запятую у хоста панели не совпадут. Работает при включённом «Слиянии для xray-json».</div></div>
                 <label class="switch"><input type="checkbox" name="addsub_xray_swap" <?= setting('addsub_xray_swap', '0') === '1' ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
             <div class="set-row" style="margin-top:1.25rem">
