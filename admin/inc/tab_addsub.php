@@ -1,4 +1,4 @@
-    <style>.set-row.as-exp{border-color:var(--red)}.as-exp-r{display:flex;align-items:center;gap:.6rem;flex:0 0 auto}.tag.as-exp-tag{background:var(--c-bad-bg);color:var(--c-bad-fg);white-space:nowrap}</style>
+    <style>.set-row.as-exp{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:1rem;row-gap:.12rem;align-items:center;border-color:var(--red)}.set-row.as-exp .set-info{display:contents}.set-row.as-exp .set-t{grid-column:1;grid-row:1}.set-row.as-exp .set-d{grid-column:1;grid-row:2;margin-top:0}.set-row.as-exp .as-exp-tag{grid-column:2;grid-row:1;justify-self:end;background:var(--c-bad-bg);color:var(--c-bad-fg);white-space:nowrap}.set-row.as-exp .switch{grid-column:2;grid-row:2;justify-self:end}@media(max-width:560px){.set-row.as-exp .set-d{grid-column:1/-1}.set-row.as-exp .switch{grid-column:1;grid-row:3;justify-self:start;margin-top:.5rem}}</style>
     <section class="<?= coll_cls('addsub_intro') ?>" data-coll="addsub_intro">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Слияние подписок</span>
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
@@ -35,7 +35,8 @@
             </div>
             <div class="set-row as-exp" style="margin-top:1.25rem">
                 <div class="set-info"><div class="set-t">Резерв от имени второй подписки (xray-json)</div><div class="set-d">Сервер второй подписки, который уже есть в основной — в том числе внутри балансировщика, — получает данные входа второго пользователя и отдельной строкой не добавляется; остальные серверы второй подписки добавляются как обычно. Трафик по таким серверам идёт в лимит второй подписки: кончился трафик, истекла или недоступна вторая подписка — эти серверы перестают подключаться. Совпадение — по адресу, порту, протоколу, транспорту, пути и SNI; адрес или SNI списком через запятую у хоста панели не совпадут. Работает при включённом «Слиянии для xray-json».</div></div>
-                <div class="as-exp-r"><span class="tag as-exp-tag">экспериментально</span><label class="switch"><input type="checkbox" name="addsub_xray_swap" <?= setting('addsub_xray_swap', '0') === '1' ? 'checked' : '' ?>><span class="sl"></span></label></div>
+                <span class="tag as-exp-tag">экспериментально</span>
+                <label class="switch"><input type="checkbox" name="addsub_xray_swap" <?= setting('addsub_xray_swap', '0') === '1' ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
             <div class="set-row" style="margin-top:1.25rem">
                 <div class="set-info"><div class="set-t">Параллельная загрузка подписок</div><div class="set-d">Обе подписки скачиваются одновременно, а не по очереди — ответ заметно быстрее. Включите, если у мобильных клиентов серверы второй подписки появляются с задержкой или не каждый раз. Работает и для авто-, и для ручных привязок.</div></div>
