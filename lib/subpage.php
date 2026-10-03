@@ -43,9 +43,11 @@ function subpage_external_proxy($path, $query) {
     if ($query !== '') $url .= '?' . $query;
 
     $headers = [];
+    $pk = pagekeys_active() && strpos('/' . ltrim((string) $path, '/'), '/assets/') !== 0;
     if (function_exists('getallheaders')) {
         foreach (getallheaders() as $k => $v) {
             if (strtolower($k) === 'host') continue;
+            if ($pk && in_array(strtolower($k), ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range'], true)) continue;
             $headers[] = "$k: $v";
         }
     }
@@ -80,10 +82,20 @@ function subpage_external_proxy($path, $query) {
     if ($err) { http_response_code(502); return; }
     if (mask_notfound() && $code === 404) { header_remove('X-Powered-By'); http_response_code(404); return; }
 
+    $is_html = false;
+    foreach ($grabbed as $hv) {
+        if (strtolower($hv[0]) === 'content-type' && stripos($hv[1], 'text/html') === 0) $is_html = true;
+    }
+    $resp_orig = $resp;
+    if ($pk && $is_html && $code === 200 && is_string($resp)) $resp = pagekeys_apply($resp);
+    $modified = ($resp !== $resp_orig);
+
     http_response_code($code ?: 200);
     $unsafe = ['transfer-encoding', 'content-length', 'content-encoding', 'connection'];
     foreach ($grabbed as $hv) {
-        if (in_array(strtolower($hv[0]), $unsafe, true)) continue;
+        $lk = strtolower($hv[0]);
+        if (in_array($lk, $unsafe, true)) continue;
+        if ($modified && ($lk === 'etag' || $lk === 'last-modified')) continue;
         header($hv[0] . ': ' . $hv[1], false);
     }
     echo $resp;

@@ -286,7 +286,7 @@ function addsub_traffic_exhausted($info) {
     return ((float) ($info['up'] ?? 0) + (float) ($info['down'] ?? 0)) >= $total;
 }
 
-function addsub_fetch_prepare($url) {
+function addsub_fetch_prepare($url, $client_override = null) {
     $url = trim((string) $url);
     if ($url === '') return [null, null];
     $skip = [
@@ -296,7 +296,9 @@ function addsub_fetch_prepare($url) {
         'if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range',
     ];
     $client_headers = [];
-    if (!empty($GLOBALS['chan_headers']) && is_array($GLOBALS['chan_headers'])) {
+    if (is_array($client_override)) {
+        foreach ($client_override as $k => $v) $client_headers[(string) $k] = $v;
+    } elseif (!empty($GLOBALS['chan_headers']) && is_array($GLOBALS['chan_headers'])) {
         foreach ($GLOBALS['chan_headers'] as $k => $v) $client_headers[(string) $k] = $v;
     } elseif (function_exists('getallheaders')) {
         foreach (getallheaders() as $k => $v) $client_headers[(string) $k] = $v;
@@ -369,8 +371,8 @@ function addsub_fetch_collect($ch, $st, $body) {
     return [$body, ($st instanceof stdClass) ? $st->info : null];
 }
 
-function addsub_fetch_body($url) {
-    [$ch, $st] = addsub_fetch_prepare($url);
+function addsub_fetch_body($url, $client_override = null) {
+    [$ch, $st] = addsub_fetch_prepare($url, $client_override);
     if (!$ch) return [null, null];
     $body = curl_exec($ch);
     $out  = addsub_fetch_collect($ch, $st, is_string($body) ? $body : null);

@@ -1192,6 +1192,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         form_saved('addsub');
     }
 
+    if ($action === 'save_pagekeys') {
+        $pm = (string) ($_POST['pagekeys_mode'] ?? 'off');
+        set_setting('pagekeys_mode', in_array($pm, ['off', 'all', 'sel'], true) ? $pm : 'off');
+        set_setting('pagekeys_panel', isset($_POST['pagekeys_panel']) ? '1' : '0');
+        set_setting('pagekeys_extra', isset($_POST['pagekeys_extra']) ? '1' : '0');
+        set_setting('pagekeys_addsub', isset($_POST['pagekeys_addsub']) ? '1' : '0');
+        set_setting('pagekeys_addsub_labels', isset($_POST['pagekeys_addsub_labels']) ? '1' : '0');
+        if (isset($_POST['pagekeys_squads_sent'])) {
+            $pq = is_array($_POST['pagekeys_squads'] ?? null) ? $_POST['pagekeys_squads'] : [];
+            $pq = array_values(array_unique(array_filter(array_map(fn($x) => mb_substr(trim((string) $x), 0, 64), $pq), fn($x) => $x !== '')));
+            set_setting('pagekeys_squads', json_encode($pq, JSON_UNESCAPED_SLASHES));
+        }
+        if (array_key_exists('pagekeys_users', $_POST)) set_setting('pagekeys_users', pagekeys_users_norm($_POST['pagekeys_users']));
+        flash('Настройки ключей на странице сохранены');
+        form_saved('pagekeys');
+    }
+
     if ($action === 'save_ua_rules') {
         if (isset($_POST['reset'])) {
             set_setting('ua_delivery_rules', '');
@@ -1475,10 +1492,15 @@ if ($tab === 'wg_pool') {
 }
 $addsub_list = [];
 if ($tab === 'addsub') $addsub_list = addsub_map_all();
+$pk_squads = []; $pk_squads_err = ''; $pk_probe = null;
+if ($tab === 'pagekeys') {
+    if (remnawave_url() !== '' && remnawave_token() !== '') $pk_squads = remnawave_internal_squads($pk_squads_err);
+    if (pagekeys_active() && pagekeys_with_panel()) $pk_probe = pagekeys_probe();
+}
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'clod' => 'Защищённый канал (Clod Clash)'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Защищённый канал (Clod Clash)'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -1625,6 +1647,7 @@ $nav = [
     'squad_configs' => ['Доп. конфиги', '<path d="M11.35 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v5.35" /> <path d="M14 2v5a1 1 0 0 0 1 1h5" /> <path d="M14 19h6" /> <path d="M17 16v6" />'],
     'wg_pool'   => ['WG / AWG', '<rect x="16" y="16" width="6" height="6" rx="1" /> <rect x="2" y="16" width="6" height="6" rx="1" /> <rect x="9" y="2" width="6" height="6" rx="1" /> <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /> <path d="M12 12V8" />'],
     'addsub'    => ['Слияние подписок', '<path d="M3 7h5l3.5 5h9.5" /> <path d="M3 17h5l3.495 -5" /> <path d="M18 15l3 -3l-3 -3" />'],
+    'pagekeys'  => ['Ключи на странице', '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /> <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />'],
     'clod'      => ['Защищённый канал', '<circle cx="12" cy="16" r="1" /> <rect x="3" y="10" width="18" height="12" rx="2" /> <path d="M7 10V7a5 5 0 0 1 10 0v3" />'],
     'reqlog'    => ['Лог запросов', '<path d="M15 12h-5" /> <path d="M15 8h-5" /> <path d="M19 17V5a2 2 0 0 0-2-2H4" /> <path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" />'],
     'whlog'       => ['Лог вебхуков', '<g transform="scale(.09375)" fill="currentColor" stroke="none"><path d="M178.16,176H111.32A48,48,0,1,1,25.6,139.19a8,8,0,0,1,12.8,9.61A31.69,31.69,0,0,0,32,168a32,32,0,0,0,64,0,8,8,0,0,1,8-8h74.16a16,16,0,1,1,0,16ZM64,184a16,16,0,0,0,14.08-23.61l35.77-58.14a8,8,0,0,0-2.62-11,32,32,0,1,1,46.1-40.06A8,8,0,1,0,172,44.79a48,48,0,1,0-75.62,55.33L64.44,152c-.15,0-.29,0-.44,0a16,16,0,0,0,0,32Zm128-64a48.18,48.18,0,0,0-18,3.49L142.08,71.6A16,16,0,1,0,128,80l.44,0,35.78,58.15a8,8,0,0,0,11,2.61A32,32,0,1,1,192,200a8,8,0,0,0,0,16,48,48,0,0,0,0-96Z"/></g>'],
@@ -1643,7 +1666,7 @@ $nav_sections = [
     ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog'] : ['webhooks', 'whlog']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
-    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides', 'squad_configs', 'wg_pool', 'addsub', 'clod']],
+    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides', 'squad_configs', 'wg_pool', 'addsub', 'pagekeys', 'clod']],
     ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => ['sysinfo', 'update', 'migrate']],
 ];
 function submw_ui_cookie() {
@@ -1778,6 +1801,8 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
     <?php include __DIR__ . '/inc/tab_wg_pool.php'; ?>
 <?php elseif ($tab === 'addsub'): ?>
     <?php include __DIR__ . '/inc/tab_addsub.php'; ?>
+<?php elseif ($tab === 'pagekeys'): ?>
+    <?php include __DIR__ . '/inc/tab_pagekeys.php'; ?>
 <?php elseif ($tab === 'clod'): ?>
     <?php include __DIR__ . '/inc/tab_clod.php'; ?>
 

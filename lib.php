@@ -20,6 +20,7 @@ require_once __DIR__ . '/lib/update.php';
 require_once __DIR__ . '/lib/chat.php';
 require_once __DIR__ . '/lib/landing.php';
 require_once __DIR__ . '/lib/subpage.php';
+require_once __DIR__ . '/lib/pagekeys.php';
 require_once __DIR__ . '/lib/addsub.php';
 require_once __DIR__ . '/lib/junk.php';
 require_once __DIR__ . '/lib/chan.php';
