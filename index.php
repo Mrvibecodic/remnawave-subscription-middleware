@@ -78,7 +78,7 @@ if ($to_panel) {
 }
 if ($query) $target_url .= '?' . $query;
 
-$strip_conditional = !$junk_path && (addsub_enabled() || squadconf_any());
+$strip_conditional = !$junk_path && (addsub_enabled() || squadconf_any() || (pagekeys_active() && subpage_is_browser($_SERVER['HTTP_USER_AGENT'] ?? '')));
 $conditional_hdrs = ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range'];
 
 $request_headers = [];
@@ -423,6 +423,10 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
             $log_as['rm'] = (int) $GLOBALS['addsub_swap_stat']['rm'];
         }
     } catch (Throwable $e) { $log_as['s'] = 'err'; error_log('submw addsub: ' . $e->getMessage()); }
+}
+
+if ($is_page && $decision === 'normal' && !$junk_path && (int) $http_code === 200 && is_string($response)) {
+    $response = pagekeys_apply($response);
 }
 
 $unsafe = ['host', 'connection', 'transfer-encoding', 'content-length', 'content-encoding'];
