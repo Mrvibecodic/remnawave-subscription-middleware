@@ -13,7 +13,7 @@
     </section>
 
     <?php if ($pk_probe !== null && !$pk_probe['ok']): ?>
-        <div class="warn">Хосты панели на страницу не попадут: <?= h($pk_probe['msg']) ?>. Выдайте токену право <code>subscriptions:by-short-uuid-protected</code> (ресурс Subscriptions) или выключите «Хосты панели» ниже — доп. конфиги прослойки показываются и без него.</div>
+        <div class="warn">Хосты панели на страницу не попадут: <?= h($pk_probe['msg']) ?>. Выдайте токену право <code>subscriptions:by-short-uuid-protected</code> (ресурс Subscriptions) или выключите «Хосты панели» ниже — доп. конфиги прослойки показываются и без него. Все права токена разом — «Подключение» → «Права API-токена».</div>
     <?php elseif ($pk_probe !== null): ?>
         <div class="info">Право токена <code>subscriptions:by-short-uuid-protected</code>: <?= h($pk_probe['msg']) ?>.</div>
     <?php endif; ?>

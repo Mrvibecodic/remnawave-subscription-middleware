@@ -12,6 +12,15 @@
         .uahk input:checked::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;border-radius:50%;background:var(--accent-text);transform:translate(-50%,-50%)}
         .uahk-txt{min-width:0;display:flex;flex-direction:column;gap:.1rem;line-height:1.3}
         .uahk-txt .muted{font-size:.76rem}
+        .ts-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+        .ts-head h3{margin:0 0 .25rem}
+        .ts-meta{font-size:.8rem;color:var(--muted);margin:.6rem 0}
+        .ts-tbl td,.ts-tbl th{padding:.5rem .65rem;vertical-align:top;text-align:left}
+        .ts-tbl td:first-child,.ts-tbl td:nth-child(3){white-space:nowrap}
+        .ts-tbl thead th{position:static}
+        .ts-tbl .tag{padding:.12rem .45rem;white-space:nowrap}
+        .ts-wrap{overflow-x:auto;margin-top:.6rem}
+        .ts-opt{font-size:.82rem;color:var(--muted);margin-top:.5rem}
     </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Подключение</h2>
@@ -108,7 +117,74 @@
             <div style="margin-top:1.25rem"><button type="submit">💾 Сохранить подключение</button></div>
         </form>
     </div>
+    <div class="card" id="tsCard">
+        <div class="ts-head">
+            <div>
+                <h3>Права API-токена</h3>
+                <div class="muted" style="font-size:.85rem;max-width:760px">Прослойка спрашивает панель по каждому праву, которое ей может понадобиться, и показывает, каких не хватает. Права записи проверяются запросом с заведомо неверными данными: панель сначала проверяет права, потом данные — и отклоняет запрос, ничего не меняя. «Нужно» — право используется при текущих настройках; остальные понадобятся, если включить соответствующую функцию.</div>
+            </div>
+            <button type="button" class="btn ghost" id="tsRun"<?= (remnawave_url() === '' || remnawave_token() === '') ? ' disabled' : '' ?>>Проверить</button>
+        </div>
+        <div id="tsBody"><?php if (remnawave_url() === '' || remnawave_token() === ''): ?><div class="ts-meta">Задайте URL панели и API-токен, затем нажмите «Проверить».</div><?php endif; ?></div>
+    </div>
     <script>
+    (function(){
+        var TS_INIT = <?= json_encode(tokscope_cached(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        var body = document.getElementById('tsBody'), btn = document.getElementById('tsRun');
+        if (!body || !btn) return;
+        var ST = {ok: ['есть', 'normal'], miss: ['нет', 'blocked'], na: ['нет в этой версии панели', 'expired'], auth: ['токен отклонён', 'blocked'], err: ['нет ответа', 'DISABLED']};
+        function el(tag, cls, txt){ var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
+        function copy(txt, b){
+            var done = function(){ var o = b.textContent; b.textContent = 'Скопировано'; setTimeout(function(){ b.textContent = o; }, 1500); };
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function(){ fb(txt); done(); });
+            else { fb(txt); done(); }
+        }
+        function fb(txt){ var t = document.createElement('textarea'); t.value = txt; t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(t); }
+        function render(d){
+            body.textContent = '';
+            if (!d || !d.rows || !d.rows.length) {
+                body.appendChild(el('div', 'ts-meta', d && d.msg ? d.msg : 'Проверка ещё не запускалась.'));
+                return;
+            }
+            var when = d.ts ? new Date(d.ts * 1000).toLocaleString() : '';
+            body.appendChild(el('div', 'ts-meta', 'Проверено ' + when + (d.ver ? ' · панель ' + d.ver : '')));
+            if (d.msg) body.appendChild(el('div', 'warn', d.msg));
+            var need = [], opt = [];
+            d.rows.forEach(function(r){ if (r.st === 'miss') (r.need ? need : opt).push(r.s); });
+            if (need.length) {
+                body.appendChild(el('div', 'warn', 'Не хватает нужных прав: ' + need.length + '. Добавьте их токену в панели: «Настройки Remnawave» → «API токены» — в окне токена есть кнопка «Вставить», она принимает этот список.'));
+                var blk = el('div', 'codeblk'), b = el('button', 'copybtn', 'Копировать'), pre = el('pre', '', JSON.stringify(need, null, 2));
+                b.type = 'button'; b.addEventListener('click', function(){ copy(pre.textContent, b); });
+                blk.appendChild(b); blk.appendChild(pre); body.appendChild(blk);
+            } else if (!d.msg) {
+                body.appendChild(el('div', 'info', 'Всех прав, нужных при текущих настройках, хватает.'));
+            }
+            if (opt.length) body.appendChild(el('div', 'ts-opt', 'Ещё нет (сейчас не используются): ' + opt.join(', ')));
+            var wrap = el('div', 'ts-wrap'), t = el('table', 'ts-tbl'), th = el('thead'), tr = el('tr');
+            ['Право', 'Для чего', 'Сейчас', 'Статус'].forEach(function(h){ tr.appendChild(el('th', '', h)); });
+            th.appendChild(tr); t.appendChild(th);
+            var tb = el('tbody');
+            d.rows.forEach(function(r){
+                var row = el('tr'), c1 = el('td'), c4 = el('td'), s = ST[r.st] || [r.st, ''];
+                c1.appendChild(el('code', '', r.s));
+                row.appendChild(c1);
+                row.appendChild(el('td', '', r.w));
+                row.appendChild(el('td', r.need ? '' : 'muted', r.need ? 'нужно' : 'по желанию'));
+                var tg = el('span', 'tag ' + s[1], s[0]);
+                if (r.e || (r.st === 'err' && r.code)) tg.title = r.e || ('HTTP ' + r.code);
+                c4.appendChild(tg); row.appendChild(c4);
+                tb.appendChild(row);
+            });
+            t.appendChild(tb); wrap.appendChild(t); body.appendChild(wrap);
+        }
+        if (TS_INIT) render(TS_INIT);
+        btn.addEventListener('click', function(){
+            btn.disabled = true; var o = btn.textContent; btn.textContent = 'Проверяю…';
+            fetch('?ajax=tokscopes', {credentials: 'same-origin'}).then(function(r){ return r.json(); }).then(function(d){ render(d); })
+                .catch(function(){ if (window.uiToast) uiToast('Ошибка сети — проверка не выполнена'); })
+                .then(function(){ btn.disabled = false; btn.textContent = o; });
+        });
+    })();
     function cnUseOrigin(btn){
         var inp=document.getElementById('cnTarget'); if(!inp||!btn) return;
         var f=inp.form; if(!f) return;

@@ -72,12 +72,14 @@ function pagekeys_panel_links($short) {
 }
 
 function pagekeys_probe() {
-    if (remnawave_url() === '' || remnawave_token() === '') return ['ok' => false, 'msg' => 'не заданы URL панели или API-токен'];
-    [$ok, $code, $data, $e] = remnawave_api_get('/api/subscriptions/by-short-uuid/submw-probe-' . bin2hex(random_bytes(4)));
-    $code = (int) $code;
-    if ($ok || $code === 404) return ['ok' => true, 'msg' => 'право есть'];
-    if ($code === 401 || $code === 403) return ['ok' => false, 'msg' => 'нет права subscriptions:by-short-uuid-protected (HTTP ' . $code . ')'];
-    return ['ok' => false, 'msg' => 'панель не ответила: ' . ($e !== '' ? $e : ('HTTP ' . $code))];
+    $r = tokscope_probe(['subscriptions:by-short-uuid-protected']);
+    $row = $r['rows'][0] ?? null;
+    if (!$row) return ['ok' => false, 'msg' => $r['msg'] !== '' ? $r['msg'] : 'проверка не выполнена'];
+    if ($row['st'] === 'ok') return ['ok' => true, 'msg' => 'право есть'];
+    if ($row['st'] === 'miss') return ['ok' => false, 'msg' => 'нет права subscriptions:by-short-uuid-protected (HTTP 403)'];
+    if ($row['st'] === 'auth') return ['ok' => false, 'msg' => 'панель не принимает токен (HTTP 401)'];
+    if ($row['st'] === 'na') return ['ok' => false, 'msg' => 'в этой версии панели нет нужного метода API'];
+    return ['ok' => false, 'msg' => 'панель не ответила: ' . ($row['e'] !== '' ? $row['e'] : ('HTTP ' . $row['code']))];
 }
 
 function pagekeys_extra_cfgs($short) {
