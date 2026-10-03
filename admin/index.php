@@ -439,6 +439,12 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'tokscopes') {
+        $r = tokscope_run();
+        echo json_encode($r['rows'] ? (tokscope_cached() ?: $r) : $r, JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'panelstats') {
         $perr = '';
         $age = !empty($_GET['force']) ? 0 : 45;
