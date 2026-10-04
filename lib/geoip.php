@@ -408,6 +408,20 @@ function geoip_fetch_gz($url, $dest, &$err = '') {
 }
 
 // Раз в 35 дней, и не чаще попытки раз в 6 часов. Зовётся после ответа клиенту.
+// Скачивание баз после отдачи страницы: под php-fpm ответ завершается, под
+// mod_php буферы выталкиваются — страница у человека уже есть, а соединение
+// живёт, пока базы качаются; уход со страницы скачивание не обрывает.
+function geoip_update_after_response() {
+    @ignore_user_abort(true);
+    if (function_exists('fastcgi_finish_request')) {
+        @fastcgi_finish_request();
+    } else {
+        while (ob_get_level() > 0) @ob_end_flush();
+        @flush();
+    }
+    geoip_maybe_update();
+}
+
 function geoip_maybe_update() {
     if (!geoip_auto()) return;
     $now = time();
