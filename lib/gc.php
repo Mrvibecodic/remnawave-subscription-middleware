@@ -8,6 +8,9 @@ function gc_tables() {
         'panel_write_log' => ['title' => 'Журнал записей в панель', 'pk' => 'id',   'col' => 'ts',        'kind' => 'text'],
         'metrics_minute' => ['title' => 'Метрики по минутам', 'pk' => 'minute_ts', 'col' => 'minute_ts', 'kind' => 'epoch'],
         'metrics_peak'   => ['title' => 'Пики нагрузки',      'pk' => 'minute_ts', 'col' => 'minute_ts', 'kind' => 'epoch'],
+        'rep_hour'       => ['title' => 'Отчёты: сводка по часам',  'pk' => 'id', 'col' => 'h',         'kind' => 'epoch'],
+        'rep_ip_day'     => ['title' => 'Отчёты: сводка по IP',     'pk' => 'id', 'col' => 'd',         'kind' => 'epoch'],
+        'rep_state'      => ['title' => 'Отчёты: состояние устройств', 'pk' => 'id', 'col' => 'last_seen', 'kind' => 'epoch'],
     ];
 }
 
@@ -31,6 +34,7 @@ function gc_ensure() {
     ensure_forward_log();
     ensure_panel_write_log();
     ensure_metrics_tables();
+    rep_ensure();
 }
 
 function gc_count($table, $days) {

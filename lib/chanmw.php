@@ -586,6 +586,16 @@ function chan_debug_why($why) {
         'time'   => 'время запроса вне окна ±300 секунд — разъехались часы',
         'nonce'  => 'плохая метка запроса',
         'replay' => 'повтор: эта метка запроса уже принималась',
+        'op'     => 'отчёт: неизвестная операция',
+        'method' => 'отчёт пришёл не POST-запросом',
+        'off'    => 'отчёт не принят: приём отчётов выключен',
+        'soon'   => 'отчёт не принят: с прошлого отчёта этого устройства прошло меньше 5 часов, либо у подписки уже 50 устройств',
+        'dev'    => 'отчёт: нет ни x-hwid, ни метки установки — не к чему привязать',
+        'size'   => 'отчёт: пустое или слишком большое тело',
+        'frame'  => 'отчёт: битая рамка тела',
+        'gzip'   => 'отчёт: тело не распаковывается или больше 4 МБ',
+        'version' => 'отчёт: неизвестная версия формата',
+        'db'     => 'отчёт: не записался в базу, подробности в логе',
     ];
 
     return $map[(string) $why] ?? (string) $why;
@@ -649,6 +659,12 @@ function chan_intercept() {
         return null;
     }
 
+    if ((string) ($ctx['req']['op'] ?? '') !== '') {
+        chan_report_answer($ctx, $dbg ? ['ts' => time(), 'kid' => $kid, 'spid' => $spid, 'short_uuid' => $ctx['token'],
+                                         'req_path' => $uri, 'req_head' => $head, 'req_json' => $ctx['plain']] : null);
+        exit();
+    }
+
     $query = chan_request_query($ctx);
     $_SERVER['REQUEST_URI']  = $prefix . '/' . $ctx['token'] . ($query !== '' ? '?' . $query : '');
     $_SERVER['QUERY_STRING'] = $query;
@@ -681,6 +697,78 @@ function chan_intercept() {
 }
 
 function chan_active() { return !empty($GLOBALS['chan_ctx']); }
+
+// Ответ на служебную операцию канала (сейчас одна — отчёт клиента, op=rep). Конверт уже
+// расшифрован, значит клиент настоящий: исход едет кодом внутри шифра, снаружи любой
+// ответ — те же 200 и шифротекст одной длины. В конвейер подписки такой запрос не идёт.
+function chan_report_answer(array $ctx, ?array $rec) {
+    $GLOBALS['submw_skip_metric'] = 1;
+    $op   = (string) ($ctx['req']['op'] ?? '');
+    $hwid = (string) ($ctx['req']['hwid'] ?? '');
+    $why  = '';
+    $json = null;
+    if ($op !== 'rep') {
+        [$st, $why] = [400, 'op'];
+    } elseif (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+        [$st, $why] = [405, 'method'];
+    } elseif (!rep_enabled()) {
+        [$st, $why] = [403, 'off'];
+    } else {
+        $wire = (string) @file_get_contents('php://input', false, null, 0, CHAN_REP_MAX_WIRE + 1);
+        $json = chan_report_open($ctx, trim($wire), $why);
+        $data = $json === null ? null : json_decode($json, true);
+        $dev  = rep_device($hwid, $data);
+        if (!is_array($data)) {
+            [$st, $why] = [400, (string) $why !== '' ? (string) $why : 'json'];
+        } elseif ($dev === '') {
+            // Без устройства отчёт не к чему привязать: паузу, последний принятый час
+            // и счёт устройств ведут по нему.
+            [$st, $why] = [400, 'dev'];
+        } elseif (rep_too_soon($ctx['token'], $dev)) {
+            [$st, $why] = [429, 'soon'];
+        } elseif (!rep_ingest($ctx['token'], $dev, $data, $why)) {
+            $st = $why === 'db' ? 500 : 400;
+        } else {
+            $st = 204;
+        }
+    }
+
+    $meta   = ['date' => [gmdate('D, d M Y H:i:s') . ' GMT']];
+    $sealed = chan_seal($ctx, $meta, '', chan_public_key(), chan_pad_on(), $st);
+    if ($sealed === null) {
+        http_response_code(404);
+        return;
+    }
+    http_response_code(200);
+    header('content-type: application/octet-stream');
+    header('cache-control: no-store');
+    echo $sealed;
+
+    if ($rec !== null) {
+        chan_debug_record($rec + [
+            'ok'         => $st === 204 ? 1 : 0,
+            'why'        => $why,
+            'req_fwd'    => $json === null ? '' : $json,
+            'res_st'     => $st,
+            'res_meta'   => $meta,
+            'res_wire'   => $sealed,
+            'res_outer'  => ['status' => 200, 'headers' => headers_list()],
+            'body_bytes' => $json === null ? 0 : strlen($json),
+            'wire_bytes' => strlen($sealed),
+        ]);
+    }
+
+    if ($st === 204) {
+        // Скачивание баз GeoIP — только когда ответ клиенту уже отдан: под mod_php
+        // он ушёл бы после скачивания, клиент бы не дождался и прислал отчёт снова.
+        // Без php-fpm базы обновляет заход в админку.
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+            geoip_maybe_update();
+        }
+        if (random_int(1, 20) === 1) rep_purge();
+    }
+}
 
 function chan_flush() {
     $ctx = $GLOBALS['chan_ctx'] ?? null;

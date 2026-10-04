@@ -125,6 +125,9 @@ function install_seed_values() {
         'chan_index_ttl'        => '900',
         'chan_debug'            => '0',
         'chan_debug_keep'       => '50',
+        'rep_enabled'           => '0',
+        'rep_keep_days'         => '90',
+        'geoip_auto'            => '1',
     ];
 }
 
@@ -565,7 +568,7 @@ function db_migrate(array $from, array $to, &$err = '') {
         foreach (install_statements($drv) as $sql) $dst->exec($sql);
         $dst->exec(ddl_metrics_minute($drv));
         $dst->exec(ddl_metrics_peak($drv));
-        foreach (migrate_extra_ddl($drv) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
+        foreach (array_merge(migrate_extra_ddl($drv), rep_ddl($drv)) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
     } catch (Throwable $e) { $err = 'подготовка приёмника: ' . $e->getMessage(); return false; }
 
     $tables = db_list_tables($src, $sdrv);
