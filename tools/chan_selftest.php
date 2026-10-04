@@ -82,6 +82,27 @@ if ($ctx !== null) {
     check('ответ с двоичным телом', $sealedB, $vectors['response']['body_binary']);
 }
 
+$rep    = $vectors['report'];
+$repCtx = chan_open($vectors['kid'], $vectors['spid'], $rep['blob'], $lookup, $keys, $at);
+check('конверт отчёта разобран', $repCtx !== null, true);
+if ($repCtx !== null) {
+    check('операция отчёта', $repCtx['req']['op'], 'rep');
+    check('ключ тела отчёта', bin2hex(chan_report_key($repCtx)), $rep['key']);
+    check('тело отчёта', chan_report_seal($repCtx, (string) base64_decode($rep['gzip'], true)), $rep['body']);
+    check('тело отчёта кратно 4096', strlen($rep['body']) % 4096, 0);
+    check('отчёт расшифрован', chan_report_open($repCtx, $rep['body']), $rep['json']);
+    $bad = $rep['body'];
+    $bad[10] = $bad[10] === 'A' ? 'B' : 'A';
+    check('подменённое тело отчёта', chan_report_open($repCtx, $bad), null);
+    $other = ['ephPub' => sodium_crypto_box_publickey_from_secretkey(str_repeat("\4", 32))] + $repCtx;
+    check('тело отчёта от другого запроса', chan_report_open($other, $rep['body']), null);
+    check('пустое тело отчёта', chan_report_open($repCtx, ''), null);
+    check('слишком длинное тело отчёта', chan_report_open($repCtx, str_repeat('A', CHAN_REP_MAX_WIRE + 1)), null);
+}
+if ($ctx !== null) {
+    check('у обычного запроса нет операции', $ctx['req']['op'], '');
+}
+
 $first = chan_open($vectors['kid'], '0', $vectors['request']['blob_first'], $lookup, $keys, $at);
 check('первый контакт разобран', $first !== null, true);
 

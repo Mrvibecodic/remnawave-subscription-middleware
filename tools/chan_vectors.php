@@ -60,6 +60,24 @@ $sealed   = chan_seal($ctx, $meta, $body, $spPublic, false, $status, $srvSecret,
 $binary   = "proxies: \xff\xfe\n";
 $sealedB  = chan_seal($ctx, $meta, $binary, $spPublic, false, $status, $srvSecret, $sealedAt);
 
+$repHead  = '{"v":1,"t":1786500000,"n":"BAECAwQFBgcICQoLDA0ODw","op":"rep","hwid":"3f9c1d2e","os":"windows","pad":"';
+$repPlain = $repHead . str_repeat('.', CHAN_REQ_PAD_BLOCK - strlen($repHead) - 2) . '"}';
+$repCipher = sodium_crypto_aead_chacha20poly1305_ietf_encrypt(
+    $repPlain,
+    'c1' . $kid . $ephPublic,
+    str_repeat("\0", 12),
+    $keyReq
+);
+$repBlob = chan_b64($ephPublic . $repCipher);
+$repJson = '{"v":1,"platform":"pc","client":"0.0.0","from":1786496400,"to":1786500000,'
+    . '"nodes":{"n1":{"name":"Узел","type":"vless","server":"node.example.com","port":443}},'
+    . '"networks":{"0123456789abcdef":{"kind":"wifi","hours":[{"h":1786496400,"ip4":"203.0.113.7",'
+    . '"ping":{"n1":{"n":3,"fail":1,"b":[1,1,0,0,0,0]}},"use":{"n1":{"up":10,"down":20,"min":5}},'
+    . '"freeze":{"n1":{"verdict":"ok","status":200,"at":1786497000}}}]}}}';
+$repGz   = gzencode($repJson, 9);
+$repCtx  = $ctx + [];
+$repBody = chan_report_seal($repCtx, $repGz);
+
 if ($sealed === null || $sealedB === null) {
     fwrite(STDERR, "внутренняя ошибка: ответ не собрался\n");
     exit(1);
@@ -86,6 +104,17 @@ $vectors = [
         'key_first'   => bin2hex($keyReq0),
         'blob_first'  => chan_b64($ephPublic . $cipher0),
         'path_pinned' => '/c1/' . $kid . '/' . chan_spid($spPublic) . '/' . $blob,
+    ],
+    'report'        => [
+        'pad_block'  => CHAN_REP_PAD_BLOCK,
+        'plain'      => $repPlain,
+        'blob'       => $repBlob,
+        'path'       => '/c1/' . $kid . '/' . chan_spid($spPublic) . '/' . $repBlob,
+        'key'        => bin2hex(chan_report_key($repCtx)),
+        'json'       => $repJson,
+        'gzip'       => base64_encode($repGz),
+        'frame_len'  => strlen(chan_report_frame($repGz)),
+        'body'       => $repBody,
     ],
     'response'      => [
         'srv_secret' => bin2hex($srvSecret),
