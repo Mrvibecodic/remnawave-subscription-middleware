@@ -434,6 +434,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
   "system:configuration",
   "system:stats",
   "nodes:list",
+  "hosts:list",
   "subscriptions:by-short-uuid-protected"
 ]
 ```
@@ -456,6 +457,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
   "system:configuration",
   "system:stats",
   "nodes:list",
+  "hosts:list",
   "subscriptions:by-short-uuid-protected"
 ]
 ```
@@ -463,7 +465,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 Не хочется возиться с отдельными эндпоинтами — можно выдать по ресурсам целиком:
 `users:read`, `users:write`, `hwid-user-devices:read`, `hwid-user-devices:write`,
 `internal-squads:read`, `external-squads:read`, `subscription-template:read`,
-`system:read`, `nodes:read`, `subscriptions:read`. Прав
+`system:read`, `nodes:read`, `hosts:read`, `subscriptions:read`. Прав
 будет больше необходимого, но записывать токен сможет только в пользователей и
 устройства.
 
@@ -473,6 +475,8 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 |---|---|
 | Шапка админки, «О системе» → «Панель» | `system:metadata` **(нужен всегда)** |
 | «О системе» → статистика панели | `system:stats`, `nodes:list` |
+| «Clod Clash» → «Защищённый канал» — индекс подписок | `users:list` |
+| «Clod Clash» → «Статистика» — страна узла из панели | `nodes:list`, `hosts:list` (без них узлы показываются, но без страны из панели) |
 | «Подключение», «Вебхуки», «Лог запросов» (длина shortUuid) | `system:configuration` *(панель 3.2.0+)* |
 | «Пользователи» — список | `users:list` |
 | «Пользователи» — устройства пользователя | `hwid-user-devices:list-by-user` |
@@ -508,7 +512,8 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 | `/api/system/metadata` | GET | `system:metadata` | read | версия панели |
 | `/api/system/configuration` | GET | `system:configuration` | read | настройки панели *(3.2.0+)* |
 | `/api/system/stats` | GET | `system:stats` | read | статистика на «О системе» |
-| `/api/nodes` | GET | `nodes:list` | read | счётчик нод на «О системе» |
+| `/api/nodes` | GET | `nodes:list` | read | счётчик нод на «О системе»; страна узла на «Статистике» |
+| `/api/hosts` | GET | `hosts:list` | read | адрес хоста → узел, страна узла на «Статистике» |
 | `/api/subscriptions/by-short-uuid/{shortUuid}` | GET | `subscriptions:by-short-uuid-protected` | read | ключи хостов панели и второй подписки для страницы подписки |
 | `/api/sub/{shortUuid}` | GET | — | — | публичный, токен не используется |
 | `/api/auth/status` | GET | — | — | публичный, токен не используется |
