@@ -13,6 +13,10 @@ const CHAN_FIELD_MAX = 1024;
 
 const CHAN_REQ_PAD_BLOCK = 512;
 
+const CHAN_REP_PAD_BLOCK = 3072;
+const CHAN_REP_MAX_WIRE  = 360448;
+const CHAN_REP_MAX_JSON  = 4194304;
+
 function chan_b64(string $raw): string
 {
     return rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
@@ -179,7 +183,7 @@ function chan_open(string $kid, string $spid, string $blob, callable $lookup, ar
         return null;
     }
 
-    foreach (['hwid', 'os', 'osv', 'model', 'ua', 'acc', 'q'] as $field) {
+    foreach (['hwid', 'os', 'osv', 'model', 'ua', 'acc', 'q', 'op'] as $field) {
         $req[$field] = chan_scrub($req[$field] ?? '');
     }
 
@@ -213,6 +217,78 @@ function chan_request_headers(array $ctx): array
 function chan_request_query(array $ctx): string
 {
     return (string)($ctx['req']['q'] ?? '');
+}
+
+function chan_report_key(array $ctx): string
+{
+    return chan_hkdf($ctx['psk'] . $ctx['dh'], $ctx['kid'], 'rep' . $ctx['ephPub']);
+}
+
+function chan_report_frame(string $gz): string
+{
+    $plain = pack('N', strlen($gz)) . $gz;
+    $need  = (CHAN_REP_PAD_BLOCK - ((strlen($plain) + 16) % CHAN_REP_PAD_BLOCK)) % CHAN_REP_PAD_BLOCK;
+
+    return $plain . str_repeat("\0", $need);
+}
+
+function chan_report_seal(array $ctx, string $gz): string
+{
+    return chan_b64(sodium_crypto_aead_chacha20poly1305_ietf_encrypt(
+        chan_report_frame($gz),
+        'c1p' . $ctx['kid'] . $ctx['ephPub'],
+        str_repeat("\0", 12),
+        chan_report_key($ctx)
+    ));
+}
+
+function chan_report_open(array $ctx, string $wire, ?string &$why = null): ?string
+{
+    $why = null;
+    if ($wire === '' || strlen($wire) > CHAN_REP_MAX_WIRE) {
+        $why = 'size';
+
+        return null;
+    }
+
+    $raw = chan_unb64($wire);
+    if ($raw === null || strlen($raw) < 16 + 4) {
+        $why = 'blob';
+
+        return null;
+    }
+
+    try {
+        $plain = sodium_crypto_aead_chacha20poly1305_ietf_decrypt(
+            $raw,
+            'c1p' . $ctx['kid'] . $ctx['ephPub'],
+            str_repeat("\0", 12),
+            chan_report_key($ctx)
+        );
+    } catch (Throwable $e) {
+        $plain = false;
+    }
+    if ($plain === false) {
+        $why = 'aead';
+
+        return null;
+    }
+
+    $len = unpack('N', substr($plain, 0, 4))[1];
+    if ($len < 1 || 4 + $len > strlen($plain)) {
+        $why = 'frame';
+
+        return null;
+    }
+
+    $json = @gzdecode(substr($plain, 4, $len), CHAN_REP_MAX_JSON);
+    if (!is_string($json) || $json === '') {
+        $why = 'gzip';
+
+        return null;
+    }
+
+    return $json;
 }
 
 function chan_seal(array $ctx, array $meta, string $body, string $spPublic, bool $pad = true, int $status = 200, ?string $ephSecret = null, ?int $now = null): ?string
