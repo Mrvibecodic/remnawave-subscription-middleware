@@ -13,6 +13,8 @@ $chan_upd   = chan_stars_stale($chan_stars);
 $chan_ncache = chan_names_cache();
 $chan_names  = chan_names_map($chan_ncache);
 $chan_nupd   = chan_names_stale($chan_ncache);
+$rep_st     = rep_stats();
+$rep_geo    = geoip_status();
 $chan_plu   = function ($n, $one, $few, $many) {
     $t = abs((int) $n) % 100;
     if ($t > 10 && $t < 20) return $many;
@@ -164,6 +166,46 @@ $chan_plu   = function ($n, $one, $few, $many) {
     </div>
 
     <div class="card">
+        <h2 style="margin-top:0;font-size:1rem">Отчёты клиентов</h2>
+        <p class="muted">Клиенты Clod Clash с защищённой подпиской после планового обновления, не чаще раза в 6 часов, присылают отчёт: итоги проверки 16–20, пинги узлов, трафик по узлам, тип сети (Wi-Fi, мобильная, провод) и внешний IP, с которого делались замеры. Отчёт едет только по защищённому каналу. Пока тумблер выключен, прослойка отвечает клиенту «не принимаю», и он ничего не теряет — данные полежат у него до следующей попытки.</p>
+        <form method="post" data-autosave>
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="save_clod_rep">
+            <div class="ctg">
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Принимать отчёты</div><div class="set-d">Работает только при включённом главном выключателе канала.</div></div>
+                <label class="switch"><input type="checkbox" name="rep_enabled" <?= setting('rep_enabled', '0') === '1' ? 'checked' : '' ?> <?= $chan_ok ? '' : 'disabled' ?>><span class="sl"></span></label>
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Сколько дней хранить</div><div class="set-d">Старше — удаляется само. От 7 до 365.</div></div>
+                <input type="number" name="rep_keep_days" min="7" max="365" value="<?= (int) rep_keep_days() ?>">
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Обновлять базы GeoIP сами</div><div class="set-d">Раз в месяц скачиваются бесплатные DB-IP Lite (страна и AS). Выключите, если кладёте свои файлы.</div></div>
+                <label class="switch"><input type="checkbox" name="geoip_auto" <?= geoip_auto() ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
+            </div>
+        </form>
+        <table class="logtbl" style="margin-top:1rem">
+            <tbody>
+            <tr><td style="width:2.2rem"><?= (int) $rep_st['week'] > 0 ? '✅' : '—' ?></td>
+                <td>Устройств с отчётами: за сутки <b><?= (int) $rep_st['day'] ?></b>, за неделю <b><?= (int) $rep_st['week'] ?></b><?php if ((int) $rep_st['last'] > 0): ?> · последний отчёт <span class="ct-time" data-ts="<?= (int) $rep_st['last'] ?>"><?= h(date('Y-m-d H:i', (int) $rep_st['last'])) ?></span><?php endif; ?></td></tr>
+            <?php foreach (['country' => 'Страна', 'asn' => 'Автономная система (провайдер)'] as $gk => $gt): $g = $rep_geo[$gk]; ?>
+            <tr><td><?= $g['ok'] ? '✅' : '⚠️' ?></td>
+                <td><?= h($gt) ?> — <?php if ($g['ok']): ?><code><?= h($g['type']) ?></code>, сборка <?= $g['built'] > 0 ? h(gmdate('Y-m-d', (int) $g['built'])) : '—' ?><?php else: ?>базы нет<?= is_file($g['path']) ? ', файл не читается' : '' ?><?php endif; ?>
+                    <div class="muted" style="font-size:.78rem"><code><?= h($g['path']) ?></code></div></td></tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <p class="muted" style="font-size:.8rem;margin-top:.6rem">Без базы отчёты всё равно принимаются, но страна и провайдер у этих записей останутся пустыми. Свои файлы MaxMind DB (например, GeoLite2-Country или GeoLite2-City и GeoLite2-ASN) кладите по путям выше под теми же именами. Базы по умолчанию: <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a>, лицензия CC BY 4.0.</p>
+        <form method="post" style="margin-top:.6rem">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="clod_geoip_update">
+            <button type="submit" class="btn ghost">↻ Скачать базы DB-IP сейчас</button>
+        </form>
+    </div>
+
+    <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Ключ прослойки</h2>
         <p class="muted">Клиентам ключ не раздаётся: он приезжает внутри первого зашифрованного ответа, и они его запоминают. Отпечаток виден в клиенте рядом с галочкой — по нему сверяют, что отвечала та самая прослойка. При смене ключа предыдущий остаётся рабочим, пока клиенты не подхватят новый.</p>
         <p>Текущий отпечаток: <code style="font-size:1.05rem"><?= $chan_fp !== '' ? h($chan_fp) : '—' ?></code></p>
@@ -272,7 +314,13 @@ $chan_plu   = function ($n, $one, $few, $many) {
                     <div class="lbl">3. Запрос расшифрованный</div>
                     <pre><?= h((string) $d['req_json']) ?></pre>
                     <?php endif; ?>
-                    <?php if ($ok): ?>
+                    <?php if (strpos((string) $d['req_json'], '"op":"rep"') !== false): ?>
+                    <?php if ((string) $d['req_fwd'] !== ''): ?>
+                    <div class="lbl">4. Отчёт клиента расшифрованный</div>
+                    <pre><?= h((string) $d['req_fwd']) ?></pre>
+                    <?php endif; ?>
+                    <div class="lbl">5. Ответ клиенту — код внутри шифра: <?= (int) $d['res_st'] ?></div>
+                    <?php elseif ($ok): ?>
                     <div class="lbl">4. Каким запрос ушёл в конвейер и в панель</div>
                     <pre><?= h((string) $d['req_fwd']) ?></pre>
                     <div class="lbl">5. Ответ до шифрования — заголовки панели</div>

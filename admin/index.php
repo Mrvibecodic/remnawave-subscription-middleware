@@ -623,6 +623,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         form_saved('clod');
     }
 
+    if ($action === 'save_clod_rep') {
+        set_setting('rep_enabled', isset($_POST['rep_enabled']) ? '1' : '0');
+        set_setting('rep_keep_days', (string) max(7, min(365, (int) ($_POST['rep_keep_days'] ?? 90))));
+        set_setting('geoip_auto', isset($_POST['geoip_auto']) ? '1' : '0');
+        flash(isset($_POST['rep_enabled']) ? 'Приём отчётов клиентов включён' : 'Приём отчётов клиентов выключен');
+        if (isset($_POST['rep_enabled'])) {
+            register_shutdown_function(static function () {
+                if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+                geoip_maybe_update();
+            });
+        }
+        form_saved('clod');
+    }
+
+    if ($action === 'clod_geoip_update') {
+        $gerr = '';
+        flash(geoip_update($gerr) ? 'Базы GeoIP обновлены' : 'Базы GeoIP не обновились: ' . $gerr);
+        form_saved('clod');
+    }
+
     if ($action === 'save_clod_debug') {
         set_setting('chan_debug', isset($_POST['chan_debug']) ? '1' : '0');
         set_setting('chan_debug_keep', (string) max(5, min(500, (int) ($_POST['chan_debug_keep'] ?? 50))));
