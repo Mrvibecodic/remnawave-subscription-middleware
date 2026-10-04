@@ -176,11 +176,14 @@ foreach ($rv_series['points'] as $pt) $rv_max = max($rv_max, $pt['pn']);
     </div>
 
     <div class="card">
-        <h2 style="margin-top:0;font-size:1rem">Пинги по <?= $rv_series['step'] === 3600 ? 'часам' : 'суткам' ?><?= $rv_node ? ' — ' . h($rv_node['name'] !== '' ? $rv_node['name'] : $rv_node['server']) : '' ?></h2>
+        <h2 style="margin-top:0;font-size:1rem">Пинги по <?= $rv_series['step'] === 3600 ? 'часам' : 'суткам (UTC)' ?><?= $rv_node ? ' — ' . h($rv_node['name'] !== '' ? $rv_node['name'] : $rv_node['server']) : '' ?></h2>
         <?php
         $pts = $rv_series['points'];
         $cnt = max(1, count($pts));
         $W = 1000; $H = 150; $bw = $W / $cnt;
+        // Часы — целые, подпись в часовом поясе сервера верна; сутки режутся по UTC,
+        // и подпись должна быть по UTC, иначе на западе от Гринвича сутки съезжают.
+        $rv_dt = static fn($fmt, $t) => $rv_series['step'] === 3600 ? date($fmt, $t) : gmdate($fmt, $t);
         ?>
         <svg class="rv-chart" viewBox="0 0 <?= $W ?> <?= $H + 18 ?>" preserveAspectRatio="none">
             <line class="gl" x1="0" y1="<?= $H ?>" x2="<?= $W ?>" y2="<?= $H ?>"/>
@@ -190,7 +193,7 @@ foreach ($rv_series['points'] as $pt) $rv_max = max($rv_max, $pt['pn']);
                 $w = max(1, $bw * .8);
                 $hOk = ($pt['pn'] - $pt['pf']) / $rv_max * ($H - 6);
                 $hBad = $pt['pf'] / $rv_max * ($H - 6);
-                $tt = date($rv_series['step'] === 3600 ? 'd.m H:00' : 'd.m', $pt['t']) . ' — пингов ' . $pt['pn'] . ', неудачных ' . $pt['pf'] . ($pt['fail'] !== null ? ' (' . $rv_pct($pt['fail']) . ')' : '') . ', медиана ' . $rv_med($pt['med']);
+                $tt = $rv_dt($rv_series['step'] === 3600 ? 'd.m H:00' : 'd.m', $pt['t']) . ' — пингов ' . $pt['pn'] . ', неудачных ' . $pt['pf'] . ($pt['fail'] !== null ? ' (' . $rv_pct($pt['fail']) . ')' : '') . ', медиана ' . $rv_med($pt['med']);
             ?>
             <g><title><?= h($tt) ?></title>
                 <rect class="ok" x="<?= round($x, 1) ?>" y="<?= round($H - $hOk - $hBad, 1) ?>" width="<?= round($w, 1) ?>" height="<?= round($hOk, 1) ?>"/>
@@ -201,7 +204,7 @@ foreach ($rv_series['points'] as $pt) $rv_max = max($rv_max, $pt['pn']);
             $marks = $rv_series['step'] === 3600 ? ($rv_f['p'] === 1 ? 6 : 24) : 5;
             foreach ($pts as $i => $pt):
                 if ($i % $marks !== 0 || $i * $bw > $W - 40) continue; ?>
-            <text class="ax" x="<?= round($i * $bw + 2, 1) ?>" y="<?= $H + 13 ?>"><?= h(date($rv_series['step'] === 3600 && $rv_f['p'] === 1 ? 'H:00' : 'd.m', $pt['t'])) ?></text>
+            <text class="ax" x="<?= round($i * $bw + 2, 1) ?>" y="<?= $H + 13 ?>"><?= h($rv_dt($rv_series['step'] === 3600 && $rv_f['p'] === 1 ? 'H:00' : 'd.m', $pt['t'])) ?></text>
             <?php endforeach; ?>
         </svg>
         <div class="rv-legend"><span><i style="background:var(--accent);opacity:.55"></i>удачные</span><span><i style="background:#ef4444"></i>неудачные</span><span>Наведите на столбец — подробности.</span></div>
@@ -241,7 +244,7 @@ foreach ($rv_series['points'] as $pt) $rv_max = max($rv_max, $pt['pn']);
                         <td><span class="rq <?= $rv_qfail($ip['fail']) ?>"><?= h($rv_pct($ip['fail'])) ?></span></td>
                         <td><span class="rq <?= $rv_qmed($ip['med']) ?>"><?= h($rv_med($ip['med'])) ?></span></td>
                         <td><?= $rv_frz($ip) ?></td>
-                        <td class="muted"><?= h(date('d.m', $ip['last'])) ?></td></tr>
+                        <td class="muted"><?= h(gmdate('d.m', $ip['last'])) ?></td></tr>
                     <?php endforeach; ?>
                     </tbody></table></details></td>
                 <td class="num"><?= $rv_num(count($isp['ips'])) ?></td>

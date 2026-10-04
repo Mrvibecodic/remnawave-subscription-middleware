@@ -628,12 +628,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('rep_keep_days', (string) max(7, min(365, (int) ($_POST['rep_keep_days'] ?? 90))));
         set_setting('geoip_auto', isset($_POST['geoip_auto']) ? '1' : '0');
         flash(isset($_POST['rep_enabled']) ? 'Приём отчётов клиентов включён' : 'Приём отчётов клиентов выключен');
-        if (isset($_POST['rep_enabled'])) {
-            register_shutdown_function(static function () {
-                if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
-                geoip_maybe_update();
-            });
-        }
+        if (isset($_POST['rep_enabled'])) register_shutdown_function('geoip_update_after_response');
         form_saved('reports');
     }
 
@@ -1458,12 +1453,7 @@ if ($tab === 'reqlog' && $rl_view === '') {
 $sys_info = []; $sys_db = []; $sys_load = []; $sys_series = []; $sys_peaks = [];
 // Базы GeoIP для отчётов клиентов: раз в месяц, после отдачи страницы. Запрос
 // клиента качает их только под php-fpm, где ответ уже ушёл; здесь — везде.
-if ($tab === 'reports' && rep_enabled()) {
-    register_shutdown_function(static function () {
-        if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
-        geoip_maybe_update();
-    });
-}
+if ($tab === 'reports' && rep_enabled()) register_shutdown_function('geoip_update_after_response');
 if ($tab === 'sysinfo') {
     ensure_metrics_tables();
     $sys_info   = metrics_system_info();
