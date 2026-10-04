@@ -140,7 +140,7 @@ if ($short_uuid !== '') {
         grace_cleanup($short_uuid);
         wglease_purge_user($short_uuid);
         if (function_exists('chan_index_drop')) {
-            try { chan_index_drop($short_uuid); chan_state_drop($short_uuid); }
+            try { chan_index_drop($short_uuid); chan_state_drop($short_uuid); rep_forget($short_uuid); }
             catch (Throwable $e) { error_log('submw chan index drop: ' . $e->getMessage()); }
         }
         $action = 'clear';
