@@ -174,7 +174,10 @@ function chan_lookup_token($kid) {
         $short = $st->fetchColumn();
         if ($short !== false && $short !== null && $short !== '') return (string) $short;
 
-        if (!chan_index_rebuild(false)) return null;
+        // Неизвестная метка — возможно, пользователь создан только что, а
+        // вебхука нет: индекс пересобирается тут же, но не чаще раза в минуту —
+        // иначе клиент ушёл бы на открытый путь и остался на нём.
+        if (!chan_index_rebuild(false, true)) return null;
 
         $st->execute([(string) $kid, $epoch - 1, $epoch + 1]);
         $short = $st->fetchColumn();
@@ -182,7 +185,7 @@ function chan_lookup_token($kid) {
     } catch (Throwable $e) { error_log('submw chan lookup: ' . $e->getMessage()); return null; }
 }
 
-function chan_index_rebuild($force = false) {
+function chan_index_rebuild($force = false, $miss = false) {
     if (!chan_ext_ok() || !chan_ensure() || !($p = db())) return false;
 
     $now   = time();
@@ -190,8 +193,8 @@ function chan_index_rebuild($force = false) {
     if (!$force) {
         $ts   = (int) setting('chan_index_ts', '0');
         $done = (int) setting('chan_index_epoch', '0');
-        if ($done === $epoch && ($now - $ts) < chan_index_ttl()) return false;
-        if ($done !== $epoch && ($now - $ts) < 60) return false;
+        if ($done === $epoch && !$miss && ($now - $ts) < chan_index_ttl()) return false;
+        if (($done !== $epoch || $miss) && ($now - $ts) < 60) return false;
     }
     $lock = @fopen(rtrim(sys_get_temp_dir(), '/\\') . '/submw_chan_index_' . substr(md5(__DIR__), 0, 12) . '.lock', 'c');
     @set_time_limit(300);
