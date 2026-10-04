@@ -28,5 +28,6 @@ require_once __DIR__ . '/lib/chan.php';
 require_once __DIR__ . '/lib/chanmw.php';
 require_once __DIR__ . '/lib/geoip.php';
 require_once __DIR__ . '/lib/reports.php';
+require_once __DIR__ . '/lib/reports_view.php';
 require_once __DIR__ . '/lib/clientver.php';
 require_once __DIR__ . '/lib/gc.php';
