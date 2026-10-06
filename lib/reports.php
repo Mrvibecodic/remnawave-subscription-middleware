@@ -18,6 +18,10 @@ const REP_MAX_AGE      = 8 * 86400;
 const REP_MAX_NODES    = 1000;
 const REP_MAX_NETWORKS = 32;
 const REP_MAX_HOURS    = 512;
+// Ячеек «час × узел» в одном отчёте: честный отчёт за двое суток при тысяче
+// узлов — десятки тысяч; больше — собранный нарочно, чтобы завалить базу
+// upsert'ами в одной транзакции.
+const REP_MAX_CELLS    = 100000;
 // Больше устройств у одной подписки не бывает: иначе подменой метки установки
 // можно было бы обойти паузу между отчётами и грузить прослойку без конца.
 const REP_MAX_DEVICES  = 50;
@@ -247,6 +251,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
     $days  = [];
     $state = [];
     $used  = [];
+    $cells_total = 0;
     $nets  = is_array($data['networks'] ?? null) ? $data['networks'] : [];
     if (count($nets) > REP_MAX_NETWORKS) $nets = array_slice($nets, 0, REP_MAX_NETWORKS, true);
 
@@ -300,6 +305,8 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
                 $verdicts[$tok] = [(string) $v['verdict'], rep_uint($v['status'] ?? 0, 999), $at >= $h && $at < $h + 3600 ? $at : $h];
             }
 
+            $cells_total += count($cells);
+            if ($cells_total > REP_MAX_CELLS) { $why = 'size'; return false; }
             foreach ($cells as $tok => $c) {
                 $nk = $nodes[$tok]['nkey'];
                 $used[$tok] = true;
