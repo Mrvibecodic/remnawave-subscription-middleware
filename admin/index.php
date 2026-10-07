@@ -1306,6 +1306,7 @@ $tab   = $_GET['tab'] ?? 'users';
 if ($tab === 'settings') $tab = 'connection';
 if ($tab === 'headers') $tab = 'rules';
 $rl_view = ($tab === 'reqlog' && ($_GET['view'] ?? '') === 'clients') ? 'clients' : '';
+if ($tab === 'reports' && $db_ok) rep_mark_seen();
 rules_migrate_legacy();
 update_autocheck();
 $token = csrf_token();
@@ -1811,6 +1812,14 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
             </div>
             <div class="rw-hcontrols">
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg width="20" height="20" class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
+                <?php
+                $rep_new = $db_ok ? rep_unseen() : 0;
+                $rep_n10 = $rep_new % 10; $rep_n100 = $rep_new % 100;
+                $rep_tip = $rep_new > 0
+                    ? (($rep_n10 === 1 && $rep_n100 !== 11) ? 'Появился ' . $rep_new . ' новый отчёт' : (($rep_n10 >= 2 && $rep_n10 <= 4 && ($rep_n100 < 12 || $rep_n100 > 14)) ? 'Появилось ' . $rep_new . ' новых отчёта' : 'Появилось ' . $rep_new . ' новых отчётов')) . ' — открыть статистику'
+                    : (rep_enabled() ? 'Статистика Clod Clash — новых отчётов нет' : 'Статистика Clod Clash — приём отчётов выключен');
+                ?>
+                <a class="hbtn hbtn-mail" href="?tab=reports" id="repMail" data-tip="<?= h($rep_tip) ?>" aria-label="<?= h($rep_tip) ?>"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg><?php if ($rep_new > 0): ?><span class="hbtn-badge"><?= $rep_new > 99 ? '99+' : (int) $rep_new ?></span><?php endif; ?></a>
                 <a class="hbtn hbtn-ver" href="?tab=update" title="<?= $upd_avail ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if ($upd_avail): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
 <?php
     $pm_meta = panel_meta_cached();
@@ -1911,6 +1920,21 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
         </div>
     </div>
 </div>
+<script>(function(){
+var tip=null,cur=null;
+var mk=function(){if(!tip){tip=document.createElement('div');tip.className='sw-tip';tip.setAttribute('role','tooltip');document.body.appendChild(tip);}return tip;};
+var hide=function(){cur=null;if(tip)tip.classList.remove('on');};
+var show=function(a){var s=a.getAttribute('data-tip');if(!s){hide();return;}cur=a;var d=mk();d.textContent=s;d.classList.remove('on');d.style.left='0px';d.style.top='0px';
+var r=a.getBoundingClientRect(),w=d.offsetWidth,h=d.offsetHeight,x=r.left+r.width/2-w/2,y=r.top-h-8;if(y<6)y=r.bottom+8;x=Math.max(8,Math.min(x,innerWidth-w-8));
+d.style.left=Math.round(x)+'px';d.style.top=Math.round(y)+'px';requestAnimationFrame(function(){if(cur===a)d.classList.add('on');});};
+var pick=function(t){if(!t||!t.closest)return null;var a=t.closest('[data-tip],.rvp [title]');if(!a)return null;if(a.hasAttribute('title')&&!a.hasAttribute('data-tip')){a.setAttribute('data-tip',a.getAttribute('title'));a.removeAttribute('title');}return a;};
+document.addEventListener('mouseover',function(e){var a=pick(e.target);if(a===cur)return;if(a)show(a);else hide();});
+document.addEventListener('focusin',function(e){var a=pick(e.target);if(a)show(a);});
+document.addEventListener('focusout',hide);
+document.addEventListener('mousedown',hide,true);
+window.addEventListener('scroll',hide,true);
+var m=document.getElementById('repMail');if(m)m.addEventListener('click',function(){var b=m.querySelector('.hbtn-badge');if(b)b.remove();m.setAttribute('data-tip','Статистика Clod Clash — новых отчётов нет');});
+})();</script>
 <script>
 var HELP={
 'origin':{t:'Origin — домен подписки',h:'<p>Настоящий домен подписки вашей панели — отсюда прослойка берёт рабочий конфиг для активных пользователей.</p><h4>Что вписать</h4><p>Только домен, <b>без</b> <code>https://</code> и без пути в конце.</p><p>Например: <code>sub.example.com</code></p><h4>Где его взять</h4><p>Это домен публичной подписки панели — в её <code>.env</code> это <code>SUB_PUBLIC_DOMAIN</code> (без части <code>/api/sub</code>).</p>'},
