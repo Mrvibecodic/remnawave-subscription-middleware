@@ -107,7 +107,7 @@ function rep_add_cols(PDO $p) {
     $int  = $my ? 'INT NOT NULL DEFAULT 0' : 'INTEGER NOT NULL DEFAULT 0';
     $plan = [
         'rep_dev'   => ['model' => $u(64), 'os' => $u(48)],
-        'rep_state' => ['loc' => $a(24), 'hist' => $a(48), 'hist_h' => $int, 'sub' => $u(64)],
+        'rep_state' => ['loc' => $a(24), 'hist' => $a(48), 'hist_h' => $int, 'sub' => $u(64), 'hc' => $a(2000)],
     ];
     $ok = true;
     foreach ($plan as $t => $cols) {
@@ -130,7 +130,7 @@ function rep_new_cols() {
 }
 
 function rep_sel(array $cols, $prefix = '') {
-    $fb = ['loc' => "''", 'hist' => "''", 'hist_h' => '0', 'model' => "''", 'os' => "''", 'sub' => "''"];
+    $fb = ['loc' => "''", 'hist' => "''", 'hist_h' => '0', 'model' => "''", 'os' => "''", 'sub' => "''", 'hc' => "''"];
     $new = rep_new_cols();
     $out = [];
     foreach ($cols as $c) $out[] = !$new && isset($fb[$c]) ? $fb[$c] . ' AS ' . $c : $prefix . $c;
@@ -168,12 +168,66 @@ function rep_hist_merge($old, $oldH, array $hours, $atLeast = 0) {
     return [implode('', $out), $anchor];
 }
 
+// Счётчики пингов по часам за те же 48 часов, что и полоса: «pn.pf.b0…b5» в base36
+// через запятую, пустая ячейка — час без замеров. Сумма по ним — пинги, неудачи и
+// медиана в rep_state, а не срез последнего отчёта.
+function rep_hc_parse($hc) {
+    $out = [];
+    foreach (explode(',', is_string($hc) ? $hc : '') as $i => $cell) {
+        if ($cell === '' || !preg_match('~^[0-9a-z]+(\.[0-9a-z]+){0,7}$~', $cell)) { $out[$i] = null; continue; }
+        $v = array_map(static fn($x) => min((int) base_convert($x, 36, 10), 1000000), explode('.', $cell));
+        $out[$i] = array_pad($v, 2 + REP_BUCKETS, 0);
+    }
+
+    return $out;
+}
+
+function rep_hc_cell(array $v) {
+    while (count($v) > 2 && end($v) === 0) array_pop($v);
+
+    return implode('.', array_map(static fn($x) => base_convert((string) max(0, (int) $x), 10, 36), $v));
+}
+
+function rep_hc_merge($old, $oldH, array $hours, $anchor) {
+    $oldH  = (int) $oldH;
+    $slots = array_fill(0, REP_HIST, null);
+    $prev  = rep_hc_parse($old);
+    $len   = count($prev);
+    if ($oldH > 0 && $old !== '') {
+        foreach ($prev as $i => $v) {
+            if ($v === null) continue;
+            $j = REP_HIST - 1 - intdiv($anchor - ($oldH - ($len - 1 - $i) * 3600), 3600);
+            if ($j >= 0 && $j < REP_HIST) $slots[$j] = $v;
+        }
+    }
+    foreach ($hours as $h => $x) {
+        $j = REP_HIST - 1 - intdiv($anchor - (int) $h, 3600);
+        if ($j < 0 || $j >= REP_HIST) continue;
+        $slots[$j] = array_merge([min($x['pn'], 1000000), min($x['pf'], $x['pn'], 1000000)], array_map(static fn($n) => min($n, 1000000), $x['b']));
+    }
+    $pn = 0;
+    $pf = 0;
+    $b  = array_fill(0, REP_BUCKETS, 0);
+    $first = null;
+    $cells = [];
+    foreach ($slots as $j => $v) {
+        if ($v === null) { $cells[] = ''; continue; }
+        $first = $first ?? $j;
+        $pn += $v[0];
+        $pf += $v[1];
+        for ($i = 0; $i < REP_BUCKETS; $i++) $b[$i] += $v[2 + $i];
+        $cells[] = rep_hc_cell($v);
+    }
+
+    return [$first === null ? '' : implode(',', array_slice($cells, $first)), $pn, min($pf, $pn), $b];
+}
+
 function rep_hist_old(PDO $p, $short, $hwid) {
     $out = [];
     try {
-        $st = $p->prepare('SELECT net, nkey, hist, hist_h FROM rep_state WHERE short_uuid = ? AND hwid = ?');
+        $st = $p->prepare('SELECT net, nkey, hist, hist_h, hc FROM rep_state WHERE short_uuid = ? AND hwid = ?');
         $st->execute([(string) $short, (string) $hwid]);
-        while ($r = $st->fetch(PDO::FETCH_ASSOC)) $out[$r['net'] . '|' . $r['nkey']] = [(string) $r['hist'], (int) $r['hist_h']];
+        while ($r = $st->fetch(PDO::FETCH_ASSOC)) $out[$r['net'] . '|' . $r['nkey']] = [(string) $r['hist'], (int) $r['hist_h'], (string) $r['hc']];
     } catch (Throwable $e) {}
 
     return $out;
@@ -478,9 +532,11 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             if ($nc) {
                 $hc = [];
                 foreach ($s['hb'] as $hh => $x) $hc[$hh] = rep_hist_char($x['pn'], $x['pf'], $x['b']);
-                $old = $olds[$s['net'] . '|' . $s['nkey']] ?? ['', 0];
+                $old = $olds[$s['net'] . '|' . $s['nkey']] ?? ['', 0, ''];
                 [$row['hist'], $row['hist_h']] = rep_hist_merge($old[0], $old[1], $hc, $s['h']);
-                $set = array_merge($set, ['hist', 'hist_h']);
+                [$row['hc'], $wpn, $wpf, $wb] = rep_hc_merge($old[2], $old[1], $s['hb'], $row['hist_h']);
+                if ($row['hc'] !== '') { $row['pn'] = $wpn; $row['pf'] = $wpf; $row['pmed'] = rep_median_bucket($wb); }
+                $set = array_merge($set, ['hist', 'hist_h', 'hc']);
             }
             if ($s['ip4'] !== '' || $s['ip6'] !== '') {
                 $set = array_merge($set, ['ip4', 'ip6', 'cc', 'asn', 'org']);
