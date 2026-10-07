@@ -242,10 +242,48 @@ final class SubmwMmdb
 function geoip_dir() { return dirname(default_db_path()) . '/geoip'; }
 
 function geoip_files() {
-    return ['country' => geoip_dir() . '/country.mmdb', 'asn' => geoip_dir() . '/asn.mmdb'];
+    return ['country' => geoip_dir() . '/country.mmdb', 'asn' => geoip_dir() . '/asn.mmdb', 'city' => geoip_dir() . '/city.mmdb'];
 }
 
 function geoip_auto() { return setting('geoip_auto', '1') === '1'; }
+
+function geoip_city_on() { return setting('geoip_city', '1') === '1'; }
+
+function geoip_city_live() {
+    if (!function_exists('db') || !($p = db())) return geoip_city_on();
+    try {
+        $st = $p->prepare('SELECT v FROM settings WHERE k = ?');
+        $st->execute(['geoip_city']);
+        $v = $st->fetchColumn();
+    } catch (Throwable $e) { return geoip_city_on(); }
+
+    return $v === false ? true : (string) $v === '1';
+}
+
+function geoip_wanted() {
+    $w = ['country' => 'country', 'asn' => 'asn'];
+    if (geoip_city_on()) $w['city'] = 'city';
+
+    return $w;
+}
+
+function geoip_city_drop() {
+    foreach ([geoip_files()['city'], geoip_dir() . '/.city.part', geoip_dir() . '/.city.part.gz'] as $f) {
+        if (is_file($f)) @unlink($f);
+    }
+}
+
+function geoip_loc($rec) {
+    if (!is_array($rec) || !is_array($rec['location'] ?? null)) return '';
+    $la = $rec['location']['latitude'] ?? null;
+    $lo = $rec['location']['longitude'] ?? null;
+    if (!is_numeric($la) || !is_numeric($lo)) return '';
+    $la = (float) $la;
+    $lo = (float) $lo;
+    if ($la < -90 || $la > 90 || $lo < -180 || $lo > 180 || ($la == 0.0 && $lo == 0.0)) return '';
+
+    return sprintf('%.2f,%.2f', $la, $lo);
+}
 
 function geoip_reader($which) {
     static $open = [];
@@ -265,12 +303,14 @@ function geoip_lookup($ip) {
     $ip = (string) $ip;
     if (isset($cache[$ip])) return $cache[$ip];
 
-    $out = ['cc' => '', 'asn' => 0, 'org' => ''];
-    foreach (['country', 'asn'] as $which) {
+    $out = ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => ''];
+    foreach (['country', 'asn', 'city'] as $which) {
+        if ($which === 'city' && !geoip_city_on()) continue;
         $r = geoip_reader($which);
         if ($r === null) continue;
         try { $rec = $r->get($ip); } catch (Throwable $e) { $rec = null; }
         if (!is_array($rec)) continue;
+        if ($out['loc'] === '') $out['loc'] = geoip_loc($rec);
         if ($out['cc'] === '') {
             $cc = $rec['country']['iso_code'] ?? ($rec['registered_country']['iso_code'] ?? '');
             if (is_string($cc) && preg_match('~^[A-Z]{2}$~', $cc)) $out['cc'] = $cc;
@@ -316,46 +356,48 @@ function geoip_dbip_url($which, $month) {
 // Скачивает свежие базы DB-IP Lite. Месяц пробуется текущий, затем прошлый: в первые
 // дни месяца новый выпуск может ещё не лежать. Файл заменяется только целиком и только
 // если он открывается как MaxMind DB нужного вида.
-function geoip_update(&$err = '') {
+function geoip_update(&$err = '', $only = null) {
     $err = '';
     $dir = geoip_dir();
     if (!is_dir($dir) && !@mkdir($dir, 0775, true)) { $err = 'не создаётся папка ' . $dir; return false; }
     $lock = @fopen($dir . '/.lock', 'c');
     if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); $err = 'обновление уже идёт'; return false; }
-    @set_time_limit(300);
+    @set_time_limit(1800);
     set_setting('geoip_try', (string) time());
 
-    $done = 0;
-    $want = ['country' => 'country', 'asn' => 'asn'];
+    $want = geoip_wanted();
+    if (is_array($only)) $want = array_intersect_key($want, array_flip($only));
+    $done = [];
+    $errs = [];
     foreach ($want as $which => $remote) {
-        $ok = false;
+        $last = '';
         foreach ([gmdate('Y-m'), gmdate('Y-m', strtotime('first day of last month'))] as $month) {
             $tmp = $dir . '/.' . $which . '.part';
-            if (!geoip_fetch_gz(geoip_dbip_url($remote, $month), $tmp, $e)) { $err = $e; continue; }
+            $e   = '';
+            if (!geoip_fetch_gz(geoip_dbip_url($remote, $month), $tmp, $e)) { $last = $e; continue; }
             try {
                 $probe = new SubmwMmdb($tmp);
                 $kind  = strtolower($probe->type());
                 unset($probe);
-            } catch (Throwable $t) { $kind = ''; $err = 'скачанный файл не читается: ' . $t->getMessage(); }
-            if ($kind === '' || strpos($kind, $which === 'asn' ? 'asn' : 'country') === false) {
+            } catch (Throwable $t) { $kind = ''; $last = 'скачанный файл не читается: ' . $t->getMessage(); }
+            if ($kind === '' || strpos($kind, $which) === false) {
                 @unlink($tmp);
-                if ($err === '') $err = 'скачан не тот файл: ' . $kind;
+                if ($kind !== '') $last = 'скачан не тот файл: ' . $kind;
                 continue;
             }
-            if (!@rename($tmp, geoip_files()[$which])) { @unlink($tmp); $err = 'не заменяется файл базы'; continue; }
-            $ok = true;
+            if ($which === 'city' && !geoip_city_live()) { @unlink($tmp); break; }
+            if (!@rename($tmp, geoip_files()[$which])) { @unlink($tmp); $last = 'не заменяется файл базы'; continue; }
+            $done[$which] = true;
+            $last = '';
             break;
         }
-        if ($ok) $done++;
+        if ($last !== '') $errs[] = $last;
     }
     if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
-    if ($done === count($want)) {
-        set_setting('geoip_ts', (string) time());
-        $err = '';
-        return true;
-    }
+    if (isset($done['country'], $done['asn'])) set_setting('geoip_ts', (string) time());
+    $err = implode('; ', $errs);
 
-    return false;
+    return count($done) === count($want);
 }
 
 function geoip_fetch_gz($url, $dest, &$err = '') {
@@ -369,7 +411,7 @@ function geoip_fetch_gz($url, $dest, &$err = '') {
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_MAXREDIRS      => 3,
         CURLOPT_CONNECTTIMEOUT => 15,
-        CURLOPT_TIMEOUT        => 240,
+        CURLOPT_TIMEOUT        => 600,
         CURLOPT_FAILONERROR    => true,
         CURLOPT_MAXFILESIZE_LARGE => 256 * 1048576,
         CURLOPT_SSL_VERIFYPEER => true,
@@ -412,6 +454,7 @@ function geoip_fetch_gz($url, $dest, &$err = '') {
 // mod_php буферы выталкиваются — страница у человека уже есть, а соединение
 // живёт, пока базы качаются; уход со страницы скачивание не обрывает.
 function geoip_update_after_response() {
+    if (session_status() === PHP_SESSION_ACTIVE) @session_write_close();
     @ignore_user_abort(true);
     if (function_exists('fastcgi_finish_request')) {
         @fastcgi_finish_request();
@@ -426,10 +469,12 @@ function geoip_maybe_update() {
     if (!geoip_auto()) return;
     $now = time();
     if ($now - (int) setting('geoip_try', '0') < 6 * 3600) return;
-    $fresh = $now - (int) setting('geoip_ts', '0') < 35 * 86400;
-    $have  = true;
-    foreach (geoip_files() as $path) if (!is_file($path)) $have = false;
-    if ($fresh && $have) return;
+    $need = [];
+    foreach (geoip_wanted() as $which => $remote) {
+        $f = geoip_files()[$which];
+        if (!is_file($f) || $now - (int) @filemtime($f) >= 35 * 86400) $need[] = $which;
+    }
+    if (!$need) return;
     $err = '';
-    if (!geoip_update($err)) error_log('submw geoip update: ' . $err);
+    if (!geoip_update($err, $need)) error_log('submw geoip update: ' . $err);
 }

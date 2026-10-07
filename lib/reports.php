@@ -28,6 +28,7 @@ const REP_MAX_DEVICES  = 50;
 const REP_BUCKETS      = 6;
 const REP_KINDS        = ['wifi', 'mobile', 'wired', 'other'];
 const REP_VERDICTS     = ['ok' => 'fok', 'frozen' => 'ffr', 'dead' => 'fdd'];
+const REP_HIST         = 48;
 
 function rep_enabled() { return chan_enabled() && setting('rep_enabled', '0') === '1'; }
 
@@ -63,7 +64,8 @@ function rep_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS rep_node ($id, nkey {$a(16)}, type {$a(32)}, server {$u(255)}, port $int,
             name {$u(191)}, first_seen $int, last_seen $int, UNIQUE (nkey))$tail",
         "CREATE TABLE IF NOT EXISTS rep_dev ($id, short_uuid {$a(64)}, hwid {$u(128)}, plat {$a(16)}, client {$a(32)},
-            first_seen $int, last_report $int, last_h $int, reports $int, UNIQUE (short_uuid, hwid){$keys('rep_dev')})$tail",
+            first_seen $int, last_report $int, last_h $int, reports $int, model {$u(64)}, os {$u(48)},
+            UNIQUE (short_uuid, hwid){$keys('rep_dev')})$tail",
         "CREATE TABLE IF NOT EXISTS rep_hour ($id, h $int, nkey {$a(16)}, cc {$a(2)}, asn $int, kind {$a(8)},
             plat {$a(16)}, $sums, UNIQUE (h, nkey, cc, asn, kind, plat){$keys('rep_hour')})$tail",
         "CREATE TABLE IF NOT EXISTS rep_ip_day ($id, d $int, ip {$a(45)}, nkey {$a(16)}, kind {$a(8)}, cc {$a(2)},
@@ -71,6 +73,7 @@ function rep_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS rep_state ($id, short_uuid {$a(64)}, hwid {$u(128)}, net {$a(16)}, nkey {$a(16)},
             kind {$a(8)}, ip4 {$a(45)}, ip6 {$a(45)}, cc {$a(2)}, asn $int, org {$u(128)}, verdict {$a(8)},
             vstatus $int, vat $int, pn $big, pf $big, pmed $int, up $big, down $big, last_seen $int,
+            loc {$a(24)}, hist {$a(48)}, hist_h $int,
             UNIQUE (short_uuid, hwid, net, nkey){$keys('rep_state')})$tail",
     ];
     if (!$my) {
@@ -92,8 +95,88 @@ function rep_ensure() {
         error_log('submw rep tables: ' . $e->getMessage());
         return $done = false;
     }
+    rep_add_cols($p);
 
     return $done = true;
+}
+
+function rep_add_cols(PDO $p) {
+    $my   = db_driver() === 'mysql';
+    $a    = static fn($n) => $my ? "VARCHAR($n) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT ''" : "TEXT NOT NULL DEFAULT ''";
+    $u    = static fn($n) => $my ? "VARCHAR($n) NOT NULL DEFAULT ''" : "TEXT NOT NULL DEFAULT ''";
+    $int  = $my ? 'INT NOT NULL DEFAULT 0' : 'INTEGER NOT NULL DEFAULT 0';
+    $plan = [
+        'rep_dev'   => ['model' => $u(64), 'os' => $u(48)],
+        'rep_state' => ['loc' => $a(24), 'hist' => $a(48), 'hist_h' => $int],
+    ];
+    $ok = true;
+    foreach ($plan as $t => $cols) {
+        if (db_has_cols($p, $t, array_keys($cols))) continue;
+        foreach ($cols as $c => $type) {
+            if (db_has_cols($p, $t, [$c])) continue;
+            try { $p->exec("ALTER TABLE $t ADD COLUMN $c $type"); }
+            catch (Throwable $e) { $why = $e->getMessage(); }
+        }
+        if (!db_has_cols($p, $t, array_keys($cols))) {
+            $ok = false;
+            error_log('submw rep columns ' . $t . ': ' . ($why ?? 'не добавились'));
+        }
+    }
+    $GLOBALS['submw_rep_cols'] = $ok;
+}
+
+function rep_new_cols() {
+    return rep_ensure() && ($GLOBALS['submw_rep_cols'] ?? true);
+}
+
+function rep_sel(array $cols, $prefix = '') {
+    $fb = ['loc' => "''", 'hist' => "''", 'hist_h' => '0', 'model' => "''", 'os' => "''"];
+    $new = rep_new_cols();
+    $out = [];
+    foreach ($cols as $c) $out[] = !$new && isset($fb[$c]) ? $fb[$c] . ' AS ' . $c : $prefix . $c;
+
+    return implode(', ', $out);
+}
+
+function rep_hist_char($pn, $pf, array $b) {
+    if ($pn <= 0) return '';
+    if ($pf >= $pn) return 'x';
+    $m = rep_median_bucket($b);
+
+    return $m < 0 ? '' : (string) $m;
+}
+
+function rep_hist_merge($old, $oldH, array $hours, $atLeast = 0) {
+    $old    = preg_replace('~[^0-5x.]~', '.', is_string($old) ? $old : '');
+    $oldH   = (int) $oldH;
+    $anchor = max($oldH, (int) $atLeast);
+    foreach ($hours as $h => $ch) $anchor = max($anchor, (int) $h);
+    if ($anchor <= 0) return ['', 0];
+    $out = array_fill(0, REP_HIST, '.');
+    $len = strlen($old);
+    if ($oldH > 0) {
+        for ($i = 0; $i < $len; $i++) {
+            $j = REP_HIST - 1 - intdiv($anchor - ($oldH - ($len - 1 - $i) * 3600), 3600);
+            if ($j >= 0 && $j < REP_HIST) $out[$j] = $old[$i];
+        }
+    }
+    foreach ($hours as $h => $ch) {
+        $j = REP_HIST - 1 - intdiv($anchor - (int) $h, 3600);
+        if ($j >= 0 && $j < REP_HIST && $ch !== '') $out[$j] = $ch;
+    }
+
+    return [implode('', $out), $anchor];
+}
+
+function rep_hist_old(PDO $p, $short, $hwid) {
+    $out = [];
+    try {
+        $st = $p->prepare('SELECT net, nkey, hist, hist_h FROM rep_state WHERE short_uuid = ? AND hwid = ?');
+        $st->execute([(string) $short, (string) $hwid]);
+        while ($r = $st->fetch(PDO::FETCH_ASSOC)) $out[$r['net'] . '|' . $r['nkey']] = [(string) $r['hist'], (int) $r['hist_h']];
+    } catch (Throwable $e) {}
+
+    return $out;
 }
 
 // INSERT с обновлением при совпадении ключа: $add складываются, $set заменяются.
@@ -215,7 +298,7 @@ function rep_devices_full($short) {
 // false и причина в $why — отчёт не принят целиком: проверка идёт до первой записи,
 // запись — одной транзакцией. Принимаются только закрытые часы не старше 8 суток
 // (с запасом 10 минут на разбег часов устройства).
-function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
+function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta = []) {
     $why = '';
     $now = $now ?? time();
     if (!is_array($data) || ($data['v'] ?? 0) !== REP_VERSION) { $why = 'version'; return false; }
@@ -225,6 +308,9 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
     $hwid  = (string) $hwid;
     $plat  = in_array($data['platform'] ?? '', ['pc', 'android'], true) ? $data['platform'] : 'other';
     $cli   = preg_replace('~[^0-9A-Za-z.+_-]~', '', rep_str($data['client'] ?? '', 32));
+    $model = rep_str($meta['model'] ?? '', 64);
+    $osv   = rep_str($meta['osv'] ?? '', 24);
+    $os    = rep_str(trim(rep_str($meta['os'] ?? '', 24) . ' ' . $osv), 48);
 
     $nodes = [];
     foreach ((is_array($data['nodes'] ?? null) ? $data['nodes'] : []) as $tok => $n) {
@@ -269,7 +355,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
             $ip4 = rep_ip($hr['ip4'] ?? '', 4);
             $ip6 = rep_ip($hr['ip6'] ?? '', 6);
             $ip  = $ip4 !== '' ? $ip4 : $ip6;
-            $geo = $ip !== '' ? geoip_lookup($ip) : ['cc' => '', 'asn' => 0, 'org' => ''];
+            $geo = $ip !== '' ? geoip_lookup($ip) : ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => ''];
             $d   = intdiv($h, 86400) * 86400;
 
             $cells = [];
@@ -305,6 +391,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
                 $verdicts[$tok] = [(string) $v['verdict'], rep_uint($v['status'] ?? 0, 999), $at >= $h && $at < $h + 3600 ? $at : $h];
             }
 
+            foreach ($cells as $tok => $c) if ($cells[$tok]['pf'] > $cells[$tok]['pn']) $cells[$tok]['pf'] = $cells[$tok]['pn'];
             $cells_total += count($cells);
             if ($cells_total > REP_MAX_CELLS) { $why = 'size'; return false; }
             foreach ($cells as $tok => $c) {
@@ -331,10 +418,18 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
 
                 $sk = "$net|$nk";
                 if (!isset($state[$sk])) {
-                    $state[$sk] = ['net' => $net, 'nkey' => $nk, 'kind' => $kind, 'ip4' => '', 'ip6' => '', 'cc' => '', 'asn' => 0, 'org' => '',
-                                   'h' => -1, 'pn' => 0, 'pf' => 0, 'b' => array_fill(0, REP_BUCKETS, 0), 'up' => 0, 'down' => 0, 'v' => null];
+                    $state[$sk] = ['net' => $net, 'nkey' => $nk, 'kind' => $kind, 'ip4' => '', 'ip6' => '', 'cc' => '', 'asn' => 0, 'org' => '', 'loc' => '',
+                                   'h' => -1, 'pn' => 0, 'pf' => 0, 'b' => array_fill(0, REP_BUCKETS, 0), 'up' => 0, 'down' => 0, 'v' => null, 'hb' => []];
                 }
                 $s = &$state[$sk];
+                if ($c['pn'] > 0) {
+                    $hb = &$s['hb'][$h];
+                    $hb = $hb ?? ['pn' => 0, 'pf' => 0, 'b' => array_fill(0, REP_BUCKETS, 0)];
+                    $hb['pn'] += $c['pn'];
+                    $hb['pf'] += $c['pf'];
+                    for ($i = 0; $i < REP_BUCKETS; $i++) $hb['b'][$i] += $c['b' . $i];
+                    unset($hb);
+                }
                 $s['pn']   += $c['pn'];
                 $s['pf']   += $c['pf'];
                 $s['up']   += $c['up'];
@@ -351,6 +446,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
                         $s['cc']  = $geo['cc'];
                         $s['asn'] = $geo['asn'];
                         $s['org'] = $geo['org'];
+                        $s['loc'] = (string) ($geo['loc'] ?? '');
                     }
                 }
                 if (isset($verdicts[$tok]) && ($s['v'] === null || $verdicts[$tok][2] >= $s['v'][2])) $s['v'] = $verdicts[$tok];
@@ -360,6 +456,8 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
     }
 
     $sums = rep_sum_cols();
+    $nc   = rep_new_cols();
+    $olds = $state && $nc ? rep_hist_old($p, $short, $hwid) : [];
     try {
         $p->beginTransaction();
         foreach ($nodes as $tok => $n) {
@@ -376,16 +474,28 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null) {
                 'up' => $s['up'], 'down' => $s['down'], 'last_seen' => $now,
             ];
             $set = ['kind', 'pn', 'pf', 'pmed', 'up', 'down', 'last_seen'];
-            if ($s['ip4'] !== '' || $s['ip6'] !== '') $set = array_merge($set, ['ip4', 'ip6', 'cc', 'asn', 'org']);
+            if ($nc) {
+                $hc = [];
+                foreach ($s['hb'] as $hh => $x) $hc[$hh] = rep_hist_char($x['pn'], $x['pf'], $x['b']);
+                $old = $olds[$s['net'] . '|' . $s['nkey']] ?? ['', 0];
+                [$row['hist'], $row['hist_h']] = rep_hist_merge($old[0], $old[1], $hc, $s['h']);
+                $set = array_merge($set, ['hist', 'hist_h']);
+            }
+            if ($s['ip4'] !== '' || $s['ip6'] !== '') {
+                $set = array_merge($set, ['ip4', 'ip6', 'cc', 'asn', 'org']);
+                if ($nc) { $row['loc'] = $s['loc']; $set[] = 'loc'; }
+            }
             if ($s['v'] !== null) {
                 $row += ['verdict' => $s['v'][0], 'vstatus' => $s['v'][1], 'vat' => $s['v'][2]];
                 $set  = array_merge($set, ['verdict', 'vstatus', 'vat']);
             }
             rep_upsert($p, 'rep_state', $row, ['short_uuid', 'hwid', 'net', 'nkey'], [], $set);
         }
-        rep_upsert($p, 'rep_dev',
-            ['short_uuid' => $short, 'hwid' => $hwid, 'plat' => $plat, 'client' => $cli, 'first_seen' => $now, 'last_report' => $now, 'last_h' => $last_h, 'reports' => 1],
-            ['short_uuid', 'hwid'], ['reports'], ['plat', 'client', 'last_report', 'last_h']);
+        $drow = ['short_uuid' => $short, 'hwid' => $hwid, 'plat' => $plat, 'client' => $cli, 'first_seen' => $now, 'last_report' => $now, 'last_h' => $last_h, 'reports' => 1];
+        $dset = ['plat', 'client', 'last_report', 'last_h'];
+        if ($nc && $model !== '') { $drow['model'] = $model; $dset[] = 'model'; }
+        if ($nc && $os !== '') { $drow['os'] = $os; $dset[] = 'os'; }
+        rep_upsert($p, 'rep_dev', $drow, ['short_uuid', 'hwid'], ['reports'], $dset);
         $p->commit();
     } catch (Throwable $e) {
         if ($p->inTransaction()) $p->rollBack();
