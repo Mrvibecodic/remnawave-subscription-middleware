@@ -241,10 +241,24 @@ function rep_panel_index($maxAge = 1800) {
     }
 
     [$hok, , $hd, ] = remnawave_api_get('/api/hosts');
+    $tr = [];
     if ($hok) {
+        $ib = [];
+        [$iok, , $id, ] = remnawave_api_get('/api/config-profiles/inbounds');
+        if ($iok) {
+            foreach ($list($id, 'inbounds') as $in) {
+                if (is_array($in) && !empty($in['uuid'])) $ib[(string) $in['uuid']] = $in;
+            }
+        }
         foreach ($list($hd, 'hosts') as $host) {
             if (!is_array($host)) continue;
             $addr = strtolower(trim((string) ($host['address'] ?? '')));
+            $in = $ib[(string) ($host['inbound']['configProfileInboundUuid'] ?? '')] ?? null;
+            if ($addr !== '' && is_array($in)) {
+                $sl  = strtoupper((string) ($host['securityLayer'] ?? 'DEFAULT'));
+                $sec = $sl === 'TLS' ? 'tls' : ($sl === 'NONE' ? 'none' : strtolower((string) ($in['security'] ?? '')));
+                $tr[$addr . '|' . (int) ($host['port'] ?? 0)] = ['t' => rep_str((string) ($in['type'] ?? ''), 24), 'n' => rep_str((string) ($in['network'] ?? ''), 24), 's' => rep_str($sec, 16)];
+            }
             if ($addr === '' || isset($out[$addr])) continue;
             foreach ((array) ($host['nodes'] ?? []) as $ref) {
                 $id = is_array($ref) ? (string) ($ref['uuid'] ?? $ref['nodeUuid'] ?? '') : (string) $ref;
@@ -254,9 +268,114 @@ function rep_panel_index($maxAge = 1800) {
     }
 
     set_setting('rep_panel_json', json_encode($out, JSON_UNESCAPED_UNICODE));
+    if ($hok) set_setting('rep_panel_tr', json_encode($tr, JSON_UNESCAPED_UNICODE));
     set_setting('rep_panel_ts', (string) $now);
 
     return $out;
+}
+
+function rep_panel_tr() {
+    $j = json_decode((string) setting('rep_panel_tr', ''), true);
+
+    return is_array($j) ? $j : [];
+}
+
+function rep_proto_label($type, $server = '', $port = 0, ?array $tr = null) {
+    static $cache = null;
+    if ($tr === null) $tr = $cache ?? ($cache = rep_panel_tr());
+    $hit   = $tr[strtolower((string) $server) . '|' . (int) $port] ?? null;
+    $t     = strtolower((string) ((string) $type !== '' ? $type : (is_array($hit) ? ($hit['t'] ?? '') : '')));
+    $names = ['vless' => 'VLESS', 'vmess' => 'VMess', 'trojan' => 'Trojan', 'shadowsocks' => 'Shadowsocks', 'ss' => 'Shadowsocks',
+              'hysteria2' => 'Hysteria2', 'hy2' => 'Hysteria2', 'hysteria' => 'Hysteria', 'tuic' => 'TUIC', 'wireguard' => 'WireGuard',
+              'socks' => 'SOCKS', 'http' => 'HTTP', 'anytls' => 'AnyTLS', 'ssh' => 'SSH', 'mieru' => 'Mieru'];
+    $out   = $names[$t] ?? strtoupper($t);
+    $udp   = in_array($t, ['hysteria2', 'hy2', 'hysteria', 'tuic', 'wireguard'], true);
+    if (is_array($hit)) {
+        $nets = ['tcp' => 'RAW (TCP)', 'raw' => 'RAW (TCP)', 'ws' => 'WebSocket', 'grpc' => 'gRPC', 'xhttp' => 'XHTTP', 'splithttp' => 'XHTTP',
+                 'httpupgrade' => 'HTTPUpgrade', 'kcp' => 'mKCP', 'mkcp' => 'mKCP', 'quic' => 'QUIC', 'h2' => 'HTTP/2', 'http' => 'HTTP/2'];
+        $n = strtolower((string) ($hit['n'] ?? ''));
+        if ($n !== '' && !$udp) $out .= ' ' . ($nets[$n] ?? strtoupper($n));
+        $sec = strtolower((string) ($hit['s'] ?? ''));
+        if ($sec === 'reality') $out .= ' · Reality';
+        elseif ($sec === 'tls' && !$udp) $out .= ' · TLS';
+    }
+
+    return $udp ? $out . ' (UDP)' : $out;
+}
+
+function rep_geo_backfill($since, $cap = 3000, $short = null) {
+    if (!function_exists('geoip_city_ready') || !geoip_city_ready() || !rep_new_cols() || !($p = db())) return 0;
+    try {
+        $st = $p->prepare("SELECT id, ip4, ip6, loc, sub FROM rep_state WHERE (loc = '' OR sub = '') AND (ip4 <> '' OR ip6 <> '') AND last_seen >= ?" . ($short !== null ? ' AND short_uuid = ?' : '') . ' LIMIT 20000');
+        $st->execute($short !== null ? [(int) $since, (string) $short] : [(int) $since]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) { return 0; }
+    if (!$rows) return 0;
+    $by = [];
+    foreach ($rows as $r) {
+        $ip = $r['ip4'] !== '' ? (string) $r['ip4'] : (string) $r['ip6'];
+        if (!isset($by[$ip]) && count($by) >= $cap) continue;
+        $by[$ip][] = $r;
+    }
+    $n = 0;
+    try {
+        $p->beginTransaction();
+        $up = $p->prepare('UPDATE rep_state SET loc = ?, sub = ? WHERE id = ?');
+        foreach ($by as $ip => $list) {
+            $g   = geoip_lookup($ip);
+            $loc = (string) ($g['loc'] ?? '') !== '' ? (string) $g['loc'] : '-';
+            $sub = (string) ($g['sub'] ?? '') !== '' ? (string) $g['sub'] : '-';
+            foreach ($list as $r) {
+                $up->execute([(string) $r['loc'] !== '' ? (string) $r['loc'] : $loc, (string) $r['sub'] !== '' ? (string) $r['sub'] : $sub, (int) $r['id']]);
+                $n++;
+            }
+        }
+        $p->commit();
+    } catch (Throwable $e) {
+        if ($p->inTransaction()) $p->rollBack();
+        error_log('submw rep geo backfill: ' . $e->getMessage());
+    }
+
+    return $n;
+}
+
+function rep_dev_label($meta) {
+    $m  = is_array($meta) ? $meta : json_decode((string) $meta, true);
+    $dv = is_array($m['dv'] ?? null) ? $m['dv'] : [];
+    $os = trim((string) ($dv['o'] ?? ''));
+    $v  = trim((string) ($dv['v'] ?? ''));
+    if ($v !== '' && stripos($os, $v) === false) $os = trim($os . ' ' . $v);
+
+    return [rep_str((string) ($dv['m'] ?? ''), 64), rep_str($os, 48)];
+}
+
+function rep_dev_fill($short = null, $cap = 200) {
+    if (!rep_new_cols() || !($p = db())) return 0;
+    if ($short === null) {
+        if (time() - (int) setting('rep_dev_fill_ts', '0') < 600) return 0;
+        set_setting('rep_dev_fill_ts', (string) time());
+    }
+    if (!db_has_cols($p, 'request_log', ['hwid', 'meta'])) return 0;
+    $sql  = "SELECT short_uuid, hwid FROM rep_dev WHERE model = '' AND hwid <> '' AND hwid NOT LIKE '~%'" . ($short !== null ? ' AND short_uuid = ?' : '') . ' ORDER BY last_report DESC LIMIT ' . (int) $cap;
+    $devs = rep_view_rows($sql, $short !== null ? [(string) $short] : []);
+    if (!$devs) return 0;
+    $n = 0;
+    try {
+        $q  = $p->prepare('SELECT meta FROM request_log WHERE hwid = ? AND meta LIKE ? ORDER BY id DESC LIMIT 1');
+        $up = $p->prepare("UPDATE rep_dev SET model = ?, os = ? WHERE short_uuid = ? AND hwid = ? AND model = ''");
+        foreach ($devs as $d) {
+            $q->execute([(string) $d['hwid'], '%"dv"%']);
+            $meta = $q->fetchColumn();
+            $q->closeCursor();
+            if (!is_string($meta) || $meta === '') continue;
+            [$m, $o] = rep_dev_label($meta);
+            if ($m === '' && $o === '') continue;
+            $up->execute([$m !== '' ? $m : '-', $o, (string) $d['short_uuid'], (string) $d['hwid']]);
+            $n++;
+        }
+    } catch (Throwable $e) { error_log('submw rep dev fill: ' . $e->getMessage()); }
+
+    return $n;
 }
 
 function rep_view_devmap() {
@@ -275,7 +394,7 @@ function rep_view_nodelist(array $panel = []) {
         $out[$n['nkey']] = [
             'k'  => (string) $n['nkey'],
             'nm' => (string) ($n['name'] !== '' ? $n['name'] : $n['server']),
-            't'  => (string) $n['type'],
+            't'  => rep_proto_label((string) $n['type'], (string) $n['server'], (int) $n['port']),
             'a'  => $n['server'] . ':' . (int) $n['port'],
             'cc' => is_array($hit) && isset($hit[0]['cc']) ? (string) $hit[0]['cc'] : '',
         ];
@@ -296,7 +415,7 @@ function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
     $unbuf = db_driver() === 'mysql' && defined('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY');
     try {
         if ($unbuf) $p->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
-        $st = $p->prepare('SELECT short_uuid, hwid, net, nkey, kind, ip4, ip6, cc, asn, org, verdict, vat, pn, pf, pmed, last_seen, ' . rep_sel(['loc', 'hist_h'])
+        $st = $p->prepare('SELECT short_uuid, hwid, net, nkey, kind, ip4, ip6, cc, asn, org, verdict, vat, pn, pf, pmed, last_seen, ' . rep_sel(['loc', 'hist_h', 'sub'])
             . " FROM rep_state WHERE $w ORDER BY last_seen DESC LIMIT " . ((int) $limit + 1));
         $st->execute($a);
     } catch (Throwable $e) {
@@ -317,7 +436,7 @@ function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
             $out['devs'][] = [
                 's'  => (string) $r['short_uuid'],
                 'p'  => (string) ($dv['plat'] ?? ''),
-                'm'  => (string) ($dv['model'] ?? ''),
+                'm'  => (string) ($dv['model'] ?? '') === '-' ? '' : (string) ($dv['model'] ?? ''),
                 'o'  => (string) ($dv['os'] ?? ''),
                 'c'  => (string) ($dv['client'] ?? ''),
                 'lr' => (int) ($dv['last_report'] ?? 0),
@@ -325,7 +444,7 @@ function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
         }
         $nk = $dk . '|' . $r['net'];
         if (!isset($nets[$nk])) {
-            $nets[$nk] = ['d' => $didx[$dk], 'k' => (string) $r['kind'], 'ip' => '', 'cc' => '', 'asn' => 0, 'org' => '', 'loc' => '',
+            $nets[$nk] = ['d' => $didx[$dk], 'k' => (string) $r['kind'], 'ip' => '', 'cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => '',
                           'pn' => 0, 'pf' => 0, 'b' => array_fill(0, REP_BUCKETS, 0), 'dead' => [], 'frz' => [], 'ms' => [], 'vok' => 0, 'hh' => 0, 'seen' => 0, 'ah' => -1];
         }
         $x = &$nets[$nk];
@@ -350,7 +469,8 @@ function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
             $x['cc']  = (string) $r['cc'];
             $x['asn'] = (int) $r['asn'];
             $x['org'] = (string) $r['org'];
-            $x['loc'] = (string) $r['loc'];
+            $x['loc'] = (string) $r['loc'] === '-' ? '' : (string) $r['loc'];
+            $x['sub'] = (string) $r['sub'] === '-' ? '' : (string) $r['sub'];
             $x['k']   = (string) $r['kind'];
         }
         unset($x);
@@ -364,7 +484,7 @@ function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
         $sk = implode(',', $ms);
         if (!isset($sets[$sk])) { $sets[$sk] = count($out['ms']); $out['ms'][] = $ms; }
         $out['nets'][] = [$x['d'], $x['k'], $x['ip'], $x['cc'], $x['asn'], $x['org'], $x['loc'], $x['pn'], $x['pf'],
-                          rep_median_bucket($x['b']), array_values(array_unique($x['dead'])), array_values(array_unique($x['frz'])), $x['vok'], $x['hh'], $x['seen'], $sets[$sk]];
+                          rep_median_bucket($x['b']), array_values(array_unique($x['dead'])), array_values(array_unique($x['frz'])), $x['vok'], $x['hh'], $x['seen'], $sets[$sk], $x['sub']];
     }
 
     return $out;
@@ -405,7 +525,7 @@ function rep_view_matrix(array $f, $since, $cols = 12) {
 function rep_view_cell(array $f, $since, $nkey, $asn) {
     [$w, $a] = rep_view_where($f, 's.last_seen', $since, ['kind', 'cc', 'plat']);
     $w = str_replace(['kind = ?', 'cc = ?', 'plat = ?'], ['s.kind = ?', 's.cc = ?', 'd.plat = ?'], $w);
-    $rows = rep_view_rows('SELECT s.short_uuid, s.hwid, s.net, s.kind, s.ip4, s.ip6, s.cc, s.pn, s.pf, s.pmed, s.verdict, s.vat, s.last_seen, ' . rep_sel(['loc', 'hist', 'hist_h'], 's.') . ','
+    $rows = rep_view_rows('SELECT s.short_uuid, s.hwid, s.net, s.kind, s.ip4, s.ip6, s.cc, s.pn, s.pf, s.pmed, s.verdict, s.vat, s.last_seen, ' . rep_sel(['loc', 'hist', 'hist_h', 'sub'], 's.') . ','
         . ' d.plat, d.client, ' . rep_sel(['model', 'os'], 'd.') . ' FROM rep_state s LEFT JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid'
         . " WHERE $w AND s.nkey = ? AND s.asn = ? ORDER BY s.last_seen DESC LIMIT 500", array_merge($a, [(string) $nkey, (int) $asn]));
     $out = [];
@@ -426,10 +546,10 @@ function rep_view_state_row(array $r) {
     return [
         's' => (string) $r['short_uuid'], 'hw' => (string) $r['hwid'], 'net' => (string) $r['net'], 'k' => (string) $r['kind'],
         'ip' => (string) ($r['ip4'] !== '' ? $r['ip4'] : $r['ip6']), 'ip6' => $r['ip4'] !== '' ? (string) $r['ip6'] : '',
-        'cc' => (string) $r['cc'], 'loc' => (string) $r['loc'], 'pn' => $pn, 'pf' => $pf, 'med' => (int) $r['pmed'],
+        'cc' => (string) $r['cc'], 'loc' => (string) $r['loc'] === '-' ? '' : (string) $r['loc'], 'sub' => (string) ($r['sub'] ?? '') === '-' ? '' : (string) ($r['sub'] ?? ''), 'pn' => $pn, 'pf' => $pf, 'med' => (int) $r['pmed'],
         'fail' => $pn >= REP_VIEW_MIN_PINGS ? $pf / $pn : null, 'dead' => $pn > 0 && $pf >= $pn ? 1 : 0,
         'v' => (string) $r['verdict'], 'hist' => (string) $r['hist'], 'hh' => (int) $r['hist_h'], 'seen' => (int) $r['last_seen'],
-        'p' => (string) ($r['plat'] ?? ''), 'm' => (string) ($r['model'] ?? ''), 'o' => (string) ($r['os'] ?? ''), 'c' => (string) ($r['client'] ?? ''),
+        'p' => (string) ($r['plat'] ?? ''), 'm' => (string) ($r['model'] ?? '') === '-' ? '' : (string) ($r['model'] ?? ''), 'o' => (string) ($r['os'] ?? ''), 'c' => (string) ($r['client'] ?? ''),
     ];
 }
 
@@ -440,14 +560,16 @@ function rep_view_client_card($q, $since) {
     if (!$hit) $hit = rep_view_rows('SELECT short_uuid FROM rep_state WHERE short_uuid = ? OR hwid = ? ORDER BY last_seen DESC LIMIT 1', [$q, $q]);
     if (!$hit) return null;
     $short = (string) $hit[0]['short_uuid'];
+    rep_dev_fill($short, 20);
+    rep_geo_backfill(0, 500, $short);
     $devs = [];
     foreach (rep_view_rows('SELECT hwid, plat, client, ' . rep_sel(['model', 'os']) . ', first_seen, last_report, reports FROM rep_dev WHERE short_uuid = ? ORDER BY last_report DESC', [$short]) as $d) {
-        $devs[] = ['hw' => (string) $d['hwid'], 'p' => (string) $d['plat'], 'c' => (string) $d['client'], 'm' => (string) $d['model'], 'o' => (string) $d['os'],
+        $devs[] = ['hw' => (string) $d['hwid'], 'p' => (string) $d['plat'], 'c' => (string) $d['client'], 'm' => (string) $d['model'] === '-' ? '' : (string) $d['model'], 'o' => (string) $d['os'],
                    'fs' => (int) $d['first_seen'], 'lr' => (int) $d['last_report'], 'r' => (int) $d['reports']];
     }
     $rows = [];
     $asns = [];
-    foreach (rep_view_rows('SELECT short_uuid, hwid, net, nkey, kind, ip4, ip6, cc, asn, org, pn, pf, pmed, verdict, vat, last_seen, ' . rep_sel(['loc', 'hist', 'hist_h'])
+    foreach (rep_view_rows('SELECT short_uuid, hwid, net, nkey, kind, ip4, ip6, cc, asn, org, pn, pf, pmed, verdict, vat, last_seen, ' . rep_sel(['loc', 'hist', 'hist_h', 'sub'])
         . ' FROM rep_state WHERE short_uuid = ? ORDER BY last_seen DESC LIMIT 3000', [$short]) as $r) {
         $x = rep_view_state_row($r);
         $x['n'] = (string) $r['nkey'];

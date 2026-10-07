@@ -249,6 +249,10 @@ function geoip_auto() { return setting('geoip_auto', '1') === '1'; }
 
 function geoip_city_on() { return setting('geoip_city', '1') === '1'; }
 
+function geoip_city_ready() {
+    return geoip_city_on() && geoip_reader('city') !== null;
+}
+
 function geoip_city_live() {
     if (!function_exists('db') || !($p = db())) return geoip_city_on();
     try {
@@ -285,6 +289,14 @@ function geoip_loc($rec) {
     return sprintf('%.2f,%.2f', $la, $lo);
 }
 
+function geoip_sub($rec) {
+    $n = is_array($rec) ? ($rec['subdivisions'][0]['names']['en'] ?? '') : '';
+    if (!is_string($n)) return '';
+    $n = trim(preg_replace('~[\x00-\x1F\x7F]~', '', $n));
+
+    return mb_substr($n, 0, 64);
+}
+
 function geoip_reader($which) {
     static $open = [];
     if (array_key_exists($which, $open)) return $open[$which];
@@ -303,7 +315,7 @@ function geoip_lookup($ip) {
     $ip = (string) $ip;
     if (isset($cache[$ip])) return $cache[$ip];
 
-    $out = ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => ''];
+    $out = ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => ''];
     foreach (['country', 'asn', 'city'] as $which) {
         if ($which === 'city' && !geoip_city_on()) continue;
         $r = geoip_reader($which);
@@ -311,6 +323,7 @@ function geoip_lookup($ip) {
         try { $rec = $r->get($ip); } catch (Throwable $e) { $rec = null; }
         if (!is_array($rec)) continue;
         if ($out['loc'] === '') $out['loc'] = geoip_loc($rec);
+        if ($out['sub'] === '') $out['sub'] = geoip_sub($rec);
         if ($out['cc'] === '') {
             $cc = $rec['country']['iso_code'] ?? ($rec['registered_country']['iso_code'] ?? '');
             if (is_string($cc) && preg_match('~^[A-Z]{2}$~', $cc)) $out['cc'] = $cc;
