@@ -257,10 +257,11 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     table.rv-mx td.rh small{display:block;color:var(--muted);font-size:.7rem}
     .rv-mc{min-width:78px;height:40px;border-radius:8px;text-align:center;font-variant-numeric:tabular-nums;border:1px solid transparent;padding:.2rem .3rem;line-height:1.15;display:flex;flex-direction:column;justify-content:center;background:var(--hover2);color:var(--muted)}
     button.rv-mc{width:100%;cursor:pointer;min-height:0;font-weight:400}
-    button.rv-mc:hover{border-color:var(--text-strong);filter:none}
+    button.rv-mc:hover{box-shadow:inset 0 0 0 1.5px var(--text-strong);filter:none}
+    button.rv-mc:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     button.rv-mc.q0:hover{background:var(--hover)}
     button.rv-mc.q1:hover,button.rv-mc.q2:hover,button.rv-mc.q3:hover,button.rv-mc.q4:hover,button.rv-mc.q5:hover,button.rv-mc.dead:hover{filter:brightness(1.08)}
-    .rv-mc.sel{border-color:var(--text-strong);box-shadow:0 0 0 2px var(--text-strong) inset}
+    .rv-mc.sel,button.rv-mc.sel:hover{box-shadow:inset 0 0 0 2px var(--text-strong)}
     .rv-mc .a{font-weight:700;font-size:.8rem}
     .rv-mc .b{font-size:.68rem;opacity:.85;white-space:nowrap;display:flex;align-items:center;justify-content:center;gap:.2rem}
     .rv-mc .b svg.rvi{width:11px;height:11px}
@@ -316,7 +317,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-dtab .rv-jump{cursor:pointer;border:0;min-height:0;height:auto;font:inherit;font-size:.74rem;font-weight:600}
     .rv-dtab .rv-jump:hover{filter:brightness(1.15);text-decoration:underline;text-underline-offset:2px}
     .rv-drw table.rv-mx th.rh,.rv-drw table.rv-mx td.rh{background:var(--bg);box-shadow:4px 0 0 var(--bg)}
-    table.rv-mx tr.cur td.rh,.rv-drw table.rv-mx tr.cur td.rh{box-shadow:inset 3px 0 var(--accent),4px 0 0 var(--bg);padding-left:.5rem}
+    table.rv-mx tr.cur td.rh,.rv-drw table.rv-mx tr.cur td.rh{box-shadow:inset 3px 0 var(--accent),4px 0 0 var(--bg);padding-left:.5rem;background:color-mix(in srgb,var(--accent) 16%,var(--bg))}
+    .rv-drw table.rv-mx tr.cur td{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+    .rv-drw table.rv-mx tr.cur td.rh b{color:var(--accent-text)}
     table.rv-mx tr.rv-flash td{animation:rvFlash 2.4s ease-out}
     @keyframes rvFlash{0%,35%{background:color-mix(in srgb,var(--accent) 24%,transparent)}100%{background:transparent}}
     .rv-diag.st-bad{border-color:color-mix(in srgb,var(--rq5) 45%,var(--line))}
@@ -524,7 +527,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             <?php foreach ($rv_nodes as $n): $pnl = $rv_panel_of($n['server']); $nd = count($rv_dead_node[$n['nkey']] ?? []); ?>
             <tr>
                 <td class="rv-node"><a href="<?= h($rv_url(['node' => $n['nkey']])) ?>"><?= h($n['name'] !== '' ? $n['name'] : $n['server']) ?></a>
-                    <span class="sub"><?= h(rep_proto_label($n['type'], $n['server'], $n['port'])) ?> · <code><?= h($n['server']) ?>:<?= (int) $n['port'] ?></code></span></td>
+                    <span class="sub"><?= h(rep_proto_label($n['type'], $n['server'], $n['port'])) ?></span></td>
                 <td><?php if ($pnl): foreach ($pnl as $pn): ?><div><?= $rv_nflag($pn['cc'], $pn['name']) ?> <?= h($pn['name']) ?></div><?php endforeach; else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td class="num"><?= $rv_num($n['pn']) ?></td>
                 <td class="num"><span class="rq <?= $rv_qfail($n['fail']) ?>"><?= h($rv_pct($n['fail'])) ?></span></td>
@@ -1078,7 +1081,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             mxT.innerHTML = '<div class="rv-wrap rv-mxs"><table class="rv-mx rv-mxw"><thead><tr><th class="rh">Узел</th>' + cols.map(function (c) {
                 return '<th class="pc">' + flag(c.cc) + '<div class="o" title="' + esc(c.org) + '">' + esc(c.org || '—') + '</div><div style="font-weight:400">AS' + c.asn + ' · ' + c.n + '</div></th>';
             }).join('') + '</tr></thead><tbody>' + rowsN.map(function (n) {
-                return '<tr><td class="rh" title="' + esc(n.a) + '">' + flagFor(n.cc, n.nm) + '<b>' + esc(n.nm) + '</b><small>' + esc(n.t) + '</small></td>' + cols.map(function (col) {
+                return '<tr><td class="rh">' + flagFor(n.cc, n.nm) + '<b>' + esc(n.nm) + '</b><small>' + esc(n.t) + '</small></td>' + cols.map(function (col) {
                     var c = cells[n.k + '|' + col.asn];
                     if (!c || c.pn <= 0) return '<td><div class="rv-mc"><span class="a">—</span></div></td>';
                     var cls = c.dead > 0 && c.dead >= c.n ? 'dead' : 'q' + qFail(c.fail);
@@ -1278,7 +1281,12 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 var tr = drw.querySelector('tr[data-k="' + (window.CSS && CSS.escape ? CSS.escape(jk) : jk) + '"]');
                 if (tr) {
                     var box = drw.querySelector('.rv-db'), rb = tr.getBoundingClientRect(), bb = box.getBoundingClientRect();
-                    box.scrollTo({top: box.scrollTop + rb.top - bb.top - Math.max(16, (bb.height - rb.height) / 3), behavior: 'smooth'});
+                    var to = Math.max(0, Math.min(box.scrollTop + rb.top - bb.top - Math.max(16, (bb.height - rb.height) / 3), box.scrollHeight - box.clientHeight));
+                    if (Math.abs(to - box.scrollTop) > 2) {
+                        try { box.scrollTo({top: to, behavior: 'smooth'}); } catch (e) { box.scrollTop = to; }
+                        setTimeout(function () { if (Math.abs(box.scrollTop - to) > 4) box.scrollTop = to; }, 650);
+                    }
+                    var fc = tr.querySelector('.rv-mc.sel'); if (fc) { try { fc.focus({preventScroll: true}); } catch (e) {} }
                     var sc = tr.querySelector('.rv-mc.sel'); if (sc && sc.scrollIntoView) { var wr = tr.closest('.rv-wrap'); if (wr) wr.scrollLeft = Math.max(0, sc.parentNode.offsetLeft - wr.clientWidth / 2); }
                     tr.classList.add('rv-flash'); setTimeout(function () { tr.classList.remove('rv-flash'); }, 2500);
                 }

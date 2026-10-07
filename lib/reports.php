@@ -554,6 +554,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
         if ($nc && $os !== '') { $drow['os'] = $os; $dset[] = 'os'; }
         rep_upsert($p, 'rep_dev', $drow, ['short_uuid', 'hwid'], ['reports'], $dset);
         $p->commit();
+        rep_bump();
     } catch (Throwable $e) {
         if ($p->inTransaction()) $p->rollBack();
         error_log('submw rep ingest: ' . $e->getMessage());
@@ -562,6 +563,26 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     }
 
     return true;
+}
+
+// Счётчик принятых отчётов для конверта в шапке: всего принято и сколько было,
+// когда «Статистику» открывали в последний раз.
+function rep_bump() {
+    if (!($p = db())) return;
+    try {
+        $p->exec(db_driver() === 'mysql'
+            ? "INSERT INTO settings (k, v) VALUES ('rep_total', '1') ON DUPLICATE KEY UPDATE v = CAST(CAST(v AS UNSIGNED) + 1 AS CHAR)"
+            : "INSERT INTO settings (k, v) VALUES ('rep_total', '1') ON CONFLICT(k) DO UPDATE SET v = CAST(CAST(v AS INTEGER) + 1 AS TEXT), updated_at = CURRENT_TIMESTAMP");
+    } catch (Throwable $e) { error_log('submw rep count: ' . $e->getMessage()); }
+}
+
+function rep_unseen() {
+    return max(0, (int) setting('rep_total', '0') - (int) setting('rep_seen', '0'));
+}
+
+function rep_mark_seen() {
+    $t = (string) (int) setting('rep_total', '0');
+    if ((string) setting('rep_seen', '0') !== $t) set_setting('rep_seen', $t);
 }
 
 function rep_purge($now = null) {
