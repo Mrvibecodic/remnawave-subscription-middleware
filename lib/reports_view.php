@@ -423,6 +423,96 @@ function rep_view_nodelist(array $panel = []) {
     return $out;
 }
 
+// Где устройство на самом деле. У одного устройства один регион, а скачки адреса
+// между регионами — шум базы адресов (динамические пулы провайдера заведены на
+// разные регионы). Берётся место, где устройство мерило больше всего часов;
+// домашние сети (Wi-Fi, кабель) важнее мобильной: мобильный оператор выводит
+// трафик через узловой город. Сеть в другой стране остаётся на своём месте.
+function rep_place_key($cc, $sub, $loc) {
+    $sub = (string) $sub === '-' ? '' : (string) $sub;
+    $loc = (string) $loc === '-' ? '' : (string) $loc;
+    if ($sub !== '') return $cc . '|' . strtolower($sub);
+    if ($loc !== '' && strpos($loc, ',') !== false) {
+        [$la, $lo] = array_map('floatval', explode(',', $loc, 2));
+
+        return $cc . '|' . round($la) . ',' . round($lo);
+    }
+
+    return $cc . '|';
+}
+
+function rep_place_pick(array $items) {
+    $home = array_filter($items, static fn($x) => in_array($x['k'], ['wifi', 'wired'], true) && $x['cc'] !== '');
+    $pool = $home ?: array_filter($items, static fn($x) => $x['cc'] !== '');
+    if (!$pool) return null;
+    $g = [];
+    foreach ($pool as $x) {
+        $key = rep_place_key($x['cc'], $x['sub'], $x['loc']);
+        if (!isset($g[$key])) $g[$key] = ['w' => 0, 'last' => -1, 'x' => null];
+        $g[$key]['w'] += max(1, (int) $x['w']);
+        if ((int) $x['last'] > $g[$key]['last'] || ($g[$key]['x']['loc'] ?? '') === '') { $g[$key]['last'] = (int) $x['last']; $g[$key]['x'] = $x; }
+    }
+    uasort($g, static fn($a, $b) => ($b['w'] <=> $a['w']) ?: ($b['last'] <=> $a['last']));
+    $win = reset($g);
+    $tw  = array_sum(array_column($g, 'w'));
+
+    return ['cc' => (string) $win['x']['cc'], 'sub' => (string) $win['x']['sub'] === '-' ? '' : (string) $win['x']['sub'], 'loc' => (string) $win['x']['loc'] === '-' ? '' : (string) $win['x']['loc'],
+            'src' => $home ? 'home' : 'any', 'w' => (int) $win['w'], 'tw' => (int) $tw, 'n' => count($g)];
+}
+
+// Места устройств по адресам их сетей за период; $shorts — только эти подписки.
+function rep_view_dev_places($since, ?array $shorts = null) {
+    $out = [];
+    if (!rep_ensure() || !($p = db())) return $out;
+    if ($shorts !== null && !$shorts) return $out;
+    $sql = 'SELECT short_uuid, hwid, kind, cc, sub, loc, hours, last_h FROM rep_net_ip WHERE last_h >= ?';
+    $args = [(int) $since];
+    if ($shorts !== null) {
+        $shorts = array_values(array_unique(array_map('strval', $shorts)));
+        $sql .= ' AND short_uuid IN (' . implode(',', array_fill(0, count($shorts), '?')) . ')';
+        $args = array_merge($args, $shorts);
+    }
+    $items = [];
+    try {
+        $st = $p->prepare($sql);
+        $st->execute($args);
+        while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+            $items[$r['short_uuid'] . '|' . $r['hwid']][] = ['k' => (string) $r['kind'], 'cc' => (string) $r['cc'], 'sub' => (string) $r['sub'], 'loc' => (string) $r['loc'], 'w' => (int) $r['hours'], 'last' => (int) $r['last_h']];
+        }
+        $st->closeCursor();
+    } catch (Throwable $e) { return $out; }
+    foreach ($items as $dk => $list) {
+        $pl = rep_place_pick($list);
+        if ($pl !== null) $out[$dk] = $pl;
+    }
+
+    return $out;
+}
+
+// Ставит строки состояния (cc/loc/sub) одного устройства на его место; исходные
+// координаты сети остаются в occ/ol/osb — карточка показывает адрес оператора.
+function rep_place_rows(array &$rows, array $places, $shortKey = 's', $hwKey = 'hw') {
+    $fall = [];
+    foreach ($rows as $r) {
+        $dk = $r[$shortKey] . '|' . $r[$hwKey];
+        if (!isset($places[$dk])) $fall[$dk][] = ['k' => (string) $r['k'], 'cc' => (string) $r['cc'], 'sub' => (string) $r['sub'], 'loc' => (string) $r['loc'], 'w' => 1, 'last' => (int) $r['hh']];
+    }
+    foreach ($fall as $dk => $list) if (($pl = rep_place_pick($list)) !== null) $places[$dk] = $pl;
+    foreach ($rows as &$r) {
+        $r['occ'] = $r['cc'];
+        $r['ol']  = $r['loc'];
+        $r['osb'] = $r['sub'];
+        $pl = $places[$r[$shortKey] . '|' . $r[$hwKey]] ?? null;
+        if ($pl === null || ($r['cc'] !== '' && $r['cc'] !== $pl['cc'])) continue;
+        $r['cc']  = $pl['cc'];
+        $r['loc'] = $pl['loc'];
+        $r['sub'] = $pl['sub'];
+    }
+    unset($r);
+
+    return $places;
+}
+
 function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
     $out = ['nodes' => [], 'devs' => [], 'nets' => [], 'ms' => [], 'cut' => false];
     if (!rep_ensure() || !($p = db())) return $out;
@@ -464,7 +554,7 @@ function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
         }
         $nk = $dk . '|' . $r['net'];
         if (!isset($nets[$nk])) {
-            $nets[$nk] = ['d' => $didx[$dk], 'k' => (string) $r['kind'], 'ip' => '', 'cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => '',
+            $nets[$nk] = ['dk' => $dk, 'd' => $didx[$dk], 'k' => (string) $r['kind'], 'ip' => '', 'cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => '',
                           'pn' => 0, 'pf' => 0, 'b' => array_fill(0, REP_BUCKETS, 0), 'dead' => [], 'frz' => [], 'ms' => [], 'vok' => 0, 'hh' => 0, 'seen' => 0, 'ah' => -1];
         }
         $x = &$nets[$nk];
@@ -497,6 +587,20 @@ function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
     }
     $st->closeCursor();
     if ($unbuf) $p->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
+    $places = rep_view_dev_places($since);
+    $fall = [];
+    foreach ($nets as $x) {
+        if (!isset($places[$x['dk']])) $fall[$x['dk']][] = ['k' => $x['k'], 'cc' => $x['cc'], 'sub' => $x['sub'], 'loc' => $x['loc'], 'w' => 1, 'last' => $x['hh']];
+    }
+    foreach ($fall as $dk => $list) if (($pl = rep_place_pick($list)) !== null) $places[$dk] = $pl;
+    foreach ($nets as &$x) {
+        $pl = $places[$x['dk']] ?? null;
+        if ($pl === null || ($x['cc'] !== '' && $x['cc'] !== $pl['cc'])) continue;
+        $x['cc']  = $pl['cc'];
+        $x['loc'] = $pl['loc'];
+        $x['sub'] = $pl['sub'];
+    }
+    unset($x);
     $sets = [];
     foreach ($nets as $x) {
         $ms = array_values(array_unique($x['ms']));
@@ -555,6 +659,7 @@ function rep_view_cell(array $f, $since, $nkey, $asn) {
         . " WHERE $w AND s.nkey = ? AND s.asn = ? ORDER BY s.last_seen DESC LIMIT 500", array_merge($a, [(string) $nkey, (int) $asn]));
     $out = [];
     foreach ($rows as $r) $out[] = rep_view_state_row($r);
+    rep_place_rows($out, rep_view_dev_places($since, array_column($out, 's')));
     usort($out, static function ($x, $y) {
         if ($x['dead'] !== $y['dead']) return $y['dead'] <=> $x['dead'];
         return ($y['fail'] ?? -1) <=> ($x['fail'] ?? -1);
@@ -606,6 +711,19 @@ function rep_view_client_card($q, $since) {
         foreach ($devs as $d) if ($d['hw'] === $x['hw']) $known = true;
         if (!$known) $devs[] = ['hw' => $x['hw'], 'p' => '', 'c' => '', 'm' => '', 'o' => '', 'fs' => 0, 'lr' => $x['seen'], 'r' => 0];
     }
+    $places = rep_place_rows($rows, rep_view_dev_places($since, [$short]));
+    foreach ($devs as &$d) {
+        $pl = $places[$short . '|' . $d['hw']] ?? null;
+        if ($pl !== null) $d['pl'] = ['cc' => $pl['cc'], 'sub' => $pl['sub'], 'loc' => $pl['loc'], 'src' => $pl['src'], 'w' => $pl['w'], 'tw' => $pl['tw'], 'n' => $pl['n']];
+    }
+    unset($d);
+    $ips = [];
+    foreach (rep_view_rows('SELECT hwid, net, ip, kind, cc, asn, org, sub, loc, hours, last_h FROM rep_net_ip WHERE short_uuid = ? AND last_h >= ? ORDER BY last_h DESC LIMIT 2000', [$short, (int) $since]) as $r) {
+        $k = $r['hwid'] . '|' . $r['net'];
+        if (count($ips[$k] ?? []) >= 40) continue;
+        $ips[$k][] = ['ip' => (string) $r['ip'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub'] === '-' ? '' : (string) $r['sub'],
+                      'loc' => (string) $r['loc'] === '-' ? '' : (string) $r['loc'], 'h' => (int) $r['hours'], 'lh' => (int) $r['last_h']];
+    }
     $peers = [];
     if ($asns) {
         $bs = [];
@@ -620,5 +738,5 @@ function rep_view_client_card($q, $since) {
         }
     }
 
-    return ['short' => $short, 'devs' => $devs, 'rows' => $rows, 'peers' => $peers];
+    return ['short' => $short, 'devs' => $devs, 'rows' => $rows, 'peers' => $peers, 'ips' => $ips];
 }

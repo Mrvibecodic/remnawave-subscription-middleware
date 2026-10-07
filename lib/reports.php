@@ -7,6 +7,8 @@
 //   rep_hour   — час × узел × страна × AS × тип сети × платформа, без пользователей и IP;
 //   rep_ip_day — сутки × IP × узел × тип сети, для карты и таблицы провайдеров;
 //   rep_state  — последнее состояние «подписка × устройство × сеть × узел»;
+//   rep_net_ip — адреса каждой сети устройства и сколько часов с каждого мерили:
+//                по ним выбирается регион устройства, а не по последнему адресу;
 //   rep_node   — справочник узлов (тип + адрес + порт), rep_dev — кто и когда слал
 //                и до какого часа принято: клиент, не дождавшийся ответа, шлёт те же
 //                часы снова, и второй раз они не считаются.
@@ -52,6 +54,7 @@ function rep_ddl($drv) {
         'rep_ip_day' => ['idx_rep_ip_day_d' => 'd'],
         'rep_state'  => ['idx_rep_state_seen' => 'last_seen', 'idx_rep_state_nkey' => 'nkey'],
         'rep_dev'    => ['idx_rep_dev_last' => 'last_report'],
+        'rep_net_ip' => ['idx_rep_net_ip_last' => 'last_h'],
     ];
     $keys = static function ($t) use ($my, $idx) {
         if (!$my || empty($idx[$t])) return '';
@@ -75,6 +78,9 @@ function rep_ddl($drv) {
             vstatus $int, vat $int, pn $big, pf $big, pmed $int, up $big, down $big, last_seen $int,
             loc {$a(24)}, hist {$a(48)}, hist_h $int, sub {$u(64)},
             UNIQUE (short_uuid, hwid, net, nkey){$keys('rep_state')})$tail",
+        "CREATE TABLE IF NOT EXISTS rep_net_ip ($id, short_uuid {$a(64)}, hwid {$u(128)}, net {$a(16)}, ip {$a(45)},
+            kind {$a(8)}, cc {$a(2)}, asn $int, org {$u(128)}, loc {$a(24)}, sub {$u(64)}, hours $int, first_h $int, last_h $int,
+            UNIQUE (short_uuid, hwid, net, ip){$keys('rep_net_ip')})$tail",
     ];
     if (!$my) {
         foreach ($idx as $t => $list) {
@@ -392,6 +398,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     $state = [];
     $used  = [];
     $cells_total = 0;
+    $nips  = [];
     $nets  = is_array($data['networks'] ?? null) ? $data['networks'] : [];
     if (count($nets) > REP_MAX_NETWORKS) $nets = array_slice($nets, 0, REP_MAX_NETWORKS, true);
 
@@ -411,6 +418,16 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             $ip  = $ip4 !== '' ? $ip4 : $ip6;
             $geo = $ip !== '' ? geoip_lookup($ip) : ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => ''];
             $d   = intdiv($h, 86400) * 86400;
+            if ($ip !== '') {
+                $ik = "$net|$ip";
+                if (!isset($nips[$ik])) {
+                    $nips[$ik] = ['net' => $net, 'ip' => $ip, 'kind' => $kind, 'cc' => (string) ($geo['cc'] ?? ''), 'asn' => (int) ($geo['asn'] ?? 0), 'org' => (string) ($geo['org'] ?? ''),
+                                  'loc' => (string) ($geo['loc'] ?? ''), 'sub' => (string) ($geo['sub'] ?? ''), 'hrs' => [], 'first_h' => $h, 'last_h' => $h];
+                }
+                $nips[$ik]['hrs'][$h] = true;
+                $nips[$ik]['first_h'] = min($nips[$ik]['first_h'], $h);
+                $nips[$ik]['last_h'] = max($nips[$ik]['last_h'], $h);
+            }
 
             $cells = [];
             foreach ((is_array($hr['ping'] ?? null) ? $hr['ping'] : []) as $tok => $v) {
@@ -521,6 +538,12 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
         }
         foreach ($hours as $row) rep_upsert($p, 'rep_hour', $row, ['h', 'nkey', 'cc', 'asn', 'kind', 'plat'], $sums);
         foreach ($days as $row) rep_upsert($p, 'rep_ip_day', $row, ['d', 'ip', 'nkey', 'kind'], $sums, ['cc', 'asn', 'org']);
+        foreach ($nips as $x) {
+            rep_upsert($p, 'rep_net_ip', [
+                'short_uuid' => $short, 'hwid' => $hwid, 'net' => $x['net'], 'ip' => $x['ip'], 'kind' => $x['kind'], 'cc' => $x['cc'], 'asn' => $x['asn'], 'org' => $x['org'],
+                'loc' => $x['loc'], 'sub' => $x['sub'], 'hours' => count($x['hrs']), 'first_h' => $x['first_h'], 'last_h' => $x['last_h'],
+            ], ['short_uuid', 'hwid', 'net', 'ip'], ['hours'], ['kind', 'cc', 'asn', 'org', 'loc', 'sub', 'last_h']);
+        }
         foreach ($state as $s) {
             $row = [
                 'short_uuid' => $short, 'hwid' => $hwid, 'net' => $s['net'], 'nkey' => $s['nkey'], 'kind' => $s['kind'],
@@ -599,7 +622,7 @@ function rep_mark_seen() {
 function rep_purge($now = null) {
     if (!rep_ensure() || !($p = db())) return;
     $cut = ($now ?? time()) - rep_keep_days() * 86400;
-    $plan = [['rep_hour', 'h'], ['rep_ip_day', 'd'], ['rep_state', 'last_seen'], ['rep_node', 'last_seen'], ['rep_dev', 'last_report']];
+    $plan = [['rep_hour', 'h'], ['rep_ip_day', 'd'], ['rep_state', 'last_seen'], ['rep_net_ip', 'last_h'], ['rep_node', 'last_seen'], ['rep_dev', 'last_report']];
     foreach ($plan as [$t, $col]) {
         try { $p->prepare("DELETE FROM $t WHERE $col < ?")->execute([$cut]); }
         catch (Throwable $e) { error_log('submw rep purge ' . $t . ': ' . $e->getMessage()); }
