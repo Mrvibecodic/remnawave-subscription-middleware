@@ -31,6 +31,11 @@ const REP_BUCKETS      = 6;
 const REP_KINDS        = ['wifi', 'mobile', 'wired', 'other'];
 const REP_VERDICTS     = ['ok' => 'fok', 'frozen' => 'ffr', 'dead' => 'fdd'];
 const REP_HIST         = 48;
+// Последние столько часов с замерами решают, «не отвечает» ли узел.
+const REP_RECENT_HOURS = 6;
+// Адресов одной сети устройства: новых за отчёт и хранимых всего.
+const REP_NET_IPS_REPORT = 32;
+const REP_NET_IPS_KEEP   = 48;
 
 function rep_enabled() { return chan_enabled() && setting('rep_enabled', '0') === '1'; }
 
@@ -113,7 +118,7 @@ function rep_add_cols(PDO $p) {
     $int  = $my ? 'INT NOT NULL DEFAULT 0' : 'INTEGER NOT NULL DEFAULT 0';
     $plan = [
         'rep_dev'   => ['model' => $u(64), 'os' => $u(48)],
-        'rep_state' => ['loc' => $a(24), 'hist' => $a(48), 'hist_h' => $int, 'sub' => $u(64), 'hc' => $a(2000)],
+        'rep_state' => ['loc' => $a(24), 'hist' => $a(48), 'hist_h' => $int, 'sub' => $u(64), 'hc' => $a(2000), 'rpn' => $int, 'rpf' => $int],
     ];
     $ok = true;
     foreach ($plan as $t => $cols) {
@@ -136,7 +141,7 @@ function rep_new_cols() {
 }
 
 function rep_sel(array $cols, $prefix = '') {
-    $fb = ['loc' => "''", 'hist' => "''", 'hist_h' => '0', 'model' => "''", 'os' => "''", 'sub' => "''", 'hc' => "''"];
+    $fb = ['loc' => "''", 'hist' => "''", 'hist_h' => '0', 'model' => "''", 'os' => "''", 'sub' => "''", 'hc' => "''", 'rpn' => '0', 'rpf' => '0'];
     $new = rep_new_cols();
     $out = [];
     foreach ($cols as $c) $out[] = !$new && isset($fb[$c]) ? $fb[$c] . ' AS ' . $c : $prefix . $c;
@@ -225,7 +230,19 @@ function rep_hc_merge($old, $oldH, array $hours, $anchor) {
         $cells[] = rep_hc_cell($v);
     }
 
-    return [$first === null ? '' : implode(',', array_slice($cells, $first)), $pn, min($pf, $pn), $b];
+    // «Не отвечает» — по последним часам с замерами, а не по всему окну: узел,
+    // который лёг недавно, иначе выглядел бы живым, пока удачные часы не уйдут.
+    $rpn = 0;
+    $rpf = 0;
+    $seen = 0;
+    for ($j = REP_HIST - 1; $j >= 0 && $seen < REP_RECENT_HOURS; $j--) {
+        if ($slots[$j] === null || $slots[$j][0] <= 0) continue;
+        $rpn += $slots[$j][0];
+        $rpf += min($slots[$j][1], $slots[$j][0]);
+        $seen++;
+    }
+
+    return [$first === null ? '' : implode(',', array_slice($cells, $first)), $pn, min($pf, $pn), $b, $rpn, $rpf];
 }
 
 function rep_hist_old(PDO $p, $short, $hwid) {
@@ -318,7 +335,7 @@ function rep_device($hwid, $data) {
 function rep_forget($short) {
     $short = trim((string) $short);
     if ($short === '' || !rep_ensure() || !($p = db())) return;
-    foreach (['rep_state', 'rep_dev'] as $t) {
+    foreach (['rep_state', 'rep_net_ip', 'rep_dev'] as $t) {
         try { $p->prepare("DELETE FROM $t WHERE short_uuid = ?")->execute([$short]); }
         catch (Throwable $e) { error_log('submw rep forget: ' . $e->getMessage()); }
     }
@@ -390,7 +407,8 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     }
 
     // Часы не новее последнего принятого от этого устройства уже посчитаны.
-    $taken  = (int) (rep_dev_row($short, $hwid)['last_h'] ?? 0);
+    $devrow = rep_dev_row($short, $hwid);
+    $taken  = (int) ($devrow['last_h'] ?? 0);
     $last_h = $taken;
     $zero  = array_fill_keys(rep_sum_cols(), 0);
     $hours = [];
@@ -530,8 +548,38 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     $sums = rep_sum_cols();
     $nc   = rep_new_cols();
     $olds = $state && $nc ? rep_hist_old($p, $short, $hwid) : [];
+    // Адресов одной сети за отчёт — не больше REP_NET_IPS_REPORT: те, с которых
+    // мерили дольше и позже; мобильный CGNAT иначе плодит строки без конца.
+    $per = [];
+    foreach ($nips as $ik => $x) $per[$x['net']][$ik] = $x;
+    $nips = [];
+    foreach ($per as $list) {
+        uasort($list, static fn($a, $b) => (count($b['hrs']) <=> count($a['hrs'])) ?: ($b['last_h'] <=> $a['last_h']));
+        $nips += array_slice($list, 0, REP_NET_IPS_REPORT, true);
+    }
     try {
         $p->beginTransaction();
+        // Часы забираются первой записью транзакции: повтор того же отчёта, пришедший,
+        // пока первый ещё пишется, не посчитается второй раз — у него «рано», и клиент
+        // пришлёт свои часы в следующий раз, когда они уже будут учтены.
+        if ($last_h > $taken) {
+            if ($devrow !== null) {
+                $cl = $p->prepare('UPDATE rep_dev SET last_h = ? WHERE short_uuid = ? AND hwid = ? AND last_h = ?');
+                $cl->execute([$last_h, $short, $hwid, $taken]);
+                $claimed = $cl->rowCount() === 1;
+            } else {
+                try {
+                    $p->prepare('INSERT INTO rep_dev (short_uuid, hwid, plat, client, first_seen, last_report, last_h, reports) VALUES (?, ?, ?, ?, ?, ?, ?, 0)')
+                      ->execute([$short, $hwid, $plat, $cli, $now, $now, $last_h]);
+                    $claimed = true;
+                } catch (Throwable $e) { $claimed = false; }
+            }
+            if (!$claimed) {
+                $p->rollBack();
+                $why = 'soon';
+                return false;
+            }
+        }
         foreach ($nodes as $tok => $n) {
             if (!isset($used[$tok])) continue;
             rep_upsert($p, 'rep_node', $n + ['first_seen' => $now, 'last_seen' => $now], ['nkey'], [], ['type', 'server', 'port', 'name', 'last_seen']);
@@ -544,6 +592,8 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
                 'loc' => $x['loc'], 'sub' => $x['sub'], 'hours' => count($x['hrs']), 'first_h' => $x['first_h'], 'last_h' => $x['last_h'],
             ], ['short_uuid', 'hwid', 'net', 'ip'], ['hours'], ['kind', 'cc', 'asn', 'org', 'loc', 'sub', 'last_h']);
         }
+        $trim = $p->prepare('DELETE FROM rep_net_ip WHERE short_uuid = ? AND hwid = ? AND net = ? AND id NOT IN (SELECT id FROM (SELECT id FROM rep_net_ip WHERE short_uuid = ? AND hwid = ? AND net = ? ORDER BY last_h DESC, id DESC LIMIT ' . REP_NET_IPS_KEEP . ') x)');
+        foreach (array_keys($per) as $net) $trim->execute([$short, $hwid, $net, $short, $hwid, $net]);
         foreach ($state as $s) {
             $row = [
                 'short_uuid' => $short, 'hwid' => $hwid, 'net' => $s['net'], 'nkey' => $s['nkey'], 'kind' => $s['kind'],
@@ -557,9 +607,9 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
                 foreach ($s['hb'] as $hh => $x) $hc[$hh] = rep_hist_char($x['pn'], $x['pf'], $x['b']);
                 $old = $olds[$s['net'] . '|' . $s['nkey']] ?? ['', 0, ''];
                 [$row['hist'], $row['hist_h']] = rep_hist_merge($old[0], $old[1], $hc, $s['h']);
-                [$row['hc'], $wpn, $wpf, $wb] = rep_hc_merge($old[2], $old[1], $s['hb'], $row['hist_h']);
+                [$row['hc'], $wpn, $wpf, $wb, $row['rpn'], $row['rpf']] = rep_hc_merge($old[2], $old[1], $s['hb'], $row['hist_h']);
                 if ($row['hc'] !== '') { $row['pn'] = $wpn; $row['pf'] = $wpf; $row['pmed'] = rep_median_bucket($wb); }
-                $set = array_merge($set, ['hist', 'hist_h', 'hc']);
+                $set = array_merge($set, ['hist', 'hist_h', 'hc', 'rpn', 'rpf']);
             }
             if ($s['ip4'] !== '' || $s['ip6'] !== '') {
                 $set = array_merge($set, ['ip4', 'ip6', 'cc', 'asn', 'org']);
