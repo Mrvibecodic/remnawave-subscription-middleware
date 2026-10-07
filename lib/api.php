@@ -58,9 +58,12 @@ function remnawave_api_get($path, $assoc = true) {
     return [true, $code, $json, ''];
 }
 
-function remnawave_all_users(&$error = '') {
+// $each — получать пользователей по страницам, не копя их: тогда функция
+// возвращает пустой список.
+function remnawave_all_users(&$error = '', ?callable $each = null) {
     $error = '';
     $all = [];
+    $seen = 0;
     $start = 0; $size = 250; $guard = 0;
     do {
         [$ok, $code, $data, $e] = remnawave_api_get("/api/users?size={$size}&start={$start}");
@@ -69,11 +72,13 @@ function remnawave_all_users(&$error = '') {
         $users = $resp['users'] ?? (is_array($resp) ? $resp : []);
         $total = (int) ($resp['total'] ?? count($users));
         if (!is_array($users)) $users = [];
-        foreach ($users as $u) $all[] = $u;
+        if ($each !== null) $each($users);
+        else foreach ($users as $u) $all[] = $u;
+        $seen += count($users);
         $start += $size;
         $guard++;
-    } while (count($all) < $total && $guard < 4000 && count($users) > 0);
-    if ($error === '' && $guard >= 4000 && count($all) < $total) $error = 'Список пользователей получен не полностью';
+    } while ($seen < $total && $guard < 4000 && count($users) > 0);
+    if ($error === '' && $guard >= 4000 && $seen < $total) $error = 'Список пользователей получен не полностью';
     return $all;
 }
 

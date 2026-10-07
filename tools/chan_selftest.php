@@ -147,5 +147,18 @@ for ($n = 0; $n < 8000; $n += 137) {
 }
 check('длина ответа кратна 4096', $ragged, 0);
 
+
+// Когда промах метки обходит панель.
+require_once __DIR__ . '/../lib/chanmw.php';
+$now = 1786500000;
+foreach ([
+    ['свежая установка',            0,           true],
+    ['через 30 с после обхода',     $now - 30,   false],
+    ['через 60 с после обхода',     $now - 60,   true],
+    ['отметка из будущего',         $now + 500,  true],
+] as [$name, $ts, $want]) {
+    check('обход по промаху: ' . $name, chan_index_due($ts, $now), $want);
+}
+
 echo $failed === 0 ? "\nВсё сошлось.\n" : "\nПровалов: {$failed}\n";
 exit($failed === 0 ? 0 : 1);

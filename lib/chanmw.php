@@ -17,7 +17,9 @@ function chan_debug_keep() { return max(5, min(500, (int) (setting('chan_debug_k
 
 const CHAN_DEBUG_CUT = 8192;
 
-function chan_index_ttl() { return max(60, (int) (setting('chan_index_ttl', '900') ?: 900)); }
+// Сколько подписка живёт в индексе без подтверждения панелью или вебхуком: столько
+// же новые сутки досчитываются ей без обхода панели.
+const CHAN_SEEN_KEEP = 3 * 86400;
 
 function chan_hard_remarks() {
     $a = json_decode((string) setting('chan_hard_remarks', ''), true);
@@ -91,6 +93,22 @@ function chan_ensure() {
         }
     } catch (Throwable $e) { error_log('submw chan tables: ' . $e->getMessage()); return false; }
 
+    // Когда панель или вебхук последний раз подтвердили подписку: новые сутки
+    // досчитываются только подтверждённым недавно — удалённые без вебхука и
+    // отозванные ссылки уходят из индекса сами.
+    try {
+        if (db_driver() === 'mysql') {
+            $p->exec("CREATE TABLE IF NOT EXISTS chan_seen (
+                short_uuid VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+                ts INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (short_uuid), KEY idx_chan_seen_ts (ts)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        } else {
+            $p->exec('CREATE TABLE IF NOT EXISTS chan_seen (short_uuid TEXT NOT NULL PRIMARY KEY, ts INTEGER NOT NULL DEFAULT 0)');
+            $p->exec('CREATE INDEX IF NOT EXISTS idx_chan_seen_ts ON chan_seen(ts)');
+        }
+    } catch (Throwable $e) { error_log('submw chan seen table: ' . $e->getMessage()); }
+
     try {
         if (db_driver() === 'mysql') {
             $has = $p->query("SHOW INDEX FROM chan_kid WHERE Key_name = 'idx_chan_kid_short'")->fetch();
@@ -115,11 +133,22 @@ function chan_keys() {
             if ($raw !== false && strlen($raw) === 32) $cache[(string) $row['spid']] = $raw;
         }
         if (!$cache) {
-            [$secret, $public] = chan_keygen();
-            $spid = chan_spid($public);
-            $p->prepare('INSERT INTO chan_key (spid, secret, created, is_current) VALUES (?, ?, ?, 1)')
-              ->execute([$spid, base64_encode($secret), time()]);
-            $cache[$spid] = $secret;
+            // Первый ключ создаётся под замком: два одновременных первых запроса
+            // иначе завели бы по ключу, и один из них потом выпал бы при смене.
+            $lock = @fopen(chan_lock_path('key'), 'c');
+            if ($lock) flock($lock, LOCK_EX);
+            foreach ($p->query('SELECT spid, secret FROM chan_key')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $raw = base64_decode((string) $row['secret'], true);
+                if ($raw !== false && strlen($raw) === 32) $cache[(string) $row['spid']] = $raw;
+            }
+            if (!$cache) {
+                [$secret, $public] = chan_keygen();
+                $spid = chan_spid($public);
+                $p->prepare('INSERT INTO chan_key (spid, secret, created, is_current) VALUES (?, ?, ?, 1)')
+                  ->execute([$spid, base64_encode($secret), time()]);
+                $cache[$spid] = $secret;
+            }
+            if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
         }
     } catch (Throwable $e) { error_log('submw chan keys: ' . $e->getMessage()); }
     return $cache;
@@ -170,69 +199,183 @@ function chan_lookup_token($kid) {
     $epoch = chan_epoch();
     try {
         $st = $p->prepare('SELECT short_uuid FROM chan_kid WHERE kid = ? AND epoch BETWEEN ? AND ?');
-        $st->execute([(string) $kid, $epoch - 1, $epoch + 1]);
-        $short = $st->fetchColumn();
-        if ($short !== false && $short !== null && $short !== '') return (string) $short;
+        $find = static function () use ($st, $kid, $epoch) {
+            $st->execute([(string) $kid, $epoch - 1, $epoch + 1]);
+            $short = $st->fetchColumn();
+            $st->closeCursor();
+            return ($short === false || $short === null || $short === '') ? null : (string) $short;
+        };
+        if (($short = $find()) !== null) return $short;
+
+        // Метки новых суток — из уже известных подписок, без обхода панели.
+        if (chan_index_extend($p) && ($short = $find()) !== null) return $short;
 
         // Неизвестная метка — возможно, пользователь создан только что, а
         // вебхука нет: индекс пересобирается тут же, но не чаще раза в минуту —
         // иначе клиент ушёл бы на открытый путь и остался на нём.
-        if (!chan_index_rebuild(false, true)) return null;
+        if (!chan_index_rebuild(false)) return null;
 
-        $st->execute([(string) $kid, $epoch - 1, $epoch + 1]);
-        $short = $st->fetchColumn();
-        return ($short === false || $short === null || $short === '') ? null : (string) $short;
+        return $find();
     } catch (Throwable $e) { error_log('submw chan lookup: ' . $e->getMessage()); return null; }
 }
 
-function chan_index_rebuild($force = false, $miss = false) {
+// Метки суток — HMAC от токена подписки, поэтому на новые сутки их можно
+// посчитать заново без обхода панели — для подписок, которые панель подтвердила
+// за последние CHAN_SEEN_KEEP: отдала по ним подписку, вернула их при обходе или
+// прислала о них вебхук. Обход нужен только ради новых
+// пользователей. Пересчёт идёт на первом промахе новых суток под замком записи
+// индекса (его держат только сами записи — секунды, а не обход панели), чтобы
+// одновременные промахи не делали его наперегонки. Не удался — следующая попытка
+// не раньше чем через минуту. true — метки на сегодня есть, стоит поискать ещё раз.
+function chan_index_extend($p) {
+    $now   = time();
+    $epoch = chan_epoch($now);
+    if ((int) setting('chan_index_epoch', '0') === $epoch) return false;
+    if ($now - (int) setting('chan_index_ext_fail', '0') < 60) return false;
+
+    $lock = @fopen(chan_lock_path('write'), 'c');
+    if ($lock) flock($lock, LOCK_EX);
+    try {
+        @set_time_limit(300);
+        if (chan_index_mark($p, 'chan_index_epoch') === $epoch) return true;
+        $st = $p->prepare('SELECT short_uuid FROM chan_seen WHERE ts >= ?');
+        $st->execute([$now - CHAN_SEEN_KEEP]);
+        $shorts = $st->fetchAll(PDO::FETCH_COLUMN);
+        if (!$shorts) { set_setting('chan_index_ext_fail', (string) $now); return false; }
+        chan_index_write($p, $shorts, $now);
+        set_setting('chan_index_epoch', (string) $epoch);
+        return true;
+    } catch (Throwable $e) {
+        error_log('submw chan index extend: ' . $e->getMessage());
+        try { set_setting('chan_index_ext_fail', (string) $now); } catch (Throwable $e2) {}
+        return false;
+    } finally {
+        if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
+    }
+}
+
+// Обход панели ради новых пользователей. Решение «пора ли» — по кэшу настроек и
+// ещё раз по базе под замком: запрос, начавшийся до чужого обхода, видит в кэше
+// старую отметку.
+function chan_index_rebuild($force = false) {
     if (!chan_ext_ok() || !chan_ensure() || !($p = db())) return false;
 
     $now   = time();
     $epoch = chan_epoch($now);
-    if (!$force) {
-        $ts   = (int) setting('chan_index_ts', '0');
-        $done = (int) setting('chan_index_epoch', '0');
-        if ($done === $epoch && !$miss && ($now - $ts) < chan_index_ttl()) return false;
-        if (($done !== $epoch || $miss) && ($now - $ts) < 60) return false;
-    }
-    $lock = @fopen(rtrim(sys_get_temp_dir(), '/\\') . '/submw_chan_index_' . substr(md5(__DIR__), 0, 12) . '.lock', 'c');
-    @set_time_limit(300);
+    if (!$force && !chan_index_due((int) setting('chan_index_ts', '0'), $now)) return false;
+
+    $lock = @fopen(chan_lock_path('index'), 'c');
     if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return false; }
-    set_setting('chan_index_ts', (string) $now);
+    try {
+        // Обход был только что — новый не нужен, но метку стоит поискать ещё раз.
+        if (!$force && !chan_index_due(chan_index_mark($p, 'chan_index_ts'), $now)) return true;
+        @set_time_limit(300);
+        set_setting('chan_index_ts', (string) $now);
 
-    $err   = '';
-    $users = function_exists('remnawave_all_users') ? remnawave_all_users($err) : [];
-    if (!$users) {
-        if ($err !== '') error_log('submw chan index: ' . $err);
+        // Из пользователей нужен только shortUuid: страницы панели не копятся в
+        // памяти целиком — на большой панели это сотни мегабайт. Список, который
+        // функция всё же вернула (её прежняя версия обратный вызов не знает — так
+        // бывает, пока файлы прослойки обновляются), тоже в ход.
+        $err    = '';
+        $shorts = [];
+        $take   = static function (array $page) use (&$shorts) {
+            foreach ($page as $u) {
+                $short = is_array($u) ? trim((string) ($u['shortUuid'] ?? '')) : '';
+                if ($short !== '') $shorts[] = $short;
+            }
+        };
+        if (function_exists('remnawave_all_users')) $take(remnawave_all_users($err, $take));
+        if (!$shorts) {
+            if ($err !== '') error_log('submw chan index: ' . $err);
+            return false;
+        }
+
+        $wlock = @fopen(chan_lock_path('write'), 'c');
+        if ($wlock) flock($wlock, LOCK_EX);
+        try {
+            $count = chan_index_write($p, $shorts, $now);
+            // Сутки отмечаются под тем же замком: пересчёт, ждущий его, иначе
+            // повторил бы работу обхода.
+            if ($err === '') set_setting('chan_index_epoch', (string) $epoch);
+        } finally {
+            if ($wlock) { flock($wlock, LOCK_UN); fclose($wlock); }
+        }
+        chan_seen_mark($p, $shorts, $now);
+        if ($err !== '') { error_log('submw chan index: ' . $err); return $count > 0; }
+        set_setting('chan_index_count', (string) $count);
+        set_setting('chan_index_ok_ts', (string) $now);
+        return true;
+    } catch (Throwable $e) {
+        error_log('submw chan index: ' . $e->getMessage());
         return false;
+    } finally {
+        if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
     }
+}
 
+// Пора ли обходить панель по промаху: не чаще раза в минуту. Отметка из будущего
+// (часы сервера ушли назад) обход не держит.
+function chan_index_due($ts, $now) {
+    return $ts > $now || $now - $ts >= 60;
+}
+
+function chan_index_mark($p, $key) {
+    $st = $p->prepare('SELECT v FROM settings WHERE k = ?');
+    $st->execute([$key]);
+    $v = (int) $st->fetchColumn();
+    $st->closeCursor();
+    return $v;
+}
+
+// Метки на вчера, сегодня и завтра для каждой подписки, старые — прочь. Одна
+// транзакция; ошибка — исключение. Вызывающий держит замок записи индекса.
+function chan_index_write($p, array $shorts, $now) {
     $count = 0;
     try {
         $p->beginTransaction();
-        $sql = db_driver() === 'mysql'
-            ? 'INSERT INTO chan_kid (kid, short_uuid, epoch) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE short_uuid = VALUES(short_uuid), epoch = VALUES(epoch)'
-            : 'INSERT INTO chan_kid (kid, short_uuid, epoch) VALUES (?, ?, ?) ON CONFLICT(kid) DO UPDATE SET short_uuid = excluded.short_uuid, epoch = excluded.epoch';
-        $st = $p->prepare($sql);
-        foreach ($users as $u) {
-            $short = trim((string) ($u['shortUuid'] ?? ''));
-            if ($short === '') continue;
-            foreach (chan_kids($short, $now) as $e => $kid) $st->execute([$kid, $short, $e]);
+        $st = $p->prepare(chan_kid_upsert_sql());
+        foreach ($shorts as $short) {
+            foreach (chan_kids((string) $short, $now) as $e => $kid) $st->execute([$kid, (string) $short, $e]);
             $count++;
         }
-        $p->prepare('DELETE FROM chan_kid WHERE epoch < ?')->execute([$epoch - 1]);
+        $p->prepare('DELETE FROM chan_kid WHERE epoch < ?')->execute([chan_epoch($now) - 1]);
         $p->commit();
     } catch (Throwable $e) {
         if ($p->inTransaction()) $p->rollBack();
-        error_log('submw chan index: ' . $e->getMessage());
-        return false;
+        throw $e;
     }
+    return $count;
+}
 
-    if ($err !== '') { error_log('submw chan index: ' . $err); return $count > 0; }
-    set_setting('chan_index_epoch', (string) $epoch);
-    set_setting('chan_index_count', (string) $count);
-    return true;
+// Подписки подтвердила панель — отдельно от записи меток: таблица подтверждений
+// нужна только пересчёту на новые сутки, и её сбой не должен срывать обход.
+function chan_seen_mark($p, array $shorts, $now) {
+    try {
+        $p->beginTransaction();
+        $up = $p->prepare(chan_seen_upsert_sql());
+        foreach ($shorts as $short) $up->execute([(string) $short, $now]);
+        $p->prepare('DELETE FROM chan_seen WHERE ts < ?')->execute([$now - CHAN_SEEN_KEEP]);
+        $p->commit();
+    } catch (Throwable $e) {
+        if ($p->inTransaction()) $p->rollBack();
+        error_log('submw chan seen: ' . $e->getMessage());
+    }
+}
+
+function chan_kid_upsert_sql() {
+    return db_driver() === 'mysql'
+        ? 'INSERT INTO chan_kid (kid, short_uuid, epoch) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE short_uuid = VALUES(short_uuid), epoch = VALUES(epoch)'
+        : 'INSERT INTO chan_kid (kid, short_uuid, epoch) VALUES (?, ?, ?) ON CONFLICT(kid) DO UPDATE SET short_uuid = excluded.short_uuid, epoch = excluded.epoch';
+}
+
+function chan_seen_upsert_sql() {
+    return db_driver() === 'mysql'
+        ? 'INSERT INTO chan_seen (short_uuid, ts) VALUES (?, ?) ON DUPLICATE KEY UPDATE ts = VALUES(ts)'
+        : 'INSERT INTO chan_seen (short_uuid, ts) VALUES (?, ?) ON CONFLICT(short_uuid) DO UPDATE SET ts = excluded.ts';
+}
+
+function chan_lock_path($name) {
+    return rtrim(sys_get_temp_dir(), '/\\') . '/submw_chan_' . $name . '_' . substr(md5(__DIR__), 0, 12) . '.lock';
 }
 
 function chan_index_add($short) {
@@ -240,12 +383,28 @@ function chan_index_add($short) {
     if ($short === '' || !chan_ext_ok() || !chan_ensure() || !($p = db())) return;
     $now = time();
     try {
-        $sql = db_driver() === 'mysql'
-            ? 'INSERT INTO chan_kid (kid, short_uuid, epoch) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE short_uuid = VALUES(short_uuid), epoch = VALUES(epoch)'
-            : 'INSERT INTO chan_kid (kid, short_uuid, epoch) VALUES (?, ?, ?) ON CONFLICT(kid) DO UPDATE SET short_uuid = excluded.short_uuid, epoch = excluded.epoch';
-        $st = $p->prepare($sql);
+        $st = $p->prepare(chan_kid_upsert_sql());
         foreach (chan_kids($short, $now) as $e => $kid) $st->execute([$kid, $short, $e]);
     } catch (Throwable $e) { error_log('submw chan index add: ' . $e->getMessage()); }
+    chan_seen_touch($short, true);
+}
+
+// Подтвердить подписку. Без $always — не чаще раза в час: подтверждение по
+// ответу панели идёт на каждом обновлении, лишняя запись в базу там ни к чему.
+function chan_seen_touch($short, $always = false) {
+    $short = trim((string) $short);
+    if ($short === '' || !chan_ensure() || !($p = db())) return;
+    $now = time();
+    try {
+        if (!$always) {
+            $st = $p->prepare('SELECT ts FROM chan_seen WHERE short_uuid = ?');
+            $st->execute([$short]);
+            $ts = $st->fetchColumn();
+            $st->closeCursor();
+            if ($ts !== false && $now - (int) $ts < 3600) return;
+        }
+        $p->prepare(chan_seen_upsert_sql())->execute([$short, $now]);
+    } catch (Throwable $e) { error_log('submw chan seen: ' . $e->getMessage()); }
 }
 
 function chan_index_drop($short) {
@@ -253,6 +412,8 @@ function chan_index_drop($short) {
     if ($short === '' || !chan_ensure() || !($p = db())) return;
     try { $p->prepare('DELETE FROM chan_kid WHERE short_uuid = ?')->execute([$short]); }
     catch (Throwable $e) { error_log('submw chan index drop: ' . $e->getMessage()); }
+    try { $p->prepare('DELETE FROM chan_seen WHERE short_uuid = ?')->execute([$short]); }
+    catch (Throwable $e) { error_log('submw chan seen drop: ' . $e->getMessage()); }
 }
 
 function chan_state_drop($short) {
@@ -274,11 +435,15 @@ function chan_index_info() {
             if ($v !== false && $v !== null) $count = (int) $v;
         } catch (Throwable $e) {}
     }
+    $ok = (int) setting('chan_index_ok_ts', '0');
     return [
         'count' => $count,
-        'ts'    => (int) setting('chan_index_ts', '0'),
+        'ts'    => $ok > 0 ? $ok : (int) setting('chan_index_ts', '0'),
         'epoch' => $built,
         'fresh' => $count > 0 && $built >= $epoch - 1,
+        // Обход панели не удаётся больше суток: новые пользователи без вебхука
+        // не узнаются.
+        'stale' => $ok > 0 && (int) setting('chan_index_ts', '0') > $ok && time() - $ok > 86400,
     ];
 }
 
@@ -821,6 +986,10 @@ function chan_flush() {
     echo $sealed;
 
     chan_state_hit($ctx['token'], (string) ($ctx['req']['ua'] ?? ''));
+    // Панель сама отдала подписку — она жива: подтверждение для пересчёта меток
+    // на новые сутки. Удалённая или отозванная (панель ответила отказом), а
+    // также заглушки самой прослойки так не подтверждаются.
+    if (!empty($GLOBALS['chan_panel_ok'])) chan_seen_touch($ctx['token']);
 
     if (!empty($GLOBALS['chan_dbg'])) {
         $rec = $GLOBALS['chan_dbg'];

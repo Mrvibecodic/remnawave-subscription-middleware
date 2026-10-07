@@ -432,6 +432,10 @@ if ($is_page && $decision === 'normal' && !$junk_path && (int) $http_code === 20
 $unsafe = ['host', 'connection', 'transfer-encoding', 'content-length', 'content-encoding'];
 $body_modified = ($response !== $response_premod);
 http_response_code($http_code ?: 200);
+// Защищённый канал: панель сама отдала подписку по этому токену — он жив.
+if (chan_active() && $decision === 'normal' && !$is_page && !$junk_path && (int) $http_code >= 200 && (int) $http_code < 300) {
+    $GLOBALS['chan_panel_ok'] = true;
+}
 foreach ($grabbed_headers as $name => $value) {
     if (in_array($name, $unsafe, true)) continue;
     if ($body_modified && ($name === 'etag' || $name === 'last-modified')) continue;

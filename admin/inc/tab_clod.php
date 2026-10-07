@@ -92,7 +92,7 @@ $chan_plu   = function ($n, $one, $few, $many) {
             <tr><td><?= $chan_api ? '✅' : '❌' ?></td>
                 <td>Доступ к панели<?= $chan_api ? '' : ' — без URL и API-токена метки подписок собрать не из чего' ?></td></tr>
             <tr><td><?= $chan_idx['fresh'] ? '✅' : '⚠️' ?></td>
-                <td>Индекс меток — <?= (int) $chan_idx['count'] ?> <?= $chan_plu((int) $chan_idx['count'], 'подписка', 'подписки', 'подписок') ?> на сегодня<?php if ((int) $chan_idx['ts'] > 0): ?>, полный обход <span class="ct-time" data-ts="<?= (int) $chan_idx['ts'] ?>"><?= h(date('Y-m-d H:i', (int) $chan_idx['ts'])) ?></span><?php endif; ?><?= $chan_idx['fresh'] || (int) $chan_idx['count'] === 0 ? '' : ' <b>(меток на сегодня нет)</b>' ?>
+                <td>Индекс меток — <?= (int) $chan_idx['count'] ?> <?= $chan_plu((int) $chan_idx['count'], 'подписка', 'подписки', 'подписок') ?> на сегодня<?php if ((int) $chan_idx['ts'] > 0): ?>, полный обход <span class="ct-time" data-ts="<?= (int) $chan_idx['ts'] ?>"><?= h(date('Y-m-d H:i', (int) $chan_idx['ts'])) ?></span><?php endif; ?><?= $chan_idx['fresh'] || (int) $chan_idx['count'] === 0 ? '' : ' <b>(меток на сегодня нет)</b>' ?><?= !empty($chan_idx['stale']) ? ' <b>(обход панели не удаётся больше суток: новых пользователей без вебхука прослойка не узнает — проверьте URL и API-токен)</b>' : '' ?>
                     <?php if ((int) $chan_idx['count'] === 0): ?>
                         <div class="muted" style="margin-top:.35rem">Индекс пока пуст: без него прослойка не узнаёт подписку по метке и отвечает как на мусорный адрес. Нажмите «Пересобрать».</div>
                     <?php else: ?>
@@ -306,10 +306,10 @@ $chan_plu   = function ($n, $one, $few, $many) {
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
-        <p class="muted">Общий секрет — <b>сам адрес подписки</b>. В сеть он не уходит ни разу: из него выводится ключ <code>psk = HKDF-SHA256(адрес, соль «clod-chan-v1», метка «psk»)</code>, 32 байта. Криптография одна и не согласуется: X25519, HKDF-SHA256, ChaCha20-Poly1305.</p>
+        <p class="muted">Общий секрет — <b>токен из адреса подписки</b> (последний сегмент пути, shortUuid). В сеть он не уходит ни разу: из него выводится ключ <code>psk = HKDF-SHA256(токен, соль «clod-chan-v1», метка «psk»)</code>, 32 байта. Криптография одна и не согласуется: X25519, HKDF-SHA256, ChaCha20-Poly1305.</p>
 
         <div class="set-t" style="margin-top:1rem">Запрос</div>
-        <p class="muted">Клиент запрашивает <code>&lt;префикс&gt;/c1/&lt;метка&gt;/&lt;отпечаток&gt;/&lt;блок&gt;</code> и не шлёт ни одного своего заголовка.</p>
+        <p class="muted">Клиент запрашивает <code>&lt;префикс&gt;/c1/&lt;метка&gt;/&lt;отпечаток&gt;/&lt;блок&gt;</code> и не шлёт ничего, что опознаёт устройство или приложение: снаружи у всех клиентов один и тот же браузерный набор заголовков.</p>
         <ul class="muted" style="line-height:1.7;padding-left:1.2rem;margin-top:.3rem">
             <li><b>Метка</b> — первые 9 байт <code>HMAC-SHA256(psk, "kid|&lt;номер суток&gt;")</code> в base64url, 12 символов. Номер суток — это unix-время, делённое на 86400, поэтому метка меняется каждые сутки: два запроса одного человека в разные дни посредник между собой не свяжет. Прослойка держит метки на трое суток — вчера, сегодня и завтра — и по ним узнаёт подписку.</li>
             <li><b>Отпечаток</b> — 6 символов base64url от SHA-256 публичного ключа прослойки, либо <code>0</code>, если клиент этот ключ ещё не закрепил.</li>
