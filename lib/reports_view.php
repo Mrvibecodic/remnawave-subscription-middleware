@@ -96,6 +96,17 @@ function rep_view_score(array $r) {
     ];
 }
 
+// Сколько сетей уже с почасовой историей и когда пришёл первый такой отчёт:
+// строки, записанные до обновления прослойки, её не получат до следующего отчёта.
+function rep_view_hist_stat($since) {
+    $out = ['rows' => 0, 'with' => 0, 'first' => 0];
+    if (!rep_new_cols()) return $out;
+    $r = rep_view_rows("SELECT COUNT(*) AS n, SUM(CASE WHEN hist <> '' THEN 1 ELSE 0 END) AS w, MIN(CASE WHEN hist <> '' THEN last_seen END) AS f FROM rep_state WHERE last_seen >= ?", [(int) $since]);
+    if ($r) $out = ['rows' => (int) $r[0]['n'], 'with' => (int) $r[0]['w'], 'first' => (int) $r[0]['f']];
+
+    return $out;
+}
+
 function rep_view_totals(array $f, $since) {
     [$w, $a] = rep_view_where($f, 'h', $since, ['kind', 'plat', 'cc', 'node']);
     $rows = rep_view_rows('SELECT ' . rep_view_sums() . ", COUNT(DISTINCT nkey) AS nodes FROM rep_hour WHERE $w", $a);
