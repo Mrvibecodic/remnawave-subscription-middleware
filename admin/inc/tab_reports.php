@@ -298,8 +298,12 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-dtab.on,.rv-dtab.on:hover{border-color:var(--accent);background:var(--accent-light)}
     .rv-dtab .t{font-weight:600;color:var(--text-strong);font-size:.88rem;display:block}
     .rv-dtab .s{font-size:.74rem;color:var(--muted);display:block}
-    .rv-kv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem}
-    @media(max-width:800px){.rv-kv{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .rv-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.6rem}
+    .rv-ipl{margin-top:.45rem;font-size:.76rem;color:var(--muted)}
+    .rv-ipl summary{cursor:pointer;color:var(--text);font-weight:500;list-style-position:inside}
+    .rv-ipl table{width:100%;border-collapse:collapse;margin-top:.3rem}
+    .rv-ipl td{padding:.2rem .3rem .2rem 0;border:0;background:none;vertical-align:top;overflow-wrap:anywhere}
+    .rv-ipl td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
     .rv-kv div{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:.5rem .7rem}
     .rv-kv span{display:block;font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
     .rv-kv b{display:block;font-size:.86rem;color:var(--text-strong);font-weight:600;margin-top:.1rem;overflow-wrap:anywhere}
@@ -408,7 +412,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         <div class="loghead"><h2>Карта клиентов</h2>
             <div class="rv-flt"><span class="rv-seg" id="rvMetric"><button type="button" class="on" data-m="fail">Неудачные пинги</button><button type="button" data-m="med">Медианный пинг</button><button type="button" data-m="frz">Проверка 16–20</button></span></div>
         </div>
-        <p class="muted" style="font-size:.82rem">Точка — клиенты в регионе по адресу, с которого устройство мерило пинги последним; число — устройств, цвет — худшее состояние среди них. Регион закрашен по выбранной метрике. Нажмите на точку или регион — список клиентов, на клиента — его устройства, сети и пинги.</p>
+        <p class="muted" style="font-size:.82rem">Точка — клиенты в регионе. Регион устройства — где оно провело больше всего часов, по домашним сетям (Wi-Fi, кабель), если они есть: динамические адреса и мобильный оператор устройство не переносят, сеть в другой стране показывается отдельно; число — устройств, цвет — худшее состояние среди них. Регион закрашен по выбранной метрике. Нажмите на точку или регион — список клиентов, на клиента — его устройства, сети и пинги.</p>
         <div class="rv-mgrid">
             <div>
                 <div class="rv-mapbox" id="rvMapBox">
@@ -612,6 +616,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); };
         var ico = function (id, cls) { return '<svg class="rvi' + (cls ? ' ' + cls : '') + '"><use href="#rvi-' + id + '"/></svg>'; };
         var hasFlag = function (x) { return /^\s*[\u{1F1E6}-\u{1F1FF}]{2}/u.test(String(x || '')); };
+        var placeNm = function (rg, cc) { return rg && M.r[rg] ? M.r[rg].n + ', ' + ccName(cc) : (cc ? ccName(cc) : 'без геопозиции'); };
         var flagFor = function (cc, name) { return hasFlag(name) || !cc ? '' : flag(cc) + ' '; };
         var flag = function (cc) { return /^[A-Z]{2}$/.test(cc || '') ? '<span class="rv-fl" title="' + cc + '">' + String.fromCodePoint(0x1F1A5 + cc.charCodeAt(0), 0x1F1A5 + cc.charCodeAt(1)) + '</span>' : '<span class="rv-cc">??</span>'; };
         var fl = function (pf, pn) { return pn >= 20 ? pct(pf / pn) : pn > 0 ? pf + ' из ' + pn : '—'; };
@@ -1163,7 +1168,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 if (!j || !j.ok || !j.card) { drw.querySelector('h2').textContent = 'Отчётов от этого клиента нет'; return; }
                 var c = j.card;
                 c.nk = {}; (c.nodes || []).forEach(function (n) { c.nk[n.k] = n; });
-                c.rows.forEach(function (r) { r.rg = regionOf(r.loc, r.cc, r.sub); });
+                c.rows.forEach(function (r) { r.rg = regionOf(r.loc, r.cc, r.sub); r.rgo = regionOf(r.ol || '', r.occ || r.cc, r.osb || ''); });
+                c.devs.forEach(function (d) { if (d.pl) d.pl.rg = regionOf(d.pl.loc, d.pl.cc, d.pl.sub); });
+                Object.keys(c.ips || {}).forEach(function (k) { c.ips[k].forEach(function (x) { x.rg = regionOf(x.loc, x.cc, x.sub); }); });
                 if (c.name) NAMES[c.short] = c.name;
                 CS = {c: c, dev: 0, cell: null, only: false};
                 drawClient();
@@ -1174,7 +1181,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var c = CS.c, d = c.devs[CS.dev] || c.devs[0], nm = c.name || nameOf(c.short);
             var rs = c.rows.filter(function (r) { return r.hw === d.hw; });
             var nets = [], nmap = {};
-            rs.forEach(function (r) { if (!nmap[r.net]) { nmap[r.net] = {net: r.net, k: r.k, ip: '', ip6: '', cc: '', asn: 0, org: '', rg: null, hh: 0, seen: 0, cells: {}, ah: -1}; nets.push(nmap[r.net]); } var n = nmap[r.net]; n.cells[r.n] = r; n.hh = Math.max(n.hh, r.hh); n.seen = Math.max(n.seen, r.seen); if (r.ip && r.hh >= n.ah) { n.ah = r.hh; n.ip = r.ip; n.ip6 = r.ip6; n.cc = r.cc; n.asn = r.asn; n.org = r.org; n.rg = r.rg; n.k = r.k; } });
+            rs.forEach(function (r) { if (!nmap[r.net]) { nmap[r.net] = {net: r.net, k: r.k, ip: '', ip6: '', cc: '', asn: 0, org: '', rg: null, hh: 0, seen: 0, cells: {}, ah: -1, rgo: null, occ: ''}; nets.push(nmap[r.net]); } var n = nmap[r.net]; n.cells[r.n] = r; n.hh = Math.max(n.hh, r.hh); n.seen = Math.max(n.seen, r.seen); if (r.ip && r.hh >= n.ah) { n.ah = r.hh; n.ip = r.ip; n.ip6 = r.ip6; n.cc = r.cc; n.asn = r.asn; n.org = r.org; n.rg = r.rg; n.rgo = r.rgo; n.occ = r.occ || r.cc; n.k = r.k; } });
             nets.sort(function (a, b) { return (b.hh - a.hh) || (b.seen - a.seen); });
             var label = function (n) { return (KIND[n.k] || n.k) + ' · ' + (n.org || (n.asn ? 'AS' + n.asn : 'провайдер неизвестен')); };
             var nkeys = []; rs.forEach(function (r) { if (r.pn > 0 && nkeys.indexOf(r.n) < 0) nkeys.push(r.n); });
@@ -1230,6 +1237,14 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 });
                 return best;
             };
+            var ipList = function (hw, n) {
+                var list = (c.ips || {})[hw + '|' + n.net] || [];
+                if (list.length < 2) return '';
+                var tot = list.reduce(function (s, x) { return s + x.h; }, 0);
+                return '<details class="rv-ipl" data-net="' + esc(n.net) + '"' + (CS.ipo && CS.ipo[n.net] ? ' open' : '') + '><summary>Адресов за период: ' + list.length + '</summary><table>'
+                    + list.map(function (x) { return '<tr><td><code>' + esc(x.ip) + '</code></td><td>' + flag(x.cc) + ' ' + esc(placeNm(x.rg, x.cc)) + '</td><td class="n" data-tip="Часов с замерами с этого адреса">' + x.h + ' ч' + (tot ? ' · ' + Math.round(x.h * 100 / tot) + ' %' : '') + '</td></tr>'; }).join('')
+                    + '</table></details>';
+            };
             var devTabs = c.devs.map(function (x, i) {
                 var xr = c.rows.filter(function (r) { return r.hw === x.hw; }), xp = 0, xf = 0; xr.forEach(function (r) { xp += r.pn; xf += r.pf; }); var bad = xr.some(function (r) { return r.dead; }) || (xp >= 20 && xf / xp >= .1), warn = xr.some(function (r) { return r.v === 'frozen'; }) || (xp >= 20 && xf / xp >= .03);
                 return '<div role="button" tabindex="0" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span>' + (bad || warn ? '<button type="button" class="rv-pill rv-jump st-' + (bad ? 'bad' : 'warn') + '" title="Показать проблемный узел">' + (bad ? 'проблемы' : 'деградация') + '</button>' : '<span class="rv-pill st-ok">в порядке</span>') + '</div>';
@@ -1240,12 +1255,15 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 + '<a class="btn ghost" href="?tab=reqlog&rl_q=' + encodeURIComponent(c.short) + '">' + ico('list') + 'Лог запросов</a>'
                 + '<button type="button" class="btn ghost" id="rvDrwX" aria-label="Закрыть">' + ico('x') + '</button></div>'
                 + '<div class="rv-db"><div class="rv-sect" style="margin-top:0">Устройства</div><div class="rv-dtabs">' + devTabs + '</div>'
-                + '<div class="rv-kv"><div><span>Модель и ОС</span><b>' + esc([d.m, d.o].filter(Boolean).join(' · ') || '—') + '</b></div><div><span>Клиент</span><b>' + esc(d.c ? 'Clod Clash ' + d.c : '—') + (d.p ? ' · ' + (d.p === 'pc' ? 'ПК' : 'Android') : '') + '</b></div><div><span>HWID</span><b><code>' + esc(d.hw) + '</code></b></div><div><span>Отчётов</span><b>' + (d.r || '—') + ' · последний ' + ago(d.lr) + '</b></div></div>'
+                + '<div class="rv-kv"><div><span>Модель и ОС</span><b>' + esc([d.m, d.o].filter(Boolean).join(' · ') || '—') + '</b></div><div><span>Клиент</span><b>' + esc(d.c ? 'Clod Clash ' + d.c : '—') + (d.p ? ' · ' + (d.p === 'pc' ? 'ПК' : 'Android') : '') + '</b></div><div><span>HWID</span><b><code>' + esc(d.hw) + '</code></b></div><div><span>Отчётов</span><b>' + (d.r || '—') + ' · последний ' + ago(d.lr) + '</b></div>'
+                + (d.pl ? '<div><span>Регион устройства</span><b data-tip="' + esc((d.pl.src === 'home' ? 'По домашним сетям (Wi-Fi и кабель)' : 'По всем сетям устройства') + ': ' + d.pl.w + ' из ' + d.pl.tw + ' часов замеров' + (d.pl.n > 1 ? ', адреса числились в ' + d.pl.n + ' местах' : '') + '. Мобильная сеть и динамические адреса регион не переносят; сеть в другой стране показывается отдельно.') + '">' + flag(d.pl.cc) + ' ' + esc(placeNm(d.pl.rg, d.pl.cc)) + '</b></div>' : '') + '</div>'
                 + '<div class="rv-sect">Диагноз</div>' + diag.map(function (x) { return '<div class="rv-diag st-' + x.s + '"' + (x.j ? ' data-jump="' + esc(x.j) + '" role="button" tabindex="0" title="Показать в таблице пингов"' : '') + '><span class="ic st-' + x.s + '">' + ico(x.ic) + '</span><div><div class="t">' + esc(x.t) + '</div>' + (x.w ? '<div class="w">' + x.w + '</div>' : '') + '</div>' + (x.j ? '<span class="go">к узлу ↓</span>' : '') + '</div>'; }).join('')
                 + '<div class="rv-sect">Сети устройства</div><div class="rv-nets">' + nets.map(function (n, i) {
                     var pn = 0, pf = 0, dd = 0; nkeys.forEach(function (k) { var y = n.cells[k]; if (y) { pn += y.pn; pf += y.pf; if (y.dead) dd++; } });
                     return '<div class="rv-net"><div class="h">' + ico(KIND[n.k] ? n.k : 'other') + esc(KIND[n.k] || n.k) + (i === 0 ? ' <span class="rv-pill st-info">последняя</span>' : '') + '<span class="sp"></span>' + (dd ? '<span class="rv-pill st-bad">' + dd + ' без ответа</span>' : '<span class="rq q' + qFail(pn ? pf / pn : null) + '">' + fl(pf, pn) + '</span>') + '</div>'
-                        + '<div class="r"><b style="color:var(--text)">' + (n.asn ? 'AS' + n.asn + ' ' : '') + esc(n.org || '—') + '</b><br><code>' + esc(n.ip || '—') + '</code>' + (n.ip6 ? ' · <code>' + esc(n.ip6) + '</code>' : '') + '<br>' + flag(n.cc) + ' ' + esc(n.rg ? M.r[n.rg].n + ', ' + ccName(n.cc) : (n.cc ? ccName(n.cc) : 'без геопозиции')) + '<br>замер ' + ago(n.seen) + '</div></div>';
+                        + '<div class="r"><b style="color:var(--text)">' + (n.asn ? 'AS' + n.asn + ' ' : '') + esc(n.org || '—') + '</b><br><code>' + esc(n.ip || '—') + '</code>' + (n.ip6 ? ' · <code>' + esc(n.ip6) + '</code>' : '') + '<br>' + flag(n.cc) + ' ' + esc(placeNm(n.rg, n.cc))
+                        + ((n.rgo !== n.rg || n.occ !== n.cc) && (n.rgo || n.occ) ? '<br><span data-tip="Где адрес сети числится в базе адресов. Устройство стоит там, где провело больше всего часов: динамические адреса провайдера заведены на разные регионы.">адрес оператора — ' + esc(placeNm(n.rgo, n.occ)) + '</span>' : '')
+                        + '<br>замер ' + ago(n.seen) + '</div>' + ipList(d.hw, n) + '</div>';
                 }).join('') + '</div>'
                 + '<div class="rv-sect">Пинги до узлов по сетям<label><input type="checkbox" id="rvOnly"' + (CS.only ? ' checked' : '') + '> только проблемные</label></div>'
                 + (nkeys.length ? '<div class="rv-wrap"><table class="rv-mx"><thead><tr><th class="rh">Узел</th>' + nets.map(function (n) { return '<th style="min-width:140px">' + ico(KIND[n.k] ? n.k : 'other') + '<div style="color:var(--text);margin-top:.15rem">' + esc(label(n)) + '</div><div style="font-weight:400"><code>' + esc(n.ip || '—') + '</code></div></th>'; }).join('') + '</tr></thead><tbody>'
@@ -1291,6 +1309,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             }
             drw.querySelectorAll('[data-cell]').forEach(function (b) { b.addEventListener('click', function () { CS.cell = b.dataset.cell; drawClient(true); }); });
             var only = drw.querySelector('#rvOnly'); if (only) only.addEventListener('change', function () { CS.only = only.checked; drawClient(true); });
+            drw.querySelectorAll('.rv-ipl').forEach(function (el) { el.addEventListener('toggle', function () { CS.ipo = CS.ipo || {}; CS.ipo[el.dataset.net] = el.open; }); });
         };
 
         document.getElementById('rvFind').addEventListener('submit', function (e) {
