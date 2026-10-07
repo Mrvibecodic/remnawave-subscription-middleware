@@ -464,9 +464,10 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 $w = max(1, $bw * .8);
                 $hOk = ($pt['pn'] - $pt['pf']) / $rv_max * ($H - 6);
                 $hBad = $pt['pf'] / $rv_max * ($H - 6);
-                $tt = $rv_dt($rv_series['step'] === 3600 ? 'd.m H:00' : 'd.m', $pt['t']) . ' — пингов ' . $pt['pn'] . ', неудачных ' . $pt['pf'] . ($pt['fail'] !== null ? ' (' . $rv_pct($pt['fail']) . ')' : '') . ', медиана ' . $rv_med($pt['med']);
+                $tr = ' — пингов ' . $pt['pn'] . ', неудачных ' . $pt['pf'] . ($pt['fail'] !== null ? ' (' . $rv_pct($pt['fail']) . ')' : '') . ', медиана ' . $rv_med($pt['med']);
+                $tt = $rv_dt($rv_series['step'] === 3600 ? 'd.m H:00' : 'd.m', $pt['t']) . $tr;
             ?>
-            <g><title><?= h($tt) ?></title>
+            <g data-tip="<?= h($tt) ?>"<?= $rv_series['step'] === 3600 ? ' data-ts="' . (int) $pt['t'] . '" data-tipr="' . h($tr) . '"' : '' ?>>
                 <rect class="ok" x="<?= round($x, 1) ?>" y="<?= round($H - $hOk - $hBad, 1) ?>" width="<?= round($w, 1) ?>" height="<?= round($hOk, 1) ?>"/>
                 <?php if ($hBad > 0): ?><rect class="bad" x="<?= round($x, 1) ?>" y="<?= round($H - $hBad, 1) ?>" width="<?= round($w, 1) ?>" height="<?= round(max($hBad, 1), 1) ?>"/><?php endif; ?>
             </g>
@@ -475,7 +476,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             $marks = $rv_series['step'] === 3600 ? ($rv_f['p'] === 1 ? 6 : 24) : 5;
             foreach ($pts as $i => $pt):
                 if ($i % $marks !== 0 || $i * $bw > $W - 40) continue; ?>
-            <text class="ax" x="<?= round($i * $bw + 2, 1) ?>" y="<?= $H + 13 ?>"><?= h($rv_dt($rv_series['step'] === 3600 && $rv_f['p'] === 1 ? 'H:00' : 'd.m', $pt['t'])) ?></text>
+            <text class="ax" x="<?= round($i * $bw + 2, 1) ?>" y="<?= $H + 13 ?>"<?= $rv_series['step'] === 3600 ? ' data-ts="' . (int) $pt['t'] . '" data-f="' . ($rv_f['p'] === 1 ? 'hm' : 'dm') . '"' : '' ?>><?= h($rv_dt($rv_series['step'] === 3600 && $rv_f['p'] === 1 ? 'H:00' : 'd.m', $pt['t'])) ?></text>
             <?php endforeach; ?>
         </svg>
         <div class="rv-legend"><span><i style="background:var(--accent);opacity:.55"></i>удачные</span><span><i style="background:var(--rq5)"></i>неудачные</span><span>Наведите на столбец — подробности.</span></div>
@@ -520,7 +521,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 
     <div class="card">
         <div class="loghead"><h2>Узлы (<?= count($rv_nodes) ?>)</h2></div>
-        <p class="muted" style="font-size:.82rem">Сверху — узлы с наибольшей долей неудачных пингов. «Не отвечает у» — у скольких устройств узел не ответил ни на один пинг в последнем отчёте. «Хуже всего» — страна и провайдер клиентов, у которых этому узлу хуже всего (от <?= REP_VIEW_MIN_PINGS ?> пингов). Нажмите на узел — график и провайдеры только по нему.</p>
+        <p class="muted" style="font-size:.82rem">Сверху — узлы с наибольшей долей неудачных пингов. «Не отвечает у» — у скольких устройств узел не ответил ни на один пинг в последних часах с замерами (до 6). «Хуже всего» — страна и провайдер клиентов, у которых этому узлу хуже всего (от <?= REP_VIEW_MIN_PINGS ?> пингов). Нажмите на узел — график и провайдеры только по нему.</p>
         <?php if (!$rv_nodes): ?>
         <p class="muted">Нет данных за период.</p>
         <?php else: ?>
@@ -599,6 +600,16 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     <script>
     (function () {
         var D = <?= json_encode($rv_mapd, $rv_js) ?>, HST = <?= json_encode($rv_hst, $rv_js) ?>;
+        (function () {
+            var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+            var dm = function (d) { return p2(d.getDate()) + '.' + p2(d.getMonth() + 1); }, hm = function (d) { return p2(d.getHours()) + ':' + p2(d.getMinutes()); };
+            document.querySelectorAll('.rvp [data-ts]').forEach(function (el) {
+                var d = new Date(parseInt(el.getAttribute('data-ts'), 10) * 1000); if (isNaN(d.getTime())) return;
+                if (el.classList.contains('ct-time')) el.textContent = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + hm(d);
+                else if (el.hasAttribute('data-tipr')) el.setAttribute('data-tip', dm(d) + ' ' + hm(d) + el.getAttribute('data-tipr'));
+                else if (el.hasAttribute('data-f')) el.textContent = el.getAttribute('data-f') === 'hm' ? hm(d) : dm(d);
+            });
+        })();
         var NAMES = <?= json_encode((object) $rv_names, $rv_js) ?>;
         var Q0 = <?= json_encode($rv_f['q'], $rv_js) ?>;
         var MX = <?= json_encode($rv_mx, $rv_js) ?>, MXK = <?= json_encode($rv_f['kind'], $rv_js) ?>;
@@ -716,7 +727,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             });
             var tot = mb.reduce(function (a, b) { return a + b; }, 0), run = 0, med = -1;
             for (var i = 0; i < 6 && tot > 0; i++) { run += mb[i]; if (run * 2 >= tot) { med = i; break; } }
-            return {devs: entries, n: entries.length, k: Object.keys(cl).length, pn: pn, fail: pn > 0 ? pf / pn : null, med: med, fr: fr, vok: vok, st: s};
+            return {devs: entries, n: entries.length, k: Object.keys(cl).length, pn: pn, fail: pn >= 20 ? pf / pn : null, med: med, fr: fr, vok: vok, st: s};
         };
         var REG = {}, OUT = {}, NOREG = {}, NOGEO = [];
         var putIdx = {};
@@ -740,7 +751,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 
         var regionQ = function (id) {
             var r = RB[id]; if (!r) return 0;
-            if (st.metric === 'fail') return r.pn > 0 ? qFail(r.fail) : 0;
+            if (st.metric === 'fail') return r.fail !== null ? qFail(r.fail) : 0;
             if (st.metric === 'med') return qMed(r.med);
             var all = r.fr + r.vok; if (!all) return 0; var b = r.fr / all;
             return b === 0 ? 1 : b < .1 ? 2 : b < .25 ? 3 : b < .5 ? 4 : 5;
@@ -820,6 +831,17 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             else if (px < 58) pop.style.left = 'calc(' + px + '% + 26px)'; else pop.style.right = 'calc(' + (100 - px) + '% + 26px)';
             var h = pop.offsetHeight, yy = py / 100 * box.height;
             pop.style.top = Math.max(8, Math.min(box.height - h - 8, yy - 40)) + 'px';
+            var z = document.querySelector('.rv-zoom');
+            if (z) {
+                var zr = z.getBoundingClientRect(), pr = pop.getBoundingClientRect();
+                if (pr.right > zr.left - 6 && pr.top < zr.bottom + 6 && pr.bottom > zr.top - 6) {
+                    var below = zr.bottom - box.top + 8, dx = px / 100 * box.width;
+                    var nl = pr.left - box.left - (pr.right - zr.left + 8);
+                    if (below + h <= box.height - 8) pop.style.top = below + 'px';
+                    else if (nl >= 8 && (nl + pr.width < dx - 14 || nl > dx + 14)) { pop.style.right = ''; pop.style.left = nl + 'px'; }
+                    else { pop.style.top = below + 'px'; pop.style.maxHeight = Math.max(160, box.height - below - 8) + 'px'; }
+                }
+            }
         };
         document.addEventListener('click', function (e) {
             if (!st.sel || Date.now() - drag.end < 250) return;
@@ -972,7 +994,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             return [x, y, w, h];
         };
         var raf = 0, anim = 0;
-        var redraw = function () { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; document.getElementById('rvMap').setAttribute('viewBox', st.vb.map(function (v) { return v.toFixed(2); }).join(' ')); dots(); zoomUi(); }); };
+        var redraw = function () { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; document.getElementById('rvMap').setAttribute('viewBox', st.vb.map(function (v) { return v.toFixed(2); }).join(' ')); zoomUi(); dots(); }); };
         var zoomUi = function () {
             var near = function (a) { return a.every(function (v, i) { return Math.abs(v - st.vb[i]) < .5; }); };
             var zi = document.getElementById('rvZin'), zo = document.getElementById('rvZout'), zr = document.getElementById('rvZreset');
@@ -1071,7 +1093,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             }
             return out;
         };
-        var mxd = document.getElementById('rvMxd'), mxd0 = mxd ? mxd.innerHTML : '', mxT = document.getElementById('rvMxT'), mxNote = document.getElementById('rvMxNote'), mxSeq = 0;
+        var mxd = document.getElementById('rvMxd'), mxd0 = mxd ? mxd.innerHTML : '', mxT = document.getElementById('rvMxT'), mxNote = document.getElementById('rvMxNote'), mxSeq = 0, cellSeq = 0;
         var mxQ = function () { return MXQ + (MXQ ? '&' : '') + (MXK ? 'kind=' + encodeURIComponent(MXK) : ''); };
         var drawMx = function () {
             if (!mxT) return;
@@ -1097,7 +1119,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         document.querySelectorAll('#rvMxKind button').forEach(function (b) {
             b.addEventListener('click', function () {
                 if (b.dataset.k === MXK) return;
-                MXK = b.dataset.k; var seq = ++mxSeq;
+                MXK = b.dataset.k; var seq = ++mxSeq; cellSeq++;
                 document.querySelectorAll('#rvMxKind button').forEach(function (x) { x.classList.toggle('on', x === b); });
                 mxT.style.minHeight = mxT.offsetHeight + 'px'; mxT.style.opacity = '.55';
                 fetch('?ajax=rep_mx&' + mxQ(), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
@@ -1121,8 +1143,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 var nd = NODES.find(function (n) { return n.k === c.dataset.nk; }) || {nm: c.dataset.nk, t: '', a: ''};
                 mxd.style.minHeight = mxd.offsetHeight + 'px';
                 mxd.style.opacity = '.55';
+                var cseq = ++cellSeq;
                 fetch('?ajax=rep_cell&' + mxQ() + '&nk=' + encodeURIComponent(c.dataset.nk) + '&asn=' + encodeURIComponent(c.dataset.asn), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
-                    if (!c.classList.contains('sel')) return;
+                    if (!c.classList.contains('sel') || cseq !== cellSeq || !c.isConnected) return;
                     var rs = (j && j.rows) || [];
                     rs.forEach(function (r) { r.rg = regionOf(r.loc, r.cc, r.sub); if (r.name) NAMES[r.s] = r.name; });
                     mxd.style.opacity = '';
@@ -1138,7 +1161,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                         }).join('') + '</tbody></table></div>';
                     mxd.style.minHeight = '';
                     mxd.querySelectorAll('tr.clk').forEach(function (t) { t.addEventListener('click', function () { openClient(t.dataset.s); }); });
-                }).catch(function () { if (!c.classList.contains('sel')) return; mxd.style.minHeight = ''; mxd.style.opacity = ''; mxd.innerHTML = '<span class="muted">Не удалось загрузить.</span>'; });
+                }).catch(function () { if (!c.classList.contains('sel') || cseq !== cellSeq) return; mxd.style.minHeight = ''; mxd.style.opacity = ''; mxd.innerHTML = '<span class="muted">Не удалось загрузить.</span>'; });
             })();
         });
 
@@ -1160,11 +1183,14 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         });
         drwBg.addEventListener('click', function () { closeMod(); closeClient(); });
         document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (mod.classList.contains('open')) closeMod(); else if (drw.classList.contains('open')) closeClient(); });
+        var clientSeq = 0;
         var openClient = function (q) {
+            var seq = ++clientSeq;
             drw.innerHTML = '<div class="rv-dh"><h2>Загружаю…</h2><span class="sp"></span><button type="button" class="btn ghost" id="rvDrwX" aria-label="Закрыть">' + ico('x') + '</button></div>';
             drw.querySelector('#rvDrwX').addEventListener('click', closeClient);
             drw.classList.add('open'); drwBg.classList.add('open');
             fetch('?ajax=rep_client&' + FQ + '&q=' + encodeURIComponent(q), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+                if (seq !== clientSeq) return;
                 if (!j || !j.ok || !j.card) { drw.querySelector('h2').textContent = 'Отчётов от этого клиента нет'; return; }
                 var c = j.card;
                 c.nk = {}; (c.nodes || []).forEach(function (n) { c.nk[n.k] = n; });
@@ -1174,7 +1200,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 if (c.name) NAMES[c.short] = c.name;
                 CS = {c: c, dev: 0, cell: null, only: false};
                 drawClient();
-            }).catch(function () { drw.querySelector('h2').textContent = 'Не удалось загрузить'; });
+            }).catch(function () { if (seq !== clientSeq) return; var h = drw.querySelector('h2'); if (h) h.textContent = 'Не удалось загрузить'; });
         };
         var drawClient = function (keep) {
             var oldDb = drw.querySelector('.rv-db'), oldTop = oldDb ? oldDb.scrollTop : 0;
@@ -1241,8 +1267,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 var list = (c.ips || {})[hw + '|' + n.net] || [];
                 if (list.length < 2) return '';
                 var tot = list.reduce(function (s, x) { return s + x.h; }, 0);
-                return '<details class="rv-ipl" data-net="' + esc(n.net) + '"' + (CS.ipo && CS.ipo[n.net] ? ' open' : '') + '><summary>Адресов за период: ' + list.length + '</summary><table>'
-                    + list.map(function (x) { return '<tr><td><code>' + esc(x.ip) + '</code></td><td>' + flag(x.cc) + ' ' + esc(placeNm(x.rg, x.cc)) + '</td><td class="n" data-tip="Часов с замерами с этого адреса">' + x.h + ' ч' + (tot ? ' · ' + Math.round(x.h * 100 / tot) + ' %' : '') + '</td></tr>'; }).join('')
+                return '<details class="rv-ipl" data-net="' + esc(n.net) + '"' + (CS.ipo && CS.ipo[n.net] ? ' open' : '') + '><summary>Адреса сети: ' + list.length + '</summary><table>'
+                    + list.map(function (x) { return '<tr><td><code>' + esc(x.ip) + '</code></td><td>' + flag(x.cc) + ' ' + esc(placeNm(x.rg, x.cc)) + '</td><td class="n" data-tip="Часов с замерами с этого адреса и доля от всех часов сети">' + x.h + ' ч' + (tot ? ' · ' + Math.round(x.h * 100 / tot) + ' %' : '') + '</td></tr>'; }).join('')
                     + '</table></details>';
             };
             var devTabs = c.devs.map(function (x, i) {
