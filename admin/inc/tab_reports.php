@@ -92,7 +92,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-flt{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
     .rv-flt select{width:auto;height:38px;min-height:38px;padding-top:0;padding-bottom:0;font-size:.84rem}
     .rv-flt .sp{flex:1}
-    .rv-flt input[type=search]{width:16rem;height:38px;min-height:38px}
+    .rv-flt input[type=search],.rv-flt #rvQ{width:16rem;flex:0 1 16rem;min-width:9rem;height:38px;min-height:38px}
+    #rvFind{flex-wrap:nowrap}
+    #rvFind .btn,#rvFind button{flex:none;white-space:nowrap}
     .rv-seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg2)}
     .rv-seg a,.rv-seg button{padding:.45rem .8rem;font-size:.84rem;color:var(--text);text-decoration:none;border:0;border-left:1px solid var(--line);background:transparent;border-radius:0;min-height:0;height:auto;font-weight:500;cursor:pointer}
     .rv-seg a:first-child,.rv-seg button:first-child{border-left:0}
@@ -146,6 +148,17 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     @media(max-width:1180px){.rv-mgrid{grid-template-columns:1fr}}
     .rv-mapbox{position:relative;border:1px solid var(--line);border-radius:14px;background:var(--bg2);overflow:hidden}
     .rv-mapbox svg.rv-map{display:block;width:100%;height:auto;aspect-ratio:1000/540}
+    .rv-mapbox{touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
+    .rv-mapbox.dragging{cursor:grabbing}
+    .rv-mapbox.dragging .rv-dot{pointer-events:none}
+    .rv-zoom{position:absolute;right:.6rem;top:.6rem;z-index:6;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card);box-shadow:0 2px 10px rgba(0,0,0,.25)}
+    .rv-zoom button{width:34px;height:34px;min-height:0;padding:0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .rv-zoom button:first-child{border-top:0}
+    .rv-zoom button:hover{background:var(--hover);filter:none}
+    .rv-zoom button:disabled{opacity:.35;cursor:default;background:transparent}
+    .rv-zoom button[hidden]{display:none}
+    .rv-zhint{position:absolute;left:50%;bottom:.7rem;transform:translateX(-50%);z-index:7;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:.35rem .8rem;font-size:.78rem;color:var(--text);box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap;max-width:calc(100% - 1rem);overflow:hidden;text-overflow:ellipsis}
+    .rv-zhint.on{opacity:1}
     .rv-map path.rg{fill:var(--line);fill-opacity:.55;stroke:var(--card);stroke-width:.5;vector-effect:non-scaling-stroke}
     .rv-map path.rg.has{cursor:pointer;fill:var(--accent);fill-opacity:.32}
     .rv-map path.rg.has.q1,.rv-map path.rg.has.q2,.rv-map path.rg.has.q3,.rv-map path.rg.has.q4,.rv-map path.rg.has.q5{fill-opacity:.55}
@@ -224,6 +237,19 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     table.rv-mx{border-collapse:separate;border-spacing:3px;font-size:.8rem}
     table.rv-mx th{text-transform:none;letter-spacing:0;font-size:.7rem;color:var(--muted);font-weight:600;text-align:center;padding:.25rem .3rem;vertical-align:bottom;white-space:nowrap;background:none;position:static}
     table.rv-mx th.rh{text-align:left}
+    .rv-mxbar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 .7rem}
+    .rv-mxbar .muted{font-size:.78rem}
+    .rv-mxs{overscroll-behavior-x:contain;padding-bottom:.25rem}
+    .rvp table.rv-mx{display:table;overflow:visible}
+    table.rv-mxw{table-layout:fixed;width:max-content}
+    table.rv-mxw th.pc{width:104px;min-width:104px;max-width:104px}
+    table.rv-mxw th.pc .o{color:var(--text);margin:.15rem auto 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    table.rv-mx th.rh,table.rv-mx td.rh{position:sticky;left:0;z-index:2;background:var(--card);box-shadow:4px 0 0 var(--card)}
+    table.rv-mxw th.rh,table.rv-mxw td.rh{width:230px;min-width:230px;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+    table.rv-mxw td.rh small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    table.rv-mxw td.rh small code{white-space:nowrap}
+    @media(max-width:640px){table.rv-mxw th.rh,table.rv-mxw td.rh{width:150px;min-width:150px;max-width:150px}}
+    .rv-mxs.sx table.rv-mx th.rh,.rv-mxs.sx table.rv-mx td.rh{box-shadow:4px 0 0 var(--card),10px 0 10px -6px color-mix(in srgb,var(--text-strong) 28%,transparent)}
     table.rv-mx td{padding:0;border:0;background:none}
     table.rv-mx td.rh{white-space:nowrap;padding:.2rem .5rem .2rem 0}
     table.rv-mx td.rh b{color:var(--text-strong);font-weight:600}
@@ -283,6 +309,15 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-net .h .sp{flex:1}
     .rv-net .r{font-size:.78rem;color:var(--muted);margin-top:.3rem;line-height:1.5;overflow-wrap:anywhere}
     .rv-diag{border:1px solid var(--line);border-radius:12px;padding:.7rem .85rem;display:flex;gap:.65rem;margin-bottom:.5rem;background:var(--card)}
+    .rv-diag[data-jump]{cursor:pointer}
+    .rv-diag[data-jump]:hover{background:var(--hover)}
+    .rv-diag .go{margin-left:auto;align-self:center;color:var(--muted);font-size:.74rem;white-space:nowrap}
+    .rv-dtab .rv-jump{cursor:pointer}
+    .rv-dtab .rv-jump:hover{filter:brightness(1.15);text-decoration:underline;text-underline-offset:2px}
+    .rv-drw table.rv-mx th.rh,.rv-drw table.rv-mx td.rh{background:var(--bg);box-shadow:4px 0 0 var(--bg)}
+    table.rv-mx tr.cur td.rh,.rv-drw table.rv-mx tr.cur td.rh{box-shadow:inset 3px 0 var(--accent),4px 0 0 var(--bg);padding-left:.5rem}
+    table.rv-mx tr.rv-flash td{animation:rvFlash 2.4s ease-out}
+    @keyframes rvFlash{0%,35%{background:color-mix(in srgb,var(--accent) 24%,transparent)}100%{background:transparent}}
     .rv-diag.st-bad{border-color:color-mix(in srgb,var(--rq5) 45%,var(--line))}
     .rv-diag.st-warn{border-color:color-mix(in srgb,var(--rq3) 45%,var(--line))}
     .rv-diag.st-ok{border-color:color-mix(in srgb,var(--rq1) 45%,var(--line))}
@@ -315,6 +350,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
   <symbol id="rvi-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
   <symbol id="rvi-list" viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></symbol>
   <symbol id="rvi-pin" viewBox="0 0 24 24"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="rvi-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="rvi-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="rvi-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
   <symbol id="rvi-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
 </svg>
 
@@ -336,7 +374,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 <input type="hidden" name="p" value="<?= (int) $rv_f['p'] ?>">
                 <select name="kind" onchange="this.form.submit()">
                     <option value="">Все сети</option>
-                    <?php foreach (REP_VIEW_KINDS as $k => $kt): ?><option value="<?= h($k) ?>"<?= $rv_f['kind'] === $k ? ' selected' : '' ?>><?= h($kt) ?></option><?php endforeach; ?>
+                    <?php foreach (REP_VIEW_KIND_SET_NAMES + REP_VIEW_KINDS as $k => $kt): ?><option value="<?= h($k) ?>"<?= $rv_f['kind'] === $k ? ' selected' : '' ?>><?= h($kt) ?></option><?php endforeach; ?>
                 </select>
                 <select name="plat" onchange="this.form.submit()">
                     <option value="">Все платформы</option>
@@ -375,6 +413,12 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     <div class="rv-dots" id="rvDots"></div>
                     <div class="rv-tip" id="rvTip"></div>
                     <div class="rv-pop" id="rvPop"></div>
+                    <div class="rv-zoom" role="group" aria-label="Масштаб карты">
+                        <button type="button" id="rvZin" aria-label="Приблизить" title="Приблизить"><svg class="rvi"><use href="#rvi-plus"/></svg></button>
+                        <button type="button" id="rvZout" aria-label="Отдалить" title="Отдалить" disabled><svg class="rvi"><use href="#rvi-minus"/></svg></button>
+                        <button type="button" id="rvZreset" aria-label="Вся карта" title="Вся карта" hidden><svg class="rvi"><use href="#rvi-reset"/></svg></button>
+                    </div>
+                    <div class="rv-zhint" id="rvZhint">Нажмите на карту или держите Ctrl, чтобы приближать колёсиком</div>
                 </div>
                 <div class="rv-legend" id="rvLegend"></div>
                 <p class="muted" style="font-size:.78rem;margin:.4rem 0 0">Регион — по координатам адреса из базы DB-IP City Lite<?= !empty($rep_geo['city']['ok']) ? '' : ' (базы сейчас нет — точки появятся после её скачивания и новых отчётов)' ?>. У мобильных операторов адрес часто числится в точке выхода оператора (Москва, Санкт-Петербург, Новосибирск), а не там, где абонент.<?= $rv_mapd['cut'] ? ' Показана часть данных — сузьте период или фильтры.' : '' ?></p>
@@ -392,42 +436,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     <div class="card" id="rvMxCard">
         <div class="loghead"><h2>Узлы × провайдеры</h2></div>
         <p class="muted" style="font-size:.82rem">Строка — узел, столбец — провайдер клиентов (AS), по последнему состоянию устройств за период. В ячейке — доля неудачных пингов и медиана; заштриховано и «N/M» — в стольких сетях из M узел не отвечает совсем. Нажмите на ячейку — кто именно, в какой сети и как менялось за 48 часов.</p>
-        <?php if (!$rv_mx['cols']): ?>
-        <p class="muted">Нет данных за период.</p>
-        <?php else:
-            $mx_nodes = [];
-            foreach ($rv_mapd['nodes'] as $n) {
-                foreach ($rv_mx['cols'] as $col) if (isset($rv_mx['cells'][$n['k'] . '|' . $col['asn']])) { $mx_nodes[] = $n; break; }
-            }
-        ?>
-        <div class="rv-wrap"><table class="rv-mx">
-            <thead><tr><th class="rh">Узел</th>
-            <?php foreach ($rv_mx['cols'] as $col): ?>
-                <th><?= $rv_flag($col['cc']) ?><div style="color:var(--text);margin:.15rem auto 0;max-width:7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= h($col['org']) ?>"><?= h($col['org'] !== '' ? $col['org'] : '—') ?></div><div style="font-weight:400">AS<?= (int) $col['asn'] ?> · <?= (int) $col['n'] ?></div></th>
-            <?php endforeach; ?>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($mx_nodes as $n): ?>
-            <tr><td class="rh"><?= $rv_nflag($n['cc'], $n['nm']) ?> <b><?= h($n['nm']) ?></b><small><?= h($n['t']) ?> · <code><?= h($n['a']) ?></code></small></td>
-                <?php foreach ($rv_mx['cols'] as $col):
-                    $c = $rv_mx['cells'][$n['k'] . '|' . $col['asn']] ?? null;
-                    if ($c === null || $c['pn'] <= 0): ?>
-                <td><div class="rv-mc"><span class="a">—</span></div></td>
-                    <?php else:
-                    $all_dead = $c['dead'] > 0 && $c['dead'] >= $c['n'];
-                    $cls = $all_dead ? 'dead' : $rv_qfail($c['fail']);
-                ?>
-                <td><button type="button" class="rv-mc <?= $cls ?>" data-nk="<?= h($n['k']) ?>" data-asn="<?= (int) $col['asn'] ?>" title="<?= h($n['nm'] . ' × AS' . $col['asn']) ?>">
-                    <span class="a"><?= h($rv_pct($c['fail'])) ?><?php if ($c['ffr'] > 0): ?> <svg class="rvi" style="width:11px;height:11px"><use href="#rvi-scissors"/></svg><?php endif; ?></span>
-                    <span class="b"><?php if ($c['dead'] > 0): ?><svg class="rvi"><use href="#rvi-xoct"/></svg> <?= (int) $c['dead'] ?>/<?= (int) $c['n'] ?><?php else: ?><?= h($rv_med($c['med'])) ?><?php endif; ?></span>
-                </button></td>
-                <?php endif; endforeach; ?>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table></div>
+        <div class="rv-mxbar"><span class="rv-seg" id="rvMxKind"><button type="button" data-k="">Все сети</button><button type="button" data-k="home" title="Wi-Fi и кабель — домашний интернет">Домашний</button><button type="button" data-k="mobile">Мобильная</button></span><span class="muted" id="rvMxNote"></span></div>
+        <div id="rvMxT"></div>
         <div class="rv-mxd" id="rvMxd"><span class="muted" style="font-size:.82rem">Выберите ячейку — здесь появятся сети этого провайдера и их пинги до узла.</span></div>
-        <?php endif; ?>
     </div>
 
     <div class="card">
@@ -583,13 +594,15 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         var D = <?= json_encode($rv_mapd, $rv_js) ?>;
         var NAMES = <?= json_encode((object) $rv_names, $rv_js) ?>;
         var Q0 = <?= json_encode($rv_f['q'], $rv_js) ?>;
+        var MX = <?= json_encode($rv_mx, $rv_js) ?>, MXK = <?= json_encode($rv_f['kind'], $rv_js) ?>;
+        var MXQ = <?= json_encode(http_build_query(array_filter(['p' => $rv_f['p'], 'plat' => $rv_f['plat'], 'cc' => $rv_f['cc'], 'node' => $rv_f['node']], static fn($v) => $v !== '' && $v !== null)), $rv_js) ?>;
         var FQ = <?= json_encode(http_build_query(array_filter(['p' => $rv_f['p'], 'kind' => $rv_f['kind'], 'plat' => $rv_f['plat'], 'cc' => $rv_f['cc']], static fn($v) => $v !== '' && $v !== null)), $rv_js) ?>;
         var M = window.SUBMW_CIS;
         var CIS = {RU:1, BY:1, UA:1, MD:1, GE:1, AM:1, AZ:1, KZ:1, UZ:1, TM:1, KG:1, TJ:1};
         var KIND = {wifi: 'Wi-Fi', mobile: 'Мобильная', wired: 'Кабель', other: 'Другая'};
         var MED = ['< 100 мс', '100–200 мс', '200–400 мс', '400–800 мс', '0,8–1,5 с', '> 1,5 с'];
         var VIEWS = {all: [0, 0, 1000, 540], west: [95, 150, 440, 238]};
-        var st = {view: 'all', metric: 'fail', sel: null, side: null};
+        var st = {view: 'all', vb: VIEWS.all.slice(), metric: 'fail', sel: null, side: null};
         var dn = null;
         try { dn = new Intl.DisplayNames(['ru'], {type: 'region'}); } catch (e) {}
         var ccName = function (cc) { try { return dn && cc ? dn.of(cc) : cc; } catch (e) { return cc; } };
@@ -729,8 +742,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 var p = PATHS[id], q = regionQ(id);
                 p.setAttribute('class', 'rg' + (RB[id] ? ' has' : '') + (q ? ' q' + q : ''));
             });
-            var vb = VIEWS[st.view];
-            document.getElementById('rvMap').setAttribute('viewBox', vb.join(' '));
+            document.getElementById('rvMap').setAttribute('viewBox', st.vb.join(' '));
             dots();
             var L = {fail: ['< 1 %', '1–3 %', '3–10 %', '10–25 %', '≥ 25 %'], med: ['< 100 мс', '100–200 мс', '200–400 мс', '400–800 мс', '> 0,8 с'], frz: ['всё проходит', '< 10 % режется', '10–25 %', '25–50 %', '≥ 50 %']}[st.metric];
             document.getElementById('rvLegend').innerHTML = L.map(function (t, i) { return '<span><i style="background:var(--rq' + (i + 1) + ');opacity:.6"></i>' + t + '</span>'; }).join('')
@@ -738,7 +750,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 + '<span><span class="dl" style="background:var(--rq1)"></span>всё работает</span><span><span class="dl" style="background:var(--rq3)"></span>деградация</span><span><span class="dl" style="background:var(--rq5)"></span>узлы не отвечают</span>';
         };
         var clusters = function () {
-            var vb = VIEWS[st.view], box = document.getElementById('rvMapBox').getBoundingClientRect(), k = box.width / vb[2] || 1, out = [];
+            var vb = st.vb, box = document.getElementById('rvMapBox').getBoundingClientRect(), k = box.width / vb[2] || 1, out = [];
             Object.keys(RB).map(function (id) { return {ids: [id], x: M.r[id].x, y: M.r[id].y, n: RB[id].n}; })
                 .filter(function (p) { return p.x >= vb[0] + vb[2] * .02 && p.x <= vb[0] + vb[2] * .98 && p.y >= vb[1] + vb[3] * .03 && p.y <= vb[1] + vb[3] * .97; })
                 .sort(function (a, b) { return b.n - a.n; })
@@ -751,7 +763,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         };
         var bagOf = function (ids) { var a = []; ids.forEach(function (id) { a = a.concat(REG[id] || []); }); return bag(a); };
         var dots = function () {
-            var vb = VIEWS[st.view], el = document.getElementById('rvDots');
+            var vb = st.vb, el = document.getElementById('rvDots');
             el.innerHTML = clusters().map(function (c) {
                 var b = bagOf(c.ids), sz = b.n >= 10 ? 'l' : b.n >= 4 ? 'm' : 's', key = c.ids.slice().sort().join('+');
                 return '<button type="button" class="rv-dot st-' + b.st + ' ' + sz + (st.sel && st.sel.key === key ? ' sel' : '') + '" style="left:' + ((c.x - vb[0]) / vb[2] * 100).toFixed(2) + '%;top:' + ((c.y - vb[1]) / vb[3] * 100).toFixed(2) + '%" data-ids="' + c.ids.join(',') + '" data-x="' + c.x + '" data-y="' + c.y + '" aria-label="' + esc(c.ids.map(function (id) { return M.r[id].n; }).join(', ')) + ': ' + b.n + '">' + b.n + '</button>';
@@ -792,7 +804,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             dots();
         };
         var placePop = function () {
-            var pop = document.getElementById('rvPop'), vb = VIEWS[st.view], s = st.sel, box = document.getElementById('rvMapBox').getBoundingClientRect();
+            var pop = document.getElementById('rvPop'), vb = st.vb, s = st.sel, box = document.getElementById('rvMapBox').getBoundingClientRect();
             var px = (s.x - vb[0]) / vb[2] * 100, py = (s.y - vb[1]) / vb[3] * 100;
             pop.style.left = pop.style.right = '';
             pop.style.maxHeight = (box.height - 16) + 'px';
@@ -802,7 +814,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             pop.style.top = Math.max(8, Math.min(box.height - h - 8, yy - 40)) + 'px';
         };
         document.addEventListener('click', function (e) {
-            if (!st.sel) return;
+            if (!st.sel || Date.now() - drag.end < 250) return;
             var pop = document.getElementById('rvPop');
             if (pop.contains(e.target) || (e.target.closest && e.target.closest('.rv-dot, #rvGR path.has, .rv-drw, .rv-drw-bg'))) return;
             closePop();
@@ -936,14 +948,107 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         };
         var showRegion = function (id) {
             var r = M.r[id]; if (!r) return;
-            var w = VIEWS.west;
-            st.view = (r.x >= w[0] + w[2] * .03 && r.x <= w[0] + w[2] * .97 && r.y >= w[1] + w[3] * .04 && r.y <= w[1] + w[3] * .96) ? 'west' : 'all';
-            document.querySelectorAll('#rvView button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === st.view); });
-            paint();
+            var v = st.vb, inside = r.x >= v[0] + v[2] * .05 && r.x <= v[0] + v[2] * .95 && r.y >= v[1] + v[3] * .05 && r.y <= v[1] + v[3] * .95;
+            if (!inside || v[2] > 500) { var w = Math.min(v[2], 360); zoomTo([r.x - w / 2, r.y - w * .27, w, w * .54], false); }
             document.getElementById('rvMapBox').scrollIntoView({behavior: 'smooth', block: 'center'});
             var dot = Array.prototype.find.call(document.querySelectorAll('.rv-dot'), function (d) { return d.dataset.ids.split(',').indexOf(id) >= 0; });
             if (dot) openPop(dot.dataset.ids.split(','), +dot.dataset.x, +dot.dataset.y);
         };
+
+        var MAPW = 1000, MAPH = 540, MINW = 45;
+        var clampVB = function (v) {
+            var w = Math.max(MINW, Math.min(MAPW, v[2])), h = w * MAPH / MAPW;
+            var cx = v[0] + v[2] / 2, cy = v[1] + v[3] / 2;
+            var x = Math.max(-w * .25, Math.min(MAPW - w * .75, cx - w / 2)), y = Math.max(-h * .25, Math.min(MAPH - h * .75, cy - h / 2));
+            if (w >= MAPW) { x = 0; y = 0; }
+            return [x, y, w, h];
+        };
+        var raf = 0, anim = 0;
+        var redraw = function () { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; document.getElementById('rvMap').setAttribute('viewBox', st.vb.map(function (v) { return v.toFixed(2); }).join(' ')); dots(); zoomUi(); }); };
+        var zoomUi = function () {
+            var near = function (a) { return a.every(function (v, i) { return Math.abs(v - st.vb[i]) < .5; }); };
+            document.querySelectorAll('#rvView button').forEach(function (b) { b.classList.toggle('on', near(VIEWS[b.dataset.v])); });
+            var zi = document.getElementById('rvZin'), zo = document.getElementById('rvZout'), zr = document.getElementById('rvZreset');
+            if (zi) zi.disabled = st.vb[2] <= MINW + .5;
+            if (zo) zo.disabled = st.vb[2] >= MAPW - .5;
+            if (zr) zr.hidden = near(VIEWS.all);
+        };
+        var zoomTo = function (v, animate) {
+            var to = clampVB(v), from = st.vb.slice();
+            cancelAnimationFrame(anim);
+            if (!animate || window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { st.vb = to; redraw(); return; }
+            var t0 = performance.now();
+            var step = function (t) {
+                var k = Math.min(1, (t - t0) / 220), e = 1 - Math.pow(1 - k, 3);
+                st.vb = from.map(function (f, i) { return f + (to[i] - f) * e; });
+                redraw();
+                if (k < 1) anim = requestAnimationFrame(step);
+            };
+            anim = requestAnimationFrame(step);
+        };
+        var zoomAt = function (factor, px, py, animate) {
+            var v = st.vb, w = Math.max(MINW, Math.min(MAPW, v[2] / factor)), f = w / v[2];
+            zoomTo([px - (px - v[0]) * f, py - (py - v[1]) * f, w, w * MAPH / MAPW], animate);
+        };
+        var mapBox = document.getElementById('rvMapBox');
+        var toMap = function (cx, cy) { var b = mapBox.getBoundingClientRect(), v = st.vb; return [v[0] + (cx - b.left) / b.width * v[2], v[1] + (cy - b.top) / b.height * v[3]]; };
+        var drag = {end: 0, ptrs: {}, moved: false, start: null};
+        var hint = document.getElementById('rvZhint'), hintT = 0, mapActive = false;
+        var showHint = function () { if (!hint) return; hint.classList.add('on'); clearTimeout(hintT); hintT = setTimeout(function () { hint.classList.remove('on'); }, 1400); };
+        if (mapBox) {
+            mapBox.addEventListener('wheel', function (e) {
+                if (e.target.closest && e.target.closest('.rv-pop')) return;
+                if (!mapActive && !e.ctrlKey && !e.metaKey) { showHint(); return; }
+                e.preventDefault();
+                var m = toMap(e.clientX, e.clientY);
+                zoomAt(Math.pow(1.0018, -(e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY)), m[0], m[1], false);
+            }, {passive: false});
+            mapBox.addEventListener('mouseleave', function () { mapActive = false; });
+            mapBox.addEventListener('dblclick', function (e) {
+                if (e.target.closest && e.target.closest('.rv-pop, .rv-zoom, .rv-dot')) return;
+                e.preventDefault();
+                var m = toMap(e.clientX, e.clientY); zoomAt(e.shiftKey ? .5 : 2, m[0], m[1], true);
+            });
+            mapBox.addEventListener('pointerdown', function (e) {
+                if (e.button > 0 || (e.target.closest && e.target.closest('.rv-pop, .rv-zoom, .rv-dot'))) return;
+                mapActive = true;
+                drag.ptrs[e.pointerId] = {x: e.clientX, y: e.clientY};
+                drag.moved = false;
+                drag.start = {vb: st.vb.slice(), ptrs: JSON.parse(JSON.stringify(drag.ptrs))};
+            });
+            window.addEventListener('pointermove', function (e) {
+                if (!drag.ptrs[e.pointerId] || !drag.start) return;
+                drag.ptrs[e.pointerId] = {x: e.clientX, y: e.clientY};
+                var ids = Object.keys(drag.ptrs), b = mapBox.getBoundingClientRect(), v0 = drag.start.vb, p0 = drag.start.ptrs;
+                if (ids.length >= 2 && p0[ids[0]] && p0[ids[1]]) {
+                    var a = drag.ptrs[ids[0]], c = drag.ptrs[ids[1]], a0 = p0[ids[0]], c0 = p0[ids[1]];
+                    var d0 = Math.hypot(a0.x - c0.x, a0.y - c0.y) || 1, d1 = Math.hypot(a.x - c.x, a.y - c.y) || 1;
+                    var w = Math.max(MINW, Math.min(MAPW, v0[2] * d0 / d1)), mx0 = (a0.x + c0.x) / 2, my0 = (a0.y + c0.y) / 2, mx1 = (a.x + c.x) / 2, my1 = (a.y + c.y) / 2;
+                    var px = v0[0] + (mx0 - b.left) / b.width * v0[2], py = v0[1] + (my0 - b.top) / b.height * v0[3], h = w * MAPH / MAPW;
+                    st.vb = clampVB([px - (mx1 - b.left) / b.width * w, py - (my1 - b.top) / b.height * h, w, h]);
+                    drag.moved = true; redraw(); return;
+                }
+                var q = p0[e.pointerId]; if (!q) return;
+                var dx = e.clientX - q.x, dy = e.clientY - q.y;
+                if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+                if (!drag.moved) { drag.moved = true; mapBox.classList.add('dragging'); tip.style.display = 'none'; }
+                st.vb = clampVB([v0[0] - dx / b.width * v0[2], v0[1] - dy / b.height * v0[3], v0[2], v0[3]]);
+                redraw();
+            });
+            var up = function (e) {
+                if (!drag.ptrs[e.pointerId]) return;
+                delete drag.ptrs[e.pointerId];
+                if (drag.moved) drag.end = Date.now();
+                mapBox.classList.remove('dragging');
+                drag.start = Object.keys(drag.ptrs).length ? {vb: st.vb.slice(), ptrs: JSON.parse(JSON.stringify(drag.ptrs))} : null;
+            };
+            window.addEventListener('pointerup', up);
+            window.addEventListener('pointercancel', up);
+            var zbtn = function (id, fn) { var el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+            zbtn('rvZin', function () { zoomAt(2, st.vb[0] + st.vb[2] / 2, st.vb[1] + st.vb[3] / 2, true); });
+            zbtn('rvZout', function () { zoomAt(.5, st.vb[0] + st.vb[2] / 2, st.vb[1] + st.vb[3] / 2, true); });
+            zbtn('rvZreset', function () { closePop(); zoomTo(VIEWS.all.slice(), true); });
+        }
 
         var histCells = function (hist, hh) {
             var now = Math.floor(Date.now() / 3600000) * 3600, out = '';
@@ -954,21 +1059,57 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             }
             return out;
         };
-        var mxd = document.getElementById('rvMxd'), mxd0 = mxd ? mxd.innerHTML : '';
-        document.querySelectorAll('button.rv-mc').forEach(function (c) {
-            c.addEventListener('click', function () {
+        var mxd = document.getElementById('rvMxd'), mxd0 = mxd ? mxd.innerHTML : '', mxT = document.getElementById('rvMxT'), mxNote = document.getElementById('rvMxNote'), mxSeq = 0;
+        var mxQ = function () { return MXQ + (MXQ ? '&' : '') + (MXK ? 'kind=' + encodeURIComponent(MXK) : ''); };
+        var drawMx = function () {
+            if (!mxT) return;
+            document.querySelectorAll('#rvMxKind button').forEach(function (b) { b.classList.toggle('on', b.dataset.k === MXK); });
+            var cols = MX.cols || [], cells = MX.cells || {};
+            var rowsN = NODES.filter(function (n) { return cols.some(function (c) { return cells[n.k + '|' + c.asn]; }); });
+            mxNote.textContent = cols.length ? cols.length + ' ' + plural(cols.length, 'провайдер', 'провайдера', 'провайдеров') + (MX.total > cols.length ? ' из ' + MX.total + ' — самые многочисленные' : '') + (cols.length > 6 ? ' · листаются вбок' : '') : '';
+            mxd.style.minHeight = ''; mxd.style.opacity = ''; mxd.innerHTML = mxd0;
+            if (!cols.length || !rowsN.length) { mxT.innerHTML = '<p class="muted">Нет данных за период' + (MXK ? ' в сетях «' + esc(MXK === 'home' ? 'Домашний' : KIND[MXK] || MXK) + '»' : '') + '.</p>'; return; }
+            mxT.innerHTML = '<div class="rv-wrap rv-mxs"><table class="rv-mx rv-mxw"><thead><tr><th class="rh">Узел</th>' + cols.map(function (c) {
+                return '<th class="pc">' + flag(c.cc) + '<div class="o" title="' + esc(c.org) + '">' + esc(c.org || '—') + '</div><div style="font-weight:400">AS' + c.asn + ' · ' + c.n + '</div></th>';
+            }).join('') + '</tr></thead><tbody>' + rowsN.map(function (n) {
+                return '<tr><td class="rh">' + flagFor(n.cc, n.nm) + '<b>' + esc(n.nm) + '</b><small>' + esc(n.t) + ' · <code>' + esc(n.a) + '</code></small></td>' + cols.map(function (col) {
+                    var c = cells[n.k + '|' + col.asn];
+                    if (!c || c.pn <= 0) return '<td><div class="rv-mc"><span class="a">—</span></div></td>';
+                    var cls = c.dead > 0 && c.dead >= c.n ? 'dead' : 'q' + qFail(c.fail);
+                    return '<td><button type="button" class="rv-mc ' + cls + '" data-nk="' + esc(n.k) + '" data-asn="' + col.asn + '" title="' + esc(n.nm + ' × AS' + col.asn) + '"><span class="a">' + pct(c.fail) + (c.ffr > 0 ? ' <svg class="rvi" style="width:11px;height:11px"><use href="#rvi-scissors"/></svg>' : '') + '</span>'
+                        + '<span class="b">' + (c.dead > 0 ? '<svg class="rvi"><use href="#rvi-xoct"/></svg> ' + c.dead + '/' + c.n : (MED[c.med] || '—')) + '</span></button></td>';
+                }).join('') + '</tr>';
+            }).join('') + '</tbody></table></div>';
+            var wr = mxT.querySelector('.rv-mxs'); if (wr) wr.addEventListener('scroll', function () { wr.classList.toggle('sx', wr.scrollLeft > 2); }, {passive: true});
+        };
+        document.querySelectorAll('#rvMxKind button').forEach(function (b) {
+            b.addEventListener('click', function () {
+                if (b.dataset.k === MXK) return;
+                MXK = b.dataset.k; var seq = ++mxSeq;
+                document.querySelectorAll('#rvMxKind button').forEach(function (x) { x.classList.toggle('on', x === b); });
+                mxT.style.minHeight = mxT.offsetHeight + 'px'; mxT.style.opacity = '.55';
+                fetch('?ajax=rep_mx&' + mxQ(), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+                    if (seq !== mxSeq) return;
+                    MX = j && j.ok ? j : {cols: [], cells: {}, total: 0}; mxT.style.opacity = ''; drawMx(); mxT.style.minHeight = '';
+                }).catch(function () { if (seq !== mxSeq) return; mxT.style.opacity = ''; mxT.style.minHeight = ''; mxT.innerHTML = '<span class="muted">Не удалось загрузить.</span>'; });
+            });
+        });
+        drawMx();
+        if (mxT) mxT.addEventListener('click', function (e) {
+            var c = e.target.closest('button.rv-mc'); if (!c) return;
+            (function () {
                 if (c.classList.contains('sel')) {
                     c.classList.remove('sel');
                     mxd.style.minHeight = ''; mxd.style.opacity = '';
                     mxd.innerHTML = mxd0;
                     return;
                 }
-                document.querySelectorAll('button.rv-mc.sel').forEach(function (x) { x.classList.remove('sel'); });
+                mxT.querySelectorAll('button.rv-mc.sel').forEach(function (x) { x.classList.remove('sel'); });
                 c.classList.add('sel');
                 var nd = NODES.find(function (n) { return n.k === c.dataset.nk; }) || {nm: c.dataset.nk, t: '', a: ''};
                 mxd.style.minHeight = mxd.offsetHeight + 'px';
                 mxd.style.opacity = '.55';
-                fetch('?ajax=rep_cell&' + FQ + '&nk=' + encodeURIComponent(c.dataset.nk) + '&asn=' + encodeURIComponent(c.dataset.asn), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+                fetch('?ajax=rep_cell&' + mxQ() + '&nk=' + encodeURIComponent(c.dataset.nk) + '&asn=' + encodeURIComponent(c.dataset.asn), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
                     if (!c.classList.contains('sel')) return;
                     var rs = (j && j.rows) || [];
                     rs.forEach(function (r) { r.rg = regionOf(r.loc, r.cc, r.sub); if (r.name) NAMES[r.s] = r.name; });
@@ -986,7 +1127,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     mxd.style.minHeight = '';
                     mxd.querySelectorAll('tr.clk').forEach(function (t) { t.addEventListener('click', function () { openClient(t.dataset.s); }); });
                 }).catch(function () { if (!c.classList.contains('sel')) return; mxd.style.minHeight = ''; mxd.style.opacity = ''; mxd.innerHTML = '<span class="muted">Не удалось загрузить.</span>'; });
-            });
+            })();
         });
 
         var drw = document.getElementById('rvDrw'), drwBg = document.getElementById('rvDrwBg'), mod = document.getElementById('rvMod'), CS = null;
@@ -1039,18 +1180,18 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 if (!dd.length) return;
                 var pn = 0, pd = 0; dd.forEach(function (n) { var p = peer(n.asn, k); if (p) { pn += p.n; pd += p.dead; } });
                 if (dd.length === on.length) {
-                    if (pn >= 2 && pd / pn < .2) diag.push({s: 'bad', ic: 'phone', t: nodeNm(k) + ' не отвечает ни в одной сети устройства', w: 'У других клиентов тех же провайдеров (' + pn + ' ' + plural(pn, 'сеть', 'сети', 'сетей') + ') узел работает — дело в устройстве: обновить подписку, проверить дату и время, переустановить конфиг.'});
-                    else diag.push({s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает ни в одной сети устройства', w: pn ? 'У других клиентов тех же провайдеров тоже: без ответа ' + pd + ' из ' + pn + ' ' + plural(pn, 'сети', 'сетей', 'сетей') + ' — проблема не на устройстве.' : 'Сравнить не с кем — других клиентов этих провайдеров в отчётах нет.'});
+                    if (pn >= 2 && pd / pn < .2) diag.push({j: k + '|' + dd[0].net, s: 'bad', ic: 'phone', t: nodeNm(k) + ' не отвечает ни в одной сети устройства', w: 'У других клиентов тех же провайдеров (' + pn + ' ' + plural(pn, 'сеть', 'сети', 'сетей') + ') узел работает — дело в устройстве: обновить подписку, проверить дату и время, переустановить конфиг.'});
+                    else diag.push({j: k + '|' + dd[0].net, s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает ни в одной сети устройства', w: pn ? 'У других клиентов тех же провайдеров тоже: без ответа ' + pd + ' из ' + pn + ' ' + plural(pn, 'сети', 'сетей', 'сетей') + ' — проблема не на устройстве.' : 'Сравнить не с кем — других клиентов этих провайдеров в отчётах нет.'});
                 } else {
                     dd.forEach(function (n) {
                         var p = peer(n.asn, k), alt = nkeys.filter(function (x) { var y = n.cells[x]; return y && !y.dead && y.v !== 'frozen' && (y.fail === null || y.fail < .05); }).slice(0, 2).map(nodeNm);
-                        diag.push({s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает в сети «' + label(n) + '»', w: 'В других сетях устройства узел работает — режет сеть, а не узел.' + (p ? ' У других клиентов этого провайдера без ответа ' + p.dead + ' из ' + p.n + '.' : '') + (alt.length ? ' В этой сети работают: ' + esc(alt.join(', ')) + '.' : '')});
+                        diag.push({j: k + '|' + n.net, s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает в сети «' + label(n) + '»', w: 'В других сетях устройства узел работает — режет сеть, а не узел.' + (p ? ' У других клиентов этого провайдера без ответа ' + p.dead + ' из ' + p.n + '.' : '') + (alt.length ? ' В этой сети работают: ' + esc(alt.join(', ')) + '.' : '')});
                     });
                 }
             });
             nets.forEach(function (n) {
                 var fz = nkeys.filter(function (k) { return n.cells[k] && n.cells[k].v === 'frozen'; });
-                if (fz.length) diag.push({s: 'warn', ic: 'scissors', t: '16–20 режется в сети «' + label(n) + '»: ' + fz.map(nodeNm).join(', '), w: 'Пинг до узлов проходит, а соединение рвётся после первых килобайт — признак DPI. Помогает другой транспорт или порт.'});
+                if (fz.length) diag.push({j: fz[0] + '|' + n.net, s: 'warn', ic: 'scissors', t: '16–20 режется в сети «' + label(n) + '»: ' + fz.map(nodeNm).join(', '), w: 'Пинг до узлов проходит, а соединение рвётся после первых килобайт — признак DPI. Помогает другой транспорт или порт.'});
             });
             var mb = [0, 0, 0, 0, 0, 0], tp = 0, tf = 0;
             rs.forEach(function (r) { tp += r.pn; tf += r.pf; if (r.med >= 0) mb[r.med] += r.pn - r.pf; });
@@ -1073,9 +1214,18 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 if (r.dead) return '<button type="button" class="rv-mc dead' + sel + '" data-cell="' + esc(key) + '"><span class="a">нет ответа</span><span class="b">0 из ' + r.pn + '</span></button>';
                 return '<button type="button" class="rv-mc q' + qFail(r.pf / r.pn) + sel + '" data-cell="' + esc(key) + '"><span class="a">' + fl(r.pf, r.pn) + (r.v === 'frozen' ? ' <svg class="rvi" style="width:11px;height:11px"><use href="#rvi-scissors"/></svg>' : '') + '</span><span class="b">' + (MED[r.med] || '—') + '</span></button>';
             };
+            var worst = function (hw) {
+                var best = null, bs = 0;
+                c.rows.forEach(function (r) {
+                    if (r.hw !== hw || !r.pn) return;
+                    var sc = r.dead ? 4 : r.v === 'frozen' ? 3 : r.fail !== null && r.fail >= .03 ? 2 + r.fail : r.med >= 3 ? 1 + r.med / 10 : 0;
+                    if (sc > bs) { bs = sc; best = r.n + '|' + r.net; }
+                });
+                return best;
+            };
             var devTabs = c.devs.map(function (x, i) {
                 var xr = c.rows.filter(function (r) { return r.hw === x.hw; }), xp = 0, xf = 0; xr.forEach(function (r) { xp += r.pn; xf += r.pf; }); var bad = xr.some(function (r) { return r.dead; }) || (xp >= 20 && xf / xp >= .1), warn = xr.some(function (r) { return r.v === 'frozen'; }) || (xp >= 20 && xf / xp >= .03);
-                return '<button type="button" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span><span class="rv-pill st-' + (bad ? 'bad' : warn ? 'warn' : 'ok') + '">' + (bad ? 'проблемы' : warn ? 'деградация' : 'в порядке') + '</span></button>';
+                return '<button type="button" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span><span class="rv-pill st-' + (bad ? 'bad' : warn ? 'warn' : 'ok') + (bad || warn ? ' rv-jump" title="Показать проблемный узел' : '') + '">' + (bad ? 'проблемы' : warn ? 'деградация' : 'в порядке') + '</span></button>';
             }).join('');
             var sel = CS.cell ? CS.cell.split('|') : null, sr = sel && nmap[sel[1]] ? nmap[sel[1]].cells[sel[0]] : null, sn = sel ? nmap[sel[1]] : null, sp = sr && sn ? peer(sn.asn, sel[0]) : null;
             drw.innerHTML = '<div class="rv-dh"><span class="av">' + esc((nm || c.short).slice(0, 2).toUpperCase()) + '</span><div style="min-width:0"><h2>' + esc(nm || c.short) + '</h2><div class="muted" style="font-size:.78rem">' + (nm ? 'имя из панели · ' : '') + '<code>' + esc(c.short) + '</code></div></div>'
@@ -1084,7 +1234,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 + '<button type="button" class="btn ghost" id="rvDrwX" aria-label="Закрыть">' + ico('x') + '</button></div>'
                 + '<div class="rv-db"><div class="rv-sect" style="margin-top:0">Устройства</div><div class="rv-dtabs">' + devTabs + '</div>'
                 + '<div class="rv-kv"><div><span>Модель и ОС</span><b>' + esc([d.m, d.o].filter(Boolean).join(' · ') || '—') + '</b></div><div><span>Клиент</span><b>' + esc(d.c ? 'Clod Clash ' + d.c : '—') + (d.p ? ' · ' + (d.p === 'pc' ? 'ПК' : 'Android') : '') + '</b></div><div><span>HWID</span><b><code>' + esc(d.hw) + '</code></b></div><div><span>Отчётов</span><b>' + (d.r || '—') + ' · последний ' + ago(d.lr) + '</b></div></div>'
-                + '<div class="rv-sect">Диагноз</div>' + diag.map(function (x) { return '<div class="rv-diag st-' + x.s + '"><span class="ic st-' + x.s + '">' + ico(x.ic) + '</span><div><div class="t">' + esc(x.t) + '</div>' + (x.w ? '<div class="w">' + x.w + '</div>' : '') + '</div></div>'; }).join('')
+                + '<div class="rv-sect">Диагноз</div>' + diag.map(function (x) { return '<div class="rv-diag st-' + x.s + '"' + (x.j ? ' data-jump="' + esc(x.j) + '" role="button" tabindex="0" title="Показать в таблице пингов"' : '') + '><span class="ic st-' + x.s + '">' + ico(x.ic) + '</span><div><div class="t">' + esc(x.t) + '</div>' + (x.w ? '<div class="w">' + x.w + '</div>' : '') + '</div>' + (x.j ? '<span class="go">к узлу ↓</span>' : '') + '</div>'; }).join('')
                 + '<div class="rv-sect">Сети устройства</div><div class="rv-nets">' + nets.map(function (n, i) {
                     var pn = 0, pf = 0, dd = 0; nkeys.forEach(function (k) { var y = n.cells[k]; if (y) { pn += y.pn; pf += y.pf; if (y.dead) dd++; } });
                     return '<div class="rv-net"><div class="h">' + ico(KIND[n.k] ? n.k : 'other') + esc(KIND[n.k] || n.k) + (i === 0 ? ' <span class="rv-pill st-info">последняя</span>' : '') + '<span class="sp"></span>' + (dd ? '<span class="rv-pill st-bad">' + dd + ' без ответа</span>' : '<span class="rq q' + qFail(pn ? pf / pn : null) + '">' + fl(pf, pn) + '</span>') + '</div>'
@@ -1092,7 +1242,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 }).join('') + '</div>'
                 + '<div class="rv-sect">Пинги до узлов по сетям<label><input type="checkbox" id="rvOnly"' + (CS.only ? ' checked' : '') + '> только проблемные</label></div>'
                 + (nkeys.length ? '<div class="rv-wrap"><table class="rv-mx"><thead><tr><th class="rh">Узел</th>' + nets.map(function (n) { return '<th style="min-width:140px">' + ico(KIND[n.k] ? n.k : 'other') + '<div style="color:var(--text);margin-top:.15rem">' + esc(label(n)) + '</div><div style="font-weight:400"><code>' + esc(n.ip || '—') + '</code></div></th>'; }).join('') + '</tr></thead><tbody>'
-                    + show.map(function (k) { var nd = c.nk[k] || {}; return '<tr><td class="rh">' + flagFor(nd.cc, nodeNm(k)) + '<b>' + esc(nodeNm(k)) + '</b><small>' + esc(nd.t || '') + '</small></td>' + nets.map(function (n) { return '<td>' + cell(n.cells[k], k + '|' + n.net) + '</td>'; }).join('') + '</tr>'; }).join('')
+                    + show.map(function (k) { var nd = c.nk[k] || {}; return '<tr data-k="' + esc(k) + '"' + (sel && sel[0] === k ? ' class="cur"' : '') + '><td class="rh">' + flagFor(nd.cc, nodeNm(k)) + '<b>' + esc(nodeNm(k)) + '</b><small>' + esc(nd.t || '') + '</small></td>' + nets.map(function (n) { return '<td>' + cell(n.cells[k], k + '|' + n.net) + '</td>'; }).join('') + '</tr>'; }).join('')
                     + '</tbody></table></div>' : '<p class="muted">Пингов в отчётах нет.</p>')
                 + (sr ? '<div class="rv-mxd"><h3>' + esc(nodeNm(sel[0])) + ' в сети «' + esc(label(sn)) + '» — последние 48 часов</h3><div class="muted" style="font-size:.8rem">Пингов ' + sr.pn + ', неудачных ' + sr.pf + ' · медиана ' + (MED[sr.med] || '—') + (sp ? ' · у других клиентов этого провайдера: неудач ' + pct(sp.fail) + ', медиана ' + (MED[sp.med] || '—') + (sp.dead ? ', без ответа ' + sp.dead + ' из ' + sp.n : '') : '') + '</div>'
                     + '<div class="rv-hist">' + histCells(sr.hist, sr.hh) + '</div><div class="rv-hax"><span>48 ч назад</span><span>24 ч</span><span>сейчас</span></div>'
@@ -1101,7 +1251,27 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 + '</div>';
             drw.querySelector('#rvDrwX').addEventListener('click', closeClient);
             var newDb = drw.querySelector('.rv-db'); if (keep && newDb) newDb.scrollTop = oldTop;
-            drw.querySelectorAll('.rv-dtab').forEach(function (b) { b.addEventListener('click', function () { CS.dev = +b.dataset.i; CS.cell = null; drawClient(true); }); });
+            drw.querySelectorAll('.rv-dtab').forEach(function (b) { b.addEventListener('click', function (e) {
+                CS.dev = +b.dataset.i; CS.cell = null;
+                if (e.target.closest('.rv-jump')) { var w = worst(c.devs[CS.dev].hw); if (w) { CS.cell = w; CS.jump = w; } }
+                drawClient(true);
+            }); });
+            var jumpTo = function (key) { CS.cell = key; CS.jump = key; drawClient(true); };
+            drw.querySelectorAll('.rv-diag[data-jump]').forEach(function (b) {
+                b.addEventListener('click', function () { jumpTo(b.dataset.jump); });
+                b.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpTo(b.dataset.jump); } });
+            });
+            if (CS.jump) {
+                var jk = CS.jump.split('|')[0]; CS.jump = null;
+                if (CS.only && show.indexOf(jk) < 0) { CS.only = false; CS.jump = CS.cell; drawClient(true); return; }
+                var tr = drw.querySelector('tr[data-k="' + (window.CSS && CSS.escape ? CSS.escape(jk) : jk) + '"]');
+                if (tr) {
+                    var box = drw.querySelector('.rv-db'), rb = tr.getBoundingClientRect(), bb = box.getBoundingClientRect();
+                    box.scrollTo({top: box.scrollTop + rb.top - bb.top - Math.max(16, (bb.height - rb.height) / 3), behavior: 'smooth'});
+                    var sc = tr.querySelector('.rv-mc.sel'); if (sc && sc.scrollIntoView) { var wr = tr.closest('.rv-wrap'); if (wr) wr.scrollLeft = Math.max(0, sc.parentNode.offsetLeft - wr.clientWidth / 2); }
+                    tr.classList.add('rv-flash'); setTimeout(function () { tr.classList.remove('rv-flash'); }, 2500);
+                }
+            }
             drw.querySelectorAll('[data-cell]').forEach(function (b) { b.addEventListener('click', function () { CS.cell = b.dataset.cell; drawClient(true); }); });
             var only = drw.querySelector('#rvOnly'); if (only) only.addEventListener('change', function () { CS.only = only.checked; drawClient(true); });
         };
@@ -1115,7 +1285,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             openClient(hit || v);
         });
         document.querySelectorAll('#rvMetric button').forEach(function (b) { b.addEventListener('click', function () { st.metric = b.dataset.m; document.querySelectorAll('#rvMetric button').forEach(function (x) { x.classList.toggle('on', x === b); }); paint(); }); });
-        document.querySelectorAll('#rvView button').forEach(function (b) { b.addEventListener('click', function () { st.view = b.dataset.v; document.querySelectorAll('#rvView button').forEach(function (x) { x.classList.toggle('on', x === b); }); closePop(); paint(); }); });
+        document.querySelectorAll('#rvView button').forEach(function (b) { b.addEventListener('click', function () { closePop(); zoomTo(VIEWS[b.dataset.v].slice(), true, b.dataset.v); }); });
         var tip = document.getElementById('rvTip'), box = document.getElementById('rvMapBox');
         if (gR) {
             gR.addEventListener('mousemove', function (e) {
@@ -1127,9 +1297,10 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 tip.style.left = x + 'px'; tip.style.top = (e.clientY - b.top + 14) + 'px';
             });
             gR.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
-            gR.addEventListener('click', function (e) { var id = e.target.dataset && e.target.dataset.id; if (id && RB[id]) showRegion(id); });
+            gR.addEventListener('click', function (e) { if (Date.now() - drag.end < 250) return; var id = e.target.dataset && e.target.dataset.id; if (id && RB[id]) showRegion(id); });
         }
         window.addEventListener('resize', function () { dots(); });
+        zoomUi();
 
         paint();
         side();

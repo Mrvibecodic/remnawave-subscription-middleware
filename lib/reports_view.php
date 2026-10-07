@@ -6,6 +6,9 @@
 const REP_VIEW_PERIODS = [1, 7, 30];
 const REP_VIEW_KINDS   = ['wifi' => 'Wi-Fi', 'mobile' => 'Мобильная', 'wired' => 'Кабель', 'other' => 'Другая'];
 const REP_VIEW_PLATS   = ['pc' => 'ПК', 'android' => 'Android'];
+// Wi-Fi и кабель — один и тот же домашний провайдер, разница только в последнем метре.
+const REP_VIEW_KIND_SETS = ['home' => ['wifi', 'wired']];
+const REP_VIEW_KIND_SET_NAMES = ['home' => 'Домашний (Wi-Fi и кабель)'];
 // Ниже стольких пингов доля неудач — шум, а не оценка.
 const REP_VIEW_MIN_PINGS = 20;
 const REP_VIEW_VERDICT_TTL = 259200;
@@ -17,7 +20,7 @@ function rep_view_filters(array $q) {
 
     return [
         'p'    => in_array($p, REP_VIEW_PERIODS, true) ? $p : 7,
-        'kind' => isset(REP_VIEW_KINDS[$q['kind'] ?? '']) ? (string) $q['kind'] : '',
+        'kind' => isset(REP_VIEW_KINDS[$q['kind'] ?? '']) || isset(REP_VIEW_KIND_SETS[$q['kind'] ?? '']) ? (string) $q['kind'] : '',
         'plat' => isset(REP_VIEW_PLATS[$q['plat'] ?? '']) ? (string) $q['plat'] : '',
         'cc'   => preg_match('~^[A-Z]{2}$~', $cc) ? $cc : '',
         'node' => preg_match('~^[0-9a-f]{12}$~', $node) ? $node : '',
@@ -37,6 +40,12 @@ function rep_view_where(array $f, $time, $since, array $cols) {
     $args = [$since];
     foreach (['kind', 'plat', 'cc', 'node'] as $k) {
         if ($f[$k] === '' || !in_array($k, $cols, true)) continue;
+        if ($k === 'kind' && isset(REP_VIEW_KIND_SETS[$f[$k]])) {
+            $set = REP_VIEW_KIND_SETS[$f[$k]];
+            $sql[] = 'kind IN (' . implode(', ', array_fill(0, count($set), '?')) . ')';
+            array_push($args, ...$set);
+            continue;
+        }
         $sql[] = ($k === 'node' ? 'nkey' : $k) . ' = ?';
         $args[] = $f[$k];
     }
@@ -490,14 +499,19 @@ function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
     return $out;
 }
 
-function rep_view_matrix(array $f, $since, $cols = 12) {
-    $out = ['cols' => [], 'cells' => []];
+function rep_view_matrix(array $f, $since, $cols = 40) {
+    $out = ['cols' => [], 'cells' => [], 'total' => 0];
     $join = $f['plat'] !== '' ? ' JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid' : '';
     [$w, $a] = rep_view_where($f, 's.last_seen', $since, ['kind', 'cc', 'node', 'plat']);
-    $w = str_replace(['kind = ?', 'cc = ?', 'nkey = ?', 'plat = ?'], ['s.kind = ?', 's.cc = ?', 's.nkey = ?', 'd.plat = ?'], $w);
+    $w = str_replace(['kind = ?', 'kind IN (', 'cc = ?', 'nkey = ?', 'plat = ?'], ['s.kind = ?', 's.kind IN (', 's.cc = ?', 's.nkey = ?', 'd.plat = ?'], $w);
     $isps = rep_view_rows('SELECT asn, MAX(cc) AS cc, MAX(org) AS org, COUNT(*) AS n FROM (SELECT s.asn, MAX(s.cc) AS cc, MAX(s.org) AS org FROM rep_state s'
         . $join . " WHERE $w AND s.asn > 0 GROUP BY s.asn, s.short_uuid, s.hwid) t GROUP BY asn ORDER BY n DESC, asn ASC LIMIT " . (int) $cols, $a);
     if (!$isps) return $out;
+    $out['total'] = count($isps);
+    if (count($isps) >= $cols) {
+        $t = rep_view_rows('SELECT COUNT(DISTINCT s.asn) AS n FROM rep_state s' . $join . " WHERE $w AND s.asn > 0", $a);
+        $out['total'] = (int) ($t[0]['n'] ?? count($isps));
+    }
     $asns = [];
     foreach ($isps as $r) {
         $asns[] = (int) $r['asn'];
@@ -524,7 +538,7 @@ function rep_view_matrix(array $f, $since, $cols = 12) {
 
 function rep_view_cell(array $f, $since, $nkey, $asn) {
     [$w, $a] = rep_view_where($f, 's.last_seen', $since, ['kind', 'cc', 'plat']);
-    $w = str_replace(['kind = ?', 'cc = ?', 'plat = ?'], ['s.kind = ?', 's.cc = ?', 'd.plat = ?'], $w);
+    $w = str_replace(['kind = ?', 'kind IN (', 'cc = ?', 'plat = ?'], ['s.kind = ?', 's.kind IN (', 's.cc = ?', 'd.plat = ?'], $w);
     $rows = rep_view_rows('SELECT s.short_uuid, s.hwid, s.net, s.kind, s.ip4, s.ip6, s.cc, s.pn, s.pf, s.pmed, s.verdict, s.vat, s.last_seen, ' . rep_sel(['loc', 'hist', 'hist_h', 'sub'], 's.') . ','
         . ' d.plat, d.client, ' . rep_sel(['model', 'os'], 'd.') . ' FROM rep_state s LEFT JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid'
         . " WHERE $w AND s.nkey = ? AND s.asn = ? ORDER BY s.last_seen DESC LIMIT 500", array_merge($a, [(string) $nkey, (int) $asn]));

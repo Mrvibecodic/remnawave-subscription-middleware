@@ -450,6 +450,12 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'rep_mx') {
+        $rf = rep_view_filters($_GET);
+        echo json_encode(['ok' => true] + rep_view_matrix($rf, rep_view_since($rf)), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
     if ($a === 'rep_cell') {
         $rf = rep_view_filters($_GET);
         $nk = (string) ($_GET['nk'] ?? '');
