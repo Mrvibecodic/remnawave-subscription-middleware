@@ -580,6 +580,17 @@ function rep_unseen() {
     return max(0, (int) setting('rep_total', '0') - (int) setting('rep_seen', '0'));
 }
 
+function rep_unseen_tip($n) {
+    $n = (int) $n;
+    if ($n <= 0) return rep_enabled() ? 'Статистика Clod Clash — новых отчётов нет' : 'Статистика Clod Clash — приём отчётов выключен';
+    $d = $n % 10;
+    $h = $n % 100;
+    if ($d === 1 && $h !== 11) return 'Появился ' . $n . ' новый отчёт — открыть статистику';
+    if ($d >= 2 && $d <= 4 && ($h < 12 || $h > 14)) return 'Появилось ' . $n . ' новых отчёта — открыть статистику';
+
+    return 'Появилось ' . $n . ' новых отчётов — открыть статистику';
+}
+
 function rep_mark_seen() {
     $t = (string) (int) setting('rep_total', '0');
     if ((string) setting('rep_seen', '0') !== $t) set_setting('rep_seen', $t);

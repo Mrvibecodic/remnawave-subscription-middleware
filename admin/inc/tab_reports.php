@@ -378,7 +378,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 <input type="hidden" name="p" value="<?= (int) $rv_f['p'] ?>">
                 <select name="kind" onchange="this.form.submit()">
                     <option value="">Все сети</option>
-                    <?php foreach (REP_VIEW_KIND_SET_NAMES + REP_VIEW_KINDS as $k => $kt): ?><option value="<?= h($k) ?>"<?= $rv_f['kind'] === $k ? ' selected' : '' ?>><?= h($kt) ?></option><?php endforeach; ?>
+                    <?php foreach (['home' => 'Домашний (Wi-Fi и кабель)', 'mobile' => 'Мобильная'] + ($rv_f['kind'] !== '' && !in_array($rv_f['kind'], ['home', 'mobile'], true) ? [$rv_f['kind'] => REP_VIEW_KINDS[$rv_f['kind']] ?? $rv_f['kind']] : []) as $k => $kt): ?><option value="<?= h($k) ?>"<?= $rv_f['kind'] === $k ? ' selected' : '' ?>><?= h($kt) ?></option><?php endforeach; ?>
                 </select>
                 <select name="plat" onchange="this.form.submit()">
                     <option value="">Все платформы</option>
@@ -406,8 +406,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 
     <div class="card">
         <div class="loghead"><h2>Карта клиентов</h2>
-            <div class="rv-flt"><span class="rv-seg" id="rvView"><button type="button" class="on" data-v="all">Всё СНГ</button><button type="button" data-v="west">Европейская часть, Урал, Кавказ</button></span>
-            <span class="rv-seg" id="rvMetric"><button type="button" class="on" data-m="fail">Неудачные пинги</button><button type="button" data-m="med">Медианный пинг</button><button type="button" data-m="frz">Проверка 16–20</button></span></div>
+            <div class="rv-flt"><span class="rv-seg" id="rvMetric"><button type="button" class="on" data-m="fail">Неудачные пинги</button><button type="button" data-m="med">Медианный пинг</button><button type="button" data-m="frz">Проверка 16–20</button></span></div>
         </div>
         <p class="muted" style="font-size:.82rem">Точка — клиенты в регионе по адресу, с которого устройство мерило пинги последним; число — устройств, цвет — худшее состояние среди них. Регион закрашен по выбранной метрике. Нажмите на точку или регион — список клиентов, на клиента — его устройства, сети и пинги.</p>
         <div class="rv-mgrid">
@@ -605,7 +604,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         var CIS = {RU:1, BY:1, UA:1, MD:1, GE:1, AM:1, AZ:1, KZ:1, UZ:1, TM:1, KG:1, TJ:1};
         var KIND = {wifi: 'Wi-Fi', mobile: 'Мобильная', wired: 'Кабель', other: 'Другая'};
         var MED = ['< 100 мс', '100–200 мс', '200–400 мс', '400–800 мс', '0,8–1,5 с', '> 1,5 с'];
-        var VIEWS = {all: [0, 0, 1000, 540], west: [95, 150, 440, 238]};
+        var VIEWS = {all: [0, 0, 1000, 540]};
         var st = {view: 'all', vb: VIEWS.all.slice(), metric: 'fail', sel: null, side: null};
         var dn = null;
         try { dn = new Intl.DisplayNames(['ru'], {type: 'region'}); } catch (e) {}
@@ -971,7 +970,6 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         var redraw = function () { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; document.getElementById('rvMap').setAttribute('viewBox', st.vb.map(function (v) { return v.toFixed(2); }).join(' ')); dots(); zoomUi(); }); };
         var zoomUi = function () {
             var near = function (a) { return a.every(function (v, i) { return Math.abs(v - st.vb[i]) < .5; }); };
-            document.querySelectorAll('#rvView button').forEach(function (b) { b.classList.toggle('on', near(VIEWS[b.dataset.v])); });
             var zi = document.getElementById('rvZin'), zo = document.getElementById('rvZout'), zr = document.getElementById('rvZreset');
             if (zi) zi.disabled = st.vb[2] <= MINW + .5;
             if (zo) zo.disabled = st.vb[2] >= MAPW - .5;
@@ -1304,7 +1302,6 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             openClient(hit || v);
         });
         document.querySelectorAll('#rvMetric button').forEach(function (b) { b.addEventListener('click', function () { st.metric = b.dataset.m; document.querySelectorAll('#rvMetric button').forEach(function (x) { x.classList.toggle('on', x === b); }); paint(); }); });
-        document.querySelectorAll('#rvView button').forEach(function (b) { b.addEventListener('click', function () { closePop(); zoomTo(VIEWS[b.dataset.v].slice(), true, b.dataset.v); }); });
         var tip = document.getElementById('rvTip'), box = document.getElementById('rvMapBox');
         if (gR) {
             gR.addEventListener('mousemove', function (e) {

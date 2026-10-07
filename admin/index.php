@@ -450,6 +450,12 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'rep_unseen') {
+        $n = rep_unseen();
+        echo json_encode(['ok' => true, 'n' => $n, 'tip' => rep_unseen_tip($n)], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'rep_mx') {
         $rf = rep_view_filters($_GET);
         echo json_encode(['ok' => true] + rep_view_matrix($rf, rep_view_since($rf)), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -1306,13 +1312,13 @@ $tab   = $_GET['tab'] ?? 'users';
 if ($tab === 'settings') $tab = 'connection';
 if ($tab === 'headers') $tab = 'rules';
 $rl_view = ($tab === 'reqlog' && ($_GET['view'] ?? '') === 'clients') ? 'clients' : '';
-if ($tab === 'reports' && $db_ok) rep_mark_seen();
 rules_migrate_legacy();
 update_autocheck();
 $token = csrf_token();
 $flash = take_flash();
 $pdo   = db();
 $db_ok = $pdo !== null;
+if ($tab === 'reports' && $db_ok) rep_mark_seen();
 
 $overrides = [];
 if ($db_ok && ($tab === 'users' || $tab === 'overrides')) foreach ($pdo->query('SELECT * FROM overrides ORDER BY updated_at DESC LIMIT 500') as $r) $overrides[] = $r;
@@ -1813,13 +1819,7 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
             </div>
             <div class="rw-hcontrols">
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg width="20" height="20" class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
-                <?php
-                $rep_new = $db_ok ? rep_unseen() : 0;
-                $rep_n10 = $rep_new % 10; $rep_n100 = $rep_new % 100;
-                $rep_tip = $rep_new > 0
-                    ? (($rep_n10 === 1 && $rep_n100 !== 11) ? 'Появился ' . $rep_new . ' новый отчёт' : (($rep_n10 >= 2 && $rep_n10 <= 4 && ($rep_n100 < 12 || $rep_n100 > 14)) ? 'Появилось ' . $rep_new . ' новых отчёта' : 'Появилось ' . $rep_new . ' новых отчётов')) . ' — открыть статистику'
-                    : (rep_enabled() ? 'Статистика Clod Clash — новых отчётов нет' : 'Статистика Clod Clash — приём отчётов выключен');
-                ?>
+                <?php $rep_new = $db_ok ? rep_unseen() : 0; $rep_tip = rep_unseen_tip($rep_new); ?>
                 <a class="hbtn hbtn-mail" href="?tab=reports" id="repMail" data-tip="<?= h($rep_tip) ?>" aria-label="<?= h($rep_tip) ?>"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg><?php if ($rep_new > 0): ?><span class="hbtn-badge"><?= $rep_new > 99 ? '99+' : (int) $rep_new ?></span><?php endif; ?></a>
                 <a class="hbtn hbtn-ver" href="?tab=update" title="<?= $upd_avail ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if ($upd_avail): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
 <?php
@@ -1934,7 +1934,13 @@ document.addEventListener('focusin',function(e){var a=pick(e.target);if(a)show(a
 document.addEventListener('focusout',hide);
 document.addEventListener('mousedown',hide,true);
 window.addEventListener('scroll',hide,true);
-var m=document.getElementById('repMail');if(m)m.addEventListener('click',function(){var b=m.querySelector('.hbtn-badge');if(b)b.remove();m.setAttribute('data-tip','Статистика Clod Clash — новых отчётов нет');});
+var m=document.getElementById('repMail');
+if(m){
+var put=function(n,tip){var b=m.querySelector('.hbtn-badge');if(n>0){if(!b){b=document.createElement('span');b.className='hbtn-badge';m.appendChild(b);}b.textContent=n>99?'99+':String(n);}else if(b)b.remove();if(tip){m.setAttribute('data-tip',tip);m.setAttribute('aria-label',tip);if(cur===m)show(m);}};
+m.addEventListener('click',function(){put(0,'Статистика Clod Clash — новых отчётов нет');});
+var busy=0,poll=function(){if(busy||document.hidden)return;busy=1;fetch('?ajax=rep_unseen',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){busy=0;if(j&&j.ok)put(+j.n||0,j.tip);}).catch(function(){busy=0;});};
+setInterval(poll,30000);document.addEventListener('visibilitychange',function(){if(!document.hidden)poll();});window.addEventListener('focus',poll);
+}
 })();</script>
 <script>
 var HELP={
