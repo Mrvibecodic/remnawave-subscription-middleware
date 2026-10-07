@@ -147,7 +147,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-mapbox{position:relative;border:1px solid var(--line);border-radius:14px;background:var(--bg2);overflow:hidden}
     .rv-mapbox svg.rv-map{display:block;width:100%;height:auto;aspect-ratio:1000/540}
     .rv-map path.rg{fill:var(--line);fill-opacity:.55;stroke:var(--card);stroke-width:.5;vector-effect:non-scaling-stroke}
-    .rv-map path.rg.has{cursor:pointer;fill-opacity:.5}
+    .rv-map path.rg.has{cursor:pointer;fill:var(--accent);fill-opacity:.32}
+    .rv-map path.rg.has.q1,.rv-map path.rg.has.q2,.rv-map path.rg.has.q3,.rv-map path.rg.has.q4,.rv-map path.rg.has.q5{fill-opacity:.55}
     .rv-map path.rg.has:hover{fill-opacity:.8}
     .rv-map path.rg.q1{fill:var(--rq1)}.rv-map path.rg.q2{fill:var(--rq2)}.rv-map path.rg.q3{fill:var(--rq3)}.rv-map path.rg.q4{fill:var(--rq4)}.rv-map path.rg.q5{fill:var(--rq5)}
     .rv-map path.cb{fill:none;stroke:var(--muted);stroke-opacity:.6;stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
@@ -402,7 +403,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         <div class="rv-wrap"><table class="rv-mx">
             <thead><tr><th class="rh">Узел</th>
             <?php foreach ($rv_mx['cols'] as $col): ?>
-                <th><?= $rv_flag($col['cc']) ?><div style="color:var(--text);margin-top:.15rem;max-width:7rem;overflow:hidden;text-overflow:ellipsis" title="<?= h($col['org']) ?>"><?= h($col['org'] !== '' ? $col['org'] : '—') ?></div><div style="font-weight:400">AS<?= (int) $col['asn'] ?> · <?= (int) $col['n'] ?></div></th>
+                <th><?= $rv_flag($col['cc']) ?><div style="color:var(--text);margin:.15rem auto 0;max-width:7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= h($col['org']) ?>"><?= h($col['org'] !== '' ? $col['org'] : '—') ?></div><div style="font-weight:400">AS<?= (int) $col['asn'] ?> · <?= (int) $col['n'] ?></div></th>
             <?php endforeach; ?>
             </tr></thead>
             <tbody>
@@ -662,10 +663,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         })();
         NETS.forEach(function (n) { n.rg = regionOf(n.loc, n.cc, n.sub); });
 
-        DEVS.forEach(function (d) {
-            d.here = d.nets.slice().sort(function (a, b) { return (b.hh - a.hh) || (b.seen - a.seen); })[0] || null;
-            var dead = {}, frz = {}, pn = 0, pf = 0, mb = [0, 0, 0, 0, 0, 0];
-            d.nets.forEach(function (n) { n.dead.forEach(function (k) { dead[k] = 1; }); n.frz.forEach(function (k) { frz[k] = 1; }); pn += n.pn; pf += n.pf; if (n.med >= 0) mb[n.med] += n.pn - n.pf; });
+        var netSt = function (nets) {
+            var dead = {}, frz = {}, pn = 0, pf = 0, fr = 0, vok = 0, mb = [0, 0, 0, 0, 0, 0];
+            nets.forEach(function (n) { n.dead.forEach(function (k) { dead[k] = 1; }); n.frz.forEach(function (k) { frz[k] = 1; }); pn += n.pn; pf += n.pf; fr += n.frz.length; vok += n.vok; if (n.med >= 0) mb[n.med] += n.pn - n.pf; });
             var tot = mb.reduce(function (a, b) { return a + b; }, 0), run = 0, med = -1;
             for (var i = 0; i < 6 && tot > 0; i++) { run += mb[i]; if (run * 2 >= tot) { med = i; break; } }
             var fail = pn >= 20 ? pf / pn : null, dk = Object.keys(dead).map(Number), fk = Object.keys(frz).map(Number);
@@ -675,31 +675,51 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             else if (fk.length) { s = 'warn'; t = '16–20 режется: ' + fk.length + ' ' + plural(fk.length, 'узел', 'узла', 'узлов'); }
             else if (fail !== null && fail >= .03) { s = 'warn'; t = 'неудачных пингов ' + pct(fail); }
             else if (med >= 3) { s = 'warn'; t = 'медиана ' + MED[med]; }
-            d.st = s; d.stt = t; d.fail = fail; d.med = med;
+            return {st: s, stt: t, fail: fail, med: med, pn: pn, pf: pf, fr: fr, vok: vok, mb: mb};
+        };
+        DEVS.forEach(function (d) {
+            d.here = d.nets.slice().sort(function (a, b) { return (b.hh - a.hh) || (b.seen - a.seen); })[0] || null;
+            var r = netSt(d.nets);
+            d.st = r.st; d.stt = r.stt; d.fail = r.fail; d.med = r.med;
         });
 
         var rank = {ok: 0, warn: 1, bad: 2};
-        var bag = function (devs) {
+        var bag = function (entries) {
             var pn = 0, pf = 0, fr = 0, vok = 0, mb = [0, 0, 0, 0, 0, 0], s = 'ok', cl = {};
-            devs.forEach(function (d) { var n = d.here; if (n) { pn += n.pn; pf += n.pf; fr += n.frz.length; vok += n.vok; if (n.med >= 0) mb[n.med] += n.pn - n.pf; } if (rank[d.st] > rank[s]) s = d.st; cl[d.s] = 1; });
+            entries.forEach(function (e) {
+                var r = e.r || (e.r = netSt(e.nets));
+                pn += r.pn; pf += r.pf; fr += r.fr; vok += r.vok;
+                for (var i = 0; i < 6; i++) mb[i] += r.mb[i];
+                if (rank[r.st] > rank[s]) s = r.st;
+                cl[e.d.s] = 1;
+            });
             var tot = mb.reduce(function (a, b) { return a + b; }, 0), run = 0, med = -1;
             for (var i = 0; i < 6 && tot > 0; i++) { run += mb[i]; if (run * 2 >= tot) { med = i; break; } }
-            return {devs: devs, n: devs.length, k: Object.keys(cl).length, pn: pn, fail: pn >= 20 ? pf / pn : null, med: med, fr: fr, vok: vok, st: s};
+            return {devs: entries, n: entries.length, k: Object.keys(cl).length, pn: pn, fail: pn > 0 ? pf / pn : null, med: med, fr: fr, vok: vok, st: s};
         };
         var REG = {}, OUT = {}, NOREG = {}, NOGEO = [];
+        var putIdx = {};
+        var put = function (m, key, d, n) {
+            var list = m[key] || (m[key] = []), ik = key + '|' + d.i, e = putIdx[ik];
+            if (!e || e.m !== m) { e = putIdx[ik] = {d: d, nets: [], m: m}; list.push(e); }
+            e.nets.push(n);
+        };
         DEVS.forEach(function (d) {
-            var n = d.here; if (!n) return;
-            if (n.rg) (REG[n.rg] = REG[n.rg] || []).push(d);
-            else if (!n.cc) NOGEO.push(d);
-            else if (CIS[n.cc]) (NOREG[n.cc] = NOREG[n.cc] || []).push(d);
-            else (OUT[n.cc] = OUT[n.cc] || []).push(d);
+            var placed = false;
+            d.nets.forEach(function (n) {
+                if (n.rg) { put(REG, n.rg, d, n); placed = true; }
+                else if (n.cc && !CIS[n.cc]) { put(OUT, n.cc, d, n); placed = true; }
+            });
+            if (placed || !d.here) return;
+            var withCc = d.nets.filter(function (n) { return n.cc; })[0];
+            if (withCc) put(NOREG, withCc.cc, d, withCc); else NOGEO.push({d: d, nets: d.nets.slice()});
         });
         var RB = {};
         Object.keys(REG).forEach(function (id) { RB[id] = bag(REG[id]); });
 
         var regionQ = function (id) {
             var r = RB[id]; if (!r) return 0;
-            if (st.metric === 'fail') return qFail(r.fail);
+            if (st.metric === 'fail') return r.pn > 0 ? qFail(r.fail) : 0;
             if (st.metric === 'med') return qMed(r.med);
             var all = r.fr + r.vok; if (!all) return 0; var b = r.fr / all;
             return b === 0 ? 1 : b < .1 ? 2 : b < .25 ? 3 : b < .5 ? 4 : 5;
@@ -714,7 +734,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             dots();
             var L = {fail: ['< 1 %', '1–3 %', '3–10 %', '10–25 %', '≥ 25 %'], med: ['< 100 мс', '100–200 мс', '200–400 мс', '400–800 мс', '> 0,8 с'], frz: ['всё проходит', '< 10 % режется', '10–25 %', '25–50 %', '≥ 50 %']}[st.metric];
             document.getElementById('rvLegend').innerHTML = L.map(function (t, i) { return '<span><i style="background:var(--rq' + (i + 1) + ');opacity:.6"></i>' + t + '</span>'; }).join('')
-                + '<span><i style="background:var(--line)"></i>нет клиентов</span><span class="sv"></span>'
+                + '<span><i style="background:var(--accent);opacity:.4"></i>клиенты есть, данных мало</span><span><i style="background:var(--line)"></i>нет клиентов</span><span class="sv"></span>'
                 + '<span><span class="dl" style="background:var(--rq1)"></span>всё работает</span><span><span class="dl" style="background:var(--rq3)"></span>деградация</span><span><span class="dl" style="background:var(--rq5)"></span>узлы не отвечают</span>';
         };
         var clusters = function () {
@@ -740,21 +760,22 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             if (st.sel) placePop();
         };
 
-        var rows = function (devs, where) {
+        var rows = function (entries, where) {
             var by = {}, order = [];
-            devs.forEach(function (d) { if (!by[d.s]) { by[d.s] = []; order.push(d.s); } by[d.s].push(d); });
-            order.sort(function (a, b) {
-                var sa = Math.max.apply(null, by[a].map(function (d) { return rank[d.st]; })), sb = Math.max.apply(null, by[b].map(function (d) { return rank[d.st]; }));
-                return (sb - sa) || (by[b].length - by[a].length);
-            });
+            entries.forEach(function (e) { if (!e.r) e.r = netSt(e.nets); if (!by[e.d.s]) { by[e.d.s] = []; order.push(e.d.s); } by[e.d.s].push(e); });
+            var worst = function (s) { return Math.max.apply(null, by[s].map(function (e) { return rank[e.r.st]; })); };
+            order.sort(function (a, b) { return (worst(b) - worst(a)) || (by[b].length - by[a].length); });
             return order.map(function (s) {
-                var ds = by[s].slice().sort(function (a, b) { return rank[b.st] - rank[a.st]; }), d = ds[0], n = d.here || {}, nm = nameOf(s);
-                var all = DEVS.filter(function (x) { return x.s === s; });
+                var es = by[s].slice().sort(function (a, b) { return rank[b.r.st] - rank[a.r.st]; }), e = es[0], nm = nameOf(s);
+                var nets = []; es.forEach(function (x) { x.nets.forEach(function (n) { nets.push(n); }); });
+                var n = nets[0] || {};
                 var place = where ? (n.rg ? M.r[n.rg].n : (n.cc ? ccName(n.cc) : 'адрес неизвестен')) + ' · ' : '';
+                var kinds = nets.map(function (x) { return ico(KIND[x.k] ? x.k : 'other'); }).join('');
+                var asns = []; nets.forEach(function (x) { var t = x.asn ? 'AS' + x.asn + ' ' + x.org : 'AS —'; if (asns.indexOf(t) < 0) asns.push(t); });
                 return '<button type="button" class="rv-crow" data-s="' + esc(s) + '"><span class="av">' + esc((nm || s).slice(0, 2).toUpperCase()) + '</span><span class="bd">'
                     + '<span class="nm">' + esc(nm || s) + (nm ? '<code>' + esc(s.slice(0, 10)) + '</code>' : '') + '</span>'
-                    + '<span class="sub">' + all.map(function (x) { return ico(x.p === 'pc' ? 'pc' : 'android'); }).join('') + '<span>' + all.length + ' ' + plural(all.length, 'устройство', 'устройства', 'устройств') + '</span><span>·</span>' + ico(KIND[n.k] ? n.k : 'other') + '<span>' + esc(place) + (n.asn ? 'AS' + n.asn + ' ' + esc(n.org) : 'AS —') + '</span></span>'
-                    + '<span class="st"><span class="rv-pill st-' + d.st + '">' + esc(d.stt) + '</span></span></span>' + ico('chev') + '</button>';
+                    + '<span class="sub">' + es.map(function (x) { return ico(x.d.p === 'pc' ? 'pc' : 'android'); }).join('') + '<span>' + es.length + ' ' + plural(es.length, 'устройство', 'устройства', 'устройств') + '</span><span>·</span>' + kinds + '<span>' + esc(place) + esc(asns.join(', ')) + '</span></span>'
+                    + '<span class="st"><span class="rv-pill st-' + e.r.st + '">' + esc(e.r.stt) + '</span></span></span>' + ico('chev') + '</button>';
             }).join('');
         };
         var bindRows = function (root) { root.querySelectorAll('.rv-crow').forEach(function (b) { b.addEventListener('click', function () { openClient(b.dataset.s); }); }); };
@@ -797,7 +818,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     + (on ? '<div class="rv-sexp">' + rows(b.devs, false) + '</div>' : '');
             };
             var h = '<div class="rv-sbox"><div class="rv-sh">' + ico('globe') + '<b>Вне СНГ</b><span class="rv-pill st-mut">' + total + ' устр.</span></div>'
-                + (list.length ? list.map(function (x) { var n0 = x.b.devs[0].here; return row('o:' + x.cc, ccName(x.cc), x.b.k + ' ' + plural(x.b.k, 'клиент', 'клиента', 'клиентов') + (n0 && n0.asn ? ' · AS' + n0.asn + ' ' + n0.org : ''), x.b, flag(x.cc)); }).join('') : '<div class="muted" style="padding:.6rem .8rem;font-size:.8rem">Нет устройств за пределами СНГ.</div>') + '</div>';
+                + (list.length ? list.map(function (x) { var n0 = x.b.devs[0].nets[0]; return row('o:' + x.cc, ccName(x.cc), x.b.k + ' ' + plural(x.b.k, 'клиент', 'клиента', 'клиентов') + (n0 && n0.asn ? ' · AS' + n0.asn + ' ' + n0.org : ''), x.b, flag(x.cc)); }).join('') : '<div class="muted" style="padding:.6rem .8rem;font-size:.8rem">Нет устройств за пределами СНГ.</div>') + '</div>';
             var nr = Object.keys(NOREG);
             if (nr.length) h += '<div class="rv-sbox"><div class="rv-sh">' + ico('pin') + '<b>СНГ, регион неизвестен</b></div>' + nr.map(function (cc) { var b = bag(NOREG[cc]); return row('r:' + cc, ccName(cc), 'нет координат адреса — нет базы городов или старые отчёты', b, flag(cc)); }).join('') + '</div>';
             if (NOGEO.length) h += '<div class="rv-sbox">' + row('n:', 'Без геопозиции', 'базы GeoIP нет или адрес ей неизвестен', bag(NOGEO), '<span class="rv-cc">??</span>') + '</div>';
@@ -933,15 +954,22 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             }
             return out;
         };
-        var mxd = document.getElementById('rvMxd');
+        var mxd = document.getElementById('rvMxd'), mxd0 = mxd ? mxd.innerHTML : '';
         document.querySelectorAll('button.rv-mc').forEach(function (c) {
             c.addEventListener('click', function () {
+                if (c.classList.contains('sel')) {
+                    c.classList.remove('sel');
+                    mxd.style.minHeight = ''; mxd.style.opacity = '';
+                    mxd.innerHTML = mxd0;
+                    return;
+                }
                 document.querySelectorAll('button.rv-mc.sel').forEach(function (x) { x.classList.remove('sel'); });
                 c.classList.add('sel');
                 var nd = NODES.find(function (n) { return n.k === c.dataset.nk; }) || {nm: c.dataset.nk, t: '', a: ''};
                 mxd.style.minHeight = mxd.offsetHeight + 'px';
                 mxd.style.opacity = '.55';
                 fetch('?ajax=rep_cell&' + FQ + '&nk=' + encodeURIComponent(c.dataset.nk) + '&asn=' + encodeURIComponent(c.dataset.asn), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+                    if (!c.classList.contains('sel')) return;
                     var rs = (j && j.rows) || [];
                     rs.forEach(function (r) { r.rg = regionOf(r.loc, r.cc, r.sub); if (r.name) NAMES[r.s] = r.name; });
                     mxd.style.opacity = '';
@@ -957,7 +985,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                         }).join('') + '</tbody></table></div>';
                     mxd.style.minHeight = '';
                     mxd.querySelectorAll('tr.clk').forEach(function (t) { t.addEventListener('click', function () { openClient(t.dataset.s); }); });
-                }).catch(function () { mxd.style.minHeight = ''; mxd.style.opacity = ''; mxd.innerHTML = '<span class="muted">Не удалось загрузить.</span>'; });
+                }).catch(function () { if (!c.classList.contains('sel')) return; mxd.style.minHeight = ''; mxd.style.opacity = ''; mxd.innerHTML = '<span class="muted">Не удалось загрузить.</span>'; });
             });
         });
 
@@ -967,7 +995,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         document.querySelectorAll('.rv-deadbtn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var k = -1; NODES.forEach(function (n, i) { if (n.k === btn.dataset.nk) k = i; });
-                var devs = DEVS.filter(function (d) { return d.nets.some(function (n) { return n.dead.indexOf(k) >= 0; }); });
+                var devs = [];
+                DEVS.forEach(function (d) { var dn = d.nets.filter(function (n) { return n.dead.indexOf(k) >= 0; }); if (dn.length) devs.push({d: d, nets: dn}); });
                 var nd = NODES[k] || {nm: btn.dataset.nk, t: '', a: ''};
                 mod.innerHTML = '<div class="rv-ph"><div style="min-width:0"><b>' + esc(nd.nm) + ' не отвечает</b><div class="rv-pst"><span class="rv-pill st-mut">' + devs.length + ' ' + plural(devs.length, 'устройство', 'устройства', 'устройств') + '</span><span class="rv-pill st-mut">' + esc(nd.t) + '</span></div></div><button type="button" class="x" aria-label="Закрыть">' + ico('x') + '</button></div>'
                     + '<div class="rv-pl">' + rows(devs, true) + '</div>';
