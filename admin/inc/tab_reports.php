@@ -11,6 +11,7 @@ rep_geo_backfill($rv_since);
 rep_dev_fill();
 $rv_mapd   = rep_view_map($rv_f, $rv_since, $rv_panel);
 $rv_mx     = rep_view_matrix($rv_f, $rv_since);
+$rv_hst    = rep_view_hist_stat($rv_since);
 $rep_st    = rep_stats();
 $rep_geo   = geoip_status();
 $rv_node   = null;
@@ -241,11 +242,11 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-mxbar .muted{font-size:.78rem}
     .rv-mxs{overscroll-behavior-x:contain;padding-bottom:.25rem}
     .rvp table.rv-mx{display:table;overflow:visible}
-    table.rv-mxw{table-layout:fixed;width:max-content}
-    table.rv-mxw th.pc{width:104px;min-width:104px;max-width:104px}
+    table.rv-mxw{table-layout:fixed;width:max-content;border-spacing:8px 4px;margin-left:-8px}
+    table.rv-mxw th.pc{width:118px;min-width:118px;max-width:118px}
     table.rv-mxw th.pc .o{color:var(--text);margin:.15rem auto 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    table.rv-mx th.rh,table.rv-mx td.rh{position:sticky;left:0;z-index:2;background:var(--card);box-shadow:4px 0 0 var(--card)}
-    table.rv-mxw th.rh,table.rv-mxw td.rh{width:230px;min-width:230px;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+    table.rv-mx th.rh,table.rv-mx td.rh{position:sticky;left:0;top:auto;z-index:2;background:var(--card);box-shadow:4px 0 0 var(--card)}
+    table.rv-mxw th.rh,table.rv-mxw td.rh{width:200px;min-width:200px;max-width:200px;overflow:hidden;text-overflow:ellipsis;padding-left:8px;box-shadow:-8px 0 0 var(--card),8px 0 0 var(--card)}
     table.rv-mxw td.rh small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     table.rv-mxw td.rh small code{white-space:nowrap}
     @media(max-width:640px){table.rv-mxw th.rh,table.rv-mxw td.rh{width:150px;min-width:150px;max-width:150px}}
@@ -312,7 +313,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-diag[data-jump]{cursor:pointer}
     .rv-diag[data-jump]:hover{background:var(--hover)}
     .rv-diag .go{margin-left:auto;align-self:center;color:var(--muted);font-size:.74rem;white-space:nowrap}
-    .rv-dtab .rv-jump{cursor:pointer}
+    .rv-dtab .rv-jump{cursor:pointer;border:0;min-height:0;height:auto;font:inherit;font-size:.74rem;font-weight:600}
     .rv-dtab .rv-jump:hover{filter:brightness(1.15);text-decoration:underline;text-underline-offset:2px}
     .rv-drw table.rv-mx th.rh,.rv-drw table.rv-mx td.rh{background:var(--bg);box-shadow:4px 0 0 var(--bg)}
     table.rv-mx tr.cur td.rh,.rv-drw table.rv-mx tr.cur td.rh{box-shadow:inset 3px 0 var(--accent),4px 0 0 var(--bg);padding-left:.5rem}
@@ -591,7 +592,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     <script src="assets/cis.js?v=<?= substr(@md5_file(__DIR__ . '/../assets/cis.js') ?: '0', 0, 10) ?>"></script>
     <script>
     (function () {
-        var D = <?= json_encode($rv_mapd, $rv_js) ?>;
+        var D = <?= json_encode($rv_mapd, $rv_js) ?>, HST = <?= json_encode($rv_hst, $rv_js) ?>;
         var NAMES = <?= json_encode((object) $rv_names, $rv_js) ?>;
         var Q0 = <?= json_encode($rv_f['q'], $rv_js) ?>;
         var MX = <?= json_encode($rv_mx, $rv_js) ?>, MXK = <?= json_encode($rv_f['kind'], $rv_js) ?>;
@@ -1050,6 +1051,11 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             zbtn('rvZreset', function () { closePop(); zoomTo(VIEWS.all.slice(), true); });
         }
 
+        var histWhy = function (seen) {
+            if (!HST.with) return 'Почасовой истории ещё нет ни в одном отчёте: все отчёты за период пришли до обновления прослойки. Клиент шлёт отчёт при плановом обновлении подписки, не чаще раза в 6 часов — полоса заполнится со следующего.';
+            if (seen < HST.first) return 'Этот отчёт пришёл ' + ago(seen) + ', до обновления прослойки — по часам он не разложен. Первый отчёт с историей пришёл ' + ago(HST.first) + '; у этого устройства полоса заполнится со следующего отчёта (не чаще раза в 6 часов).';
+            return 'В отчёте ' + ago(seen) + ' не было часов с пингами до этого узла в этой сети.';
+        };
         var histCells = function (hist, hh) {
             var now = Math.floor(Date.now() / 3600000) * 3600, out = '';
             for (var i = 0; i < 48; i++) {
@@ -1072,7 +1078,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             mxT.innerHTML = '<div class="rv-wrap rv-mxs"><table class="rv-mx rv-mxw"><thead><tr><th class="rh">Узел</th>' + cols.map(function (c) {
                 return '<th class="pc">' + flag(c.cc) + '<div class="o" title="' + esc(c.org) + '">' + esc(c.org || '—') + '</div><div style="font-weight:400">AS' + c.asn + ' · ' + c.n + '</div></th>';
             }).join('') + '</tr></thead><tbody>' + rowsN.map(function (n) {
-                return '<tr><td class="rh">' + flagFor(n.cc, n.nm) + '<b>' + esc(n.nm) + '</b><small>' + esc(n.t) + ' · <code>' + esc(n.a) + '</code></small></td>' + cols.map(function (col) {
+                return '<tr><td class="rh" title="' + esc(n.a) + '">' + flagFor(n.cc, n.nm) + '<b>' + esc(n.nm) + '</b><small>' + esc(n.t) + '</small></td>' + cols.map(function (col) {
                     var c = cells[n.k + '|' + col.asn];
                     if (!c || c.pn <= 0) return '<td><div class="rv-mc"><span class="a">—</span></div></td>';
                     var cls = c.dead > 0 && c.dead >= c.n ? 'dead' : 'q' + qFail(c.fail);
@@ -1122,7 +1128,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                                 + '<td>' + ico(KIND[r.k] ? r.k : 'other') + ' ' + esc(KIND[r.k] || r.k) + '</td><td>' + flag(r.cc) + ' ' + esc(r.rg ? M.r[r.rg].n : ccName(r.cc) || '—') + '</td><td><code>' + esc(r.ip || '—') + '</code></td>'
                                 + '<td>' + (r.dead ? '<span class="rq q5">нет ответа</span>' : '<span class="rq q' + qFail(r.pn ? r.pf / r.pn : null) + '">' + fl(r.pf, r.pn) + '</span>') + '</td><td>' + (r.med >= 0 ? '<span class="rq q' + qMed(r.med) + '">' + MED[r.med] + '</span>' : '—') + '</td>'
                                 + '<td>' + (r.v === 'frozen' ? '<span class="rv-pill st-warn">режется</span>' : r.v === 'ok' ? '<span class="rv-pill st-ok">проходит</span>' : r.v === 'dead' ? '<span class="rv-pill st-bad">не отвечает</span>' : '<span class="muted">—</span>') + '</td>'
-                                + '<td><div class="rv-hist sm">' + histCells(r.hist, r.hh) + '</div></td><td class="muted" style="white-space:nowrap">' + ago(r.seen) + '</td></tr>';
+                                + '<td><div class="rv-hist sm"' + (r.hist ? '' : ' title="' + esc(histWhy(r.seen)) + '"') + '>' + histCells(r.hist, r.hh) + '</div></td><td class="muted" style="white-space:nowrap">' + ago(r.seen) + '</td></tr>';
                         }).join('') + '</tbody></table></div>';
                     mxd.style.minHeight = '';
                     mxd.querySelectorAll('tr.clk').forEach(function (t) { t.addEventListener('click', function () { openClient(t.dataset.s); }); });
@@ -1225,7 +1231,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             };
             var devTabs = c.devs.map(function (x, i) {
                 var xr = c.rows.filter(function (r) { return r.hw === x.hw; }), xp = 0, xf = 0; xr.forEach(function (r) { xp += r.pn; xf += r.pf; }); var bad = xr.some(function (r) { return r.dead; }) || (xp >= 20 && xf / xp >= .1), warn = xr.some(function (r) { return r.v === 'frozen'; }) || (xp >= 20 && xf / xp >= .03);
-                return '<button type="button" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span><span class="rv-pill st-' + (bad ? 'bad' : warn ? 'warn' : 'ok') + (bad || warn ? ' rv-jump" title="Показать проблемный узел' : '') + '">' + (bad ? 'проблемы' : warn ? 'деградация' : 'в порядке') + '</span></button>';
+                return '<div role="button" tabindex="0" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span>' + (bad || warn ? '<button type="button" class="rv-pill rv-jump st-' + (bad ? 'bad' : 'warn') + '" title="Показать проблемный узел">' + (bad ? 'проблемы' : 'деградация') + '</button>' : '<span class="rv-pill st-ok">в порядке</span>') + '</div>';
             }).join('');
             var sel = CS.cell ? CS.cell.split('|') : null, sr = sel && nmap[sel[1]] ? nmap[sel[1]].cells[sel[0]] : null, sn = sel ? nmap[sel[1]] : null, sp = sr && sn ? peer(sn.asn, sel[0]) : null;
             drw.innerHTML = '<div class="rv-dh"><span class="av">' + esc((nm || c.short).slice(0, 2).toUpperCase()) + '</span><div style="min-width:0"><h2>' + esc(nm || c.short) + '</h2><div class="muted" style="font-size:.78rem">' + (nm ? 'имя из панели · ' : '') + '<code>' + esc(c.short) + '</code></div></div>'
@@ -1247,15 +1253,20 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 + (sr ? '<div class="rv-mxd"><h3>' + esc(nodeNm(sel[0])) + ' в сети «' + esc(label(sn)) + '» — последние 48 часов</h3><div class="muted" style="font-size:.8rem">Пингов ' + sr.pn + ', неудачных ' + sr.pf + ' · медиана ' + (MED[sr.med] || '—') + (sp ? ' · у других клиентов этого провайдера: неудач ' + pct(sp.fail) + ', медиана ' + (MED[sp.med] || '—') + (sp.dead ? ', без ответа ' + sp.dead + ' из ' + sp.n : '') : '') + '</div>'
                     + '<div class="rv-hist">' + histCells(sr.hist, sr.hh) + '</div><div class="rv-hax"><span>48 ч назад</span><span>24 ч</span><span>сейчас</span></div>'
                     + '<div class="rv-legend"><span><i style="background:var(--rq1)"></i>&lt; 100 мс</span><span><i style="background:var(--rq2)"></i>100–200</span><span><i style="background:var(--rq3)"></i>200–400</span><span><i style="background:var(--rq4)"></i>400–800</span><span><i style="background:var(--rq5)"></i>&gt; 0,8 с</span><span><i class="hx" style="background:repeating-linear-gradient(135deg,var(--rq5) 0 3px,transparent 3px 6px)"></i>нет ответа</span><span><i style="background:var(--line)"></i>нет замеров в этой сети</span></div>'
-                    + (sr.hist ? '' : '<div class="muted" style="font-size:.78rem;margin-top:.3rem">История по часам копится с первого отчёта после обновления прослойки.</div>') + '</div>' : '')
+                    + (sr.hist ? '' : '<div class="muted" style="font-size:.78rem;margin-top:.3rem">' + esc(histWhy(sr.seen)) + '</div>') + '</div>' : '')
                 + '</div>';
             drw.querySelector('#rvDrwX').addEventListener('click', closeClient);
             var newDb = drw.querySelector('.rv-db'); if (keep && newDb) newDb.scrollTop = oldTop;
-            drw.querySelectorAll('.rv-dtab').forEach(function (b) { b.addEventListener('click', function (e) {
-                CS.dev = +b.dataset.i; CS.cell = null;
-                if (e.target.closest('.rv-jump')) { var w = worst(c.devs[CS.dev].hw); if (w) { CS.cell = w; CS.jump = w; } }
-                drawClient(true);
-            }); });
+            drw.querySelectorAll('.rv-dtab').forEach(function (b) {
+                var pick = function (jump) {
+                    CS.dev = +b.dataset.i; CS.cell = null;
+                    if (jump) { var w = worst(c.devs[CS.dev].hw); if (w) { CS.cell = w; CS.jump = w; } }
+                    drawClient(true);
+                };
+                b.addEventListener('click', function (e) { pick(!!(e.target.closest && e.target.closest('.rv-jump'))); });
+                b.addEventListener('keydown', function (e) { if (e.target === b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(false); } });
+                var jb = b.querySelector('.rv-jump'); if (jb) jb.addEventListener('click', function (e) { e.stopPropagation(); pick(true); });
+            });
             var jumpTo = function (key) { CS.cell = key; CS.jump = key; drawClient(true); };
             drw.querySelectorAll('.rv-diag[data-jump]').forEach(function (b) {
                 b.addEventListener('click', function () { jumpTo(b.dataset.jump); });
