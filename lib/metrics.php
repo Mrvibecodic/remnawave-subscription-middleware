@@ -115,6 +115,7 @@ function metrics_detect_peak($p, $minute) {
         $st = $p->prepare('SELECT hits, dur_ms_max, mem_max FROM metrics_minute WHERE minute_ts = ?');
         $st->execute([$minute]);
         $cur = $st->fetch();
+        $st->closeCursor();
         if (!$cur) return;
         $hits = (int) $cur['hits'];
         $floor = metrics_peak_floor();
@@ -123,6 +124,7 @@ function metrics_detect_peak($p, $minute) {
         $st = $p->prepare('SELECT AVG(hits) FROM metrics_minute WHERE minute_ts >= ? AND minute_ts < ?');
         $st->execute([$minute - 3600, $minute]);
         $baseline = (float) $st->fetchColumn();
+        $st->closeCursor();
         $threshold = max($floor, $baseline * metrics_peak_factor());
         if ($hits < $threshold) return;
 

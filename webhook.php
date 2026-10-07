@@ -80,6 +80,7 @@ if ($event === 'user_hwid_devices.added' || $event === 'user_hwid_devices.delete
                 $st = $p->prepare("SELECT username FROM webhook_log WHERE short_uuid = ? AND username IS NOT NULL AND username <> '' ORDER BY id DESC LIMIT 1");
                 $st->execute([$hw_short]);
                 $v = $st->fetchColumn();
+                $st->closeCursor();
                 if (is_string($v) && $v !== '') $hw_name = $v;
             } catch (Throwable $e) {
                 error_log('submw webhook hwid name lookup: ' . $e->getMessage());
