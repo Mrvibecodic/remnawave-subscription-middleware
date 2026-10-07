@@ -8,6 +8,7 @@ const REP_VIEW_KINDS   = ['wifi' => 'Wi-Fi', 'mobile' => 'Мобильная', '
 const REP_VIEW_PLATS   = ['pc' => 'ПК', 'android' => 'Android'];
 // Ниже стольких пингов доля неудач — шум, а не оценка.
 const REP_VIEW_MIN_PINGS = 20;
+const REP_VIEW_VERDICT_TTL = 259200;
 
 function rep_view_filters(array $q) {
     $p = (int) ($q['p'] ?? 7);
@@ -95,18 +96,6 @@ function rep_view_totals(array $f, $since) {
     [$w, $a] = rep_view_where($f, 'last_seen', $since, ['kind', 'cc', 'node']);
     $dev = rep_view_rows("SELECT COUNT(*) AS n FROM (SELECT short_uuid, hwid FROM rep_state WHERE $w GROUP BY short_uuid, hwid) t", $a);
     $out['devices'] = (int) ($dev[0]['n'] ?? 0);
-
-    return $out;
-}
-
-function rep_view_countries(array $f, $since) {
-    $g = $f;
-    $g['cc'] = '';
-    [$w, $a] = rep_view_where($g, 'h', $since, ['kind', 'plat', 'node']);
-    $out = [];
-    foreach (rep_view_rows('SELECT cc, ' . rep_view_sums() . " FROM rep_hour WHERE $w AND cc <> '' GROUP BY cc", $a) as $r) {
-        $out[$r['cc']] = rep_view_score($r);
-    }
 
     return $out;
 }
@@ -217,14 +206,6 @@ function rep_view_series(array $f, $since, $now = null) {
     return ['step' => $step, 'points' => $out];
 }
 
-// Состояние по клиенту: по shortUuid или HWID — сети, адреса, узлы, последние вердикты.
-function rep_view_client($q) {
-    if ($q === '') return [];
-
-    return rep_view_rows('SELECT short_uuid, hwid, net, nkey, kind, ip4, ip6, cc, asn, org, verdict, vstatus, vat, pn, pf, pmed, up, down, last_seen'
-        . ' FROM rep_state WHERE short_uuid = ? OR hwid = ? ORDER BY last_seen DESC LIMIT 500', [$q, $q]);
-}
-
 // Узлы панели по адресу: адрес узла или хоста (как в подписке) → имя узла и страна.
 // Из API панели, раз в полчаса; без панели — пусто.
 function rep_panel_index($maxAge = 1800) {
@@ -276,4 +257,221 @@ function rep_panel_index($maxAge = 1800) {
     set_setting('rep_panel_ts', (string) $now);
 
     return $out;
+}
+
+function rep_view_devmap() {
+    $out = [];
+    foreach (rep_view_rows('SELECT short_uuid, hwid, plat, client, ' . rep_sel(['model', 'os']) . ', reports, last_report FROM rep_dev', []) as $r) {
+        $out[$r['short_uuid'] . '|' . $r['hwid']] = $r;
+    }
+
+    return $out;
+}
+
+function rep_view_nodelist(array $panel = []) {
+    $out = [];
+    foreach (rep_view_rows('SELECT nkey, type, server, port, name FROM rep_node', []) as $n) {
+        $hit = $panel[strtolower((string) $n['server'])] ?? [];
+        $out[$n['nkey']] = [
+            'k'  => (string) $n['nkey'],
+            'nm' => (string) ($n['name'] !== '' ? $n['name'] : $n['server']),
+            't'  => (string) $n['type'],
+            'a'  => $n['server'] . ':' . (int) $n['port'],
+            'cc' => is_array($hit) && isset($hit[0]['cc']) ? (string) $hit[0]['cc'] : '',
+        ];
+    }
+
+    return $out;
+}
+
+function rep_view_map(array $f, $since, array $panel = [], $limit = 300000) {
+    $out = ['nodes' => [], 'devs' => [], 'nets' => [], 'ms' => [], 'cut' => false];
+    if (!rep_ensure() || !($p = db())) return $out;
+    $nodes = rep_view_nodelist($panel);
+    $nidx  = [];
+    foreach ($nodes as $k => $n) { $nidx[$k] = count($out['nodes']); $out['nodes'][] = $n; }
+    $devs = rep_view_devmap();
+    [$w, $a] = rep_view_where($f, 'last_seen', $since, ['kind', 'cc', 'node']);
+    $vcut = time() - REP_VIEW_VERDICT_TTL;
+    $unbuf = db_driver() === 'mysql' && defined('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY');
+    try {
+        if ($unbuf) $p->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
+        $st = $p->prepare('SELECT short_uuid, hwid, net, nkey, kind, ip4, ip6, cc, asn, org, verdict, vat, pn, pf, pmed, last_seen, ' . rep_sel(['loc', 'hist_h'])
+            . " FROM rep_state WHERE $w ORDER BY last_seen DESC LIMIT " . ((int) $limit + 1));
+        $st->execute($a);
+    } catch (Throwable $e) {
+        if ($unbuf) $p->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
+        error_log('submw rep map: ' . $e->getMessage());
+        return $out;
+    }
+    $didx = [];
+    $nets = [];
+    $rows = 0;
+    while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+        if (++$rows > $limit) { $out['cut'] = true; break; }
+        $dk = $r['short_uuid'] . '|' . $r['hwid'];
+        $dv = $devs[$dk] ?? null;
+        if ($f['plat'] !== '' && ($dv['plat'] ?? '') !== $f['plat']) continue;
+        if (!isset($didx[$dk])) {
+            $didx[$dk] = count($out['devs']);
+            $out['devs'][] = [
+                's'  => (string) $r['short_uuid'],
+                'p'  => (string) ($dv['plat'] ?? ''),
+                'm'  => (string) ($dv['model'] ?? ''),
+                'o'  => (string) ($dv['os'] ?? ''),
+                'c'  => (string) ($dv['client'] ?? ''),
+                'lr' => (int) ($dv['last_report'] ?? 0),
+            ];
+        }
+        $nk = $dk . '|' . $r['net'];
+        if (!isset($nets[$nk])) {
+            $nets[$nk] = ['d' => $didx[$dk], 'k' => (string) $r['kind'], 'ip' => '', 'cc' => '', 'asn' => 0, 'org' => '', 'loc' => '',
+                          'pn' => 0, 'pf' => 0, 'b' => array_fill(0, REP_BUCKETS, 0), 'dead' => [], 'frz' => [], 'ms' => [], 'vok' => 0, 'hh' => 0, 'seen' => 0, 'ah' => -1];
+        }
+        $x = &$nets[$nk];
+        $pn = (int) $r['pn'];
+        $pf = (int) $r['pf'];
+        $x['pn'] += $pn;
+        $x['pf'] += $pf;
+        $m = (int) $r['pmed'];
+        if ($m >= 0 && $m < REP_BUCKETS && $pn > $pf) $x['b'][$m] += $pn - $pf;
+        $ni = $nidx[$r['nkey']] ?? -1;
+        if ($ni >= 0 && $pn > 0) $x['ms'][] = $ni;
+        if ($ni >= 0 && $pn > 0 && $pf >= $pn) $x['dead'][] = $ni;
+        $fresh = (int) $r['vat'] >= $vcut;
+        if ($ni >= 0 && $fresh && $r['verdict'] === 'frozen') $x['frz'][] = $ni;
+        if ($fresh && $r['verdict'] === 'ok') $x['vok']++;
+        $x['hh']   = max($x['hh'], (int) $r['hist_h']);
+        $x['seen'] = max($x['seen'], (int) $r['last_seen']);
+        $ip = $r['ip4'] !== '' ? (string) $r['ip4'] : (string) $r['ip6'];
+        if ($ip !== '' && (int) $r['hist_h'] >= $x['ah']) {
+            $x['ah']  = (int) $r['hist_h'];
+            $x['ip']  = $ip;
+            $x['cc']  = (string) $r['cc'];
+            $x['asn'] = (int) $r['asn'];
+            $x['org'] = (string) $r['org'];
+            $x['loc'] = (string) $r['loc'];
+            $x['k']   = (string) $r['kind'];
+        }
+        unset($x);
+    }
+    $st->closeCursor();
+    if ($unbuf) $p->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
+    $sets = [];
+    foreach ($nets as $x) {
+        $ms = array_values(array_unique($x['ms']));
+        sort($ms);
+        $sk = implode(',', $ms);
+        if (!isset($sets[$sk])) { $sets[$sk] = count($out['ms']); $out['ms'][] = $ms; }
+        $out['nets'][] = [$x['d'], $x['k'], $x['ip'], $x['cc'], $x['asn'], $x['org'], $x['loc'], $x['pn'], $x['pf'],
+                          rep_median_bucket($x['b']), array_values(array_unique($x['dead'])), array_values(array_unique($x['frz'])), $x['vok'], $x['hh'], $x['seen'], $sets[$sk]];
+    }
+
+    return $out;
+}
+
+function rep_view_matrix(array $f, $since, $cols = 12) {
+    $out = ['cols' => [], 'cells' => []];
+    $join = $f['plat'] !== '' ? ' JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid' : '';
+    [$w, $a] = rep_view_where($f, 's.last_seen', $since, ['kind', 'cc', 'node', 'plat']);
+    $w = str_replace(['kind = ?', 'cc = ?', 'nkey = ?', 'plat = ?'], ['s.kind = ?', 's.cc = ?', 's.nkey = ?', 'd.plat = ?'], $w);
+    $isps = rep_view_rows('SELECT asn, MAX(cc) AS cc, MAX(org) AS org, COUNT(*) AS n FROM (SELECT s.asn, MAX(s.cc) AS cc, MAX(s.org) AS org FROM rep_state s'
+        . $join . " WHERE $w AND s.asn > 0 GROUP BY s.asn, s.short_uuid, s.hwid) t GROUP BY asn ORDER BY n DESC, asn ASC LIMIT " . (int) $cols, $a);
+    if (!$isps) return $out;
+    $asns = [];
+    foreach ($isps as $r) {
+        $asns[] = (int) $r['asn'];
+        $out['cols'][] = ['asn' => (int) $r['asn'], 'cc' => (string) $r['cc'], 'org' => (string) $r['org'], 'n' => (int) $r['n']];
+    }
+    $bs = [];
+    for ($i = 0; $i < REP_BUCKETS; $i++) $bs[] = "SUM(CASE WHEN s.pmed = $i AND s.pn > s.pf THEN s.pn - s.pf ELSE 0 END) AS b$i";
+    $rows = rep_view_rows('SELECT s.nkey, s.asn, COUNT(*) AS n, SUM(s.pn) AS pn, SUM(s.pf) AS pf,'
+        . ' SUM(CASE WHEN s.pn > 0 AND s.pf >= s.pn THEN 1 ELSE 0 END) AS dead,'
+        . " SUM(CASE WHEN s.verdict = 'frozen' AND s.vat >= ? THEN 1 ELSE 0 END) AS ffr, " . implode(', ', $bs)
+        . ' FROM rep_state s' . $join . " WHERE $w AND s.asn IN (" . implode(',', $asns) . ') GROUP BY s.nkey, s.asn', array_merge([time() - REP_VIEW_VERDICT_TTL], $a));
+    foreach ($rows as $r) {
+        $b = [];
+        for ($i = 0; $i < REP_BUCKETS; $i++) $b[] = (int) $r['b' . $i];
+        $pn = (int) $r['pn'];
+        $out['cells'][$r['nkey'] . '|' . (int) $r['asn']] = [
+            'n' => (int) $r['n'], 'pn' => $pn, 'pf' => (int) $r['pf'], 'dead' => (int) $r['dead'], 'ffr' => (int) $r['ffr'],
+            'fail' => $pn >= REP_VIEW_MIN_PINGS ? (int) $r['pf'] / $pn : null, 'med' => rep_median_bucket($b),
+        ];
+    }
+
+    return $out;
+}
+
+function rep_view_cell(array $f, $since, $nkey, $asn) {
+    [$w, $a] = rep_view_where($f, 's.last_seen', $since, ['kind', 'cc', 'plat']);
+    $w = str_replace(['kind = ?', 'cc = ?', 'plat = ?'], ['s.kind = ?', 's.cc = ?', 'd.plat = ?'], $w);
+    $rows = rep_view_rows('SELECT s.short_uuid, s.hwid, s.net, s.kind, s.ip4, s.ip6, s.cc, s.pn, s.pf, s.pmed, s.verdict, s.vat, s.last_seen, ' . rep_sel(['loc', 'hist', 'hist_h'], 's.') . ','
+        . ' d.plat, d.client, ' . rep_sel(['model', 'os'], 'd.') . ' FROM rep_state s LEFT JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid'
+        . " WHERE $w AND s.nkey = ? AND s.asn = ? ORDER BY s.last_seen DESC LIMIT 500", array_merge($a, [(string) $nkey, (int) $asn]));
+    $out = [];
+    foreach ($rows as $r) $out[] = rep_view_state_row($r);
+    usort($out, static function ($x, $y) {
+        if ($x['dead'] !== $y['dead']) return $y['dead'] <=> $x['dead'];
+        return ($y['fail'] ?? -1) <=> ($x['fail'] ?? -1);
+    });
+
+    return $out;
+}
+
+function rep_view_state_row(array $r) {
+    $pn = (int) $r['pn'];
+    $pf = min((int) $r['pf'], $pn);
+    if ((int) ($r['vat'] ?? 0) < time() - REP_VIEW_VERDICT_TTL) $r['verdict'] = '';
+
+    return [
+        's' => (string) $r['short_uuid'], 'hw' => (string) $r['hwid'], 'net' => (string) $r['net'], 'k' => (string) $r['kind'],
+        'ip' => (string) ($r['ip4'] !== '' ? $r['ip4'] : $r['ip6']), 'ip6' => $r['ip4'] !== '' ? (string) $r['ip6'] : '',
+        'cc' => (string) $r['cc'], 'loc' => (string) $r['loc'], 'pn' => $pn, 'pf' => $pf, 'med' => (int) $r['pmed'],
+        'fail' => $pn >= REP_VIEW_MIN_PINGS ? $pf / $pn : null, 'dead' => $pn > 0 && $pf >= $pn ? 1 : 0,
+        'v' => (string) $r['verdict'], 'hist' => (string) $r['hist'], 'hh' => (int) $r['hist_h'], 'seen' => (int) $r['last_seen'],
+        'p' => (string) ($r['plat'] ?? ''), 'm' => (string) ($r['model'] ?? ''), 'o' => (string) ($r['os'] ?? ''), 'c' => (string) ($r['client'] ?? ''),
+    ];
+}
+
+function rep_view_client_card($q, $since) {
+    $q = trim((string) $q);
+    if ($q === '' || !rep_ensure()) return null;
+    $hit = rep_view_rows('SELECT short_uuid FROM rep_dev WHERE short_uuid = ? OR hwid = ? ORDER BY last_report DESC LIMIT 1', [$q, $q]);
+    if (!$hit) $hit = rep_view_rows('SELECT short_uuid FROM rep_state WHERE short_uuid = ? OR hwid = ? ORDER BY last_seen DESC LIMIT 1', [$q, $q]);
+    if (!$hit) return null;
+    $short = (string) $hit[0]['short_uuid'];
+    $devs = [];
+    foreach (rep_view_rows('SELECT hwid, plat, client, ' . rep_sel(['model', 'os']) . ', first_seen, last_report, reports FROM rep_dev WHERE short_uuid = ? ORDER BY last_report DESC', [$short]) as $d) {
+        $devs[] = ['hw' => (string) $d['hwid'], 'p' => (string) $d['plat'], 'c' => (string) $d['client'], 'm' => (string) $d['model'], 'o' => (string) $d['os'],
+                   'fs' => (int) $d['first_seen'], 'lr' => (int) $d['last_report'], 'r' => (int) $d['reports']];
+    }
+    $rows = [];
+    $asns = [];
+    foreach (rep_view_rows('SELECT short_uuid, hwid, net, nkey, kind, ip4, ip6, cc, asn, org, pn, pf, pmed, verdict, vat, last_seen, ' . rep_sel(['loc', 'hist', 'hist_h'])
+        . ' FROM rep_state WHERE short_uuid = ? ORDER BY last_seen DESC LIMIT 3000', [$short]) as $r) {
+        $x = rep_view_state_row($r);
+        $x['n'] = (string) $r['nkey'];
+        $x['asn'] = (int) $r['asn'];
+        $x['org'] = (string) $r['org'];
+        $rows[] = $x;
+        if ((int) $r['asn'] > 0) $asns[(int) $r['asn']] = true;
+        $known = false;
+        foreach ($devs as $d) if ($d['hw'] === $x['hw']) $known = true;
+        if (!$known) $devs[] = ['hw' => $x['hw'], 'p' => '', 'c' => '', 'm' => '', 'o' => '', 'fs' => 0, 'lr' => $x['seen'], 'r' => 0];
+    }
+    $peers = [];
+    if ($asns) {
+        $bs = [];
+        for ($i = 0; $i < REP_BUCKETS; $i++) $bs[] = "SUM(CASE WHEN pmed = $i AND pn > pf THEN pn - pf ELSE 0 END) AS b$i";
+        foreach (rep_view_rows('SELECT asn, nkey, COUNT(*) AS n, SUM(pn) AS pn, SUM(pf) AS pf, SUM(CASE WHEN pn > 0 AND pf >= pn THEN 1 ELSE 0 END) AS dead, '
+            . implode(', ', $bs) . ' FROM rep_state WHERE asn IN (' . implode(',', array_keys($asns)) . ') AND short_uuid <> ? AND last_seen >= ? GROUP BY asn, nkey',
+            [$short, (int) $since]) as $r) {
+            $b = [];
+            for ($i = 0; $i < REP_BUCKETS; $i++) $b[] = (int) $r['b' . $i];
+            $pn = (int) $r['pn'];
+            $peers[(int) $r['asn'] . '|' . $r['nkey']] = ['n' => (int) $r['n'], 'dead' => (int) $r['dead'], 'fail' => $pn >= REP_VIEW_MIN_PINGS ? (int) $r['pf'] / $pn : null, 'med' => rep_median_bucket($b)];
+        }
+    }
+
+    return ['short' => $short, 'devs' => $devs, 'rows' => $rows, 'peers' => $peers];
 }

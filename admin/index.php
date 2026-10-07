@@ -439,6 +439,28 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'rep_client') {
+        $rf = rep_view_filters($_GET);
+        $card = rep_view_client_card((string) ($_GET['q'] ?? ''), rep_view_since($rf));
+        if ($card !== null) {
+            $card['name'] = (string) (chan_names_map()[$card['short']] ?? '');
+            $card['nodes'] = array_values(rep_view_nodelist(rep_panel_index()));
+        }
+        echo json_encode(['ok' => $card !== null, 'card' => $card], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
+    if ($a === 'rep_cell') {
+        $rf = rep_view_filters($_GET);
+        $nk = (string) ($_GET['nk'] ?? '');
+        $rows = preg_match('~^[0-9a-f]{12}$~', $nk) ? rep_view_cell($rf, rep_view_since($rf), $nk, (int) ($_GET['asn'] ?? 0)) : [];
+        $names = chan_names_map();
+        foreach ($rows as &$r) $r['name'] = (string) ($names[$r['s']] ?? '');
+        unset($r);
+        echo json_encode(['ok' => true, 'rows' => $rows], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
     if ($a === 'tokscopes') {
         $r = tokscope_run();
         echo json_encode($r['rows'] ? (tokscope_cached() ?: $r) : $r, JSON_UNESCAPED_UNICODE);
@@ -627,6 +649,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('rep_enabled', isset($_POST['rep_enabled']) ? '1' : '0');
         set_setting('rep_keep_days', (string) max(7, min(365, (int) ($_POST['rep_keep_days'] ?? 90))));
         set_setting('geoip_auto', isset($_POST['geoip_auto']) ? '1' : '0');
+        set_setting('geoip_city', isset($_POST['geoip_city']) ? '1' : '0');
+        if (!isset($_POST['geoip_city'])) geoip_city_drop();
+        elseif (!is_file(geoip_files()['city'])) set_setting('geoip_try', '0');
         flash(isset($_POST['rep_enabled']) ? 'Приём отчётов клиентов включён' : 'Приём отчётов клиентов выключен');
         if (isset($_POST['rep_enabled'])) register_shutdown_function('geoip_update_after_response');
         form_saved('reports');
@@ -634,7 +659,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 
     if ($action === 'clod_geoip_update') {
         $gerr = '';
-        flash(geoip_update($gerr) ? 'Базы GeoIP обновлены' : 'Базы GeoIP не обновились: ' . $gerr);
+        flash(geoip_update($gerr) ? 'Базы GeoIP обновлены' : 'Не все базы GeoIP обновились: ' . $gerr);
         form_saved('reports');
     }
 

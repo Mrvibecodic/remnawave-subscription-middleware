@@ -128,6 +128,7 @@ function install_seed_values() {
         'rep_enabled'           => '0',
         'rep_keep_days'         => '90',
         'geoip_auto'            => '1',
+        'geoip_city'            => '1',
     ];
 }
 

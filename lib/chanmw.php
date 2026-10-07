@@ -729,7 +729,7 @@ function chan_report_answer(array $ctx, ?array $rec) {
             [$st, $why] = [400, 'dev'];
         } elseif (rep_too_soon($ctx['token'], $dev)) {
             [$st, $why] = [429, 'soon'];
-        } elseif (!rep_ingest($ctx['token'], $dev, $data, $why)) {
+        } elseif (!rep_ingest($ctx['token'], $dev, $data, $why, null, ['model' => (string) ($ctx['req']['model'] ?? ''), 'os' => (string) ($ctx['req']['os'] ?? ''), 'osv' => (string) ($ctx['req']['osv'] ?? '')])) {
             $st = $why === 'db' ? 500 : 400;
         } else {
             $st = 204;
