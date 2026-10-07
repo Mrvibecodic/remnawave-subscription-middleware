@@ -380,6 +380,7 @@ function squadconf_user_state($short) {
         $st = $p->prepare('SELECT squads, st, ts FROM squad_cache WHERE su = ?');
         $st->execute([$short]);
         $row = $st->fetch();
+        $st->closeCursor();
     } catch (Throwable $e) {}
     $from_row = function ($r) {
         $a = json_decode((string) ($r['squads'] ?? ''), true);

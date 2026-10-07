@@ -1381,6 +1381,7 @@ if ($db_ok && ($tab === 'whlog' || $tab === 'whlog_other')) {
                 $wh_bs = (string) $wh_bs;
                 $wh_nm->execute([$wh_bs]);
                 $wh_bn = $wh_nm->fetchColumn();
+                $wh_nm->closeCursor();
                 if (is_string($wh_bn) && $wh_bn !== '') $wh_up->execute([$wh_bn, $wh_bs]);
                 else $wh_miss[] = $wh_bs;
             }

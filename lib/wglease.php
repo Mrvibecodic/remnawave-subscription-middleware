@@ -102,6 +102,7 @@ function wglease_ensure_cfg_uidx($p) {
             $keep = $p->prepare('SELECT id FROM wg_lease WHERE config_id = ? ORDER BY manual DESC, id ASC LIMIT 1');
             $keep->execute([(int) $cid]);
             $keepId = (int) $keep->fetchColumn();
+            $keep->closeCursor();
             if ($keepId > 0) $p->prepare('DELETE FROM wg_lease WHERE config_id = ? AND id <> ?')->execute([(int) $cid, $keepId]);
         }
     } catch (Throwable $e) { error_log('submw wglease dedupe: ' . $e->getMessage()); return; }
@@ -195,6 +196,7 @@ function wglease_pick($pool_id, $subkey, $short_uuid, $hwid, array $cands, $ua =
         $st = $p->prepare('SELECT id, config_id, manual FROM wg_lease WHERE lease_key = ? LIMIT 1');
         $st->execute([$lease_key]);
         $row = $st->fetch();
+        $st->closeCursor();
     } catch (Throwable $e) { $row = null; }
     if ($row && isset($by_id[(int) $row['config_id']])) {
         if ($ua !== '') { try { $p->prepare('UPDATE wg_lease SET seen_ts = ?, ua = ? WHERE id = ?')->execute([$now, $ua, (int) $row['id']]); } catch (Throwable $e) {} }
@@ -213,6 +215,7 @@ function wglease_pick($pool_id, $subkey, $short_uuid, $hwid, array $cands, $ua =
             $st = $p->prepare('SELECT config_id FROM wg_lease WHERE lease_key = ? AND manual = 1 LIMIT 1');
             $st->execute([wglease_key($pool_id, 's:' . $short_uuid)]);
             $m = $st->fetchColumn();
+            $st->closeCursor();
             if ($m !== false && isset($by_id[(int) $m])) return $by_id[(int) $m];
         } catch (Throwable $e) {}
     }
@@ -261,6 +264,7 @@ function wglease_rekey($p, $pool_id, $lease_key, $short_uuid, $hwid, array $cand
         $st = $p->prepare($sql);
         $st->execute(array_merge($args, $cand_ids));
         $id = $st->fetchColumn();
+        $st->closeCursor();
     } catch (Throwable $e) { return null; }
     if ($id === false) return null;
     return wglease_take_row($p, (int) $id, $lease_key, '', $now, $ua, $by_id);
@@ -296,6 +300,7 @@ function wglease_assign($p, $pool_id, $lease_key, $short_uuid, $hwid, array $can
                 $st2 = $p->prepare('SELECT config_id FROM wg_lease WHERE lease_key = ? LIMIT 1');
                 $st2->execute([$lease_key]);
                 $ex = $st2->fetchColumn();
+                $st2->closeCursor();
                 if ($ex !== false && isset($by_id[(int) $ex])) return $by_id[(int) $ex];
             } catch (Throwable $e2) {}
         }
