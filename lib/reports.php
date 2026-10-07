@@ -73,7 +73,7 @@ function rep_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS rep_state ($id, short_uuid {$a(64)}, hwid {$u(128)}, net {$a(16)}, nkey {$a(16)},
             kind {$a(8)}, ip4 {$a(45)}, ip6 {$a(45)}, cc {$a(2)}, asn $int, org {$u(128)}, verdict {$a(8)},
             vstatus $int, vat $int, pn $big, pf $big, pmed $int, up $big, down $big, last_seen $int,
-            loc {$a(24)}, hist {$a(48)}, hist_h $int,
+            loc {$a(24)}, hist {$a(48)}, hist_h $int, sub {$u(64)},
             UNIQUE (short_uuid, hwid, net, nkey){$keys('rep_state')})$tail",
     ];
     if (!$my) {
@@ -107,7 +107,7 @@ function rep_add_cols(PDO $p) {
     $int  = $my ? 'INT NOT NULL DEFAULT 0' : 'INTEGER NOT NULL DEFAULT 0';
     $plan = [
         'rep_dev'   => ['model' => $u(64), 'os' => $u(48)],
-        'rep_state' => ['loc' => $a(24), 'hist' => $a(48), 'hist_h' => $int],
+        'rep_state' => ['loc' => $a(24), 'hist' => $a(48), 'hist_h' => $int, 'sub' => $u(64)],
     ];
     $ok = true;
     foreach ($plan as $t => $cols) {
@@ -130,7 +130,7 @@ function rep_new_cols() {
 }
 
 function rep_sel(array $cols, $prefix = '') {
-    $fb = ['loc' => "''", 'hist' => "''", 'hist_h' => '0', 'model' => "''", 'os' => "''"];
+    $fb = ['loc' => "''", 'hist' => "''", 'hist_h' => '0', 'model' => "''", 'os' => "''", 'sub' => "''"];
     $new = rep_new_cols();
     $out = [];
     foreach ($cols as $c) $out[] = !$new && isset($fb[$c]) ? $fb[$c] . ' AS ' . $c : $prefix . $c;
@@ -355,7 +355,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             $ip4 = rep_ip($hr['ip4'] ?? '', 4);
             $ip6 = rep_ip($hr['ip6'] ?? '', 6);
             $ip  = $ip4 !== '' ? $ip4 : $ip6;
-            $geo = $ip !== '' ? geoip_lookup($ip) : ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => ''];
+            $geo = $ip !== '' ? geoip_lookup($ip) : ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => ''];
             $d   = intdiv($h, 86400) * 86400;
 
             $cells = [];
@@ -418,7 +418,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
 
                 $sk = "$net|$nk";
                 if (!isset($state[$sk])) {
-                    $state[$sk] = ['net' => $net, 'nkey' => $nk, 'kind' => $kind, 'ip4' => '', 'ip6' => '', 'cc' => '', 'asn' => 0, 'org' => '', 'loc' => '',
+                    $state[$sk] = ['net' => $net, 'nkey' => $nk, 'kind' => $kind, 'ip4' => '', 'ip6' => '', 'cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => '',
                                    'h' => -1, 'pn' => 0, 'pf' => 0, 'b' => array_fill(0, REP_BUCKETS, 0), 'up' => 0, 'down' => 0, 'v' => null, 'hb' => []];
                 }
                 $s = &$state[$sk];
@@ -447,6 +447,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
                         $s['asn'] = $geo['asn'];
                         $s['org'] = $geo['org'];
                         $s['loc'] = (string) ($geo['loc'] ?? '');
+                        $s['sub'] = (string) ($geo['sub'] ?? '');
                     }
                 }
                 if (isset($verdicts[$tok]) && ($s['v'] === null || $verdicts[$tok][2] >= $s['v'][2])) $s['v'] = $verdicts[$tok];
@@ -483,7 +484,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             }
             if ($s['ip4'] !== '' || $s['ip6'] !== '') {
                 $set = array_merge($set, ['ip4', 'ip6', 'cc', 'asn', 'org']);
-                if ($nc) { $row['loc'] = $s['loc']; $set[] = 'loc'; }
+                if ($nc) { $row['loc'] = $s['loc']; $row['sub'] = $s['sub']; $set[] = 'loc'; $set[] = 'sub'; }
             }
             if ($s['v'] !== null) {
                 $row += ['verdict' => $s['v'][0], 'vstatus' => $s['v'][1], 'vat' => $s['v'][2]];
