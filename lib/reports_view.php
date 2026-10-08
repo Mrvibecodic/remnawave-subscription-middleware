@@ -186,12 +186,19 @@ function rep_view_nodes(array $f, $since) {
 
     // Где узлу хуже всего: страна + AS с наибольшей долей неудач (при достаточном числе пингов).
     $worst = [];
-    foreach (rep_view_rows('SELECT nkey, cc, asn, ' . rep_view_sums() . " FROM rep_hour WHERE $w GROUP BY nkey, cc, asn", $a) as $r) {
+    foreach (rep_view_rows('SELECT nkey, cc, asn, ' . rep_view_sums() . " FROM rep_hour WHERE $w AND asn > 0 GROUP BY nkey, cc, asn", $a) as $r) {
         $s = rep_view_score($r);
         if ($s['fail'] === null) continue;
         if (!isset($worst[$r['nkey']]) || $s['fail'] > $worst[$r['nkey']]['fail']) {
-            $worst[$r['nkey']] = ['cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'fail' => $s['fail'], 'pn' => $s['pn']];
+            $worst[$r['nkey']] = ['cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => '', 'fail' => $s['fail'], 'pn' => $s['pn']];
         }
+    }
+    if ($worst) {
+        $asns = array_values(array_unique(array_map(static fn($x) => (int) $x['asn'], $worst)));
+        $orgs = [];
+        foreach (rep_view_rows('SELECT asn, MAX(org) AS org FROM rep_ip_day WHERE asn IN (' . implode(', ', $asns) . ') GROUP BY asn', []) as $o) $orgs[(int) $o['asn']] = (string) $o['org'];
+        foreach ($worst as &$x) $x['org'] = $orgs[$x['asn']] ?? '';
+        unset($x);
     }
 
     $out = [];
@@ -294,7 +301,9 @@ function rep_panel_index($maxAge = 1800) {
             if ($addr !== '' && is_array($in)) {
                 $sl  = strtoupper((string) ($host['securityLayer'] ?? 'DEFAULT'));
                 $sec = $sl === 'TLS' ? 'tls' : ($sl === 'NONE' ? 'none' : strtolower((string) ($in['security'] ?? '')));
-                $tr[$addr . '|' . (int) ($host['port'] ?? 0)] = ['t' => rep_str((string) ($in['type'] ?? ''), 24), 'n' => rep_str((string) ($in['network'] ?? ''), 24), 's' => rep_str($sec, 16)];
+                $one = ['t' => rep_str((string) ($in['type'] ?? ''), 24), 'n' => rep_str((string) ($in['network'] ?? ''), 24), 's' => rep_str($sec, 16)];
+                $tk  = $addr . '|' . (int) ($host['port'] ?? 0);
+                if (!in_array($one, $tr[$tk] ?? [], true)) $tr[$tk][] = $one;
             }
             if ($addr === '' || isset($out[$addr])) continue;
             foreach ((array) ($host['nodes'] ?? []) as $ref) {
@@ -320,7 +329,15 @@ function rep_panel_tr() {
 function rep_proto_label($type, $server = '', $port = 0, ?array $tr = null) {
     static $cache = null;
     if ($tr === null) $tr = $cache ?? ($cache = rep_panel_tr());
-    $hit   = $tr[strtolower((string) $server) . '|' . (int) $port] ?? null;
+    $hits  = $tr[strtolower((string) $server) . '|' . (int) $port] ?? [];
+    if (!is_array($hits)) $hits = [];
+    if (isset($hits['t'])) $hits = [$hits];
+    $fam   = static fn($x) => ['hy2' => 'hysteria', 'hysteria2' => 'hysteria', 'ss' => 'shadowsocks'][strtolower((string) $x)] ?? strtolower((string) $x);
+    $hit   = null;
+    foreach ($hits as $h) {
+        if (!is_array($h)) continue;
+        if ((string) $type === '' ? count($hits) === 1 : $fam($h['t'] ?? '') === $fam($type)) { $hit = $h; break; }
+    }
     $t     = strtolower((string) ((string) $type !== '' ? $type : (is_array($hit) ? ($hit['t'] ?? '') : '')));
     $names = ['vless' => 'VLESS', 'vmess' => 'VMess', 'trojan' => 'Trojan', 'shadowsocks' => 'Shadowsocks', 'ss' => 'Shadowsocks',
               'hysteria2' => 'Hysteria2', 'hy2' => 'Hysteria2', 'hysteria' => 'Hysteria', 'tuic' => 'TUIC', 'wireguard' => 'WireGuard',
