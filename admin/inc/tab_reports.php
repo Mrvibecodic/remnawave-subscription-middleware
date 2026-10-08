@@ -77,6 +77,18 @@ $rv_panel_of = static function ($server) use ($rv_panel) {
     return is_array($hit) ? $hit : [];
 };
 
+$rv_per_t = [1 => 'за 24 часа', 7 => 'за 7 дней', 30 => 'за 30 дней'][$rv_f['p']] ?? 'за период';
+$rv_win = static function ($w) use ($rv_per_t) {
+    $t = [
+        'p'  => [$rv_per_t, 'Сумма всех часов с замерами за выбранный период, с учётом фильтров сети и платформы.'],
+        'pd' => [$rv_per_t, 'Считается целыми сутками UTC, поэтому захватывает и начало первых суток периода. Фильтр платформы здесь не применяется.'],
+        '48' => ['последние 48 ч устройств', 'В каждой сети устройства — 48 часов до её последнего часа с замерами, а не весь период. Период лишь отбирает сети, по которым пришёл отчёт. Проверка 16–20 — последняя, не старше 3 суток.'],
+        '6'  => ['по последним отчётам', 'Молчание узла — по последним (до 6) часам с замерами в каждой сети устройства: ни одного ответа за эти часы. «Режется» — по последней проверке 16–20 не старше 3 суток. Отчёт приходит не чаще раза в 6 часов, при плановом обновлении подписки, так что это не «прямо сейчас».'],
+    ][$w];
+
+    return '<span class="rv-win" data-tip="' . h($t[1]) . '"><svg class="rvi"><use href="#rvi-clock"/></svg>' . h($t[0]) . '</span>';
+};
+
 $rv_max = 1;
 foreach ($rv_series['points'] as $pt) $rv_max = max($rv_max, $pt['pn']);
 $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE;
@@ -338,6 +350,26 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     table.rv-lt tr:last-child td{border-bottom:0}
     table.rv-lt tr.clk{cursor:pointer}
     table.rv-lt tr.clk:hover td{background:var(--hover2)}
+    .rv-win{display:inline-flex;align-items:center;gap:.3rem;font-size:.74rem;font-weight:500;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:.12rem .6rem;white-space:nowrap;cursor:help}
+    .rv-win svg.rvi{width:12px;height:12px}
+    .loghead .rv-win{margin-left:.6rem;margin-right:auto}
+    .rv-fresh{display:flex;align-items:flex-start;gap:.4rem;font-size:.78rem;margin:.8rem 0 0}
+    .rv-fresh svg.rvi{width:13px;height:13px;flex:none;margin-top:.15rem}
+    .rv-hist i.hp{background:transparent;box-shadow:inset 0 0 0 1px var(--line)}
+    .rv-share{display:flex;align-items:center;gap:.5rem;justify-content:flex-end}
+    .rv-share .bar{width:56px;height:6px;border-radius:3px;background:var(--hover);overflow:hidden;flex:none}
+    .rv-share .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+    .rv-share .pc{min-width:2.8rem;text-align:right;color:var(--muted);font-size:.78rem}
+    .rv-hrs{margin-top:.7rem}
+    .rv-hrs summary{cursor:pointer;font-size:.82rem;color:var(--accent-text);font-weight:600}
+    .rv-hrs table.rv-lt td,.rv-hrs table.rv-lt th{padding:.32rem .5rem}
+    .rv-hrs td.n,.rv-hrs th.n{text-align:right;font-variant-numeric:tabular-nums}
+    .rv-hrs tr.w6 td{background:color-mix(in srgb,var(--amber) 8%,transparent)}
+    .rv-hrs tr.w6 td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+    .rv-hrs tr.ol td{opacity:.55}
+    .rv-hb{display:inline-flex;align-items:flex-end;gap:2px;height:16px;vertical-align:middle}
+    .rv-hb i{width:6px;border-radius:2px 2px 0 0;min-height:1px;background:var(--line)}
+    .rv-hb i.h0{background:var(--rq1)}.rv-hb i.h1{background:var(--rq2)}.rv-hb i.h2{background:var(--rq3)}.rv-hb i.h3{background:var(--rq4)}.rv-hb i.h4,.rv-hb i.h5{background:var(--rq5)}
     </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -400,16 +432,17 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 
         <div class="rv-kpis">
             <div class="rv-kpi"><span class="k">Устройств</span><span class="v"><?= $rv_num($rv_tot['devices']) ?></span><span class="d">прислали отчёт за период</span></div>
-            <div class="rv-kpi"><span class="k">Не отвечает узел</span><span class="v<?= $rv_dead_cl ? ' bad' : '' ?>"><?= $rv_num(count($rv_dead_cl)) ?></span><span class="d">клиентов, у кого хоть один узел молчит</span></div>
+            <div class="rv-kpi"><span class="k">Не отвечает узел</span><span class="v<?= $rv_dead_cl ? ' bad' : '' ?>"><?= $rv_num(count($rv_dead_cl)) ?></span><span class="d" data-tip="По последним (до 6) часам с замерами в каждой сети устройства, приславшего отчёт за период: узел не ответил ни на один пинг. Сеть, в которой устройство давно не было, тоже учитывается, пока её последний отчёт попадает в период.">клиентов, у кого узел молчит — <b>по последним часам с замерами</b></span></div>
             <div class="rv-kpi"><span class="k">Пинги</span><span class="v"><?= $rv_num($rv_tot['pn']) ?></span><span class="d">неудачных <span class="rq <?= $rv_qfail($rv_tot['fail']) ?>"><?= h($rv_pct($rv_tot['fail'])) ?></span></span></div>
             <div class="rv-kpi"><span class="k">Медианный пинг</span><span class="v" style="font-size:1.15rem"><?= h($rv_med($rv_tot['med'])) ?></span><span class="d">по <?= $rv_num($rv_tot['nodes']) ?> узлам</span></div>
-            <div class="rv-kpi"><span class="k">Проверка 16–20</span><span class="v" style="font-size:1.05rem"><?= $rv_frz($rv_tot) ?></span><span class="d">режется · не отвечает · работает</span></div>
+            <div class="rv-kpi"><span class="k">Проверка 16–20</span><span class="v" style="font-size:1.05rem"><?= $rv_frz($rv_tot) ?></span><span class="d" data-tip="Сколько проверок за период закончились так. Это число проверок, а не устройств.">проверок за период: режется · не отвечает · работает</span></div>
             <div class="rv-kpi"><span class="k">Трафик через узлы</span><span class="v"><?= h($rv_bytes($rv_tot['bytes'])) ?></span><span class="d">у клиентов с отчётами</span></div>
         </div>
+        <?php if ((int) $rep_st['last'] > 0): ?><p class="muted rv-fresh"><svg class="rvi"><use href="#rvi-clock"/></svg><span>Последний отчёт пришёл <b class="ct-ago" data-ts="<?= (int) $rep_st['last'] ?>"><?= h(date('d.m H:i', (int) $rep_st['last'])) ?></b>. Устройство присылает отчёт не чаще раза в 6 часов, при плановом обновлении подписки, и только за закрытые часы, поэтому данные отстают от реального времени минимум на час, обычно на несколько часов.</span></p><?php endif; ?>
     </div>
 
     <div class="card">
-        <div class="loghead"><h2>Карта клиентов</h2>
+        <div class="loghead"><h2>Карта клиентов</h2><?= $rv_win('48') ?>
             <div class="rv-flt"><span class="rv-seg" id="rvMetric"><button type="button" class="on" data-m="fail">Неудачные пинги</button><button type="button" data-m="med">Медианный пинг</button><button type="button" data-m="frz">Проверка 16–20</button></span></div>
         </div>
         <p class="muted" style="font-size:.82rem">Точка — клиенты в регионе. Регион устройства — где оно провело больше всего часов, по домашним сетям (Wi-Fi, кабель), если они есть: динамические адреса и мобильный оператор устройство не переносят, сеть в другой стране показывается отдельно; число — устройств, цвет — худшее состояние среди них. Регион закрашен по выбранной метрике. Нажмите на точку или регион — список клиентов, на клиента — его устройства, сети и пинги.</p>
@@ -435,13 +468,13 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     </div>
 
     <div class="card">
-        <div class="loghead"><h2>Что не работает сейчас</h2></div>
+        <div class="loghead"><h2>Что не работает сейчас</h2><?= $rv_win('6') ?></div>
         <p class="muted" style="font-size:.82rem">По последним отчётам устройств. Узел молчит у большинства клиентов одного провайдера, а у других провайдеров работает — блок у провайдера; молчит только у одного клиента во всех его сетях — дело в устройстве; пинг есть, а проверка 16–20 режется — DPI рвёт соединение после первых килобайт.</p>
         <div id="rvIncs"></div>
     </div>
 
     <div class="card" id="rvMxCard">
-        <div class="loghead"><h2>Узлы × провайдеры</h2></div>
+        <div class="loghead"><h2>Узлы × провайдеры</h2><?= $rv_win('48') ?></div>
         <p class="muted" style="font-size:.82rem">Строка — узел, столбец — провайдер клиентов (AS), по последнему состоянию устройств за период. В ячейке — доля неудачных пингов и медиана; заштриховано и «N/M» — в стольких сетях из M узел не отвечает совсем. Нажмите на ячейку — кто именно, в какой сети и как менялось за 48 часов.</p>
         <div class="rv-mxbar"><span class="rv-seg" id="rvMxKind"><button type="button" data-k="">Все сети</button><button type="button" data-k="home" title="Wi-Fi и кабель — домашний интернет">Домашний</button><button type="button" data-k="mobile">Мобильная</button></span><span class="muted" id="rvMxNote"></span></div>
         <div id="rvMxT"></div>
@@ -449,7 +482,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     </div>
 
     <div class="card">
-        <h2 style="margin-top:0;font-size:1rem">Пинги по <?= $rv_series['step'] === 3600 ? 'часам' : 'суткам (UTC)' ?><?= $rv_node ? ' — ' . h($rv_node['name'] !== '' ? $rv_node['name'] : $rv_node['server']) : '' ?></h2>
+        <div class="loghead"><h2>Пинги по <?= $rv_series['step'] === 3600 ? 'часам' : 'суткам (UTC)' ?><?= $rv_node ? ' — ' . h($rv_node['name'] !== '' ? $rv_node['name'] : $rv_node['server']) : '' ?></h2><?= $rv_win('p') ?></div>
         <?php
         $pts = $rv_series['points'];
         $cnt = max(1, count($pts));
@@ -483,7 +516,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     </div>
 
     <div class="card">
-        <div class="loghead"><h2>Провайдеры клиентов (<?= count($rv_isps) ?>)</h2></div>
+        <div class="loghead"><h2>Провайдеры клиентов (<?= count($rv_isps) ?>)</h2><?= $rv_win('pd') ?></div>
         <p class="muted" style="font-size:.82rem">Провайдер — номер автономной системы (AS) по адресу клиента; название из базы GeoIP может ошибаться, номер AS и адрес — нет. Нажмите на строку, чтобы увидеть адреса.<?= $rv_f['plat'] !== '' ? ' Фильтр по платформе к провайдерам не применяется.' : '' ?></p>
         <?php if (!$rv_isps): ?>
         <p class="muted">Нет данных за период.</p>
@@ -520,16 +553,16 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     </div>
 
     <div class="card">
-        <div class="loghead"><h2>Узлы (<?= count($rv_nodes) ?>)</h2></div>
-        <p class="muted" style="font-size:.82rem">Сверху — узлы с наибольшей долей неудачных пингов. «Не отвечает у» — у скольких устройств узел не ответил ни на один пинг в последних часах с замерами (до 6). «Хуже всего» — страна и провайдер клиентов, у которых этому узлу хуже всего (от <?= REP_VIEW_MIN_PINGS ?> пингов). Нажмите на узел — график и провайдеры только по нему.</p>
+        <div class="loghead"><h2>Узлы (<?= count($rv_nodes) ?>)</h2><?= $rv_win('p') ?><span class="sp" style="flex:1"></span><?php if (count($rv_nodes) > 1): ?><span class="rv-seg" id="rvNdSort"><button type="button" class="on" data-s="fail">Сначала проблемные</button><button type="button" data-s="b">Сначала популярные</button></span><?php endif; ?></div>
+        <p class="muted" style="font-size:.82rem">«Трафик» — сколько прошло через узел у клиентов с отчётами и его доля от трафика всех узлов: видно, какими узлами реально пользуются. Сверху — узлы с наибольшей долей неудачных пингов. «Молчит у» — у скольких устройств узел не ответил ни на один пинг в последних часах с замерами (до 6). «Хуже всего» — страна и провайдер клиентов, у которых этому узлу хуже всего (от <?= REP_VIEW_MIN_PINGS ?> пингов). Нажмите на узел — график и провайдеры только по нему.</p>
         <?php if (!$rv_nodes): ?>
         <p class="muted">Нет данных за период.</p>
         <?php else: ?>
         <div class="rv-wrap"><table class="logtbl rv-tbl">
-            <thead><tr><th>Узел</th><th>В панели</th><th class="num">Пингов</th><th class="num">Неудачи</th><th>Медиана</th><th>16–20</th><th class="num">Не отвечает у</th><th class="num">Трафик</th><th>Хуже всего</th></tr></thead>
-            <tbody>
-            <?php foreach ($rv_nodes as $n): $pnl = $rv_panel_of($n['server']); $nd = count($rv_dead_node[$n['nkey']] ?? []); ?>
-            <tr>
+            <thead><tr><th>Узел</th><th>В панели</th><th class="num">Пингов</th><th class="num">Неудачи</th><th>Медиана</th><th>16–20</th><th class="num" data-tip="По последним (до 6) часам с замерами в каждой сети устройства, приславшего отчёт за период: узел не ответил ни на один пинг. Сеть, в которой устройство давно не было, тоже учитывается, пока её последний отчёт попадает в период.">Молчит у</th><th class="num" data-tip="<?= $rv_f['node'] !== '' ? 'Трафик через узел за период.' : 'Трафик через узел за период и его доля от трафика всех узлов при тех же фильтрах.' ?>">Трафик<?= $rv_f['node'] !== '' ? '' : ' · доля' ?></th><th>Хуже всего</th></tr></thead>
+            <tbody id="rvNdBody">
+            <?php $rv_btot = max(1, array_sum(array_column($rv_nodes, 'bytes'))); foreach ($rv_nodes as $n): $pnl = $rv_panel_of($n['server']); $nd = count($rv_dead_node[$n['nkey']] ?? []); $rv_sh = $n['bytes'] / $rv_btot; ?>
+            <tr data-b="<?= (int) $n['bytes'] ?>">
                 <td class="rv-node"><a href="<?= h($rv_url(['node' => $n['nkey']])) ?>"><?= h($n['name'] !== '' ? $n['name'] : $n['server']) ?></a>
                     <span class="sub"><?= h(rep_proto_label($n['type'], $n['server'], $n['port'])) ?></span></td>
                 <td><?php if ($pnl): foreach ($pnl as $pn): ?><div><?= $rv_nflag($pn['cc'], $pn['name']) ?> <?= h($pn['name']) ?></div><?php endforeach; else: ?><span class="muted">—</span><?php endif; ?></td>
@@ -538,7 +571,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 <td><span class="rq <?= $rv_qmed($n['med']) ?>"><?= h($rv_med($n['med'])) ?></span></td>
                 <td><?= $rv_frz($n) ?></td>
                 <td class="num"><?= $nd > 0 ? '<button type="button" class="rq q5 rv-deadbtn" data-nk="' . h($n['nkey']) . '" title="Показать, у кого">' . $rv_num($nd) . ' устр.</button>' : '<span class="muted">—</span>' ?></td>
-                <td class="num"><?= h($rv_bytes($n['bytes'])) ?></td>
+                <td class="num"><?php if ($n['bytes'] > 0 && $rv_f['node'] !== ''): ?><?= h($rv_bytes($n['bytes'])) ?><?php elseif ($n['bytes'] > 0): ?><div class="rv-share"><?= h($rv_bytes($n['bytes'])) ?><span class="bar"><i style="width:<?= round($rv_sh * 100, 1) ?>%"></i></span><span class="pc"><?= h($rv_pct($rv_sh)) ?></span></div><?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td><?php if ($n['worst'] && $n['worst']['fail'] > 0): ?><?= $rv_flag($n['worst']['cc']) ?> AS<?= (int) $n['worst']['asn'] ?> <span class="rq <?= $rv_qfail($n['worst']['fail']) ?>"><?= h($rv_pct($n['worst']['fail'])) ?></span><?php else: ?><span class="muted">—</span><?php endif; ?></td>
             </tr>
             <?php endforeach; ?>
@@ -606,6 +639,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             document.querySelectorAll('.rvp [data-ts]').forEach(function (el) {
                 var d = new Date(parseInt(el.getAttribute('data-ts'), 10) * 1000); if (isNaN(d.getTime())) return;
                 if (el.classList.contains('ct-time')) el.textContent = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + hm(d);
+                else if (el.classList.contains('ct-ago')) { var mn = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); el.textContent = dm(d) + ' в ' + hm(d) + ' (' + (mn < 60 ? Math.max(1, mn) + ' мин' : mn < 2880 ? Math.round(mn / 60) + ' ч' : Math.round(mn / 1440) + ' дн') + ' назад)'; }
                 else if (el.hasAttribute('data-tipr')) el.setAttribute('data-tip', dm(d) + ' ' + hm(d) + el.getAttribute('data-tipr'));
                 else if (el.hasAttribute('data-f')) el.textContent = el.getAttribute('data-f') === 'hm' ? hm(d) : dm(d);
             });
@@ -1084,12 +1118,35 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             if (seen < HST.first) return 'Этот отчёт пришёл ' + ago(seen) + ', до обновления прослойки — по часам он не разложен. Первый отчёт с историей пришёл ' + ago(HST.first) + '; у этого устройства полоса заполнится со следующего отчёта (не чаще раза в 6 часов).';
             return 'В отчёте ' + ago(seen) + ' не было часов с пингами до этого узла в этой сети.';
         };
-        var histCells = function (hist, hh) {
+        var hoursTbl = function (r) {
+            if (!r.hc || !r.hh) return '';
+            var cells = r.hc.split(','), len = cells.length, rows = [], w6 = 0;
+            for (var i = len - 1; i >= 0; i--) {
+                if (!cells[i]) continue;
+                var v = cells[i].split('.').map(function (x) { return parseInt(x, 36) || 0; });
+                while (v.length < 8) v.push(0);
+                var row = {t: r.hh - (len - 1 - i) * 3600, pn: v[0], pf: Math.min(v[1], v[0]), b: v.slice(2, 8), w6: false};
+                if (row.pn > 0 && w6 < 6) { row.w6 = true; w6++; }
+                rows.push(row);
+            }
+            if (!rows.length) return '';
+            var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+            var tf = function (t) { var d = new Date(t * 1000); return p2(d.getDate()) + '.' + p2(d.getMonth() + 1) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()); };
+            var edge = Math.floor(Date.now() / 3600000) * 3600 - 47 * 3600, old = rows.filter(function (x) { return x.t < edge; }).length;
+            var med = function (b) { var t = 0, s = 0; b.forEach(function (x) { t += x; }); if (!t) return -1; for (var i = 0; i < 6; i++) { s += b[i]; if (s * 2 >= t) return i; } return 5; };
+            var bars = function (b) { var m = Math.max.apply(null, b.concat([1])); return '<span class="rv-hb">' + b.map(function (x, i) { return '<i class="h' + i + '" style="height:' + (x ? Math.max(2, Math.round(x / m * 16)) : 1) + 'px' + (x ? '' : ';opacity:.3') + '"></i>'; }).join('') + '</span>'; };
+            return '<details class="rv-hrs"' + (CS.hro ? ' open' : '') + '><summary>По часам — ' + rows.length + ' ' + plural(rows.length, 'час', 'часа', 'часов') + ' с замерами</summary>'
+                + '<div class="muted" style="font-size:.76rem;margin:.35rem 0 .2rem">Время — ваше. Подсвечены последние ' + w6 + ' ' + plural(w6, 'час', 'часа', 'часов') + ' с замерами: только по ним решается «не отвечает». Отдельные пинги клиент не присылает — только итоги за час.' + (old ? ' Бледные строки — ' + old + ' ' + plural(old, 'час', 'часа', 'часов') + ' раньше полосы: таблица идёт до последнего часа с замерами в этой сети.' : '') + '</div>'
+                + '<div class="rv-wrap"><table class="rv-lt"><thead><tr><th>Час</th><th class="n">Пингов</th><th class="n">Неудачных</th><th>Медиана</th><th>Задержки</th></tr></thead><tbody>'
+                + rows.map(function (x) { var m = med(x.b); return '<tr' + (x.w6 ? ' class="w6"' : x.t < edge ? ' class="ol" data-tip="Раньше полосы: этот час старше 48 часов от текущего момента"' : '') + '><td>' + tf(x.t) + '</td><td class="n">' + x.pn + '</td><td class="n">' + (x.pf ? '<span class="rq q' + (x.pf >= x.pn ? 5 : qFail(x.pf / x.pn)) + '">' + x.pf + '</span>' : '0') + '</td><td>' + (m >= 0 ? '<span class="rq q' + Math.min(5, m + 1) + '">' + MED[m] + '</span>' : '<span class="muted">—</span>') + '</td><td data-tip="' + esc(x.b.map(function (c, i) { return MED[i] + ': ' + c; }).join(' · ')) + '">' + bars(x.b) + '</td></tr>'; }).join('')
+                + '</tbody></table></div></details>';
+        };
+        var histCells = function (hist, hh, lh) {
             var now = Math.floor(Date.now() / 3600000) * 3600, out = '';
             for (var i = 0; i < 48; i++) {
                 var t = now - (47 - i) * 3600, ch = '.';
                 if (hh > 0 && hist) { var j = hist.length - 1 - Math.round((hh - t) / 3600); if (j >= 0 && j < hist.length) ch = hist.charAt(j); }
-                out += '<i class="' + (ch === 'x' ? 'hx' : /[0-5]/.test(ch) ? 'h' + ch : '') + '"></i>';
+                out += '<i class="' + (ch === 'x' ? 'hx' : /[0-5]/.test(ch) ? 'h' + ch : lh > 0 && t > lh ? 'hp' : '') + '"></i>';
             }
             return out;
         };
@@ -1276,12 +1333,19 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 return '<div role="button" tabindex="0" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span>' + (bad || warn ? '<button type="button" class="rv-pill rv-jump st-' + (bad ? 'bad' : 'warn') + '" title="Показать проблемный узел">' + (bad ? 'проблемы' : 'деградация') + '</button>' : '<span class="rv-pill st-ok">в порядке</span>') + '</div>';
             }).join('');
             var sel = CS.cell ? CS.cell.split('|') : null, sr = sel && nmap[sel[1]] ? nmap[sel[1]].cells[sel[0]] : null, sn = sel ? nmap[sel[1]] : null, sp = sr && sn ? peer(sn.asn, sel[0]) : null;
+            var lastSeen = 0; rs.forEach(function (r) { lastSeen = Math.max(lastSeen, r.seen); });
+            var use = {}, useT = 0; rs.forEach(function (r) { if (r.tb > 0 && r.seen === lastSeen) { use[r.n] = (use[r.n] || 0) + r.tb; useT += r.tb; } });
+            var gb = function (b) { var u = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'], i = 0; while (b >= 1024 && i < 4) { b /= 1024; i++; } return (i ? b.toFixed(b < 10 ? 1 : 0).replace('.', ',') : b) + ' ' + u[i]; };
+            var p90 = function (hc) { var b = [0, 0, 0, 0, 0, 0], t = 0, s2 = 0; String(hc || '').split(',').forEach(function (c) { if (!c) return; c.split('.').slice(2, 8).forEach(function (x, i) { var v = parseInt(x, 36) || 0; b[i] += v; t += v; }); }); if (t < 20) return ''; for (var i = 0; i < 6; i++) { s2 += b[i]; if (s2 >= t * .9) return i < 5 ? ' · 90 % ответов — быстрее ' + ['100 мс', '200 мс', '400 мс', '800 мс', '1,5 с'][i] : ' · больше 10 % ответов — дольше 1,5 с'; } return ''; };
+            var useTop = Object.keys(use).sort(function (a, b) { return use[b] - use[a]; }).slice(0, 3);
+            var VTX = {ok: 'работает', frozen: 'режется', dead: 'не отвечает'};
             drw.innerHTML = '<div class="rv-dh"><span class="av">' + esc((nm || c.short).slice(0, 2).toUpperCase()) + '</span><div style="min-width:0"><h2>' + esc(nm || c.short) + '</h2><div class="muted" style="font-size:.78rem">' + (nm ? 'имя из панели · ' : '') + '<code>' + esc(c.short) + '</code></div></div>'
                 + '<span class="rv-pill st-mut">' + c.devs.length + ' ' + plural(c.devs.length, 'устройство', 'устройства', 'устройств') + '</span><span class="sp"></span>'
                 + '<a class="btn ghost" href="?tab=reqlog&rl_q=' + encodeURIComponent(c.short) + '">' + ico('list') + 'Лог запросов</a>'
                 + '<button type="button" class="btn ghost" id="rvDrwX" aria-label="Закрыть">' + ico('x') + '</button></div>'
                 + '<div class="rv-db"><div class="rv-sect" style="margin-top:0">Устройства</div><div class="rv-dtabs">' + devTabs + '</div>'
                 + '<div class="rv-kv"><div><span>Модель и ОС</span><b>' + esc([d.m, d.o].filter(Boolean).join(' · ') || '—') + '</b></div><div><span>Клиент</span><b>' + esc(d.c ? 'Clod Clash ' + d.c : '—') + (d.p ? ' · ' + (d.p === 'pc' ? 'ПК' : 'Android') : '') + '</b></div><div><span>HWID</span><b><code>' + esc(d.hw) + '</code></b></div><div><span>Отчётов</span><b>' + (d.r || '—') + ' · последний ' + ago(d.lr) + '</b></div>'
+                + (useTop.length ? '<div><span>' + (Math.abs(lastSeen - d.lr) < 600 ? 'Трафик в последнем отчёте' : 'Трафик в отчёте ' + esc(ago(lastSeen))) + '</span><b data-tip="Через какие узлы шёл трафик устройства в отчёте, пришедшем ' + esc(ago(lastSeen)) + ': за часы с предыдущего отчёта. Всего ' + esc(gb(useT)) + '.">' + useTop.map(function (k) { return esc(nodeNm(k)) + ' <em style="font-style:normal;font-weight:500;color:var(--muted);white-space:nowrap">' + pct(use[k] / useT) + ' · ' + esc(gb(use[k])) + '</em>'; }).join('<br>') + '</b></div>' : '')
                 + (d.pl ? '<div><span>Регион устройства</span><b data-tip="' + esc((d.pl.src === 'home' ? 'По домашним сетям (Wi-Fi и кабель)' : 'По всем сетям устройства') + ': ' + d.pl.w + ' из ' + d.pl.tw + ' часов замеров' + (d.pl.n > 1 ? ', адреса числились в ' + d.pl.n + ' местах' : '') + '. Мобильная сеть и динамические адреса регион не переносят; сеть в другой стране показывается отдельно.') + '">' + flag(d.pl.cc) + ' ' + esc(placeNm(d.pl.rg, d.pl.cc)) + '</b></div>' : '') + '</div>'
                 + '<div class="rv-sect">Диагноз</div>' + diag.map(function (x) { return '<div class="rv-diag st-' + x.s + '"' + (x.j ? ' data-jump="' + esc(x.j) + '" role="button" tabindex="0" title="Показать в таблице пингов"' : '') + '><span class="ic st-' + x.s + '">' + ico(x.ic) + '</span><div><div class="t">' + esc(x.t) + '</div>' + (x.w ? '<div class="w">' + x.w + '</div>' : '') + '</div>' + (x.j ? '<span class="go">к узлу ↓</span>' : '') + '</div>'; }).join('')
                 + '<div class="rv-sect">Сети устройства</div><div class="rv-nets">' + nets.map(function (n, i) {
@@ -1295,10 +1359,10 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 + (nkeys.length ? '<div class="rv-wrap"><table class="rv-mx"><thead><tr><th class="rh">Узел</th>' + nets.map(function (n) { return '<th style="min-width:140px">' + ico(KIND[n.k] ? n.k : 'other') + '<div style="color:var(--text);margin-top:.15rem">' + esc(label(n)) + '</div><div style="font-weight:400"><code>' + esc(n.ip || '—') + '</code></div></th>'; }).join('') + '</tr></thead><tbody>'
                     + show.map(function (k) { var nd = c.nk[k] || {}; return '<tr data-k="' + esc(k) + '"' + (sel && sel[0] === k ? ' class="cur"' : '') + '><td class="rh">' + flagFor(nd.cc, nodeNm(k)) + '<b>' + esc(nodeNm(k)) + '</b><small>' + esc(nd.t || '') + '</small></td>' + nets.map(function (n) { return '<td>' + cell(n.cells[k], k + '|' + n.net) + '</td>'; }).join('') + '</tr>'; }).join('')
                     + '</tbody></table></div>' : '<p class="muted">Пингов в отчётах нет.</p>')
-                + (sr ? '<div class="rv-mxd"><h3>' + esc(nodeNm(sel[0])) + ' в сети «' + esc(label(sn)) + '» — последние 48 часов</h3><div class="muted" style="font-size:.8rem">Пингов ' + sr.pn + ', неудачных ' + sr.pf + ' · медиана ' + (MED[sr.med] || '—') + (sp ? ' · у других клиентов этого провайдера: неудач ' + pct(sp.fail) + ', медиана ' + (MED[sp.med] || '—') + (sp.dead ? ', без ответа ' + sp.dead + ' из ' + sp.n : '') : '') + '</div>'
-                    + '<div class="rv-hist">' + histCells(sr.hist, sr.hh) + '</div><div class="rv-hax"><span>48 ч назад</span><span>24 ч</span><span>сейчас</span></div>'
-                    + '<div class="rv-legend"><span><i style="background:var(--rq1)"></i>&lt; 100 мс</span><span><i style="background:var(--rq2)"></i>100–200</span><span><i style="background:var(--rq3)"></i>200–400</span><span><i style="background:var(--rq4)"></i>400–800</span><span><i style="background:var(--rq5)"></i>&gt; 0,8 с</span><span><i class="hx" style="background:repeating-linear-gradient(135deg,var(--rq5) 0 3px,transparent 3px 6px)"></i>нет ответа</span><span><i style="background:var(--line)"></i>нет замеров в этой сети</span></div>'
-                    + (sr.hist ? '' : '<div class="muted" style="font-size:.78rem;margin-top:.3rem">' + esc(histWhy(sr.seen)) + '</div>') + '</div>' : '')
+                + (sr ? '<div class="rv-mxd"><h3>' + esc(nodeNm(sel[0])) + ' в сети «' + esc(label(sn)) + '» — последние 48 часов</h3><div class="muted" style="font-size:.8rem">Пингов ' + sr.pn + ', неудачных ' + sr.pf + ' · медиана ' + (MED[sr.med] || '—') + p90(sr.hc) + (sr.v && VTX[sr.v] ? ' · 16–20: ' + VTX[sr.v] + (sr.vs ? ', код ' + sr.vs : '') + (sr.va ? ', ' + new Date(sr.va * 1000).toLocaleString('ru-RU', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) : '') : '') + (sp ? ' · у других клиентов этого провайдера: неудач ' + pct(sp.fail) + ', медиана ' + (MED[sp.med] || '—') + (sp.dead ? ', без ответа ' + sp.dead + ' из ' + sp.n : '') : '') + '</div>'
+                    + '<div class="rv-hist">' + histCells(sr.hist, sr.hh, d.lh) + '</div><div class="rv-hax"><span>48 ч назад</span><span>24 ч</span><span>сейчас</span></div>'
+                    + '<div class="rv-legend"><span><i style="background:var(--rq1)"></i>&lt; 100 мс</span><span><i style="background:var(--rq2)"></i>100–200</span><span><i style="background:var(--rq3)"></i>200–400</span><span><i style="background:var(--rq4)"></i>400–800</span><span><i style="background:var(--rq5)"></i>&gt; 0,8 с</span><span><i class="hx" style="background:repeating-linear-gradient(135deg,var(--rq5) 0 3px,transparent 3px 6px)"></i>нет ответа</span><span><i style="background:var(--line)"></i>нет замеров в этой сети</span><span><i style="background:transparent;box-shadow:inset 0 0 0 1px var(--line)"></i>отчёт ещё не пришёл</span></div>'
+                    + (sr.hist ? '' : '<div class="muted" style="font-size:.78rem;margin-top:.3rem">' + esc(histWhy(sr.seen)) + '</div>') + hoursTbl(sr) + '</div>' : '')
                 + '</div>';
             drw.querySelector('#rvDrwX').addEventListener('click', closeClient);
             var newDb = drw.querySelector('.rv-db'); if (keep && newDb) newDb.scrollTop = oldTop;
@@ -1335,6 +1399,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             }
             drw.querySelectorAll('[data-cell]').forEach(function (b) { b.addEventListener('click', function () { CS.cell = b.dataset.cell; drawClient(true); }); });
             var only = drw.querySelector('#rvOnly'); if (only) only.addEventListener('change', function () { CS.only = only.checked; drawClient(true); });
+            var hrs = drw.querySelector('.rv-hrs'); if (hrs) hrs.addEventListener('toggle', function () { CS.hro = hrs.open; });
             drw.querySelectorAll('.rv-ipl').forEach(function (el) { el.addEventListener('toggle', function () { CS.ipo = CS.ipo || {}; CS.ipo[el.dataset.net] = el.open; }); });
         };
 
@@ -1359,6 +1424,16 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             });
             gR.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
             gR.addEventListener('click', function (e) { if (Date.now() - drag.end < 250) return; var id = e.target.dataset && e.target.dataset.id; if (id && RB[id]) showRegion(id); });
+        }
+        var ndSort = document.getElementById('rvNdSort'), ndBody = document.getElementById('rvNdBody');
+        if (ndSort && ndBody) {
+            var ndRows = Array.prototype.slice.call(ndBody.children);
+            ndSort.addEventListener('click', function (e) {
+                var b = e.target.closest('button'); if (!b) return;
+                ndSort.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+                var list = b.dataset.s === 'b' ? ndRows.slice().sort(function (x, y) { return +y.dataset.b - +x.dataset.b; }) : ndRows;
+                list.forEach(function (tr) { ndBody.appendChild(tr); });
+            });
         }
         window.addEventListener('resize', function () { dots(); });
         zoomUi();

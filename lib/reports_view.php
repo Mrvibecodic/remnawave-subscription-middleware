@@ -755,18 +755,22 @@ function rep_view_client_card($q, $since) {
     rep_dev_fill($short, 20);
     rep_geo_backfill(0, 500, $short);
     $devs = [];
-    foreach (rep_view_rows('SELECT hwid, plat, client, ' . rep_sel(['model', 'os']) . ', first_seen, last_report, reports FROM rep_dev WHERE short_uuid = ? ORDER BY last_report DESC', [$short]) as $d) {
+    foreach (rep_view_rows('SELECT hwid, plat, client, ' . rep_sel(['model', 'os']) . ', first_seen, last_report, last_h, reports FROM rep_dev WHERE short_uuid = ? ORDER BY last_report DESC', [$short]) as $d) {
         $devs[] = ['hw' => (string) $d['hwid'], 'p' => (string) $d['plat'], 'c' => (string) $d['client'], 'm' => (string) $d['model'] === '-' ? '' : (string) $d['model'], 'o' => (string) $d['os'],
-                   'fs' => (int) $d['first_seen'], 'lr' => (int) $d['last_report'], 'r' => (int) $d['reports']];
+                   'fs' => (int) $d['first_seen'], 'lr' => (int) $d['last_report'], 'lh' => (int) $d['last_h'], 'r' => (int) $d['reports']];
     }
     $rows = [];
     $asns = [];
-    foreach (rep_view_rows('SELECT short_uuid, hwid, net, nkey, kind, ip4, ip6, cc, asn, org, pn, pf, pmed, verdict, vat, last_seen, ' . rep_sel(['loc', 'hist', 'hist_h', 'sub', 'rpn', 'rpf'])
+    foreach (rep_view_rows('SELECT short_uuid, hwid, net, nkey, kind, ip4, ip6, cc, asn, org, pn, pf, pmed, verdict, vstatus, vat, up, down, last_seen, ' . rep_sel(['loc', 'hist', 'hist_h', 'sub', 'rpn', 'rpf', 'hc'])
         . ' FROM rep_state WHERE short_uuid = ? ORDER BY last_seen DESC LIMIT 3000', [$short]) as $r) {
         $x = rep_view_state_row($r);
         $x['n'] = (string) $r['nkey'];
         $x['asn'] = (int) $r['asn'];
         $x['org'] = (string) $r['org'];
+        $x['hc'] = (string) $r['hc'];
+        $x['tb'] = (int) $r['up'] + (int) $r['down'];
+        $x['vs'] = $x['v'] !== '' ? (int) $r['vstatus'] : 0;
+        $x['va'] = $x['v'] !== '' ? (int) $r['vat'] : 0;
         $rows[] = $x;
         if ((int) $r['asn'] > 0) $asns[(int) $r['asn']] = true;
         $known = false;
