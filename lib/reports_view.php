@@ -804,7 +804,67 @@ function rep_view_client_card($q, $since) {
         }
     }
 
-    return ['short' => $short, 'devs' => $devs, 'rows' => $rows, 'peers' => $peers, 'ips' => $ips];
+    $tz    = rep_tzoff();
+    $today = rep_day_of(time(), $tz);
+    $days  = [];
+    foreach (rep_view_rows('SELECT hwid, net, nkey, d, kind, asn, org, ' . implode(', ', rep_day_cols()) . ', vl, vs, va FROM rep_dday WHERE short_uuid = ? AND d >= ? ORDER BY d DESC LIMIT 8000', [$short, $today - 13 * 86400]) as $r) {
+        $b = [];
+        for ($i = 0; $i < REP_BUCKETS; $i++) $b[] = (int) $r['b' . $i];
+        $days[] = [
+            'hw' => (string) $r['hwid'], 'net' => (string) $r['net'], 'n' => (string) $r['nkey'], 'd' => (int) $r['d'], 'k' => (string) $r['kind'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'],
+            'pn' => (int) $r['pn'], 'pf' => min((int) $r['pf'], (int) $r['pn']), 'b' => $b, 'fok' => (int) $r['fok'], 'ffr' => (int) $r['ffr'], 'fdd' => (int) $r['fdd'],
+            'tb' => (int) $r['up'] + (int) $r['down'], 'hrs' => (int) $r['hrs'], 'vl' => (string) $r['vl'], 'vs' => (int) $r['vs'], 'va' => (int) $r['va'],
+        ];
+    }
+
+    return ['short' => $short, 'devs' => $devs, 'rows' => $rows, 'peers' => $peers, 'ips' => $ips, 'days' => $days, 'tz' => $tz, 'today' => $today];
+}
+
+function rep_view_frz(array $f, $since, $v, $nkey = '', $asn = 0) {
+    $col = ['ok' => 'fok', 'fr' => 'ffr', 'dd' => 'fdd'][$v] ?? null;
+    $out = ['rows' => [], 'src' => 'day'];
+    if ($col === null || !rep_ensure()) return $out;
+    $from = rep_day_of($since);
+    $w = ["x.d >= ?", "x.$col > 0"];
+    $a = [$from];
+    if ($f['kind'] !== '') {
+        $set = REP_VIEW_KIND_SETS[$f['kind']] ?? [$f['kind']];
+        $w[] = 'x.kind IN (' . implode(', ', array_fill(0, count($set), '?')) . ')';
+        array_push($a, ...$set);
+    }
+    if ($f['cc'] !== '') { $w[] = 'x.cc = ?'; $a[] = $f['cc']; }
+    $nkey = (string) $nkey !== '' ? (string) $nkey : $f['node'];
+    if ($nkey !== '') { $w[] = 'x.nkey = ?'; $a[] = $nkey; }
+    if ((int) $asn > 0) { $w[] = 'x.asn = ?'; $a[] = (int) $asn; }
+    $join = '';
+    if ($f['plat'] !== '') { $join = ' JOIN rep_dev dv ON dv.short_uuid = x.short_uuid AND dv.hwid = x.hwid AND dv.plat = ?'; array_unshift($a, $f['plat']); }
+    $rows = rep_view_rows("SELECT x.short_uuid, x.hwid, x.net, x.nkey, MAX(x.kind) AS kind, MAX(x.asn) AS asn, MAX(x.org) AS org, SUM(x.$col) AS n, SUM(x.fok + x.ffr + x.fdd) AS t, MAX(x.d) AS ld, COUNT(*) AS days"
+        . " FROM rep_dday x$join WHERE " . implode(' AND ', $w) . ' GROUP BY x.short_uuid, x.hwid, x.net, x.nkey ORDER BY n DESC, ld DESC LIMIT 300', $a);
+    if (!$rows && !rep_view_rows('SELECT 1 AS x FROM rep_dday WHERE d >= ? LIMIT 1', [$from])) {
+        $out['src'] = 'state';
+        $vn = ['fok' => 'ok', 'ffr' => 'frozen', 'fdd' => 'dead'][$col];
+        $w = ['s.verdict = ?', 's.vat >= ?'];
+        $a = [$vn, (int) $since];
+        if ($nkey !== '') { $w[] = 's.nkey = ?'; $a[] = $nkey; }
+        if ((int) $asn > 0) { $w[] = 's.asn = ?'; $a[] = (int) $asn; }
+        $rows = rep_view_rows('SELECT s.short_uuid, s.hwid, s.net, s.nkey, s.kind, s.asn, s.org, 1 AS n, 1 AS t, s.vat AS ld, 1 AS days FROM rep_state s WHERE ' . implode(' AND ', $w) . ' ORDER BY s.vat DESC LIMIT 300', $a);
+    }
+    if (!$rows) return $out;
+    $devs = [];
+    $shorts = array_values(array_unique(array_map('strval', array_column($rows, 'short_uuid'))));
+    foreach (rep_view_rows('SELECT short_uuid, hwid, plat, client, ' . rep_sel(['model']) . ' FROM rep_dev WHERE short_uuid IN (' . implode(', ', array_fill(0, count($shorts), '?')) . ')', $shorts) as $d) {
+        $devs[$d['short_uuid'] . '|' . $d['hwid']] = $d;
+    }
+    foreach ($rows as $r) {
+        $d = $devs[$r['short_uuid'] . '|' . $r['hwid']] ?? [];
+        $out['rows'][] = [
+            's' => (string) $r['short_uuid'], 'hw' => (string) $r['hwid'], 'net' => (string) $r['net'], 'n' => (string) $r['nkey'], 'k' => (string) $r['kind'],
+            'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'c' => (int) $r['n'], 't' => (int) $r['t'], 'ld' => (int) $r['ld'], 'days' => (int) $r['days'],
+            'm' => (string) ($d['model'] ?? '') === '-' ? '' : (string) ($d['model'] ?? ''), 'p' => (string) ($d['plat'] ?? ''), 'cl' => (string) ($d['client'] ?? ''),
+        ];
+    }
+
+    return $out;
 }
 
 function rep_view_news($limit = 12) {

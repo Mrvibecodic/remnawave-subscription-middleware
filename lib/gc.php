@@ -12,6 +12,7 @@ function gc_tables() {
         'rep_ip_day'     => ['title' => 'Отчёты: сводка по IP',     'pk' => 'id', 'col' => 'd',         'kind' => 'epoch'],
         'rep_state'      => ['title' => 'Отчёты: состояние устройств', 'pk' => 'id', 'col' => 'last_seen', 'kind' => 'epoch'],
         'rep_net_ip'     => ['title' => 'Отчёты: адреса устройств',  'pk' => 'id', 'col' => 'last_h',    'kind' => 'epoch'],
+        'rep_dday'       => ['title' => 'Отчёты: устройства по дням', 'pk' => 'id', 'col' => 'd',         'kind' => 'epoch'],
     ];
 }
 

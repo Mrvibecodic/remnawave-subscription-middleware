@@ -1,4 +1,5 @@
 <?php
+if (isset($_COOKIE['tzoff']) && (string) setting('rep_tzoff', '') === '') set_setting('rep_tzoff', (string) (max(-720, min(840, (int) $_COOKIE['tzoff'])) * 60));
 $rv_f      = rep_view_filters($_GET);
 $rv_now    = time();
 $rv_since  = rep_view_since($rv_f, $rv_now);
@@ -65,6 +66,17 @@ $rv_frz = static function ($s) {
 
     return implode(' ', $out);
 };
+$rv_frzb = static function ($s, $nk = '', $asn = 0) use ($rv_frz) {
+    if ($s['fok'] + $s['ffr'] + $s['fdd'] === 0) return $rv_frz($s);
+    $at = ($nk !== '' ? ' data-nk="' . h($nk) . '"' : '') . ((int) $asn > 0 ? ' data-asn="' . (int) $asn . '"' : '');
+    $b  = static fn($v, $q, $ic, $n, $t) => '<button type="button" class="rq ' . $q . ' rv-frzbtn" data-v="' . $v . '"' . $at . ' data-tip="' . h($t . ': ' . $n . ' — показать устройства') . '">' . $ic . ' ' . (int) $n . '</button>';
+    $out = [];
+    if ($s['ffr'] > 0) $out[] = $b('fr', 'q4', '✂', $s['ffr'], 'Режется');
+    if ($s['fdd'] > 0) $out[] = $b('dd', 'q5', '✕', $s['fdd'], 'Не отвечает');
+    if ($s['fok'] > 0) $out[] = $b('ok', 'q1', '✓', $s['fok'], 'Работает');
+
+    return implode(' ', $out);
+};
 $rv_flag = static function ($cc) {
     if (!preg_match('~^[A-Z]{2}$~', (string) $cc)) return '';
 
@@ -98,8 +110,18 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rvp button,.rvp input{font-family:inherit}
     .rvp .btn{display:inline-flex;align-items:center;gap:.4rem}
     .rvp .btn svg.rvi{flex:0 0 auto}
-    .rv-deadbtn{border:0;cursor:pointer;min-height:0;height:auto;padding:.08rem .45rem;font-family:inherit}
-    .rv-deadbtn:hover{filter:brightness(1.15)}
+    .rv-deadbtn,.rv-frzbtn{border:0;cursor:pointer;min-height:0;height:auto;padding:.08rem .45rem;font-family:inherit}
+    .rv-deadbtn:hover,.rv-frzbtn:hover{filter:brightness(1.15)}
+    .rv-days{display:flex;flex-wrap:wrap;gap:.35rem;margin:.1rem 0 .7rem}
+    .rv-day{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .65rem;min-height:0;height:auto;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--text);font-family:inherit;font-size:.78rem;font-weight:500;cursor:pointer}
+    .rv-day:hover{background:var(--hover);filter:none}
+    .rv-day.on{background:var(--accent-light);border-color:var(--accent);color:var(--accent-text);font-weight:600}
+    .rv-day small{color:var(--muted);font-size:.7rem;font-weight:500}
+    .rv-day i{width:7px;height:7px;border-radius:50%;flex:none;background:var(--rq1)}
+    .rv-day i.st-warn{background:var(--rq3)}.rv-day i.st-bad{background:var(--rq5)}.rv-day i.st-mut{background:var(--line)}
+    .rv-sect label.off{opacity:.55;cursor:default}
+    .rv-mxd table.rv-lt tr.cur td{background:var(--accent-light)}
+    .rv-vb{display:inline-flex;gap:.25rem;flex-wrap:wrap}
     .rv-mod{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,94vw);max-height:80vh;display:none;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 48px rgba(0,0,0,.4);z-index:92;overflow:hidden}
     .rv-mod.open{display:flex}
     .rv-flt{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
@@ -435,7 +457,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             <div class="rv-kpi"><span class="k">Не отвечает узел</span><span class="v<?= $rv_dead_cl ? ' bad' : '' ?>"><?= $rv_num(count($rv_dead_cl)) ?></span><span class="d" data-tip="По последним (до 6) часам с замерами в каждой сети устройства, приславшего отчёт за период: узел не ответил ни на один пинг. Сеть, в которой устройство давно не было, тоже учитывается, пока её последний отчёт попадает в период.">клиентов, у кого узел молчит — <b>по последним часам с замерами</b></span></div>
             <div class="rv-kpi"><span class="k">Пинги</span><span class="v"><?= $rv_num($rv_tot['pn']) ?></span><span class="d">неудачных <span class="rq <?= $rv_qfail($rv_tot['fail']) ?>"><?= h($rv_pct($rv_tot['fail'])) ?></span></span></div>
             <div class="rv-kpi"><span class="k">Медианный пинг</span><span class="v" style="font-size:1.15rem"><?= h($rv_med($rv_tot['med'])) ?></span><span class="d">по <?= $rv_num($rv_tot['nodes']) ?> узлам</span></div>
-            <div class="rv-kpi"><span class="k">Проверка 16–20</span><span class="v" style="font-size:1.05rem"><?= $rv_frz($rv_tot) ?></span><span class="d" data-tip="Сколько проверок за период закончились так. Это число проверок, а не устройств.">проверок за период: режется · не отвечает · работает</span></div>
+            <div class="rv-kpi"><span class="k">Проверка 16–20</span><span class="v" style="font-size:1.05rem"><?= $rv_frzb($rv_tot) ?></span><span class="d" data-tip="Сколько проверок за период закончились так. Это число проверок, а не устройств. Нажмите на число — у каких устройств, в какой сети и до какого узла.">проверок за период: режется · не отвечает · работает</span></div>
             <div class="rv-kpi"><span class="k">Трафик через узлы</span><span class="v"><?= h($rv_bytes($rv_tot['bytes'])) ?></span><span class="d">у клиентов с отчётами</span></div>
         </div>
         <?php if ((int) $rep_st['last'] > 0): ?><p class="muted rv-fresh"><svg class="rvi"><use href="#rvi-clock"/></svg><span>Последний отчёт пришёл <b class="ct-ago" data-ts="<?= (int) $rep_st['last'] ?>"><?= h(date('d.m H:i', (int) $rep_st['last'])) ?></b>. Устройство присылает отчёт не чаще раза в 6 часов, при плановом обновлении подписки, и только за закрытые часы, поэтому данные отстают от реального времени минимум на час, обычно на несколько часов.</span></p><?php endif; ?>
@@ -543,7 +565,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 <td class="num"><?= $rv_num($isp['pn']) ?></td>
                 <td class="num"><span class="rq <?= $rv_qfail($isp['fail']) ?>"><?= h($rv_pct($isp['fail'])) ?></span></td>
                 <td><span class="rq <?= $rv_qmed($isp['med']) ?>"><?= h($rv_med($isp['med'])) ?></span></td>
-                <td><?= $rv_frz($isp) ?></td>
+                <td><?= $rv_frzb($isp, '', (int) $isp['asn']) ?></td>
                 <td class="num"><?= h($rv_bytes($isp['bytes'])) ?></td>
             </tr>
             <?php endforeach; ?>
@@ -569,7 +591,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 <td class="num"><?= $rv_num($n['pn']) ?></td>
                 <td class="num"><span class="rq <?= $rv_qfail($n['fail']) ?>"><?= h($rv_pct($n['fail'])) ?></span></td>
                 <td><span class="rq <?= $rv_qmed($n['med']) ?>"><?= h($rv_med($n['med'])) ?></span></td>
-                <td><?= $rv_frz($n) ?></td>
+                <td><?= $rv_frzb($n, $n['nkey']) ?></td>
                 <td class="num"><?= $nd > 0 ? '<button type="button" class="rq q5 rv-deadbtn" data-nk="' . h($n['nkey']) . '" title="Показать, у кого">' . $rv_num($nd) . ' устр.</button>' : '<span class="muted">—</span>' ?></td>
                 <td class="num"><?php if ($n['bytes'] > 0 && $rv_f['node'] !== ''): ?><?= h($rv_bytes($n['bytes'])) ?><?php elseif ($n['bytes'] > 0): ?><div class="rv-share"><?= h($rv_bytes($n['bytes'])) ?><span class="bar"><i style="width:<?= round($rv_sh * 100, 1) ?>%"></i></span><span class="pc"><?= h($rv_pct($rv_sh)) ?></span></div><?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td><?php if ($n['worst'] && $n['worst']['fail'] > 0): ?><?= $rv_flag($n['worst']['cc']) ?> AS<?= (int) $n['worst']['asn'] ?> <span class="rq <?= $rv_qfail($n['worst']['fail']) ?>"><?= h($rv_pct($n['worst']['fail'])) ?></span><?php else: ?><span class="muted">—</span><?php endif; ?></td>
@@ -1118,7 +1140,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             if (seen < HST.first) return 'Этот отчёт пришёл ' + ago(seen) + ', до обновления прослойки — по часам он не разложен. Первый отчёт с историей пришёл ' + ago(HST.first) + '; у этого устройства полоса заполнится со следующего отчёта (не чаще раза в 6 часов).';
             return 'В отчёте ' + ago(seen) + ' не было часов с пингами до этого узла в этой сети.';
         };
-        var hoursTbl = function (r) {
+        var hoursTbl = function (r, day, dayNm) {
             if (!r.hc || !r.hh) return '';
             var cells = r.hc.split(','), len = cells.length, rows = [], w6 = 0;
             for (var i = len - 1; i >= 0; i--) {
@@ -1130,12 +1152,16 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 rows.push(row);
             }
             if (!rows.length) return '';
+            if (day) {
+                rows = rows.filter(function (x) { return x.t >= day && x.t < day + 86400; });
+                if (!rows.length) return '<div class="muted" style="font-size:.78rem;margin-top:.6rem">Почасовых замеров за этот день нет: по часам хранятся только последние 48 часов.</div>';
+            }
             var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
             var tf = function (t) { var d = new Date(t * 1000); return p2(d.getDate()) + '.' + p2(d.getMonth() + 1) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()); };
             var edge = Math.floor(Date.now() / 3600000) * 3600 - 47 * 3600, old = rows.filter(function (x) { return x.t < edge; }).length;
             var med = function (b) { var t = 0, s = 0; b.forEach(function (x) { t += x; }); if (!t) return -1; for (var i = 0; i < 6; i++) { s += b[i]; if (s * 2 >= t) return i; } return 5; };
             var bars = function (b) { var m = Math.max.apply(null, b.concat([1])); return '<span class="rv-hb">' + b.map(function (x, i) { return '<i class="h' + i + '" style="height:' + (x ? Math.max(2, Math.round(x / m * 16)) : 1) + 'px' + (x ? '' : ';opacity:.3') + '"></i>'; }).join('') + '</span>'; };
-            return '<details class="rv-hrs"' + (CS.hro ? ' open' : '') + '><summary>По часам — ' + rows.length + ' ' + plural(rows.length, 'час', 'часа', 'часов') + ' с замерами</summary>'
+            return '<details class="rv-hrs"' + (CS.hro ? ' open' : '') + '><summary>По часам' + (day ? ' за ' + esc(dayNm) : '') + ' — ' + rows.length + ' ' + plural(rows.length, 'час', 'часа', 'часов') + ' с замерами</summary>'
                 + '<div class="muted" style="font-size:.76rem;margin:.35rem 0 .2rem">Время — ваше. Подсвечены последние ' + w6 + ' ' + plural(w6, 'час', 'часа', 'часов') + ' с замерами: только по ним решается «не отвечает». Отдельные пинги клиент не присылает — только итоги за час.' + (old ? ' Бледные строки — ' + old + ' ' + plural(old, 'час', 'часа', 'часов') + ' раньше полосы: таблица идёт до последнего часа с замерами в этой сети.' : '') + '</div>'
                 + '<div class="rv-wrap"><table class="rv-lt"><thead><tr><th>Час</th><th class="n">Пингов</th><th class="n">Неудачных</th><th>Медиана</th><th>Задержки</th></tr></thead><tbody>'
                 + rows.map(function (x) { var m = med(x.b); return '<tr' + (x.w6 ? ' class="w6"' : x.t < edge ? ' class="ol" data-tip="Раньше полосы: этот час старше 48 часов от текущего момента"' : '') + '><td>' + tf(x.t) + '</td><td class="n">' + x.pn + '</td><td class="n">' + (x.pf ? '<span class="rq q' + (x.pf >= x.pn ? 5 : qFail(x.pf / x.pn)) + '">' + x.pf + '</span>' : '0') + '</td><td>' + (m >= 0 ? '<span class="rq q' + Math.min(5, m + 1) + '">' + MED[m] + '</span>' : '<span class="muted">—</span>') + '</td><td data-tip="' + esc(x.b.map(function (c, i) { return MED[i] + ': ' + c; }).join(' · ')) + '">' + bars(x.b) + '</td></tr>'; }).join('')
@@ -1238,10 +1264,35 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 mod.querySelectorAll('.rv-crow').forEach(function (b) { b.addEventListener('click', function () { closeMod(); openClient(b.dataset.s); }); });
             });
         });
+        var frzSeq = 0;
+        document.querySelectorAll('.rv-frzbtn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var v = btn.dataset.v, VN = {fr: 'режется', dd: 'не отвечает', ok: 'работает'}, seq = ++frzSeq;
+                var head = function (extra) { return '<div class="rv-ph"><div style="min-width:0"><b>Проверка 16–20: ' + VN[v] + '</b>' + (extra || '') + '</div><button type="button" class="x" aria-label="Закрыть">' + ico('x') + '</button></div>'; };
+                mod.innerHTML = head() + '<div class="rv-pl"><div class="muted" style="padding:1rem">Загружаю…</div></div>';
+                mod.classList.add('open'); drwBg.classList.add('open');
+                mod.querySelector('.x').addEventListener('click', closeMod);
+                fetch('?ajax=rep_frz&' + FQ + '&v=' + v + (btn.dataset.nk ? '&nk=' + encodeURIComponent(btn.dataset.nk) : '') + (btn.dataset.asn ? '&asn=' + encodeURIComponent(btn.dataset.asn) : ''), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+                    if (seq !== frzSeq || !mod.classList.contains('open')) return;
+                    var rows = (j && j.rows) || [], dv = {}, st = j && j.src === 'state';
+                    rows.forEach(function (x) { dv[x.s + '|' + x.hw] = 1; });
+                    var ndn = function (k) { var r = k; NODES.forEach(function (n) { if (n.k === k) r = n.nm; }); return r; };
+                    var dd = function (t) { var x = new Date(t * 1000); return (x.getDate() < 10 ? '0' : '') + x.getDate() + '.' + (x.getMonth() < 9 ? '0' : '') + (x.getMonth() + 1); };
+                    mod.innerHTML = head('<div class="rv-pst"><span class="rv-pill st-mut">' + Object.keys(dv).length + ' ' + plural(Object.keys(dv).length, 'устройство', 'устройства', 'устройств') + '</span><span class="rv-pill st-mut">' + (st ? 'по последней проверке' : 'по дням периода') + '</span></div>')
+                        + '<div class="rv-pl">' + (rows.length ? rows.map(function (x) {
+                            var nm = x.nm || NAMES[x.s] || x.s, de = [x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : ''), x.cl ? 'Clod Clash ' + x.cl : ''].filter(Boolean).join(' · ');
+                            return '<button type="button" class="rv-crow" data-s="' + esc(x.s) + '" data-hw="' + esc(x.hw) + '" data-k="' + esc(x.n + '|' + x.net) + '" data-d="' + (st ? 0 : x.ld) + '"><span class="av">' + esc(nm.slice(0, 2).toUpperCase()) + '</span><span class="bd"><span class="nm">' + esc(nm) + '</span><span class="sub">' + esc(de || x.hw.slice(0, 16)) + '</span><span class="sub">' + esc(ndn(x.n)) + ' · ' + esc((KIND[x.k] || x.k) + (x.org ? ' · ' + x.org : (x.asn ? ' · AS' + x.asn : ''))) + '</span>'
+                                + '<span class="st"><span class="rq ' + (v === 'ok' ? 'q1' : v === 'fr' ? 'q4' : 'q5') + '">' + (st ? VN[v] : x.c + ' из ' + x.t + ' ' + plural(x.t, 'проверки', 'проверок', 'проверок')) + '</span> <span class="muted" style="font-size:.74rem">' + (st ? 'последняя ' + dd(x.ld) : (x.days > 1 ? 'дней: ' + x.days + ', последний ' : '') + dd(x.ld)) + '</span></span></span></button>';
+                        }).join('') : '<div class="muted" style="padding:1rem">Устройств с таким итогом за период нет.</div>') + '</div>';
+                    mod.querySelector('.x').addEventListener('click', closeMod);
+                    mod.querySelectorAll('.rv-crow').forEach(function (b) { b.addEventListener('click', function () { closeMod(); openClient(b.dataset.s, {hw: b.dataset.hw, cell: b.dataset.k, day: +b.dataset.d}); }); });
+                }).catch(function () { if (seq === frzSeq) { var pl = mod.querySelector('.rv-pl'); if (pl) pl.innerHTML = '<div class="muted" style="padding:1rem">Не удалось загрузить</div>'; } });
+            });
+        });
         drwBg.addEventListener('click', function () { closeMod(); closeClient(); });
         document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (mod.classList.contains('open')) closeMod(); else if (drw.classList.contains('open')) closeClient(); });
         var clientSeq = 0;
-        var openClient = function (q) {
+        var openClient = function (q, opt) {
             var seq = ++clientSeq;
             drw.innerHTML = '<div class="rv-dh"><h2>Загружаю…</h2><span class="sp"></span><button type="button" class="btn ghost" id="rvDrwX" aria-label="Закрыть">' + ico('x') + '</button></div>';
             drw.querySelector('#rvDrwX').addEventListener('click', closeClient);
@@ -1256,6 +1307,11 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 Object.keys(c.ips || {}).forEach(function (k) { c.ips[k].forEach(function (x) { x.rg = regionOf(x.loc, x.cc, x.sub); }); });
                 if (c.name) NAMES[c.short] = c.name;
                 CS = {c: c, dev: 0, cell: null, only: false};
+                if (opt) {
+                    c.devs.forEach(function (x, i) { if (x.hw === opt.hw) CS.dev = i; });
+                    if (opt.cell) { CS.cell = opt.cell; CS.jump = opt.cell; }
+                    if (opt.day !== undefined) CS.day = opt.day;
+                }
                 drawClient();
             }).catch(function () { if (seq !== clientSeq) return; var h = drw.querySelector('h2'); if (h) h.textContent = 'Не удалось загрузить'; });
         };
@@ -1299,17 +1355,52 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 diag.push({s: 'warn', ic: 'clock', t: 'Высокий пинг: медиана ' + MED[med], w: best.length ? 'Ближе всего сейчас: ' + esc(best.join(', ')) + '.' : ''});
             }
             if (!diag.length) diag.push({s: 'ok', ic: 'check', t: 'Все узлы отвечают во всех сетях', w: 'Неудачных пингов ' + pct(tp >= 20 ? tf / tp : null) + ', медиана ' + (MED[med] || '—') + '.'});
-            var show = CS.only ? nkeys.filter(function (k) { return nets.some(function (n) { var y = n.cells[k]; return y && (y.dead || y.v === 'frozen' || (y.fail !== null && y.fail >= .03) || y.med >= 3); }); }) : nkeys;
-            if (!CS.cell || !nmap[CS.cell.split('|')[1]] || !nmap[CS.cell.split('|')[1]].cells[CS.cell.split('|')[0]]) {
+            var q2 = function (n) { return (n < 10 ? '0' : '') + n; };
+            var tfm = function (t) { var x = new Date(t * 1000); return q2(x.getDate()) + '.' + q2(x.getMonth() + 1) + ' ' + q2(x.getHours()) + ':' + q2(x.getMinutes()); };
+            var medOf = function (b) { var t = 0, s2 = 0; b.forEach(function (x) { t += x; }); if (!t) return -1; for (var i = 0; i < 6; i++) { s2 += b[i]; if (s2 * 2 >= t) return i; } return 5; };
+            var dRows = (c.days || []).filter(function (r) { return r.hw === d.hw; });
+            var dayList = []; dRows.forEach(function (r) { if (dayList.indexOf(r.d) < 0) dayList.push(r.d); }); dayList.sort(function (a, b) { return b - a; });
+            if (CS.day === undefined || (CS.day && dayList.indexOf(CS.day) < 0)) CS.day = dayList.length ? (dayList.indexOf(c.today) >= 0 ? c.today : dayList[0]) : 0;
+            var dName = function (x) { if (x === c.today) return 'Сегодня'; if (x === c.today - 86400) return 'Вчера'; var t = new Date((x + c.tz) * 1000); return q2(t.getUTCDate()) + '.' + q2(t.getUTCMonth() + 1); };
+            var dWd = function (x) { return ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][new Date((x + c.tz) * 1000).getUTCDay()]; };
+            var dState = function (x) { var st = 'ok'; dRows.forEach(function (r) { if (r.d !== x || !r.pn) return; if (r.pf >= r.pn || r.fdd > 0) st = 'bad'; else if (st !== 'bad' && (r.ffr > 0 || (r.pn >= 20 && r.pf / r.pn >= .10))) st = 'warn'; }); return st; };
+            var buildM = function (day) {
+                if (!day) return {nets: nets, map: nmap, keys: nkeys};
+                var o = {nets: [], map: {}, keys: []};
+                dRows.forEach(function (r) {
+                    if (r.d !== day) return;
+                    var n = o.map[r.net];
+                    if (!n) { var s = nmap[r.net]; n = o.map[r.net] = {net: r.net, k: s ? s.k : r.k, ip: s ? s.ip : '', ip6: '', cc: s ? s.cc : '', asn: s ? s.asn : r.asn, org: s ? s.org : r.org, hh: s ? s.hh : 0, seen: s ? s.seen : 0, cells: {}}; o.nets.push(n); }
+                    var pf = Math.min(r.pf, r.pn);
+                    n.cells[r.n] = {pn: r.pn, pf: pf, b: r.b, med: medOf(r.b), fail: r.pn >= 20 ? pf / r.pn : null, dead: r.pn > 0 && pf >= r.pn, fok: r.fok, ffr: r.ffr, fdd: r.fdd, vl: r.vl, vs: r.vs, va: r.va, hrs: r.hrs, tb: r.tb};
+                    if (r.pn > 0 && o.keys.indexOf(r.n) < 0) o.keys.push(r.n);
+                });
+                o.nets.sort(function (a, b) { return (b.hh - a.hh) || (b.seen - a.seen); });
+                o.keys.sort(function (a, b) { return nodeNm(a).localeCompare(nodeNm(b)); });
+                return o;
+            };
+            var M = buildM(CS.day);
+            if (CS.jump && CS.day && CS.cell) { var jp = CS.cell.split('|'); if (!(M.map[jp[1]] && M.map[jp[1]].cells[jp[0]] && M.map[jp[1]].cells[jp[0]].pn)) { CS.day = 0; M = buildM(0); } }
+            var mNets = M.nets, mMap = M.map, mKeys = M.keys;
+            var isBad = function (y) { return !!y && y.pn > 0 && (y.dead || y.ffr > 0 || y.fdd > 0 || y.v === 'frozen' || y.v === 'dead' || (y.fail !== null && y.fail >= .10) || y.med >= 3); };
+            var probKeys = mKeys.filter(function (k) { return mNets.some(function (n) { return isBad(n.cells[k]); }); });
+            if (!probKeys.length) CS.only = false;
+            var show = CS.only ? probKeys : mKeys;
+            if (!CS.cell || !mMap[CS.cell.split('|')[1]] || !mMap[CS.cell.split('|')[1]].cells[CS.cell.split('|')[0]]) {
                 CS.cell = null;
-                nkeys.some(function (k) { return nets.some(function (n) { if (n.cells[k] && n.cells[k].dead) { CS.cell = k + '|' + n.net; return true; } return false; }); });
-                if (!CS.cell && nkeys.length && nets.length) CS.cell = nkeys[0] + '|' + nets[0].net;
+                mKeys.some(function (k) { return mNets.some(function (n) { if (n.cells[k] && n.cells[k].dead) { CS.cell = k + '|' + n.net; return true; } return false; }); });
+                if (!CS.cell) mKeys.some(function (k) { return mNets.some(function (n) { if (isBad(n.cells[k])) { CS.cell = k + '|' + n.net; return true; } return false; }); });
+                if (!CS.cell && mKeys.length && mNets.length) CS.cell = mKeys[0] + '|' + mNets[0].net;
+            }
+            if (CS.only && !CS.jump && CS.cell && show.indexOf(CS.cell.split('|')[0]) < 0) {
+                CS.cell = null;
+                show.some(function (k) { return mNets.some(function (n) { if (isBad(n.cells[k])) { CS.cell = k + '|' + n.net; return true; } return false; }); });
             }
             var cell = function (r, key) {
                 if (!r || !r.pn) return '<div class="rv-mc"><span class="a">—</span></div>';
                 var sel = CS.cell === key ? ' sel' : '';
                 if (r.dead) return '<button type="button" class="rv-mc dead' + sel + '" data-cell="' + esc(key) + '"><span class="a">нет ответа</span><span class="b">0 из ' + r.pn + '</span></button>';
-                return '<button type="button" class="rv-mc q' + qFail(r.pf / r.pn) + sel + '" data-cell="' + esc(key) + '"><span class="a">' + fl(r.pf, r.pn) + (r.v === 'frozen' ? ' <svg class="rvi" style="width:11px;height:11px"><use href="#rvi-scissors"/></svg>' : '') + '</span><span class="b">' + (MED[r.med] || '—') + '</span></button>';
+                return '<button type="button" class="rv-mc q' + qFail(r.pf / r.pn) + sel + '" data-cell="' + esc(key) + '"><span class="a">' + fl(r.pf, r.pn) + (r.v === 'frozen' || r.ffr > 0 ? ' <svg class="rvi" style="width:11px;height:11px"><use href="#rvi-scissors"/></svg>' + (r.ffr > 1 ? r.ffr : '') : '') + (r.fdd > 0 ? ' ✕' + (r.fdd > 1 ? r.fdd : '') : '') + '</span><span class="b">' + (MED[r.med] || '—') + '</span></button>';
             };
             var worst = function (hw) {
                 var best = null, bs = 0;
@@ -1332,13 +1423,27 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 var xr = c.rows.filter(function (r) { return r.hw === x.hw; }), xp = 0, xf = 0; xr.forEach(function (r) { xp += r.pn; xf += r.pf; }); var bad = xr.some(function (r) { return r.dead; }) || (xp >= 20 && xf / xp >= .1), warn = xr.some(function (r) { return r.v === 'frozen'; }) || (xp >= 20 && xf / xp >= .03);
                 return '<div role="button" tabindex="0" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span>' + (bad || warn ? '<button type="button" class="rv-pill rv-jump st-' + (bad ? 'bad' : 'warn') + '" title="Показать проблемный узел">' + (bad ? 'проблемы' : 'деградация') + '</button>' : '<span class="rv-pill st-ok">в порядке</span>') + '</div>';
             }).join('');
-            var sel = CS.cell ? CS.cell.split('|') : null, sr = sel && nmap[sel[1]] ? nmap[sel[1]].cells[sel[0]] : null, sn = sel ? nmap[sel[1]] : null, sp = sr && sn ? peer(sn.asn, sel[0]) : null;
+            var sel = CS.cell ? CS.cell.split('|') : null, sr = sel && mMap[sel[1]] ? mMap[sel[1]].cells[sel[0]] : null, sn = sel ? mMap[sel[1]] : null, sp = sr && sn ? peer(sn.asn, sel[0]) : null;
             var lastSeen = 0; rs.forEach(function (r) { lastSeen = Math.max(lastSeen, r.seen); });
             var use = {}, useT = 0; rs.forEach(function (r) { if (r.tb > 0 && r.seen === lastSeen) { use[r.n] = (use[r.n] || 0) + r.tb; useT += r.tb; } });
             var gb = function (b) { var u = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'], i = 0; while (b >= 1024 && i < 4) { b /= 1024; i++; } return (i ? b.toFixed(b < 10 ? 1 : 0).replace('.', ',') : b) + ' ' + u[i]; };
-            var p90 = function (hc) { var b = [0, 0, 0, 0, 0, 0], t = 0, s2 = 0; String(hc || '').split(',').forEach(function (c) { if (!c) return; c.split('.').slice(2, 8).forEach(function (x, i) { var v = parseInt(x, 36) || 0; b[i] += v; t += v; }); }); if (t < 20) return ''; for (var i = 0; i < 6; i++) { s2 += b[i]; if (s2 >= t * .9) return i < 5 ? ' · 90 % ответов — быстрее ' + ['100 мс', '200 мс', '400 мс', '800 мс', '1,5 с'][i] : ' · больше 10 % ответов — дольше 1,5 с'; } return ''; };
+            var p90b = function (b) { var t = 0, s2 = 0; b.forEach(function (x) { t += x; }); if (t < 20) return ''; for (var i = 0; i < 6; i++) { s2 += b[i]; if (s2 >= t * .9) return i < 5 ? ' · 90 % ответов — быстрее ' + ['100 мс', '200 мс', '400 мс', '800 мс', '1,5 с'][i] : ' · больше 10 % ответов — дольше 1,5 с'; } return ''; };
+            var p90 = function (hc) { var b = [0, 0, 0, 0, 0, 0]; String(hc || '').split(',').forEach(function (c) { if (!c) return; c.split('.').slice(2, 8).forEach(function (x, i) { b[i] += parseInt(x, 36) || 0; }); }); return p90b(b); };
             var useTop = Object.keys(use).sort(function (a, b) { return use[b] - use[a]; }).slice(0, 3);
             var VTX = {ok: 'работает', frozen: 'режется', dead: 'не отвечает'};
+            var dayDetail = function (r, n, s) {
+                var k = s[0], dnm = CS.day === c.today ? 'сегодня' : CS.day === c.today - 86400 ? 'вчера' : dName(CS.day), fz = r.fok + r.ffr + r.fdd;
+                var hist = dRows.filter(function (x) { return x.n === k && x.net === n.net; }).sort(function (a, b) { return b.d - a.d; });
+                var vcell = function (x) { if (!(x.fok + x.ffr + x.fdd)) return '<span class="muted">—</span>'; return '<span class="rv-vb">' + (x.ffr ? '<span class="rq q4">✂ ' + x.ffr + '</span>' : '') + (x.fdd ? '<span class="rq q5">✕ ' + x.fdd + '</span>' : '') + (x.fok ? '<span class="rq q1">✓ ' + x.fok + '</span>' : '') + '</span>'; };
+                var s48 = nmap[n.net] && nmap[n.net].cells[k];
+                return '<div class="rv-mxd"><h3>' + esc(nodeNm(k)) + ' в сети «' + esc(label(n)) + '» — ' + esc(dnm) + '</h3>'
+                    + '<div class="muted" style="font-size:.8rem">Пингов ' + r.pn + ', неудачных ' + r.pf + (r.pn >= 20 ? ' (' + pct(r.pf / r.pn) + ')' : '') + ' · медиана ' + (MED[r.med] || '—') + p90b(r.b) + ' · часов с замерами ' + r.hrs
+                    + (fz ? ' · 16–20: ' + [r.ffr ? 'режется ' + r.ffr : '', r.fdd ? 'не отвечает ' + r.fdd : '', r.fok ? 'работает ' + r.fok : ''].filter(Boolean).join(', ') + (r.vl && VTX[r.vl] ? '; последняя — ' + VTX[r.vl] + (r.vs ? ', код ' + r.vs : '') + (r.va ? ', ' + tfm(r.va) : '') : '') : ' · 16–20 в этот день не проверялась') + '</div>'
+                    + (hist.length > 1 ? '<div class="rv-wrap" style="margin-top:.6rem"><table class="rv-lt"><thead><tr><th>День</th><th class="n">Пингов</th><th class="n">Неудачных</th><th>Медиана</th><th>16–20</th></tr></thead><tbody>'
+                        + hist.map(function (x) { var m = medOf(x.b), pf = Math.min(x.pf, x.pn); return '<tr class="clk' + (x.d === CS.day ? ' cur' : '') + '" data-day="' + x.d + '" title="Показать этот день"><td>' + esc(dName(x.d)) + (x.d < c.today - 86400 ? ' <span class="muted">' + dWd(x.d) + '</span>' : '') + '</td><td class="n">' + x.pn + '</td><td class="n">' + (pf ? '<span class="rq q' + (pf >= x.pn ? 5 : qFail(pf / x.pn)) + '">' + (x.pn >= 20 ? pct(pf / x.pn) : pf + ' из ' + x.pn) + '</span>' : '0') + '</td><td>' + (m >= 0 ? '<span class="rq q' + Math.min(5, m + 1) + '">' + MED[m] + '</span>' : '<span class="muted">—</span>') + '</td><td>' + vcell(x) + '</td></tr>'; }).join('')
+                        + '</tbody></table></div>' : '')
+                    + (s48 ? hoursTbl(s48, CS.day, dnm) : '') + '</div>';
+            };
             drw.innerHTML = '<div class="rv-dh"><span class="av">' + esc((nm || c.short).slice(0, 2).toUpperCase()) + '</span><div style="min-width:0"><h2>' + esc(nm || c.short) + '</h2><div class="muted" style="font-size:.78rem">' + (nm ? 'имя из панели · ' : '') + '<code>' + esc(c.short) + '</code></div></div>'
                 + '<span class="rv-pill st-mut">' + c.devs.length + ' ' + plural(c.devs.length, 'устройство', 'устройства', 'устройств') + '</span><span class="sp"></span>'
                 + '<a class="btn ghost" href="?tab=reqlog&rl_q=' + encodeURIComponent(c.short) + '">' + ico('list') + 'Лог запросов</a>'
@@ -1355,11 +1460,13 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                         + ((n.rgo !== n.rg || n.occ !== n.cc) && (n.rgo || n.occ) ? '<br><span data-tip="Где адрес сети числится в базе адресов. Устройство стоит там, где провело больше всего часов: динамические адреса провайдера заведены на разные регионы.">адрес оператора — ' + esc(placeNm(n.rgo, n.occ)) + '</span>' : '')
                         + '<br>замер ' + ago(n.seen) + '</div>' + ipList(d.hw, n) + '</div>';
                 }).join('') + '</div>'
-                + '<div class="rv-sect">Пинги до узлов по сетям<label><input type="checkbox" id="rvOnly"' + (CS.only ? ' checked' : '') + '> только проблемные</label></div>'
-                + (nkeys.length ? '<div class="rv-wrap"><table class="rv-mx"><thead><tr><th class="rh">Узел</th>' + nets.map(function (n) { return '<th style="min-width:140px">' + ico(KIND[n.k] ? n.k : 'other') + '<div style="color:var(--text);margin-top:.15rem">' + esc(label(n)) + '</div><div style="font-weight:400"><code>' + esc(n.ip || '—') + '</code></div></th>'; }).join('') + '</tr></thead><tbody>'
-                    + show.map(function (k) { var nd = c.nk[k] || {}; return '<tr data-k="' + esc(k) + '"' + (sel && sel[0] === k ? ' class="cur"' : '') + '><td class="rh">' + flagFor(nd.cc, nodeNm(k)) + '<b>' + esc(nodeNm(k)) + '</b><small>' + esc(nd.t || '') + '</small></td>' + nets.map(function (n) { return '<td>' + cell(n.cells[k], k + '|' + n.net) + '</td>'; }).join('') + '</tr>'; }).join('')
-                    + '</tbody></table></div>' : '<p class="muted">Пингов в отчётах нет.</p>')
-                + (sr ? '<div class="rv-mxd"><h3>' + esc(nodeNm(sel[0])) + ' в сети «' + esc(label(sn)) + '» — последние 48 часов</h3><div class="muted" style="font-size:.8rem">Пингов ' + sr.pn + ', неудачных ' + sr.pf + ' · медиана ' + (MED[sr.med] || '—') + p90(sr.hc) + (sr.v && VTX[sr.v] ? ' · 16–20: ' + VTX[sr.v] + (sr.vs ? ', код ' + sr.vs : '') + (sr.va ? ', ' + new Date(sr.va * 1000).toLocaleString('ru-RU', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) : '') : '') + (sp ? ' · у других клиентов этого провайдера: неудач ' + pct(sp.fail) + ', медиана ' + (MED[sp.med] || '—') + (sp.dead ? ', без ответа ' + sp.dead + ' из ' + sp.n : '') : '') + '</div>'
+                + '<div class="rv-sect">Пинги до узлов по сетям<label' + (probKeys.length ? '' : ' class="off"') + ' data-tip="Проблемный узел — не отвечает, режется или не проходит 16–20, неудачных пингов от 10 % или медиана от 400 мс хотя бы в одной сети."><input type="checkbox" id="rvOnly"' + (CS.only ? ' checked' : '') + (probKeys.length ? '' : ' disabled') + '> только проблемные (' + probKeys.length + ' из ' + mKeys.length + ')</label></div>'
+                + (dayList.length ? '<div class="rv-days">' + dayList.slice(0, 14).map(function (x) { return '<button type="button" class="rv-day' + (CS.day === x ? ' on' : '') + '" data-day="' + x + '"><i class="st-' + dState(x) + '"></i>' + dName(x) + (x < c.today - 86400 ? ' <small>' + dWd(x) + '</small>' : '') + '</button>'; }).join('') + '<button type="button" class="rv-day' + (!CS.day ? ' on' : '') + '" data-day="0" data-tip="Сумма последних 48 часов с замерами в каждой сети, без деления по дням."><i class="st-mut"></i>48 ч сводно</button></div>' : '<div class="muted" style="font-size:.78rem;margin:.1rem 0 .6rem">По дням данные копятся с обновления прослойки — пока показано за последние 48 часов.</div>')
+                + (mKeys.length ? '<div class="rv-wrap"><table class="rv-mx"><thead><tr><th class="rh">Узел</th>' + mNets.map(function (n) { return '<th style="min-width:140px">' + ico(KIND[n.k] ? n.k : 'other') + '<div style="color:var(--text);margin-top:.15rem">' + esc(label(n)) + '</div><div style="font-weight:400"><code>' + esc(n.ip || '—') + '</code></div></th>'; }).join('') + '</tr></thead><tbody>'
+                    + show.map(function (k) { var nd = c.nk[k] || {}; return '<tr data-k="' + esc(k) + '"' + (sel && sel[0] === k ? ' class="cur"' : '') + '><td class="rh">' + flagFor(nd.cc, nodeNm(k)) + '<b>' + esc(nodeNm(k)) + '</b><small>' + esc(nd.t || '') + '</small></td>' + mNets.map(function (n) { return '<td>' + cell(n.cells[k], k + '|' + n.net) + '</td>'; }).join('') + '</tr>'; }).join('')
+                    + '</tbody></table></div>' : '<p class="muted">' + (CS.day ? 'За этот день пингов нет.' : 'Пингов в отчётах нет.') + '</p>')
+                + (sr && CS.day ? dayDetail(sr, sn, sel) : '')
+                + (sr && !CS.day ? '<div class="rv-mxd"><h3>' + esc(nodeNm(sel[0])) + ' в сети «' + esc(label(sn)) + '» — последние 48 часов</h3><div class="muted" style="font-size:.8rem">Пингов ' + sr.pn + ', неудачных ' + sr.pf + ' · медиана ' + (MED[sr.med] || '—') + p90(sr.hc) + (sr.v && VTX[sr.v] ? ' · 16–20: ' + VTX[sr.v] + (sr.vs ? ', код ' + sr.vs : '') + (sr.va ? ', ' + new Date(sr.va * 1000).toLocaleString('ru-RU', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) : '') : '') + (sp ? ' · у других клиентов этого провайдера: неудач ' + pct(sp.fail) + ', медиана ' + (MED[sp.med] || '—') + (sp.dead ? ', без ответа ' + sp.dead + ' из ' + sp.n : '') : '') + '</div>'
                     + '<div class="rv-hist">' + histCells(sr.hist, sr.hh, d.lh) + '</div><div class="rv-hax"><span>48 ч назад</span><span>24 ч</span><span>сейчас</span></div>'
                     + '<div class="rv-legend"><span><i style="background:var(--rq1)"></i>&lt; 100 мс</span><span><i style="background:var(--rq2)"></i>100–200</span><span><i style="background:var(--rq3)"></i>200–400</span><span><i style="background:var(--rq4)"></i>400–800</span><span><i style="background:var(--rq5)"></i>&gt; 0,8 с</span><span><i class="hx" style="background:repeating-linear-gradient(135deg,var(--rq5) 0 3px,transparent 3px 6px)"></i>нет ответа</span><span><i style="background:var(--line)"></i>нет замеров в этой сети</span><span><i style="background:transparent;box-shadow:inset 0 0 0 1px var(--line)"></i>отчёт ещё не пришёл</span></div>'
                     + (sr.hist ? '' : '<div class="muted" style="font-size:.78rem;margin-top:.3rem">' + esc(histWhy(sr.seen)) + '</div>') + hoursTbl(sr) + '</div>' : '')
@@ -1398,6 +1505,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 }
             }
             drw.querySelectorAll('[data-cell]').forEach(function (b) { b.addEventListener('click', function () { CS.cell = b.dataset.cell; drawClient(true); }); });
+            drw.querySelectorAll('[data-day]').forEach(function (b) { b.addEventListener('click', function () { CS.day = +b.dataset.day; drawClient(true); }); });
             var only = drw.querySelector('#rvOnly'); if (only) only.addEventListener('change', function () { CS.only = only.checked; drawClient(true); });
             var hrs = drw.querySelector('.rv-hrs'); if (hrs) hrs.addEventListener('toggle', function () { CS.hro = hrs.open; });
             drw.querySelectorAll('.rv-ipl').forEach(function (el) { el.addEventListener('toggle', function () { CS.ipo = CS.ipo || {}; CS.ipo[el.dataset.net] = el.open; }); });
