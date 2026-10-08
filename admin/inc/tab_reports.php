@@ -576,7 +576,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 
     <div class="card">
         <div class="loghead"><h2>Узлы (<?= count($rv_nodes) ?>)</h2><?= $rv_win('p') ?><span class="sp" style="flex:1"></span><?php if (count($rv_nodes) > 1): ?><span class="rv-seg" id="rvNdSort"><button type="button" class="on" data-s="fail">Сначала проблемные</button><button type="button" data-s="b">Сначала популярные</button></span><?php endif; ?></div>
-        <p class="muted" style="font-size:.82rem">«Трафик» — сколько прошло через узел у клиентов с отчётами и его доля от трафика всех узлов: видно, какими узлами реально пользуются. Сверху — узлы с наибольшей долей неудачных пингов. «Молчит у» — у скольких устройств узел не ответил ни на один пинг в последних часах с замерами (до 6). «Хуже всего» — страна и провайдер клиентов, у которых этому узлу хуже всего (от <?= REP_VIEW_MIN_PINGS ?> пингов). Нажмите на узел — график и провайдеры только по нему.</p>
+        <p class="muted" style="font-size:.82rem">«Трафик» — сколько прошло через узел у клиентов с отчётами и его доля от трафика всех узлов: видно, какими узлами реально пользуются. Сверху — узлы с наибольшей долей неудачных пингов. «Молчит у» — у скольких устройств узел не ответил ни на один пинг в последних часах с замерами (до 6). «Хуже всего» — страна и провайдер клиентов, у которых этому узлу хуже всего (от <?= REP_VIEW_MIN_PINGS ?> пингов); адреса, у которых провайдер не определился, тут не учитываются. Нажмите на узел — график и провайдеры только по нему.</p>
         <?php if (!$rv_nodes): ?>
         <p class="muted">Нет данных за период.</p>
         <?php else: ?>
@@ -594,7 +594,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 <td><?= $rv_frzb($n, $n['nkey']) ?></td>
                 <td class="num"><?= $nd > 0 ? '<button type="button" class="rq q5 rv-deadbtn" data-nk="' . h($n['nkey']) . '" title="Показать, у кого">' . $rv_num($nd) . ' устр.</button>' : '<span class="muted">—</span>' ?></td>
                 <td class="num"><?php if ($n['bytes'] > 0 && $rv_f['node'] !== ''): ?><?= h($rv_bytes($n['bytes'])) ?><?php elseif ($n['bytes'] > 0): ?><div class="rv-share"><?= h($rv_bytes($n['bytes'])) ?><span class="bar"><i style="width:<?= round($rv_sh * 100, 1) ?>%"></i></span><span class="pc"><?= h($rv_pct($rv_sh)) ?></span></div><?php else: ?><span class="muted">—</span><?php endif; ?></td>
-                <td><?php if ($n['worst'] && $n['worst']['fail'] > 0): ?><?= $rv_flag($n['worst']['cc']) ?> AS<?= (int) $n['worst']['asn'] ?> <span class="rq <?= $rv_qfail($n['worst']['fail']) ?>"><?= h($rv_pct($n['worst']['fail'])) ?></span><?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                <td><?php if ($n['worst'] && $n['worst']['fail'] > 0): ?><?= $rv_flag($n['worst']['cc']) ?> <span data-tip="<?= h('AS' . (int) $n['worst']['asn'] . ($n['worst']['org'] !== '' ? ' · ' . $n['worst']['org'] : '') . ' — ' . $rv_num($n['worst']['pn']) . ' пингов') ?>"><?= h($n['worst']['org'] !== '' ? $n['worst']['org'] : 'AS' . (int) $n['worst']['asn']) ?></span> <span class="rq <?= $rv_qfail($n['worst']['fail']) ?>"><?= h($rv_pct($n['worst']['fail'])) ?></span><?php else: ?><span class="muted">—</span><?php endif; ?></td>
             </tr>
             <?php endforeach; ?>
             </tbody>
