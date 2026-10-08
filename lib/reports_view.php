@@ -821,6 +821,7 @@ function rep_view_client_card($q, $since) {
         }
     }
 
+    rep_dday_backfill(0, $short);
     $tz    = rep_tzoff();
     $today = rep_day_of(time(), $tz);
     $days  = [];
