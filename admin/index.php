@@ -457,6 +457,16 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'rep_frz') {
+        $rf  = rep_view_filters($_GET);
+        $frz = rep_view_frz($rf, rep_view_since($rf), (string) ($_GET['v'] ?? ''), (string) ($_GET['nk'] ?? ''), (int) ($_GET['asn'] ?? 0));
+        $names = chan_names_map();
+        foreach ($frz['rows'] as &$x) $x['nm'] = (string) ($names[$x['s']] ?? '');
+        unset($x);
+        echo json_encode(['ok' => true] + $frz, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
     if ($a === 'rep_unseen') {
         $n = rep_unseen();
         echo json_encode(['ok' => true, 'n' => $n, 'tip' => rep_unseen_tip($n)], JSON_UNESCAPED_UNICODE);

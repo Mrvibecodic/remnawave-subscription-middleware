@@ -36,6 +36,7 @@ const REP_RECENT_HOURS = 6;
 // Адресов одной сети устройства: новых за отчёт и хранимых всего.
 const REP_NET_IPS_REPORT = 32;
 const REP_NET_IPS_KEEP   = 48;
+const REP_DAY_KEEP       = 31;
 
 function rep_enabled() { return chan_enabled() && setting('rep_enabled', '0') === '1'; }
 
@@ -43,6 +44,22 @@ function rep_keep_days() { return max(7, min(365, (int) (setting('rep_keep_days'
 
 function rep_sum_cols() {
     return ['devs', 'pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'mins', 'fok', 'ffr', 'fdd'];
+}
+
+function rep_day_cols() {
+    return ['pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'mins', 'fok', 'ffr', 'fdd', 'hrs'];
+}
+
+function rep_tzoff() {
+    $v = setting('rep_tzoff', '');
+
+    return $v === '' || $v === null ? (int) date('Z') : max(-43200, min(50400, (int) $v));
+}
+
+function rep_day_of($t, $off = null) {
+    $off = $off ?? rep_tzoff();
+
+    return intdiv((int) $t + $off, 86400) * 86400 - $off;
 }
 
 function rep_ddl($drv) {
@@ -60,6 +77,7 @@ function rep_ddl($drv) {
         'rep_state'  => ['idx_rep_state_seen' => 'last_seen', 'idx_rep_state_nkey' => 'nkey'],
         'rep_dev'    => ['idx_rep_dev_last' => 'last_report'],
         'rep_net_ip' => ['idx_rep_net_ip_last' => 'last_h'],
+        'rep_dday'   => ['idx_rep_dday_d' => 'd', 'idx_rep_dday_dev' => 'short_uuid, hwid'],
     ];
     $keys = static function ($t) use ($my, $idx) {
         if (!$my || empty($idx[$t])) return '';
@@ -86,6 +104,9 @@ function rep_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS rep_net_ip ($id, short_uuid {$a(64)}, hwid {$u(128)}, net {$a(16)}, ip {$a(45)},
             kind {$a(8)}, cc {$a(2)}, asn $int, org {$u(128)}, loc {$a(24)}, sub {$u(64)}, hours $int, first_h $int, last_h $int,
             UNIQUE (short_uuid, hwid, net, ip){$keys('rep_net_ip')})$tail",
+        "CREATE TABLE IF NOT EXISTS rep_dday ($id, d $int, short_uuid {$a(64)}, hwid {$u(128)}, net {$a(16)}, nkey {$a(16)}, kind {$a(8)}, cc {$a(2)},
+            asn $int, org {$u(128)}, " . implode(', ', array_map(static fn($c) => "$c $big", rep_day_cols())) . ", vl {$a(8)}, vs $int, va $int,
+            UNIQUE (d, short_uuid, hwid, net, nkey){$keys('rep_dday')})$tail",
     ];
     if (!$my) {
         foreach ($idx as $t => $list) {
@@ -335,7 +356,7 @@ function rep_device($hwid, $data) {
 function rep_forget($short) {
     $short = trim((string) $short);
     if ($short === '' || !rep_ensure() || !($p = db())) return;
-    foreach (['rep_state', 'rep_net_ip', 'rep_dev'] as $t) {
+    foreach (['rep_state', 'rep_net_ip', 'rep_dev', 'rep_dday'] as $t) {
         try { $p->prepare("DELETE FROM $t WHERE short_uuid = ?")->execute([$short]); }
         catch (Throwable $e) { error_log('submw rep forget: ' . $e->getMessage()); }
     }
@@ -413,6 +434,8 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     $zero  = array_fill_keys(rep_sum_cols(), 0);
     $hours = [];
     $days  = [];
+    $dday  = [];
+    $toff  = rep_tzoff();
     $state = [];
     $used  = [];
     $cells_total = 0;
@@ -505,6 +528,19 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
                     foreach ($c as $k => $n) $days[$dk][$k] += $n;
                 }
 
+                $ld  = rep_day_of($h, $toff);
+                $ddk = "$ld|$net|$nk";
+                if (!isset($dday[$ddk])) {
+                    $dday[$ddk] = ['d' => $ld, 'short_uuid' => $short, 'hwid' => $hwid, 'net' => $net, 'nkey' => $nk, 'kind' => $kind, 'cc' => $geo['cc'], 'asn' => $geo['asn'], 'org' => $geo['org']]
+                        + array_fill_keys(rep_day_cols(), 0) + ['vl' => '', 'vs' => 0, 'va' => 0, '_h' => []];
+                }
+                $dd = &$dday[$ddk];
+                foreach (rep_day_cols() as $k) if (isset($c[$k])) $dd[$k] += $c[$k];
+                if ($c['pn'] > 0) $dd['_h'][$h] = true;
+                if ($ip !== '') { $dd['kind'] = $kind; $dd['cc'] = $geo['cc']; $dd['asn'] = $geo['asn']; $dd['org'] = $geo['org']; }
+                if (isset($verdicts[$tok]) && $verdicts[$tok][2] >= $dd['va']) { $dd['vl'] = $verdicts[$tok][0]; $dd['vs'] = $verdicts[$tok][1]; $dd['va'] = $verdicts[$tok][2]; }
+                unset($dd);
+
                 $sk = "$net|$nk";
                 if (!isset($state[$sk])) {
                     $state[$sk] = ['net' => $net, 'nkey' => $nk, 'kind' => $kind, 'ip4' => '', 'ip6' => '', 'cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => '',
@@ -586,6 +622,14 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
         }
         foreach ($hours as $row) rep_upsert($p, 'rep_hour', $row, ['h', 'nkey', 'cc', 'asn', 'kind', 'plat'], $sums);
         foreach ($days as $row) rep_upsert($p, 'rep_ip_day', $row, ['d', 'ip', 'nkey', 'kind'], $sums, ['cc', 'asn', 'org']);
+        foreach ($dday as $row) {
+            $row['hrs'] = count($row['_h']);
+            unset($row['_h']);
+            $dset = ['kind', 'cc', 'asn', 'org'];
+            if ($row['vl'] === '') unset($row['vl'], $row['vs'], $row['va']);
+            else $dset = array_merge($dset, ['vl', 'vs', 'va']);
+            rep_upsert($p, 'rep_dday', $row, ['d', 'short_uuid', 'hwid', 'net', 'nkey'], rep_day_cols(), $dset);
+        }
         foreach ($nips as $x) {
             rep_upsert($p, 'rep_net_ip', [
                 'short_uuid' => $short, 'hwid' => $hwid, 'net' => $x['net'], 'ip' => $x['ip'], 'kind' => $x['kind'], 'cc' => $x['cc'], 'asn' => $x['asn'], 'org' => $x['org'],
@@ -679,6 +723,8 @@ function rep_purge($now = null) {
         try { $p->prepare("DELETE FROM $t WHERE $col < ?")->execute([$cut]); }
         catch (Throwable $e) { error_log('submw rep purge ' . $t . ': ' . $e->getMessage()); }
     }
+    try { $p->prepare('DELETE FROM rep_dday WHERE d < ?')->execute([max($cut, ($now ?? time()) - REP_DAY_KEEP * 86400)]); }
+    catch (Throwable $e) { error_log('submw rep purge rep_dday: ' . $e->getMessage()); }
 }
 
 function rep_stats($now = null) {
