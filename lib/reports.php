@@ -684,6 +684,120 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
 
 // Счётчик принятых отчётов для конверта в шапке: всего принято и сколько было,
 // когда «Статистику» открывали в последний раз.
+function rep_dday_fill_rows(PDO $p, array $rows) {
+    $tz  = rep_tzoff();
+    $acc = [];
+    foreach ($rows as $r) {
+        $hh = (int) $r['hist_h'];
+        if ($hh <= 0 || (string) $r['hc'] === '') continue;
+        $cells = rep_hc_parse($r['hc']);
+        $len   = count($cells);
+        $base  = $r['short_uuid'] . '|' . $r['hwid'] . '|' . $r['net'] . '|' . $r['nkey'];
+        $first = rep_day_of($hh - (REP_HIST - 1) * 3600, $tz);
+        if ($first < $hh - (REP_HIST - 1) * 3600) $first += 86400;
+        foreach ($cells as $i => $v) {
+            if ($v === null) continue;
+            $d = rep_day_of($hh - ($len - 1 - $i) * 3600, $tz);
+            if ($d < $first) continue;
+            $k = $d . '|' . $base;
+            if (!isset($acc[$k])) {
+                $acc[$k] = ['d' => $d, 'short_uuid' => (string) $r['short_uuid'], 'hwid' => (string) $r['hwid'], 'net' => (string) $r['net'], 'nkey' => (string) $r['nkey'],
+                            'kind' => (string) $r['kind'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org']]
+                    + array_fill_keys(rep_day_cols(), 0) + ['vl' => '', 'vs' => 0, 'va' => 0];
+            }
+            $acc[$k]['pn'] += $v[0];
+            $acc[$k]['pf'] += min($v[1], $v[0]);
+            for ($j = 0; $j < REP_BUCKETS; $j++) $acc[$k]['b' . $j] += $v[2 + $j];
+            if ($v[0] > 0) $acc[$k]['hrs']++;
+        }
+        $va  = (int) $r['vat'];
+        $col = REP_VERDICTS[(string) $r['verdict']] ?? null;
+        $k   = rep_day_of($va, $tz) . '|' . $base;
+        if ($col !== null && $va > 0 && isset($acc[$k])) {
+            $acc[$k][$col] += 1;
+            $acc[$k]['vl'] = (string) $r['verdict'];
+            $acc[$k]['vs'] = (int) $r['vstatus'];
+            $acc[$k]['va'] = $va;
+        }
+    }
+    if (!$acc) return 0;
+    $shorts = array_values(array_unique(array_column($acc, 'short_uuid')));
+    $from   = min(array_column($acc, 'd'));
+    $ex     = [];
+    $st = $p->prepare('SELECT d, short_uuid, hwid, net, nkey, ' . implode(', ', rep_day_cols()) . ', va FROM rep_dday WHERE d >= ? AND short_uuid IN (' . implode(', ', array_fill(0, count($shorts), '?')) . ')');
+    $st->execute(array_merge([$from], $shorts));
+    while ($e = $st->fetch(PDO::FETCH_ASSOC)) $ex[$e['d'] . '|' . $e['short_uuid'] . '|' . $e['hwid'] . '|' . $e['net'] . '|' . $e['nkey']] = $e;
+    $st->closeCursor();
+    $n = 0;
+    foreach ($acc as $k => $a) {
+        $e   = $ex[$k] ?? null;
+        $row = array_intersect_key($a, array_flip(['d', 'short_uuid', 'hwid', 'net', 'nkey', 'kind', 'cc', 'asn', 'org']));
+        $any = false;
+        foreach (rep_day_cols() as $c) {
+            $row[$c] = max(0, (int) $a[$c] - (int) ($e[$c] ?? 0));
+            if ($row[$c] > 0) $any = true;
+        }
+        if (!$any) continue;
+        $set = ['kind', 'cc', 'asn', 'org'];
+        if ($a['vl'] !== '' && (int) ($e['va'] ?? 0) < $a['va']) {
+            $row += ['vl' => $a['vl'], 'vs' => $a['vs'], 'va' => $a['va']];
+            $set = array_merge($set, ['vl', 'vs', 'va']);
+        }
+        rep_upsert($p, 'rep_dday', $row, ['d', 'short_uuid', 'hwid', 'net', 'nkey'], rep_day_cols(), $set);
+        $n++;
+    }
+
+    return $n;
+}
+
+function rep_dday_backfill($budget = 2.0, $short = null) {
+    if (!rep_new_cols() || !($p = db())) return;
+    $cols = 'id, short_uuid, hwid, net, nkey, kind, cc, asn, org, verdict, vstatus, vat, hc, hist_h';
+    $get  = static function () use ($p) {
+        $st = $p->prepare('SELECT v FROM settings WHERE k = ?');
+        $st->execute(['rep_dday_fill']);
+        $v = $st->fetchColumn();
+        $st->closeCursor();
+
+        return $v === false ? null : (string) $v;
+    };
+    try {
+        $cur = $get();
+        if ($cur === 'done') return;
+        if ($short !== null) {
+            $st = $p->prepare("SELECT $cols FROM rep_state WHERE short_uuid = ? AND hc <> ''");
+            $st->execute([(string) $short]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+            $p->beginTransaction();
+            rep_dday_fill_rows($p, $rows);
+            $p->commit();
+
+            return;
+        }
+        if ($cur === null) {
+            $p->exec(db_driver() === 'mysql' ? "INSERT IGNORE INTO settings (k, v) VALUES ('rep_dday_fill', '0')" : "INSERT INTO settings (k, v) VALUES ('rep_dday_fill', '0') ON CONFLICT(k) DO NOTHING");
+        }
+        $t0 = microtime(true);
+        do {
+            $cur = $get();
+            if ($cur === null || $cur === 'done') break;
+            $st = $p->prepare("SELECT $cols FROM rep_state WHERE id > ? AND hc <> '' ORDER BY id LIMIT 400");
+            $st->execute([(int) $cur]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+            $next = count($rows) < 400 ? 'done' : (string) end($rows)['id'];
+            $cl = $p->prepare('UPDATE settings SET v = ? WHERE k = ? AND v = ?');
+            $cl->execute([$next, 'rep_dday_fill', $cur]);
+            if ($cl->rowCount() !== 1) break;
+            $p->beginTransaction();
+            rep_dday_fill_rows($p, $rows);
+            $p->commit();
+        } while ($next !== 'done' && microtime(true) - $t0 < $budget);
+    } catch (Throwable $e) {
+        if ($p->inTransaction()) $p->rollBack();
+        error_log('submw rep day backfill: ' . $e->getMessage());
+    }
+}
+
 function rep_bump() {
     if (!($p = db())) return;
     try {

@@ -1,5 +1,6 @@
 <?php
 if (isset($_COOKIE['tzoff']) && (string) setting('rep_tzoff', '') === '') set_setting('rep_tzoff', (string) (max(-720, min(840, (int) $_COOKIE['tzoff'])) * 60));
+rep_dday_backfill(2.0);
 $rv_f      = rep_view_filters($_GET);
 $rv_now    = time();
 $rv_since  = rep_view_since($rv_f, $rv_now);
