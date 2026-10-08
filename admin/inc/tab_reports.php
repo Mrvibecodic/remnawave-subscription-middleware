@@ -1403,6 +1403,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             drw.querySelectorAll('.rv-ipl').forEach(function (el) { el.addEventListener('toggle', function () { CS.ipo = CS.ipo || {}; CS.ipo[el.dataset.net] = el.open; }); });
         };
 
+        window.rvOpenClient = openClient;
         document.getElementById('rvFind').addEventListener('submit', function (e) {
             e.preventDefault();
             var v = document.getElementById('rvQ').value.trim(); if (!v) return;
