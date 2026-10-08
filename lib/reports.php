@@ -658,15 +658,17 @@ function rep_unseen_tip($n) {
     if ($n <= 0) return rep_enabled() ? 'Статистика Clod Clash — новых отчётов нет' : 'Статистика Clod Clash — приём отчётов выключен';
     $d = $n % 10;
     $h = $n % 100;
-    if ($d === 1 && $h !== 11) return 'Появился ' . $n . ' новый отчёт — открыть статистику';
-    if ($d >= 2 && $d <= 4 && ($h < 12 || $h > 14)) return 'Появилось ' . $n . ' новых отчёта — открыть статистику';
+    if ($d === 1 && $h !== 11) return 'Появился ' . $n . ' новый отчёт — показать';
+    if ($d >= 2 && $d <= 4 && ($h < 12 || $h > 14)) return 'Появилось ' . $n . ' новых отчёта — показать';
 
-    return 'Появилось ' . $n . ' новых отчётов — открыть статистику';
+    return 'Появилось ' . $n . ' новых отчётов — показать';
 }
 
 function rep_mark_seen() {
     $t = (string) (int) setting('rep_total', '0');
-    if ((string) setting('rep_seen', '0') !== $t) set_setting('rep_seen', $t);
+    if ((string) setting('rep_seen', '0') === $t && (string) setting('rep_seen_at', '') !== '') return;
+    set_setting('rep_seen', $t);
+    set_setting('rep_seen_at', (string) time());
 }
 
 function rep_purge($now = null) {

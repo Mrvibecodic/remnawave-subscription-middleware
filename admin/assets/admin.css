@@ -91,6 +91,26 @@
     .hbtn-dot{position:absolute;top:-3px;right:-3px}
     .hbtn-mail{position:relative;padding:.4rem .55rem}
     .hbtn-mail svg{width:17px;height:17px;display:block}
+    .repbox{position:fixed;z-index:120;width:min(360px,calc(100vw - 16px));max-height:min(70vh,520px);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+    .repbox-h{display:flex;align-items:center;gap:.5rem;padding:.7rem .9rem;border-bottom:1px solid var(--line);font-size:.86rem;color:var(--text-strong)}
+    .repbox-n{margin-left:auto;font-size:.74rem;font-weight:600;color:var(--accent-text)}
+    .repbox-b{overflow-y:auto;padding:.3rem;min-height:0}
+    .repbox-it{display:flex;align-items:center;gap:.6rem;padding:.55rem .6rem;border-radius:8px;color:var(--text);text-decoration:none}
+    .repbox-it:hover,.repbox-it:focus-visible{background:var(--hover)}
+    .repbox-it .d{width:7px;height:7px;border-radius:50%;flex:none}
+    .repbox-it.new .d{background:var(--accent)}
+    .repbox-it .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem}
+    .repbox-it .t b{font-size:.84rem;font-weight:600;color:var(--text-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .repbox-it small{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .repbox-it .r{display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;flex:none}
+    .repbox-s{font-size:.68rem;font-weight:600;padding:.08rem .45rem;border-radius:999px;white-space:nowrap}
+    .repbox-s.ok{background:var(--c-ok-bg);color:var(--c-ok-fg)}
+    .repbox-s.warn{background:var(--c-warn-bg);color:var(--c-warn-fg)}
+    .repbox-s.bad{background:var(--c-bad-bg);color:var(--c-bad-fg)}
+    .repbox-e{padding:1rem;text-align:center;font-size:.82rem;color:var(--muted)}
+    .repbox-w{margin:.3rem .3rem .2rem;padding:.45rem .6rem;border-radius:8px;background:var(--c-warn-bg);color:var(--c-warn-fg);font-size:.76rem}
+    .repbox-f{display:block;padding:.6rem .9rem;border-top:1px solid var(--line);text-align:center;font-size:.8rem;font-weight:600;color:var(--accent-text);text-decoration:none}
+    .repbox-f:hover{background:var(--hover2)}
     .hbtn-badge{position:absolute;top:-7px;right:-8px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ef4444;color:#fff;font-size:.68rem;font-weight:700;line-height:18px;text-align:center;font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--bg)}
     .sw-tip{position:fixed;left:0;top:0;z-index:1000;max-width:min(340px,calc(100vw - 16px));padding:.45rem .65rem;border-radius:10px;background:var(--card);color:var(--text);border:1px solid var(--line);box-shadow:0 12px 32px rgba(2,6,23,.28);font-size:.78rem;line-height:1.4;font-weight:500;letter-spacing:0;text-transform:none;white-space:normal;pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s ease,transform .12s ease}
     .sw-tip.on{opacity:1;transform:none}

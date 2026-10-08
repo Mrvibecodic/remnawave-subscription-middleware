@@ -450,6 +450,13 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'rep_news') {
+        $news = rep_view_news(12);
+        rep_mark_seen();
+        echo json_encode(['ok' => true, 'items' => $news['items'], 'fresh' => $news['fresh'], 'off' => !rep_enabled(), 'tip' => rep_unseen_tip(0)], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
     if ($a === 'rep_unseen') {
         $n = rep_unseen();
         echo json_encode(['ok' => true, 'n' => $n, 'tip' => rep_unseen_tip($n)], JSON_UNESCAPED_UNICODE);
@@ -1820,7 +1827,7 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
             <div class="rw-hcontrols">
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg width="20" height="20" class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
                 <?php $rep_new = $db_ok ? rep_unseen() : 0; $rep_tip = rep_unseen_tip($rep_new); ?>
-                <a class="hbtn hbtn-mail" href="?tab=reports" id="repMail" data-tip="<?= h($rep_tip) ?>" aria-label="<?= h($rep_tip) ?>"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg><?php if ($rep_new > 0): ?><span class="hbtn-badge"><?= $rep_new > 99 ? '99+' : (int) $rep_new ?></span><?php endif; ?></a>
+                <a class="hbtn hbtn-mail" href="?tab=reports" id="repMail" aria-haspopup="dialog" aria-expanded="false" data-tip="<?= h($rep_tip) ?>" aria-label="<?= h($rep_tip) ?>"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg><?php if ($rep_new > 0): ?><span class="hbtn-badge"><?= $rep_new > 99 ? '99+' : (int) $rep_new ?></span><?php endif; ?></a>
                 <a class="hbtn hbtn-ver" href="?tab=update" title="<?= $upd_avail ? 'Доступно обновление прослойки' : 'Версия прослойки' ?>">Версия <code><?php $iv = update_installed_commit(); echo $iv !== '' ? h(substr($iv, 0, 7)) : '—'; ?></code> (<?= h(update_branch()) ?>)<?php if ($upd_avail): ?><span class="hbtn-dot" title="Доступно обновление"></span><?php endif; ?></a>
 <?php
     $pm_meta = panel_meta_cached();
@@ -1936,9 +1943,23 @@ document.addEventListener('mousedown',hide,true);
 window.addEventListener('scroll',hide,true);
 var m=document.getElementById('repMail');
 if(m){
-var put=function(n,tip){var b=m.querySelector('.hbtn-badge');if(n>0){if(!b){b=document.createElement('span');b.className='hbtn-badge';m.appendChild(b);}b.textContent=n>99?'99+':String(n);}else if(b)b.remove();if(tip){m.setAttribute('data-tip',tip);m.setAttribute('aria-label',tip);if(cur===m)show(m);}};
-m.addEventListener('click',function(){put(0,'Статистика Clod Clash — новых отчётов нет');});
-var busy=0,poll=function(){if(busy||document.hidden)return;busy=1;fetch('?ajax=rep_unseen',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){busy=0;if(j&&j.ok)put(+j.n||0,j.tip);}).catch(function(){busy=0;});};
+var put=function(n,tip){var b=m.querySelector('.hbtn-badge');if(n>0){if(!b){b=document.createElement('span');b.className='hbtn-badge';m.appendChild(b);}b.textContent=n>99?'99+':String(n);}else if(b)b.remove();if(tip){m.setAttribute(box?'data-tipo':'data-tip',tip);m.setAttribute('aria-label',tip);if(cur===m&&!box)show(m);}};
+var box=null,boxSeq=0,esc2=function(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+var pl2=function(n,a,b,c){var x=n%10,y=n%100;return x===1&&y!==11?a:(x>=2&&x<=4&&(y<10||y>=20)?b:c);};
+var ago2=function(t){var s=Math.max(0,Date.now()/1000-t);return s<60?'только что':s<3600?Math.round(s/60)+' мин назад':s<86400?Math.round(s/3600)+' ч назад':Math.round(s/86400)+' дн назад';};
+var place=function(){if(!box)return;var r=m.getBoundingClientRect();box.style.top=Math.round(r.bottom+8)+'px';box.style.right=Math.max(8,Math.min(Math.round(window.innerWidth-r.right),window.innerWidth-box.offsetWidth-8))+'px';};
+var draw=function(j){if(!box)return;var b=box.querySelector('.repbox-b'),nn=box.querySelector('.repbox-n');if(!j||!j.ok){b.innerHTML='<div class="repbox-e">Не удалось загрузить</div>';return;}nn.textContent=j.fresh>0?'новых: '+j.fresh:'';var w=j.off?'<div class="repbox-w">Приём отчётов выключен — новые не приходят.</div>':'';if(!j.items||!j.items.length){b.innerHTML=w+'<div class="repbox-e">Отчётов пока не было.</div>';return;}
+b.innerHTML=w+j.items.map(function(x){var st=x.dead>0?'<span class="repbox-s bad">молчит '+x.dead+' '+pl2(x.dead,'узел','узла','узлов')+'</span>':x.frz>0?'<span class="repbox-s warn">16–20 режется</span>':'<span class="repbox-s ok">в порядке</span>';var dv=[x.m||(x.p==='pc'?'ПК':x.p==='android'?'Android':''),x.c?'Clod Clash '+x.c:''].filter(Boolean).join(' · ');return '<a class="repbox-it'+(x.nw?' new':'')+'" href="?tab=reports&amp;q='+encodeURIComponent(x.s)+'" data-s="'+esc2(x.s)+'"><span class="d"></span><span class="t"><b>'+esc2(x.nm||x.s)+'</b><small>'+esc2(dv||x.s)+'</small></span><span class="r"><small>'+ago2(x.t)+'</small>'+st+'</span></a>';}).join('');};
+var load=function(){var seq=++boxSeq;fetch('?ajax=rep_news',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){if(seq!==boxSeq)return;draw(j);if(j&&j.ok)put(0,j.tip);}).catch(function(){if(seq===boxSeq)draw(null);});};
+var close=function(){if(!box)return;box.remove();box=null;boxSeq++;m.setAttribute('aria-expanded','false');var o=m.getAttribute('data-tipo');if(o!==null){m.setAttribute('data-tip',o);m.removeAttribute('data-tipo');}};
+var open=function(){box=document.createElement('div');box.className='repbox';box.setAttribute('role','dialog');box.setAttribute('aria-label','Последние отчёты Clod Clash');box.innerHTML='<div class="repbox-h"><b>Отчёты Clod Clash</b><span class="repbox-n"></span></div><div class="repbox-b"><div class="repbox-e">Загружаю…</div></div><a class="repbox-f" href="?tab=reports">Открыть статистику</a>';
+box.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('.repbox-it');if(!a||e.ctrlKey||e.metaKey||e.shiftKey||typeof window.rvOpenClient!=='function')return;e.preventDefault();close();window.rvOpenClient(a.getAttribute('data-s'));});
+document.body.appendChild(box);place();m.setAttribute('aria-expanded','true');m.setAttribute('data-tipo',m.getAttribute('data-tip')||'');m.removeAttribute('data-tip');window.dispatchEvent(new Event('scroll'));load();};
+m.addEventListener('click',function(e){if(e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();hide();if(box)close();else open();});
+document.addEventListener('click',function(e){if(box&&!box.contains(e.target)&&!m.contains(e.target))close();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&box){close();m.focus();}});
+window.addEventListener('resize',place);window.addEventListener('scroll',place,true);
+var busy=0,poll=function(){if(busy||document.hidden)return;busy=1;fetch('?ajax=rep_unseen',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){busy=0;if(!j||!j.ok)return;if(box&&+j.n>0)load();else put(+j.n||0,j.tip);}).catch(function(){busy=0;});};
 setInterval(poll,30000);document.addEventListener('visibilitychange',function(){if(!document.hidden)poll();});window.addEventListener('focus',poll);
 }
 })();</script>

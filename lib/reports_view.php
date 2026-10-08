@@ -806,3 +806,36 @@ function rep_view_client_card($q, $since) {
 
     return ['short' => $short, 'devs' => $devs, 'rows' => $rows, 'peers' => $peers, 'ips' => $ips];
 }
+
+function rep_view_news($limit = 12) {
+    $out = ['items' => [], 'fresh' => 0];
+    if (!rep_ensure()) return $out;
+    $seen   = (int) setting('rep_seen_at', '0');
+    $unseen = rep_unseen();
+    $devs   = rep_view_rows('SELECT short_uuid, hwid, plat, client, ' . rep_sel(['model', 'os']) . ', last_report FROM rep_dev ORDER BY last_report DESC LIMIT ' . max(1, (int) $limit), []);
+    if (!$devs) return $out;
+    $shorts = array_values(array_unique(array_map('strval', array_column($devs, 'short_uuid'))));
+    $st = [];
+    $rows = rep_view_rows('SELECT s.short_uuid, s.hwid, s.nkey, MAX(' . rep_dead_sql('s.') . ') AS dead, MAX(CASE WHEN s.verdict = ? AND s.vat >= ? THEN 1 ELSE 0 END) AS frz'
+        . ' FROM rep_state s JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid AND s.last_seen = d.last_report'
+        . ' WHERE s.short_uuid IN (' . implode(', ', array_fill(0, count($shorts), '?')) . ') GROUP BY s.short_uuid, s.hwid, s.nkey',
+        array_merge(['frozen', time() - REP_VIEW_VERDICT_TTL], $shorts));
+    foreach ($rows as $r) {
+        $k = $r['short_uuid'] . '|' . $r['hwid'];
+        $st[$k]['dead'] = ($st[$k]['dead'] ?? 0) + (int) $r['dead'];
+        $st[$k]['frz']  = ($st[$k]['frz'] ?? 0) + (int) $r['frz'];
+    }
+    $names = chan_names_map();
+    foreach ($devs as $i => $d) {
+        $k   = $d['short_uuid'] . '|' . $d['hwid'];
+        $new = $seen > 0 ? (int) $d['last_report'] > $seen : $i < $unseen;
+        if ($new) $out['fresh']++;
+        $out['items'][] = [
+            's' => (string) $d['short_uuid'], 'nm' => (string) ($names[$d['short_uuid']] ?? ''),
+            'm' => (string) $d['model'] === '-' ? '' : (string) $d['model'], 'o' => (string) $d['os'], 'p' => (string) $d['plat'], 'c' => (string) $d['client'],
+            't' => (int) $d['last_report'], 'dead' => (int) ($st[$k]['dead'] ?? 0), 'frz' => (int) ($st[$k]['frz'] ?? 0), 'nw' => $new ? 1 : 0,
+        ];
+    }
+
+    return $out;
+}
