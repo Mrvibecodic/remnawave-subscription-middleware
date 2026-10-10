@@ -887,7 +887,8 @@ function chan_report_answer(array $ctx, ?array $rec) {
         $data = $json === null ? null : json_decode($json, true);
         $dev  = rep_device($hwid, $data);
         if (!is_array($data)) {
-            [$st, $why] = [400, (string) $why !== '' ? (string) $why : 'json'];
+            $why = (string) $why !== '' ? (string) $why : 'json';
+            $st  = $why === 'size' ? 413 : 400;
         } elseif ($dev === '') {
             // Без устройства отчёт не к чему привязать: паузу, последний принятый час
             // и счёт устройств ведут по нему.
@@ -895,7 +896,7 @@ function chan_report_answer(array $ctx, ?array $rec) {
         } elseif (rep_too_soon($ctx['token'], $dev)) {
             [$st, $why] = [429, 'soon'];
         } elseif (!rep_ingest($ctx['token'], $dev, $data, $why, null, ['model' => (string) ($ctx['req']['model'] ?? ''), 'os' => (string) ($ctx['req']['os'] ?? ''), 'osv' => (string) ($ctx['req']['osv'] ?? '')])) {
-            $st = $why === 'db' ? 500 : ($why === 'soon' ? 429 : 400);
+            $st = ['db' => 500, 'soon' => 429, 'size' => 413][$why] ?? 400;
         } else {
             $st = 204;
         }
@@ -972,6 +973,10 @@ function chan_flush() {
     header_remove();
 
     if (!isset($meta['date'])) $meta['date'] = [gmdate('D, d M Y H:i:s') . ' GMT'];
+    // Принимает ли прослойка отчёты: только внутри шифра и только от неё самой —
+    // такой же заголовок из шаблона панели не в счёт. При `false` клиент замеры
+    // не копит; без метки (прослойка старее) копит, как раньше.
+    $meta['clod-report'] = [rep_enabled() ? 'true' : 'false'];
 
     $sealed = chan_seal($ctx, $meta, $body, chan_public_key(), chan_pad_on(), $status);
     if ($sealed === null) {

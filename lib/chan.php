@@ -245,8 +245,14 @@ function chan_report_seal(array $ctx, string $gz): string
 function chan_report_open(array $ctx, string $wire, ?string &$why = null): ?string
 {
     $why = null;
-    if ($wire === '' || strlen($wire) > CHAN_REP_MAX_WIRE) {
+    // Велико — «size» (клиент поделит отчёт); пустое — испорчено по дороге.
+    if (strlen($wire) > CHAN_REP_MAX_WIRE) {
         $why = 'size';
+
+        return null;
+    }
+    if ($wire === '') {
+        $why = 'blob';
 
         return null;
     }
@@ -281,7 +287,16 @@ function chan_report_open(array $ctx, string $wire, ?string &$why = null): ?stri
         return null;
     }
 
-    $json = @gzdecode(substr($plain, 4, $len), CHAN_REP_MAX_JSON);
+    // Длина распакованного — в хвосте gzip: не влезет — это «велик», а не «испорчен»,
+    // и клиент поделит отчёт.
+    $gz = substr($plain, 4, $len);
+    if ($len >= 18 && unpack('V', substr($gz, -4))[1] > CHAN_REP_MAX_JSON) {
+        $why = 'size';
+
+        return null;
+    }
+
+    $json = @gzdecode($gz, CHAN_REP_MAX_JSON);
     if (!is_string($json) || $json === '') {
         $why = 'gzip';
 

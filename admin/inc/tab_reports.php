@@ -611,7 +611,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             <input type="hidden" name="action" value="save_clod_rep">
             <div class="ctg">
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Принимать отчёты</div><div class="set-d">Работает только при включённом главном выключателе защищённого канала.</div></div>
+                <div class="set-info"><div class="set-t">Принимать отчёты</div><div class="set-d">Работает только при включённом главном выключателе защищённого канала. Клиенты копят замеры, только пока приём включён: узнают об этом при обновлении подписки, а выключенный приём стирает у них накопленное.</div></div>
                 <label class="switch"><input type="checkbox" name="rep_enabled" <?= setting('rep_enabled', '0') === '1' ? 'checked' : '' ?> <?= chan_ext_ok() ? '' : 'disabled' ?>><span class="sl"></span></label>
             </div>
             <div class="set-row">

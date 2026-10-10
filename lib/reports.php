@@ -138,7 +138,7 @@ function rep_add_cols(PDO $p) {
     $u    = static fn($n) => $my ? "VARCHAR($n) NOT NULL DEFAULT ''" : "TEXT NOT NULL DEFAULT ''";
     $int  = $my ? 'INT NOT NULL DEFAULT 0' : 'INTEGER NOT NULL DEFAULT 0';
     $plan = [
-        'rep_dev'   => ['model' => $u(64), 'os' => $u(48)],
+        'rep_dev'   => ['model' => $u(64), 'os' => $u(48), 'skew' => $int, 'last_hd' => $int],
         'rep_state' => ['loc' => $a(24), 'hist' => $a(48), 'hist_h' => $int, 'sub' => $u(64), 'hc' => $a(2000), 'rpn' => $int, 'rpf' => $int],
     ];
     $ok = true;
@@ -162,7 +162,7 @@ function rep_new_cols() {
 }
 
 function rep_sel(array $cols, $prefix = '') {
-    $fb = ['loc' => "''", 'hist' => "''", 'hist_h' => '0', 'model' => "''", 'os' => "''", 'sub' => "''", 'hc' => "''", 'rpn' => '0', 'rpf' => '0'];
+    $fb = ['loc' => "''", 'hist' => "''", 'hist_h' => '0', 'model' => "''", 'os' => "''", 'skew' => '0', 'last_hd' => '0', 'sub' => "''", 'hc' => "''", 'rpn' => '0', 'rpf' => '0'];
     $new = rep_new_cols();
     $out = [];
     foreach ($cols as $c) $out[] = !$new && isset($fb[$c]) ? $fb[$c] . ' AS ' . $c : $prefix . $c;
@@ -326,8 +326,10 @@ function rep_ip($v, $family) {
     return $packed === false ? '' : (string) inet_ntop($packed);
 }
 
-function rep_node_key($type, $server, $port) {
-    return substr(hash('sha256', $type . '|' . strtolower($server) . '|' . $port), 0, 12);
+// $via — чем узел отличается от соседей на том же адресе и порту (транспорт, SNI,
+// Host, путь), как его собрал клиент; у узла без них пусто, и ключ прежний.
+function rep_node_key($type, $server, $port, $via = '') {
+    return substr(hash('sha256', $type . '|' . strtolower($server) . '|' . $port . ($via !== '' ? '|' . $via : '')), 0, 12);
 }
 
 // Индекс корзины, в которую попадает середина удачных замеров; -1 — замеров нет.
@@ -365,7 +367,7 @@ function rep_forget($short) {
 function rep_dev_row($short, $hwid) {
     if (!rep_ensure() || !($p = db())) return null;
     try {
-        $st = $p->prepare('SELECT last_report, last_h FROM rep_dev WHERE short_uuid = ? AND hwid = ?');
+        $st = $p->prepare('SELECT ' . rep_sel(['last_report', 'last_h', 'skew', 'last_hd']) . ' FROM rep_dev WHERE short_uuid = ? AND hwid = ?');
         $st->execute([(string) $short, (string) $hwid]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) { return null; }
@@ -394,12 +396,20 @@ function rep_devices_full($short) {
 
 // Разбирает отчёт и раскладывает по сводкам. $hwid — уже ключ устройства из rep_device().
 // false и причина в $why — отчёт не принят целиком: проверка идёт до первой записи,
-// запись — одной транзакцией. Принимаются только закрытые часы не старше 8 суток
-// (с запасом 10 минут на разбег часов устройства).
+// запись — одной транзакцией. Часы отчёта — по часам устройства: закрытым час
+// считается по ним (`to` — когда отчёт собран), а ложится со сдвигом на разницу
+// часов устройства и прослойки, целыми часами. Сдвиг у устройства помнится и
+// меняется, только когда разница ушла от него больше чем на 45 минут: разница
+// около получаса не перескакивает между отправками. Повтор часов, принятых при
+// прежнем сдвиге, отсекает последний принятый час по часам устройства.
+// Принимаются не старше 8 суток.
 function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta = []) {
     $why = '';
     $now = $now ?? time();
     if (!is_array($data) || ($data['v'] ?? 0) !== REP_VERSION) { $why = 'version'; return false; }
+    // Часы устройства дальше года от прослойки — не часы, а мусор: как без `to`.
+    $to = rep_uint($data['to'] ?? 0, PHP_INT_MAX);
+    $to = $to > 0 && abs($to - $now) <= 366 * 86400 ? $to : $now;
     if (!rep_ensure() || !($p = db())) { $why = 'db'; return false; }
 
     $short = rep_str((string) $short, 64);
@@ -419,7 +429,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
         $port   = rep_uint($n['port'] ?? 0, 65535);
         if ($type === '' || $server === '' || $port < 1 || !preg_match('~^[a-z0-9-]+$~', $type)) continue;
         $nodes[$tok] = [
-            'nkey'   => rep_node_key($type, $server, $port),
+            'nkey'   => rep_node_key($type, $server, $port, rep_str($n['via'] ?? '', 512)),
             'type'   => $type,
             'server' => $server,
             'port'   => $port,
@@ -430,6 +440,15 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     // Часы не новее последнего принятого от этого устройства уже посчитаны.
     $devrow = rep_dev_row($short, $hwid);
     $taken  = (int) ($devrow['last_h'] ?? 0);
+    $shift  = (int) ($devrow['skew'] ?? 0);
+    if (abs($to - $now - $shift) > 2700) $shift = (int) round(($to - $now) / 3600) * 3600;
+    // Последний принятый час по часам устройства: повтор тех же часов после смены
+    // сдвига не ляжет второй раз. Часы устройства ушли назад, за него (`to`
+    // раньше него) — сторож не действует, иначе новые часы ждали бы, пока
+    // часы догонят прежние.
+    $last_hd  = (int) ($devrow['last_hd'] ?? 0);
+    $raw_seen = $last_hd > 0 && $to + 600 >= $last_hd + 3600 ? $last_hd : 0;
+    $last_hd  = $raw_seen;
     $last_h = $taken;
     $zero  = array_fill_keys(rep_sum_cols(), 0);
     $hours = [];
@@ -451,8 +470,12 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
         foreach ($list as $hr) {
             if (!is_array($hr)) continue;
             $h = rep_uint($hr['h'] ?? 0, PHP_INT_MAX);
-            if ($h % 3600 !== 0 || $h + 3600 > $now + 600 || $h < $now - REP_MAX_AGE || $h <= $taken) continue;
-            $last_h = max($last_h, $h);
+            if ($h % 3600 !== 0 || $h + 3600 > $to + 600 || $h <= $raw_seen) continue;
+            $hd = $h;
+            $h -= $shift;
+            if ($h < $now - REP_MAX_AGE || $h <= $taken) continue;
+            $last_h  = max($last_h, $h);
+            $last_hd = max($last_hd, $hd);
 
             $ip4 = rep_ip($hr['ip4'] ?? '', 4);
             $ip6 = rep_ip($hr['ip6'] ?? '', 6);
@@ -499,7 +522,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
                 $c = $c ?? $zero;
                 $c[$col] += 1;
                 unset($c);
-                $at = rep_uint($v['at'] ?? 0, PHP_INT_MAX);
+                $at = rep_uint($v['at'] ?? 0, PHP_INT_MAX) - $shift;
                 $verdicts[$tok] = [(string) $v['verdict'], rep_uint($v['status'] ?? 0, 999), $at >= $h && $at < $h + 3600 ? $at : $h];
             }
 
@@ -667,6 +690,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
         }
         $drow = ['short_uuid' => $short, 'hwid' => $hwid, 'plat' => $plat, 'client' => $cli, 'first_seen' => $now, 'last_report' => $now, 'last_h' => $last_h, 'reports' => 1];
         $dset = ['plat', 'client', 'last_report', 'last_h'];
+        if ($nc) { $drow['skew'] = $shift; $drow['last_hd'] = $last_hd; array_push($dset, 'skew', 'last_hd'); }
         if ($nc && $model !== '') { $drow['model'] = $model; $dset[] = 'model'; }
         if ($nc && $os !== '') { $drow['os'] = $os; $dset[] = 'os'; }
         rep_upsert($p, 'rep_dev', $drow, ['short_uuid', 'hwid'], ['reports'], $dset);
