@@ -3,7 +3,8 @@ $si_max = 1;
 foreach ($sys_series as $pt) if ((int) $pt['hits'] > $si_max) $si_max = (int) $pt['hits'];
 $si_factor = metrics_peak_factor();
 $si_floor  = metrics_peak_floor();
-$si_seg = in_array(($_COOKIE['si_seg'] ?? ''), ['mw', 'panel', 'env'], true) ? $_COOKIE['si_seg'] : 'mw';
+$si_segs = ['mw', 'panel', 'env', 'custom'];
+$si_seg = in_array(($_GET['seg'] ?? ''), $si_segs, true) ? $_GET['seg'] : (in_array(($_COOKIE['si_seg'] ?? ''), $si_segs, true) ? $_COOKIE['si_seg'] : 'mw');
 $si_pc = json_decode((string) setting('panelstats_json', ''), true);
 if (!is_array($si_pc)) $si_pc = null;
 $si_pu = is_array($si_pc['users'] ?? null) ? $si_pc['users'] : [];
@@ -48,6 +49,25 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
         .si-sub{font-weight:700;font-size:.95rem;margin:1.1rem 0 .5rem;color:var(--text-strong)}
         .si-sub:first-child{margin-top:.2rem}
         .si-pnote{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin:.1rem 0 .9rem}
+        .nh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.8rem;align-items:start}
+        .nh-grp{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg2);overflow:hidden}
+        .nh-gh{display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.65rem .8rem;border-bottom:1px solid var(--line);cursor:pointer;margin:0;color:var(--text)}
+        .nh-gh .set-t,.nh-gh .set-d{display:block}
+        .nh-gh .set-t{font-size:.86rem}
+        .nh-gh .set-d{margin-top:.05rem}
+        .nh-items{display:flex;flex-direction:column;padding:.3rem;transition:opacity .15s}
+        .nh-it{display:flex;align-items:center;gap:.6rem;padding:.4rem .5rem;border-radius:6px;cursor:pointer;margin:0;font-size:.86rem;color:var(--text)}
+        .nh-it:hover{background:var(--hover)}
+        .nh-it>svg{width:16px;height:16px;flex:0 0 auto;color:var(--muted)}
+        .nh-it>span:first-of-type{flex:1;min-width:0}
+        .nh-it .nh-cur{font-size:.7rem;color:var(--muted);white-space:nowrap}
+        .nh-it.off>svg,.nh-it.off>span:first-of-type{opacity:.55}
+        .nh-it .switch{width:38px;height:22px}
+        .nh-it .switch .sl::before{width:16px;height:16px}
+        .nh-it .switch input:checked+.sl::before{transform:translateX(16px)}
+        .nh-grp.off .nh-items{opacity:.45;pointer-events:none}
+        .switch input:focus-visible+.sl{box-shadow:var(--focus)}
+        @media(max-width:460px){#siSeg{display:grid;grid-template-columns:1fr 1fr;width:100%}#siSeg button{text-align:center}}
     </style>
 
     <div class="si-kpi">
@@ -61,6 +81,7 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
         <button type="button" data-seg="mw" class="<?= $si_seg === 'mw' ? 'on' : '' ?>">Прослойка</button>
         <button type="button" data-seg="panel" class="<?= $si_seg === 'panel' ? 'on' : '' ?>">Панель</button>
         <button type="button" data-seg="env" class="<?= $si_seg === 'env' ? 'on' : '' ?>">Окружение</button>
+        <button type="button" data-seg="custom" class="<?= $si_seg === 'custom' ? 'on' : '' ?>">Кастомизация</button>
     </div>
 
     <div class="si-panels">
@@ -219,6 +240,45 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
             </div>
         </div>
     </div>
+
+    <div class="si-seg-panel" data-panel="custom"<?= $si_seg === 'custom' ? '' : ' hidden' ?>>
+        <div class="card">
+            <div class="loghead">
+                <h2>Разделы в меню слева</h2>
+                <div class="loghead-r">
+                    <button type="button" class="btn ghost" id="nhAll"<?= $nav_off_n ? '' : ' hidden' ?>>Показать все</button>
+                </div>
+            </div>
+            <p class="muted">Выключенный раздел только пропадает из меню. Его настройки сохраняются как есть, он продолжает работать, прямые ссылки на него открываются. Пока что-то скрыто, в шапке виден значок со счётчиком — он ведёт сюда.</p>
+            <form method="post" id="nhForm">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="save_nav_hidden">
+                <div class="nh-grid">
+                <?php foreach ($nav_sections as $sec): $g = $sec['k']; $g_on = !isset($nav_hid['g'][$g]); $g_n = count($sec['items']); $g_cnt = $g_n . ' ' . (($g_n % 10 === 1 && $g_n % 100 !== 11) ? 'раздел' : (($g_n % 10 >= 2 && $g_n % 10 <= 4 && ($g_n % 100 < 10 || $g_n % 100 >= 20)) ? 'раздела' : 'разделов')); ?>
+                    <div class="nh-grp<?= $g_on ? '' : ' off' ?>" data-g="<?= h($g) ?>">
+                        <input type="hidden" name="nk_g[]" value="<?= h($g) ?>">
+                        <label class="nh-gh">
+                            <span class="set-info"><span class="set-t"><?= h($sec['l']) ?></span><span class="set-d" data-on="<?= h($g_cnt) ?>" data-off="Группа скрыта целиком"><?= $g_on ? h($g_cnt) : 'Группа скрыта целиком' ?></span></span>
+                            <span class="switch"><input type="checkbox" name="nv_g[]" value="<?= h($g) ?>" aria-label="Показывать группу «<?= h($sec['l']) ?>»"<?= $g_on ? ' checked' : '' ?>><span class="sl"></span></span>
+                        </label>
+                        <div class="nh-items"<?= $g_on ? '' : ' inert' ?>>
+                        <?php foreach ($sec['items'] as $key): $t_on = !isset($nav_hid['t'][$key]); ?>
+                            <input type="hidden" name="nk_t[]" value="<?= h($key) ?>">
+                            <label class="nh-it<?= $t_on ? '' : ' off' ?>" data-t="<?= h($key) ?>">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><?= $nav[$key][1] ?></svg>
+                                <span><?= h($nav[$key][0]) ?></span>
+                                <?php if ($key === $tab_nav): ?><span class="nh-cur">эта страница</span><?php endif; ?>
+                                <span class="switch"><input type="checkbox" name="nv_t[]" value="<?= h($key) ?>" aria-label="Показывать «<?= h($nav[$key][0]) ?>» в меню"<?= $t_on ? ' checked' : '' ?>><span class="sl"></span></span>
+                            </label>
+                        <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                </div>
+                <noscript><button class="btn" type="submit" style="margin-top:1rem">Сохранить</button></noscript>
+            </form>
+        </div>
+    </div>
     </div>
 
     <script>
@@ -295,9 +355,56 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
         var btns=document.querySelectorAll('#siSeg button'); for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on',btns[i].getAttribute('data-seg')===name);
         var pans=document.querySelectorAll('.si-seg-panel'); for(var j=0;j<pans.length;j++) pans[j].hidden=(pans[j].getAttribute('data-panel')!==name);
         try{document.cookie='si_seg='+name+';path=/;max-age=31536000;samesite=Lax';}catch(e){}
+        try{var u=new URL(location.href);if(u.searchParams.has('seg')){u.searchParams.delete('seg');history.replaceState(history.state,'',u.pathname+u.search+u.hash);}}catch(e){}
         if(name==='panel' && (!SI_PANEL || (SI_PANEL.age||0)>30)) siPanelFetch(false);
     }
     (function(){var b=document.querySelectorAll('#siSeg button'); for(var i=0;i<b.length;i++) b[i].addEventListener('click',function(){siSeg(this.getAttribute('data-seg'));});})();
+    (function(){
+        var f=document.getElementById('nhForm'); if(!f) return;
+        var all=document.getElementById('nhAll'), bd=document.getElementById('navHidBadge');
+        var boxes=function(){return f.querySelectorAll('input[type=checkbox]');};
+        var saved=[], busy=false, again=false;
+        var state=function(){var r=[];boxes().forEach(function(c){r.push(c.checked);});return r;};
+        saved=state();
+        var paint=function(){
+            var G={},T={},any=false;
+            f.querySelectorAll('.nh-grp').forEach(function(g){
+                var gc=g.querySelector('.nh-gh input'), on=gc.checked, d=g.querySelector('.nh-gh .set-d'), it=g.querySelector('.nh-items');
+                g.classList.toggle('off',!on); if(d) d.textContent=on?d.getAttribute('data-on'):d.getAttribute('data-off');
+                if(on) it.removeAttribute('inert'); else it.setAttribute('inert','');
+                if(!on){G[gc.value]=1;any=true;}
+            });
+            f.querySelectorAll('.nh-it').forEach(function(l){var c=l.querySelector('input');l.classList.toggle('off',!c.checked);if(!c.checked){T[c.value]=1;any=true;}});
+            if(all) all.hidden=!any;
+            if(window.navHidApply) navHidApply(G,T);
+        };
+        var send=function(msg){
+            if(busy){again=true;return;}
+            busy=true;
+            var sent=state(), fd=new FormData(f); fd.append('xhr','1');
+            fetch('index.php',{method:'POST',credentials:'same-origin',body:fd}).then(function(r){return r.json();}).then(function(d){
+                busy=false;
+                if(!d||!d.ok) throw 0;
+                saved=sent;
+                if(again){again=false;send('Меню обновлено');return;}
+                if(window.uiToast) uiToast(msg||d.msg||'Сохранено');
+            }).catch(function(){
+                busy=false; again=false;
+                boxes().forEach(function(c,i){if(i<saved.length)c.checked=saved[i];}); paint();
+                if(window.uiToast) uiToast('Не сохранено — переключатели вернулись к сохранённому');
+            });
+        };
+        f.addEventListener('change',function(e){
+            var c=e.target; if(!c||c.type!=='checkbox') return;
+            paint();
+            var it=c.closest('.nh-it'), gr=c.closest('.nh-grp'), nm;
+            if(it){nm=it.querySelector('span').textContent.trim();send(c.checked?'«'+nm+'» снова в меню':'«'+nm+'» скрыт из меню — раздел работает, ссылка открывается');}
+            else{nm=gr.querySelector('.set-t').textContent.trim();send(c.checked?'Группа «'+nm+'» снова в меню':'Группа «'+nm+'» скрыта из меню');}
+        });
+        f.addEventListener('submit',function(e){e.preventDefault();send();});
+        if(all) all.addEventListener('click',function(){boxes().forEach(function(c){c.checked=true;});paint();send('Все разделы снова в меню');});
+        if(bd) bd.addEventListener('click',function(e){if(e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();siSeg('custom');var p=document.querySelector('.si-seg-panel[data-panel="custom"]');if(p)p.scrollIntoView({block:'start',behavior:'smooth'});});
+    })();
     siChart(<?= json_encode($sys_series) ?>);
     document.querySelectorAll('.si-pk-ts[data-ts]').forEach(function(td){var v=siLocal(td.getAttribute('data-ts'),true);if(v)td.textContent=v;});
     siPanelFetch(false);
