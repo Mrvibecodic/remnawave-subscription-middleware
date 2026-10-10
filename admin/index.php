@@ -1713,7 +1713,7 @@ $nav = [
 $upd_avail = update_available();
 $wg_mig_note = json_decode((string) setting('wg_v3_mig_note', ''), true);
 $wg_mig_note = is_array($wg_mig_note) ? array_values(array_filter($wg_mig_note, 'is_string')) : [];
-$nav_badge = array_filter(['update' => $upd_avail ? 'Доступно обновление' : '', 'wg_pool' => $wg_mig_note ? 'После обновления: проверьте WG / AWG' : '']);
+$nav_badge = array_filter(['update' => $upd_avail ? 'Доступно обновление' : '', 'wg_pool' => $wg_mig_note ? 'Есть заметки после обновления — откройте вкладку' : '']);
 $nav_sections = [
     ['l' => 'Главное',          'coll' => false, 'k' => 'main',   'items' => ['users', 'chat', 'reqlog']],
     ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
@@ -1751,7 +1751,7 @@ function pager_cookie_size($store_key, $default = 25) {
 }
 function nav_link($key, $it, $active, $badge = '') {
     $svg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
-    $dot = $badge !== '' ? '<span class="nav-dot" title="' . h($badge) . '"></span>' : '';
+    $dot = $badge !== '' ? '<span class="nav-dot" role="img" aria-label="' . h($badge) . '" data-tip="' . h($badge) . '"></span>' : '';
     return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '">' . $svg . '<span>' . h($it[0]) . '</span>' . $dot . '</a>';
 }
 ?>
