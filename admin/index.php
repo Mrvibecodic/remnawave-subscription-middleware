@@ -223,6 +223,16 @@ function csrf_ok_get() { return isset($_GET['csrf'], $_SESSION['csrf']) && is_st
 function is_auth() { return !empty($_SESSION['auth']); }
 function flash($m) { $_SESSION['flash'] = $m; }
 function take_flash() { $m = $_SESSION['flash'] ?? null; unset($_SESSION['flash']); return $m; }
+function nav_hidden_get() {
+    $v = json_decode((string) setting('nav_hidden', ''), true);
+    $out = ['g' => [], 't' => []];
+    foreach (['g', 't'] as $f) {
+        foreach ((is_array($v) && is_array($v[$f] ?? null)) ? $v[$f] : [] as $k) {
+            if (is_string($k) && preg_match('/^[a-z_]{1,32}$/', $k)) $out[$f][$k] = true;
+        }
+    }
+    return $out;
+}
 function form_saved($tab) { if (!empty($_POST['xhr'])) { header('Content-Type: application/json; charset=utf-8'); echo json_encode(['ok' => true, 'msg' => take_flash()], JSON_UNESCAPED_UNICODE); exit(); } header('Location: index.php?tab=' . $tab); exit(); }
 
 if (isset($_GET['logout'])) {
@@ -965,6 +975,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('reqlog_log_pages', empty($_POST['reqlog_log_pages']) ? '0' : '1');
         flash('Настройки лога сохранены');
         form_saved('reqlog');
+    }
+
+    if ($action === 'save_nav_hidden') {
+        $nh_old = nav_hidden_get();
+        $nh_ok  = fn($k) => is_string($k) && preg_match('/^[a-z_]{1,32}$/', $k);
+        $nh_new = [];
+        foreach (['g', 't'] as $f) {
+            $all = array_filter(is_array($_POST['nk_' . $f] ?? null) ? $_POST['nk_' . $f] : [], $nh_ok);
+            $vis = array_filter(is_array($_POST['nv_' . $f] ?? null) ? $_POST['nv_' . $f] : [], $nh_ok);
+            $keep = array_diff(array_keys($nh_old[$f]), $all);
+            $nh_new[$f] = array_slice(array_values(array_unique(array_merge($keep, array_diff($all, $vis)))), 0, 64);
+        }
+        set_setting('nav_hidden', json_encode($nh_new));
+        flash('Меню обновлено');
+        if (!empty($_POST['xhr'])) form_saved('sysinfo');
+        header('Location: index.php?tab=sysinfo&seg=custom'); exit();
     }
 
     if ($action === 'save_metrics_cfg') {
@@ -1749,32 +1775,45 @@ function pager_cookie_size($store_key, $default = 25) {
     $v = (int) ($_COOKIE['pgr_' . $store_key] ?? 0);
     return in_array($v, [25, 50, 100, 200], true) ? $v : $default;
 }
-function nav_link($key, $it, $active, $badge = '') {
+function nav_link($key, $it, $active, $badge = '', $grp = '', $off = false) {
     $svg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
     $dot = $badge !== '' ? '<span class="nav-dot" role="img" aria-label="' . h($badge) . '" data-tip="' . h($badge) . '"></span>' : '';
-    return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '">' . $svg . '<span>' . h($it[0]) . '</span>' . $dot . '</a>';
+    return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '" data-nk="' . h($key) . '" data-ng="' . h($grp) . '"' . ($off ? ' hidden' : '') . '>' . $svg . '<span>' . h($it[0]) . '</span>' . $dot . '</a>';
 }
+$nav_hid = nav_hidden_get();
+$nav_off = [];
+$nav_goff = [];
+foreach ($nav_sections as $sec) {
+    $vis = 0;
+    foreach ($sec['items'] as $key) {
+        if (isset($nav_hid['g'][$sec['k']]) || isset($nav_hid['t'][$key])) $nav_off[$key] = true;
+        else $vis++;
+    }
+    $nav_goff[$sec['k']] = $vis === 0;
+}
+$nav_off_n = count($nav_off);
+$nav_off_alert = array_intersect_key($nav_badge, $nav_off);
 ?>
 <div class="rw-app">
     <aside class="rw-side">
         <div class="rw-brand"><?php if ($brand_icon !== ''): ?><img src="<?= h($brand_icon) ?>" alt=""><?php elseif ($brand_emoji !== ''): ?><span class="rw-emoji"><?= $brand_emoji ?></span><?php else: ?><img src="<?= $default_logo ?>" alt=""><?php endif; ?><b><?= h($brand['name']) ?></b></div>
         <nav class="rw-nav">
             <?php $tab_nav = $tab === 'whlog_other' ? 'whlog' : $tab;?>
-            <?php foreach ($nav_sections as $sec): $active_in = in_array($tab_nav, $sec['items'], true) || array_intersect($sec['items'], array_keys($nav_badge)); ?>
+            <?php foreach ($nav_sections as $sec): $sec_vis = array_values(array_filter($sec['items'], fn($k) => empty($nav_off[$k]))); $active_in = in_array($tab_nav, $sec_vis, true) || array_intersect($sec_vis, array_keys($nav_badge)); $g_attr = ' data-ng="' . h($sec['k']) . '"' . ($nav_goff[$sec['k']] ? ' hidden' : ''); ?>
                 <?php if (empty($sec['coll'])): ?>
-                    <div class="navgroup"><?= h($sec['l']) ?></div>
+                    <div class="navgroup"<?= $g_attr ?>><?= h($sec['l']) ?></div>
                     <?php foreach ($sec['items'] as $key): ?>
-                        <?= nav_link($key, $nav[$key], $tab_nav === $key, $nav_badge[$key] ?? '') ?>
+                        <?= nav_link($key, $nav[$key], $tab_nav === $key, $nav_badge[$key] ?? '', $sec['k'], !empty($nav_off[$key])) ?>
                     <?php endforeach; ?>
                 <?php else: ?>
-                    <div class="<?= navacc_cls($sec['k'], $active_in) ?>" data-acc="<?= h($sec['k']) ?>">
+                    <div class="<?= navacc_cls($sec['k'], $active_in) ?>" data-acc="<?= h($sec['k']) ?>"<?= $g_attr ?>>
                         <button type="button" class="navacc-h" onclick="navAcc(this)">
                             <span><?= h($sec['l']) ?></span>
                             <svg width="12" height="12" class="navacc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                         </button>
                         <div class="navacc-b">
                             <?php foreach ($sec['items'] as $key): ?>
-                                <?= nav_link($key, $nav[$key], $tab_nav === $key, $nav_badge[$key] ?? '') ?>
+                                <?= nav_link($key, $nav[$key], $tab_nav === $key, $nav_badge[$key] ?? '', $sec['k'], !empty($nav_off[$key])) ?>
                             <?php endforeach; ?>
                         </div>
                     </div>
@@ -1807,6 +1846,7 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
                 <h1 class="pagetitle"><?= h($tab_title) ?></h1>
             </div>
             <div class="rw-hcontrols">
+                <a class="hbtn hbtn-hid" href="?tab=sysinfo&amp;seg=custom" id="navHidBadge" data-tip="Скрыто из меню: <?= (int) $nav_off_n ?>. Нажмите, чтобы настроить" aria-label="Скрыто разделов: <?= (int) $nav_off_n ?> — открыть настройку меню"<?= $nav_off_n ? '' : ' hidden' ?>><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg><span class="hbtn-hid-l">Скрыто разделов:</span><b id="navHidN"><?= (int) $nav_off_n ?></b><?php if ($nav_off_alert): ?><span class="hbtn-dot"></span><?php endif; ?></a>
                 <a class="hbtn" href="https://github.com/Mrvibecodic/remnawave-subscription-middleware" target="_blank" rel="noopener" title="GitHub — поставьте звезду ⭐"><svg width="20" height="20" class="hbtn-star" viewBox="0 0 24 24" fill="#f5b50a" stroke="#1a1a1a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span id="ghStarCount"></span></a>
                 <?php $rep_new = $db_ok ? rep_unseen() : 0; $rep_tip = rep_unseen_tip($rep_new); ?>
                 <a class="hbtn hbtn-mail" href="?tab=reports" id="repMail" aria-haspopup="dialog" aria-expanded="false" data-tip="<?= h($rep_tip) ?>" aria-label="<?= h($rep_tip) ?>"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg><?php if ($rep_new > 0): ?><span class="hbtn-badge"><?= $rep_new > 99 ? '99+' : (int) $rep_new ?></span><?php endif; ?></a>
@@ -1826,6 +1866,23 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
                 <a class="hbtn" href="?logout=1&amp;csrf=<?= h($token) ?>" title="Выйти" aria-label="Выйти"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>
+        <script>(function(){
+var nav=document.querySelector('.rw-nav'),bd=document.getElementById('navHidBadge'),nn=document.getElementById('navHidN');
+if(!nav||!bd||!nn)return;
+var heads=function(){return nav.querySelectorAll('.navgroup[data-ng],.navacc[data-ng]');};
+var links=function(g){return nav.querySelectorAll('a[data-ng="'+g+'"]');};
+var label=function(h){var e=h.classList.contains('navacc')?h.querySelector('.navacc-h span'):h;return e?e.textContent.trim():'';};
+window.navHidSync=function(){var n=0,parts=[],alerts=[];
+heads().forEach(function(h){var ls=links(h.getAttribute('data-ng')),off=[];ls.forEach(function(a){if(a.hidden){var t=a.querySelector('span'),nm=t?t.textContent.trim():'',d=a.querySelector('.nav-dot');off.push(nm);if(d)alerts.push('! '+nm+': '+(d.getAttribute('aria-label')||''));}});if(!off.length)return;n+=off.length;parts.push('• '+label(h)+(off.length===ls.length?' — вся группа':': '+off.join(', ')));});
+nn.textContent=n;bd.hidden=!n;
+var dot=bd.querySelector('.hbtn-dot');if(alerts.length&&!dot){dot=document.createElement('span');dot.className='hbtn-dot';bd.appendChild(dot);}else if(!alerts.length&&dot)dot.remove();
+bd.setAttribute('data-tip','Скрыто из меню слева:\n'+parts.join('\n')+(alerts.length?'\n\nВ скрытых разделах есть уведомления:\n'+alerts.join('\n'):'')+'\n\nРазделы работают как обычно, прямые ссылки открываются. Нажмите, чтобы настроить.');
+bd.setAttribute('aria-label','Скрыто разделов: '+n+' — открыть настройку меню');};
+window.navHidApply=function(G,T){nav.querySelectorAll('a[data-nk]').forEach(function(a){a.hidden=!!(G[a.getAttribute('data-ng')]||T[a.getAttribute('data-nk')]);});
+heads().forEach(function(h){var g=h.getAttribute('data-ng'),any=false;links(g).forEach(function(a){if(!a.hidden)any=true;});h.hidden=!any;});
+navHidSync();};
+navHidSync();
+})();</script>
         <div class="rw-content">
 <?php if (!$db_ok): ?><div class="warn">Нет связи с БД. Проверьте config.php.</div><?php endif; ?>
 <?php if ($flash): ?><div id="flashMsg" data-msg="<?= h($flash) ?>" style="display:none"></div><?php endif; ?>
