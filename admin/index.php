@@ -351,6 +351,37 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'ua_meta') {
+        echo json_encode(['ok' => true] + ua_meta(), JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'ua_user') {
+        $su = trim((string) ($_GET['su'] ?? ''));
+        $ue = ''; $uc = 0;
+        $u = $su !== '' ? ua_fetch($su, $ue, $uc) : null;
+        echo json_encode($u ? ['ok' => true, 'user' => ua_norm($u), 'mw' => ua_mw($su, (string) ($u['username'] ?? ''))] : ['ok' => false, 'error' => $ue ?: 'Пустой shortUuid'], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'ua_hist') {
+        echo json_encode(['ok' => true, 'ev' => ua_history(trim((string) ($_GET['su'] ?? '')))], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
+    if (in_array($a, ['ua_save', 'ua_act', 'ua_create'], true)) {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        @set_time_limit(60);
+        $su = trim((string) ($_POST['su'] ?? ''));
+        $fj = json_decode((string) ($_POST['fields'] ?? '{}'), true);
+        if (!is_array($fj)) $fj = [];
+        if ($a === 'ua_save') $r = $su !== '' ? ua_save($su, $fj, (string) ($_POST['upd'] ?? ''), ($_POST['reset'] ?? '') === '1') : ['ok' => false, 'error' => 'Пустой shortUuid'];
+        elseif ($a === 'ua_act') $r = $su !== '' ? ua_action($su, (string) ($_POST['act'] ?? '')) : ['ok' => false, 'error' => 'Пустой shortUuid'];
+        else $r = ua_create($fj, ['addsub' => (string) ($_POST['addsub'] ?? ''), 'nolog' => ($_POST['nolog'] ?? '') === '1']);
+        echo json_encode($r, JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'parse_config' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $parsed = squadconf_parse_any($_POST['raw'] ?? '');
@@ -2021,7 +2052,7 @@ var HELP={
 'branding':{t:'Брендинг сервиса',h:'<p>Имя и логотип берутся автоматически из панели Remnawave (Настройки кастомизации → «Название бренда» и «Ссылка на логотип») и идут в название, лого и фавикон админки.</p><h4>Ручные поля</h4><p>Заданные здесь имя и лого важнее автоматических. Заполнять можно по отдельности: укажете только имя — лого останется из панели, и наоборот. Если поле пустое, оно подтягивается из панели автоматически.</p><h4>Кнопка «Сохранить и обновить»</h4><p>Заново спрашивает панель и перекачивает логотип в кеш.</p>'},
 'webhook_env':{t:'Как включить вебхук в панели',h:'<p>В панели нет кнопки для вебхуков — они включаются в её файле <code>.env</code>. Точный и актуальный список переменных — в официальной документации: <a href="https://docs.rw/docs/features/webhooks/" target="_blank" rel="noopener noreferrer">Receiving webhooks · Remnawave Docs</a>.</p><h4>Коротко</h4><p>Включите вебхук в <code>.env</code> панели, укажите адрес этой прослойки и общий секрет, затем перезапустите панель.</p><h4>Важно</h4><p>Секрет должен совпадать с полем «Секрет вебхука» в разделе «Подключение». После перезапуска события появятся в «Логе вебхуков» с пометкой <b>ok</b>.</p>'},
 'forward':{t:'Раздвоение вебхука (тройник)',h:'<p>Сама панель умеет слать хук на <b>несколько</b> адресов — через запятую в <code>WEBHOOK_URL</code>. Но подписывает их всех <b>одним</b> секретом.</p><h4>Когда нужен тройник</h4><p>В двух случаях:</p><ul><li>адресатам нужны <b>разные</b> секреты — прослойка подпишет каждую копию его ключом, и для адресата хук будет неотличим от настоящего;</li><li>переслать нужно <b>после</b> того, как прослойка обработала событие (грейс, блокировки и т.п.).</li></ul><h4>Когда не нужен</h4><p>Если всем хватает одного секрета — проще перечислить адреса через запятую прямо в панели.</p>'},
-'userflags':{t:'Колонки «Статус» и «Конфиг»',h:'<h4>Статус</h4><p>Статус пользователя из панели. Тег <code>ГРЕЙС</code> — пользователь активен и сейчас находится в грейс-скваде. Если грейс кончился и он стал EXPIRED — показывается EXPIRED.</p><h4>Конфиг — что реально уходит в приложение</h4><ul><li><b>Прослойка</b> — подписка заблокирована оверрайдом: вместо конфига отдаётся текст блокировки.</li><li><b>Панель</b> — реальный конфиг от origin (в т.ч. для истёкших — ими занимается грейс-сквад панели).</li><li><b>Панель + Грейс</b> — пользователь в грейсе: конфиг реальный, но с нодами грейс-сквада.</li></ul>'}
+'userflags':{t:'Вкладка «Пользователи»',h:'<p>Список берётся из панели Remnawave. Плитки сверху — быстрые фильтры, клик по строке открывает карточку.</p><h4>Карточка</h4><ul><li><b>Обзор</b> — данные панели и что делает прослойка: что отдаётся, доп-подписка, WG/AWG, лог.</li><li><b>Изменить</b> — те же поля, что в панели. В панель уходят только изменённые поля.</li><li><b>Устройства</b> и <b>История</b> — HWID, запросы, вебхуки и записи прослойки.</li></ul><h4>Грейс</h4><p>Пока пользователь в грейсе, прослойка помнит его прежний тариф. Поставьте новую дату с галочкой «Вернуть прежний тариф» — сквады, трафик и лимиты вернутся сами.</p><h4>Права токена</h4><p>Кнопки, на которые у API-токена нет прав, выключены. Проверить права — «Подключение» → «Права API-токена».</p>'}
 };
 function help(k){var d=HELP[k];if(!d)return;document.getElementById('helpTitle').textContent=d.t;document.getElementById('helpBody').innerHTML=d.h;document.getElementById('helpOv').classList.add('open');}
 function helpClose(){var o=document.getElementById('helpOv');if(o)o.classList.remove('open');}

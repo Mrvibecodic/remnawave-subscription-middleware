@@ -23,6 +23,7 @@ require_once __DIR__ . '/lib/subpage.php';
 require_once __DIR__ . '/lib/pagekeys.php';
 require_once __DIR__ . '/lib/tokscopes.php';
 require_once __DIR__ . '/lib/addsub.php';
+require_once __DIR__ . '/lib/users_admin.php';
 require_once __DIR__ . '/lib/junk.php';
 require_once __DIR__ . '/lib/chan.php';
 require_once __DIR__ . '/lib/chanmw.php';
