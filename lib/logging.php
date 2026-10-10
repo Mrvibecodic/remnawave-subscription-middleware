@@ -539,6 +539,7 @@ function log_panel_write($short, $ref, $op, $src, $body, $ok, $http_code = 0, $e
     $keys = [];
     foreach (array_keys($body) as $k) { if (isset($map[$k])) $keys[] = $map[$k]; }
     if ($op === 'reset_traffic') $keys[] = 'rst';
+    if ($op === 'revoke') $keys[] = 'rev';
     try {
         $st = $p->prepare('INSERT INTO panel_write_log (short_uuid, ref_key, ref_val, op, src, fields, body, ok, http_code, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $st->execute([

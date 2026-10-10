@@ -295,13 +295,14 @@ function api_ctx($src = null, $short = null) {
     return $ctx;
 }
 
-function remnawave_update_user($ref, array $fields, &$error = '', &$http_code = 0) {
-    $error = ''; $http_code = 0;
+function remnawave_update_user($ref, array $fields, &$error = '', &$http_code = 0, &$resp = null) {
+    $error = ''; $http_code = 0; $resp = null;
     $ref = rw_ref_coerce($ref);
     if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
     $body = array_merge([$ref['key'] => rw_ref_body_value($ref)], $fields);
     [$ok, $code, $data, $e] = remnawave_api_request('PATCH', '/api/users', $body);
     $http_code = (int) $code;
+    $resp = $data;
     if (!$ok) $error = $e ?: ('HTTP ' . $code . ' ' . json_encode($data, JSON_UNESCAPED_UNICODE));
     if (function_exists('log_panel_write')) {
         $ctx = api_ctx();
@@ -323,6 +324,69 @@ function remnawave_reset_traffic($ref, &$error = '') {
     return $ok ? true : false;
 }
 
+
+function panel_err_text($data, $code, $fallback = '') {
+    $t = '';
+    if (is_array($data)) {
+        $m = $data['message'] ?? '';
+        if (is_array($m)) $m = implode('; ', array_map('strval', $m));
+        $t = trim((string) $m);
+        $parts = [];
+        foreach ((is_array($data['errors'] ?? null) ? $data['errors'] : []) as $er) {
+            if (!is_array($er) || !isset($er['message'])) continue;
+            $path = is_array($er['path'] ?? null) ? implode('.', $er['path']) : '';
+            $parts[] = ($path !== '' ? $path . ': ' : '') . (string) $er['message'];
+        }
+        if ($parts) $t = trim(($t !== '' && $t !== 'Validation failed' ? $t . ' — ' : '') . implode('; ', $parts));
+    }
+    if ($t === '') $t = (string) $fallback !== '' ? (string) $fallback : ('HTTP ' . (int) $code);
+    return $t;
+}
+
+function remnawave_user_post($ref, $action, $op, $body = null, &$error = '', &$http_code = 0, &$resp = null) {
+    $error = ''; $http_code = 0; $resp = null;
+    $ref = rw_ref_coerce($ref);
+    if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
+    [$ok, $code, $data, $e] = remnawave_api_request('POST', '/api/users/' . rawurlencode($ref['val']) . '/actions/' . $action, $body);
+    $http_code = (int) $code;
+    $resp = $data;
+    if (!$ok) $error = panel_err_text($data, $code, $e);
+    if (function_exists('log_panel_write')) {
+        $ctx = api_ctx();
+        log_panel_write($ctx['short'], $ref, $op, $ctx['src'], is_array($body) ? $body : [], $ok, (int) $code, $error);
+    }
+    return $ok ? true : false;
+}
+
+function remnawave_create_user(array $body, &$error = '', &$http_code = 0) {
+    $error = ''; $http_code = 0;
+    [$ok, $code, $data, $e] = remnawave_api_request('POST', '/api/users', $body);
+    $http_code = (int) $code;
+    $u = $ok ? ($data['response'] ?? $data) : null;
+    if (!$ok) $error = panel_err_text($data, $code, $e);
+    elseif (!is_array($u) || empty($u['shortUuid'])) { $error = 'Панель не вернула созданного пользователя'; $u = null; }
+    if (function_exists('log_panel_write')) {
+        $ctx = api_ctx();
+        $lb = $body;
+        unset($lb['trojanPassword'], $lb['ssPassword'], $lb['vlessUuid']);
+        log_panel_write(is_array($u) ? (string) $u['shortUuid'] : '', is_array($u) ? rw_user_ref($u) : null, 'create', $ctx['src'], $lb, $ok, (int) $code, $error);
+    }
+    return $u;
+}
+
+function remnawave_delete_user($ref, &$error = '', &$http_code = 0) {
+    $error = ''; $http_code = 0;
+    $ref = rw_ref_coerce($ref);
+    if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
+    [$ok, $code, $data, $e] = remnawave_api_request('DELETE', '/api/users/' . rawurlencode($ref['val']));
+    $http_code = (int) $code;
+    if (!$ok) $error = panel_err_text($data, $code, $e);
+    if (function_exists('log_panel_write')) {
+        $ctx = api_ctx();
+        log_panel_write($ctx['short'], $ref, 'delete', $ctx['src'], [], $ok, (int) $code, $error);
+    }
+    return $ok ? true : false;
+}
 
 function panel_min_supported() { return '2.7.4'; }
 
