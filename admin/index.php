@@ -1369,7 +1369,7 @@ $token = csrf_token();
 $flash = take_flash();
 $pdo   = db();
 $db_ok = $pdo !== null;
-if ($tab === 'reports' && $db_ok) rep_mark_seen();
+if ($tab === 'reports' && $db_ok) { rep_via_backfill(); rep_mark_seen(); }
 
 $overrides = [];
 if ($db_ok && ($tab === 'users' || $tab === 'overrides')) foreach ($pdo->query('SELECT * FROM overrides ORDER BY updated_at DESC LIMIT 500') as $r) $overrides[] = $r;
