@@ -68,8 +68,15 @@ foreach ($sqcfg_wg as $c) {
 }
 $wgx_order = array_values(array_filter(array_keys($wgx_pools), fn($pk) => $pk !== '__manual__'));
 $wgx_filled = array_values(array_filter($wgx_order, fn($pk) => $wgx_pools[$pk]['n'] > 0));
+$wgx_idle = fn($pk) => isset($wgx_members[$pk]) && $wgx_members[$pk] === 0;
+$wgx_empty = array_values(array_filter($wgx_order, $wgx_idle));
 $wgx_man = array_values(array_filter($sqcfg_leases, fn($l) => (int) $l['manual'] === 1));
 $wgx_man_cfgs = $wgx_pools['__manual__']['n'] ?? 0;
+$wgx_cards = array_merge(
+    array_filter($wgx_filled, fn($pk) => !$wgx_idle($pk)),
+    $wgx_man_cfgs || $wgx_man ? ['__manual__'] : [],
+    array_filter($wgx_order, fn($pk) => !$wgx_idle($pk) && $wgx_pools[$pk]['n'] === 0)
+);
 $wgx_need = function ($pk) use ($wgx_sizing, $wgx_pools) {
     $r = $wgx_sizing[$pk] ?? null;
     if (!$r) return null;
@@ -106,15 +113,32 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
         .wgx-note{display:flex;gap:.6rem;align-items:flex-start;font-size:.82rem;padding:.55rem .8rem;border-radius:8px;margin-top:.7rem;background:var(--c-info-bg)}
         .wgx-note.bad{background:var(--c-bad-bg)}
         .wgx-note b{color:var(--text-strong)}
-        .wgx-grid{display:grid;grid-template-columns:minmax(300px,24rem) minmax(0,1fr);gap:var(--wgx-gap);align-items:start}
+        .wgx-grid{display:grid;grid-template-columns:minmax(300px,24rem) minmax(0,1fr);gap:var(--wgx-gap);align-items:start;margin-bottom:var(--wgx-gap)}
         .wgx-grid>.card{margin:0;min-width:0}
+        .wgx-pg{display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:var(--muted);white-space:nowrap}
+        .wgx .wgx-pg .wb{padding:.12rem .45rem;line-height:1}
+        .wgx .wgx-pg .wb svg{display:block}
         @media(max-width:1100px){.wgx-grid{grid-template-columns:minmax(0,1fr)}}
+        .wgx-empties{border:1px dashed var(--line);border-radius:10px;padding:.15rem .75rem}
+        .wgx-empties summary{cursor:pointer;font-size:.82rem;font-weight:600;color:var(--text);padding:.45rem 0;list-style:none;display:flex;gap:.45rem;align-items:center;white-space:nowrap}
+        .wgx-empties summary::-webkit-details-marker{display:none}
+        .wgx-empties summary::before{content:'';width:.4rem;height:.4rem;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);margin-right:.15rem;align-self:center;transition:transform .15s}
+        .wgx-empties[open] summary::before{transform:rotate(45deg)}
+        .wgx-empties[open] summary{border-bottom:1px solid var(--line);margin-bottom:.2rem}
+        .wgx-erow{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:.5rem;align-items:center;padding:.22rem 0;font-size:.8rem}
+        .wgx-erow+.wgx-erow{border-top:1px solid var(--line)}
+        .wgx-erow .en{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-strong);font-weight:600}
+        .wgx .wgx-erow select{width:auto;height:auto;min-height:0;line-height:1.3;padding:.18rem 1.5rem .18rem .5rem;font-size:.76rem;margin:0;background-position:right .45rem center}
+        .wgx .wgx-erow .wb{padding:.2rem .55rem}
         .wgx-h{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.75rem;flex-wrap:wrap}
         .wgx-pools{display:flex;flex-direction:column;gap:.6rem}
-        .wgx-pool{border:1px solid var(--line);border-radius:10px;background:var(--bg2);padding:.65rem .75rem;display:flex;flex-direction:column;gap:.55rem}
+        .wgx-pool{border:1px solid var(--line);border-radius:10px;background:var(--bg2);padding:.55rem .7rem;display:flex;flex-direction:column;gap:.45rem}
+        .wgx .wgx-add{padding:.1rem .5rem;font-size:.85rem;line-height:1.3}
         .wgx-pool.empty{background:transparent;padding:.5rem .75rem;gap:.4rem}
         .wgx-pool.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-        .wgx-ph{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+        .wgx-ph{display:flex;align-items:center;gap:.45rem;min-width:0}
+        .wgx-ph .wgx-pname{min-width:0;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none}
+        .wgx-ph>.wgx-pm{flex:none;white-space:nowrap}
         .wgx .wgx-pname{background:none;border:0;padding:0;color:var(--text-strong);font-weight:700;font-size:.92rem;cursor:pointer;text-align:left}
         .wgx .wgx-pname:hover{background:none;filter:none;color:var(--accent-text)}
         .wgx .wgx-pname:active{transform:none}
@@ -123,19 +147,20 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
         .wv-wg{background:var(--c-info-bg);color:var(--c-info-fg)}
         .wv-2{background:var(--c-violet-bg);color:var(--c-violet-fg)}
         .wv-3{background:var(--c-warn-bg);color:var(--c-warn-fg)}
-        .wgx-ph .wgx-vts{display:flex;gap:.25rem;margin-left:auto}
+        .wgx-ph .wgx-vts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.25rem;margin-left:auto;flex:0 1 auto;min-width:0}
+        .wgx-ph .wgx-add{flex:none}
         .wgx-seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--card)}
         .wgx .wgx-seg label{display:block;flex:1 1 0;min-width:0;margin:0;font-size:.72rem;font-weight:600;color:var(--muted);text-align:center;padding:.32rem .2rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .wgx-seg label+label{border-left:1px solid var(--line)}
         .wgx-seg input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
         .wgx-seg label:has(input:checked){background:var(--accent-light);color:var(--accent-text)}
         .wgx-seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:-2px}
-        .wgx-gr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.15rem .6rem;font-size:.78rem;align-items:center}
+        .wgx-gr{display:grid;grid-template-columns:minmax(0,1fr) auto 3rem;gap:.6rem;font-size:.78rem;align-items:center}
         .wgx-gr .gn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .wgx-gr .gc{color:var(--muted);font-variant-numeric:tabular-nums}
         .wgx-gr .gc b{color:var(--text-strong)}
         .wgx-gr .gc.low b{color:var(--c-warn-fg)}
-        .wgx-bar{grid-column:1/-1;height:4px;border-radius:999px;background:var(--hover);overflow:hidden}
+        .wgx-bar{height:4px;border-radius:999px;background:var(--hover);overflow:hidden}
         .wgx-bar i{display:block;height:100%;background:var(--accent)}
         .wgx-bar.low i{background:var(--c-warn-fg)}
         .wgx-pf{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
@@ -189,7 +214,9 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
         .wgx-bulk input{flex:1 1 7rem;max-width:12rem}
         .wgx-who{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem}
         @media(max-width:900px){.wgx-who{grid-template-columns:minmax(0,1fr)}}
-        .wgx-fmt{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:.3rem .8rem;font-size:.8rem;align-items:center}
+        .wgx-fmt{display:grid;grid-template-columns:auto auto minmax(0,1fr);column-gap:1rem;font-size:.82rem;align-items:baseline}
+        .wgx-fmt>*{padding:.45rem 0;border-top:1px solid var(--line);line-height:1.45}
+        .wgx-fmt>.fh{border-top:0;padding:0 0 .35rem}
         .wgx-fmt .fh{font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
         .wgx-fmt b{color:var(--text-strong);font-weight:600}
         .wgx-ok{color:var(--c-ok-fg);font-weight:600}
@@ -254,7 +281,7 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
 
     <div class="wgx-grid">
         <div class="card">
-            <div class="wgx-h"><h2>Пулы</h2><span class="wgx-pm">пул = сквад панели</span></div>
+            <div class="wgx-h"><h2>Пулы</h2><span class="wgx-pg" id="wgxPg" hidden><button type="button" class="wb sm" data-pg="-1" aria-label="Предыдущие пулы"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg></button><span id="wgxPgN"></span><button type="button" class="wb sm" data-pg="1" aria-label="Следующие пулы"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button></span></div>
             <?php if (!$wgx_order && !$wgx_man_cfgs): ?>
                 <p class="wgx-empty"><?= $sqcfg_squads_err !== '' ? 'Сквады панели недоступны — пока можно загрузить конфиги только в ручную привязку.' : 'В панели нет внутренних сквадов. Конфиги можно загрузить в ручную привязку.' ?></p>
             <?php endif; ?>
@@ -262,16 +289,38 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
                 <input type="hidden" name="csrf" value="<?= h($token) ?>">
                 <input type="hidden" name="action" value="save_pool_modes">
                 <div class="wgx-pools">
-                <?php foreach ($wgx_order as $pk): $pl = $wgx_pools[$pk]; $pm = $pl['mode']; $need = $wgx_need($pk); ?>
-                    <div class="wgx-pool<?= $pl['n'] ? '' : ' empty' ?>" data-pool="<?= h($pk) ?>">
+                <?php foreach ($wgx_cards as $pk): if ($pk === '__manual__'): ?>
+                    <div class="wgx-pool" data-pool="__manual__">
                         <div class="wgx-ph">
-                            <button type="button" class="wgx-pname" data-pool="<?= h($pk) ?>" title="Показать конфиги этого пула"><?= h($wgx_pname($pk)) ?></button>
+                            <button type="button" class="wgx-pname" data-pool="__manual__" data-tip="Показать конфиги ручной привязки">Ручная привязка</button>
+                            <span class="wgx-pm" data-tip="Назначено <?= count($wgx_man) ?> из <?= (int) $wgx_man_cfgs ?> конфигов"><?= count($wgx_man) ?>/<?= (int) $wgx_man_cfgs ?> назначено</span>
+                            <span class="wgx-vts"><?php foreach (array_keys($wgx_pools['__manual__']['vers'] ?? []) as $v): ?><span class="wgx-vt <?= awg_ver_class($v) ?>"><?= h($v) ?></span><?php endforeach; ?></span>
+                            <button type="button" class="wb sm wgx-add" data-upload="__manual__" data-tip="Загрузить конфиги для ручной привязки" aria-label="Загрузить в ручную привязку">+</button>
+                        </div>
+                        <?php if ($wgx_man): ?>
+                        <div class="wgx-man">
+                            <?php foreach ($wgx_man as $l): $lc = $wgx_cfg[(int) $l['config_id']] ?? ['n' => '#' . (int) $l['config_id'] . ' — конфиг удалён']; $lsu = (string) $l['short_uuid']; $lhw = (string) ($l['hwid'] ?? ''); $ln = !empty($wg_uc[$lsu]['u']) ? (string) $wg_uc[$lsu]['u'] : $lsu; $ldev = $lhw !== '' ? (string) ($wg_uc[$lsu]['d'][$lhw]['m'] ?? ($sqcfg_hwid_plat[$lhw] ?? 'устройство')) : 'любое устройство'; ?>
+                                <div>
+                                    <span class="mu" data-tip="<?= h($lsu) ?>"><?= h($ln) ?></span>
+                                    <span class="mc"><?= h($lc['n'] !== '' ? $lc['n'] : ('#' . (int) $l['config_id'])) ?> · <?= h($ldev) ?></span>
+                                    <button type="button" class="wx" data-tip="Снять назначение" data-mandel="<?= (int) $l['id'] ?>" aria-label="Снять назначение">✕</button>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                        <div class="wgx-pf"><button type="button" class="wb sm" data-manopen>Назначить</button></div>
+                    </div>
+                <?php else: $pl = $wgx_pools[$pk]; $pm = $pl['mode']; $need = $wgx_need($pk); ?>
+                    <div class="wgx-pool" data-pool="<?= h($pk) ?>">
+                        <div class="wgx-ph">
+                            <button type="button" class="wgx-pname" data-pool="<?= h($pk) ?>" data-tip="Показать конфиги этого пула"><?= h($wgx_pname($pk)) ?></button>
                             <span class="wgx-pm"><?= isset($wgx_members[$pk]) ? (int) $wgx_members[$pk] . ' польз.' : '' ?></span>
-                            <span class="wgx-vts"><?php if (!$pl['n']): ?><span class="wgx-pm">пусто</span><?php endif; ?><?php foreach (array_keys($pl['vers']) as $v): ?><span class="wgx-vt <?= awg_ver_class($v) ?>"><?= h($v) ?></span><?php endforeach; ?></span>
+                            <span class="wgx-vts"><?php foreach (array_keys($pl['vers']) as $v): ?><span class="wgx-vt <?= awg_ver_class($v) ?>"><?= h($v) ?></span><?php endforeach; ?></span>
+                            <button type="button" class="wb sm wgx-add" data-upload="<?= h($pk) ?>" data-tip="Загрузить конфиги в этот пул" aria-label="Загрузить в <?= h($wgx_pname($pk)) ?>">+</button>
                         </div>
                         <div class="wgx-seg" role="radiogroup" aria-label="Как выдавать в <?= h($wgx_pname($pk)) ?>">
                             <?php foreach (['shared' => 'Всем', 'users' => 'Пользователю', 'devices' => 'Устройству'] as $mv => $ml): ?>
-                                <label title="<?= $mv === 'shared' ? 'Одни и те же конфиги всем подписчикам сквада' : ($mv === 'users' ? 'Отдельный ключ каждому пользователю' : 'Отдельный ключ каждому устройству (нужен hwid)') ?>"><input type="radio" name="pool_mode[<?= h($pk) ?>]" value="<?= $mv ?>" data-was="<?= $pm === $mv ? '1' : '0' ?>"<?= $pm === $mv ? ' checked' : '' ?>><?= $ml ?></label>
+                                <label data-tip="<?= $mv === 'shared' ? 'Одни и те же конфиги всем подписчикам сквада' : ($mv === 'users' ? 'Отдельный ключ каждому пользователю' : 'Отдельный ключ каждому устройству (нужен hwid)') ?>"><input type="radio" name="pool_mode[<?= h($pk) ?>]" value="<?= $mv ?>" data-was="<?= $pm === $mv ? '1' : '0' ?>"<?= $pm === $mv ? ' checked' : '' ?>><?= $ml ?></label>
                             <?php endforeach; ?>
                         </div>
                         <?php foreach ($pl['groups'] as $gk => $g): $tot = (int) $g['on']; $fr = (int) $g['free']; $short = $need !== null && $tot < $need; $low = $pm !== 'shared' && (($tot > 0 && $fr === 0) || $short); $pct = $tot > 0 ? (int) round(($pm === 'shared' ? $tot : $fr) * 100 / $tot) : 0; ?>
@@ -280,45 +329,35 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
                                 <?php if ($pm === 'shared'): ?>
                                     <span class="gc"><b><?= $tot ?></b> всем</span>
                                 <?php else: ?>
-                                    <span class="gc<?= $low ? ' low' : '' ?>"<?= $short ? ' title="Нужно ~' . (int) $need . ', а конфигов ' . $tot . '"' : '' ?>><b><?= $fr ?></b> из <?= $tot ?> свободно<?= $short ? ' · нужно ~' . (int) $need : '' ?></span>
+                                    <span class="gc<?= $low ? ' low' : '' ?>"<?= $short ? ' data-tip="Нужно ~' . (int) $need . ', а конфигов ' . $tot . '"' : '' ?>><b><?= $fr ?></b> из <?= $tot ?> свободно<?= $short ? ' · нужно ~' . (int) $need : '' ?></span>
                                 <?php endif; ?>
                                 <span class="wgx-bar<?= $low ? ' low' : '' ?>"><i style="width:<?= $pct ?>%"></i></span>
                             </div>
                         <?php endforeach; ?>
-                        <div class="wgx-pf">
-                            <button type="button" class="wb sm" data-upload="<?= h($pk) ?>">+ Загрузить сюда</button>
-                            <?php if ($need !== null): ?><span class="wgx-pm">в каждую группу нужно ~<?= (int) $need ?> — по числу <?= $pm === 'devices' ? 'устройств' : 'активных' ?></span><?php endif; ?>
-                        </div>
+                        <?php if (!$pl['groups']): ?><span class="wgx-pm">конфигов пока нет</span><?php endif; ?>
+                        <?php if ($need !== null): ?><span class="wgx-pm">в каждую группу нужно ~<?= (int) $need ?> — по числу <?= $pm === 'devices' ? 'устройств' : 'активных' ?></span><?php endif; ?>
                     </div>
-                <?php endforeach; ?>
-                <?php if ($wgx_man_cfgs || $wgx_man): ?>
-                    <div class="wgx-pool" data-pool="__manual__">
-                        <div class="wgx-ph">
-                            <button type="button" class="wgx-pname" data-pool="__manual__" title="Показать конфиги ручной привязки">Ручная привязка</button>
-                            <span class="wgx-pm"><?= count($wgx_man) ?> из <?= (int) $wgx_man_cfgs ?> назначено</span>
-                            <span class="wgx-vts"><?php foreach (array_keys($wgx_pools['__manual__']['vers'] ?? []) as $v): ?><span class="wgx-vt <?= awg_ver_class($v) ?>"><?= h($v) ?></span><?php endforeach; ?></span>
-                        </div>
-                        <?php if ($wgx_man): ?>
-                        <div class="wgx-man">
-                            <?php foreach ($wgx_man as $l): $lc = $wgx_cfg[(int) $l['config_id']] ?? ['n' => '#' . (int) $l['config_id'] . ' — конфиг удалён']; $lsu = (string) $l['short_uuid']; $lhw = (string) ($l['hwid'] ?? ''); $ln = !empty($wg_uc[$lsu]['u']) ? (string) $wg_uc[$lsu]['u'] : $lsu; $ldev = $lhw !== '' ? (string) ($wg_uc[$lsu]['d'][$lhw]['m'] ?? ($sqcfg_hwid_plat[$lhw] ?? 'устройство')) : 'любое устройство'; ?>
-                                <div>
-                                    <span class="mu" title="<?= h($lsu) ?>"><?= h($ln) ?></span>
-                                    <span class="mc"><?= h($lc['n'] !== '' ? $lc['n'] : ('#' . (int) $l['config_id'])) ?> · <?= h($ldev) ?></span>
-                                    <button type="button" class="wx" title="Снять назначение" data-mandel="<?= (int) $l['id'] ?>" aria-label="Снять назначение">✕</button>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <?php endif; ?>
-                        <div class="wgx-pf"><button type="button" class="wb sm" data-manopen>Назначить</button><button type="button" class="wb sm" data-upload="__manual__">+ Загрузить сюда</button></div>
-                    </div>
+                <?php endif; endforeach; ?>
+                <?php if ($wgx_empty): ?>
+                    <details class="wgx-empties"<?= $wgx_cards ? '' : ' open' ?>>
+                        <summary>Сквады без пользователей <span class="wgx-pm"><?= count($wgx_empty) ?></span></summary>
+                        <?php foreach ($wgx_empty as $pk): $pm = $wgx_pools[$pk]['mode']; ?>
+                            <div class="wgx-erow">
+                                <span class="en" data-tip="<?= h($wgx_pname($pk)) ?>"><?= h($wgx_pname($pk)) ?></span>
+                                <span class="wgx-pm"><?= $wgx_pools[$pk]['n'] ? (int) $wgx_pools[$pk]['n'] . ' конф.' : '' ?></span>
+                                <select name="pool_mode[<?= h($pk) ?>]" data-empty aria-label="Режим <?= h($wgx_pname($pk)) ?>"><?php foreach (['shared' => 'Всем', 'users' => 'Пользователю', 'devices' => 'Устройству'] as $mv => $ml): ?><option value="<?= $mv ?>"<?= $pm === $mv ? ' selected' : '' ?>><?= $ml ?></option><?php endforeach; ?></select>
+                                <button type="button" class="wb sm" data-upload="<?= h($pk) ?>" data-tip="Загрузить конфиги в этот сквад" aria-label="Загрузить в <?= h($wgx_pname($pk)) ?>">+</button>
+                            </div>
+                        <?php endforeach; ?>
+                    </details>
                 <?php endif; ?>
                 </div>
-                <div class="wgx-days" title="Если клиент не обновлял подписку столько дней, его автовыдача освобождается для других">Слот вернётся в пул через <input type="number" name="wgpool_reclaim_days" id="wgxDays" value="<?= (int) $sqcfg_reclaim_days ?>" min="1" max="365" aria-label="Дней"> дн. тишины</div>
+                <div class="wgx-days" data-tip="Если клиент не обновлял подписку столько дней, его автовыдача освобождается для других">Слот вернётся в пул через <input type="number" name="wgpool_reclaim_days" id="wgxDays" value="<?= (int) $sqcfg_reclaim_days ?>" min="1" max="365" aria-label="Дней"> дн. тишины</div>
             </form>
             <?php if (!empty($sqcfg_sizing['warn'])): ?><div class="wgx-note bad" style="margin-top:.6rem"><span>Потребность посчитана не полностью: <?= h($sqcfg_sizing['warn']) ?></span></div><?php endif; ?>
             <?php if ($wgx_order): ?>
             <div class="wgx-pf" style="margin-top:.6rem">
-                <button type="button" class="wb sm" id="wgxCalc" title="Посчитать по панели, сколько активных пользователей и устройств в каждом скваде">Посчитать потребность</button>
+                <button type="button" class="wb sm" id="wgxCalc" data-tip="Посчитать по панели, сколько активных пользователей и устройств в каждом скваде">Посчитать потребность</button>
                 <form method="post" style="margin:0" onsubmit="return uiConfirmForm(this,'Сбросить все автовыдачи? Ручные назначения останутся. Клиентам нужно будет один раз обновить подписку.','Сбросить')"><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="pool_reset_leases"><button type="submit" class="wb sm">Сбросить автовыдачи</button></form>
                 <span class="wgx-pm" id="wgxCalcMsg"></span>
             </div>
@@ -357,7 +396,7 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
                             <div class="wgx-grp-h"><b><?= h($g['label'] !== '' ? $g['label'] : 'без группы') ?></b><?php if (!$mixed): ?><span class="wgx-vt <?= awg_ver_class(array_key_first($g['vers'])) ?>"><?= h(array_key_first($g['vers'])) ?></span><?php endif; ?><span><?= count($g['ids']) ?> шт.</span></div>
                             <div class="wgx-chips">
                             <?php foreach ($g['ids'] as $cid): $x = $wgx_cell[$pk . ':' . $cid]; $tip = $x['n'] . ($x['st'] === 'used' ? ' — ' . ($x['u'] !== '' ? $x['u'] : $x['su']) : ($x['st'] === 'free' ? ' — свободен' : ($x['st'] === 'off' ? ' — выключен' : ' — всем'))); ?>
-                                <button type="button" class="wgx-chip st-<?= $x['st'] ?>" data-id="<?= $cid ?>" data-k="<?= h($pk . ':' . $cid) ?>" data-st="<?= $x['st'] ?>" data-q="<?= h(mb_strtolower($x['n'] . ' ' . $x['ep'] . ' ' . $x['u'] . ' ' . $x['su'])) ?>" title="<?= h($tip) ?>"><i class="dt"></i><span class="lb"><?= h($x['n'] !== '' ? $x['n'] : ('#' . $cid)) ?></span><?php if ($mixed): ?><span class="wgx-vt <?= h($x['vc']) ?>"><?= h(str_replace('AWG ', '', $x['v'])) ?></span><?php endif; ?></button>
+                                <button type="button" class="wgx-chip st-<?= $x['st'] ?>" data-id="<?= $cid ?>" data-k="<?= h($pk . ':' . $cid) ?>" data-st="<?= $x['st'] ?>" data-q="<?= h(mb_strtolower($x['n'] . ' ' . $x['ep'] . ' ' . $x['u'] . ' ' . $x['su'])) ?>" data-tip="<?= h($tip) ?>"><i class="dt"></i><span class="lb"><?= h($x['n'] !== '' ? $x['n'] : ('#' . $cid)) ?></span><?php if ($mixed): ?><span class="wgx-vt <?= h($x['vc']) ?>"><?= h(str_replace('AWG ', '', $x['v'])) ?></span><?php endif; ?></button>
                             <?php endforeach; ?>
                             </div>
                         </div>
@@ -576,7 +615,7 @@ sqcfgInitEdit();
     }
     var stBox = $('wgxSt');
     if (stBox) stBox.addEventListener('click', function(e){ var b = e.target.closest('button'); if (!b) return; stF = b.dataset.st; stBox.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); }); apply(); });
-    if ($('wgxPool')) $('wgxPool').addEventListener('change', function(){ poolF = this.value; apply(); });
+    if ($('wgxPool')) $('wgxPool').addEventListener('change', function(){ poolF = this.value; apply(); if (poolF && window.wgxPgTo) window.wgxPgTo(poolF); });
     if ($('wgxQ')) $('wgxQ').addEventListener('input', function(){ q = this.value.trim().toLowerCase(); apply(); });
     document.querySelectorAll('.wgx-pname').forEach(function(b){ b.addEventListener('click', function(){ var v = b.dataset.pool; poolF = poolF === v ? '' : v; if ($('wgxPool')) $('wgxPool').value = poolF; apply(); if (poolF && window.innerWidth <= 1100) $('wgxCfg').scrollIntoView({behavior: 'smooth', block: 'start'}); }); });
 
@@ -647,10 +686,43 @@ sqcfgInitEdit();
         uiConfirm('Изменить ' + $('wgxBulkAct').options[$('wgxBulkAct').selectedIndex].text + ' = «' + (v || 'убрать поле') + '» у ' + ids.length + ' конфиг(ов)?', function(){ f.submit(); }, 'Применить', false);
     });
 
+    var pgBox = $('wgxPg'), pgList = document.querySelector('.wgx-pools'), pgCards = pgList ? Array.prototype.slice.call(pgList.querySelectorAll(':scope>.wgx-pool')) : [], pgs = [], pgI = 0;
+    function pgShow(i){
+        if (!pgs.length) return;
+        pgI = Math.max(0, Math.min(pgs.length - 1, i));
+        pgCards.forEach(function(c){ c.hidden = pgs[pgI].indexOf(c) < 0; });
+        $('wgxPgN').textContent = (pgI + 1) + ' / ' + pgs.length;
+        pgBox.querySelector('[data-pg="-1"]').disabled = pgI === 0;
+        pgBox.querySelector('[data-pg="1"]').disabled = pgI === pgs.length - 1;
+        try { sessionStorage.setItem('wgxPg', String(pgI)); } catch (e) {}
+    }
+    function pgBuild(){
+        if (!pgBox || !pgCards.length) return;
+        var keep = pgs.length ? pgs[pgI][0] : null;
+        pgCards.forEach(function(c){ c.hidden = false; });
+        var gap = parseFloat(getComputedStyle(pgList).rowGap) || 0, lim = Math.max(380, Math.round(window.innerHeight * 0.62)), cur = [], h = 0;
+        var pc = pgList.closest('.card'), cc = $('wgxCfg');
+        if (pc && cc && Math.abs(pc.getBoundingClientRect().top - cc.getBoundingClientRect().top) < 2) lim = Math.max(lim, cc.offsetHeight - (pc.offsetHeight - pgList.offsetHeight));
+        pgs = [];
+        pgCards.forEach(function(c){ var ch = c.offsetHeight + gap; if (cur.length && h + ch > lim) { pgs.push(cur); cur = []; h = 0; } cur.push(c); h += ch; });
+        if (cur.length) pgs.push(cur);
+        pgBox.hidden = pgs.length < 2;
+        var at = 0;
+        if (keep) pgs.forEach(function(g, i){ if (g.indexOf(keep) >= 0) at = i; });
+        else { try { at = parseInt(sessionStorage.getItem('wgxPg'), 10) || 0; } catch (e) {} }
+        pgShow(at);
+    }
+    window.wgxPgTo = function(pk){ pgs.forEach(function(g, i){ g.forEach(function(c){ if (c.dataset.pool === pk) pgShow(i); }); }); };
+    if (pgBox) {
+        pgBox.addEventListener('click', function(e){ var b = e.target.closest('[data-pg]'); if (b) pgShow(pgI + parseInt(b.dataset.pg, 10)); });
+        pgBuild();
+        var pgT = null; window.addEventListener('resize', function(){ clearTimeout(pgT); pgT = setTimeout(pgBuild, 150); });
+    }
+
     var mf = $('wgxModes');
     if (mf) mf.addEventListener('change', function(e){
         var t = e.target;
-        if (t.id === 'wgxDays') { mf.submit(); return; }
+        if (t.id === 'wgxDays' || t.hasAttribute('data-empty')) { mf.submit(); return; }
         if (t.type !== 'radio') return;
         var grp = mf.querySelectorAll('input[name="' + t.name + '"]'), prev = null;
         grp.forEach(function(r){ if (r.dataset.was === '1') prev = r; });
