@@ -332,6 +332,89 @@ function rep_node_key($type, $server, $port, $via = '') {
     return substr(hash('sha256', $type . '|' . strtolower($server) . '|' . $port . ($via !== '' ? '|' . $via : '')), 0, 12);
 }
 
+function rep_node_groups(PDO $p) {
+    $g = [];
+    foreach ($p->query('SELECT nkey, type, server, port FROM rep_node') as $r) $g[$r['type'] . '|' . $r['server'] . '|' . (int) $r['port']][] = (string) $r['nkey'];
+    return $g;
+}
+
+function rep_merge_legacy(PDO $p, $legacy, $target) {
+    $own = !$p->inTransaction();
+    if ($own) $p->beginTransaction();
+    try {
+        $sel = $p->prepare('SELECT * FROM rep_hour WHERE nkey = ?');
+        $sel->execute([$legacy]);
+        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) { unset($r['id']); $r['nkey'] = $target; rep_upsert($p, 'rep_hour', $r, ['h', 'nkey', 'cc', 'asn', 'kind', 'plat'], rep_sum_cols()); }
+        $sel = $p->prepare('SELECT * FROM rep_ip_day WHERE nkey = ?');
+        $sel->execute([$legacy]);
+        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) { unset($r['id']); $r['nkey'] = $target; rep_upsert($p, 'rep_ip_day', $r, ['d', 'ip', 'nkey', 'kind'], rep_sum_cols()); }
+        $sel = $p->prepare('SELECT * FROM rep_dday WHERE nkey = ?');
+        $sel->execute([$legacy]);
+        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) { unset($r['id']); $r['nkey'] = $target; rep_upsert($p, 'rep_dday', $r, ['d', 'short_uuid', 'hwid', 'net', 'nkey'], rep_day_cols()); }
+        $sel = $p->prepare('SELECT id, short_uuid, hwid, net FROM rep_state WHERE nkey = ?');
+        $sel->execute([$legacy]);
+        $has = $p->prepare('SELECT COUNT(*) FROM rep_state WHERE short_uuid = ? AND hwid = ? AND net = ? AND nkey = ?');
+        $del = $p->prepare('DELETE FROM rep_state WHERE id = ?');
+        $mov = $p->prepare('UPDATE rep_state SET nkey = ? WHERE id = ?');
+        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $has->execute([$r['short_uuid'], $r['hwid'], $r['net'], $target]);
+            if ((int) $has->fetchColumn() > 0) $del->execute([$r['id']]);
+            else $mov->execute([$target, $r['id']]);
+        }
+        foreach (['rep_hour', 'rep_ip_day', 'rep_dday'] as $t) $p->prepare("DELETE FROM $t WHERE nkey = ?")->execute([$legacy]);
+        $st = $p->prepare('SELECT nkey, first_seen FROM rep_node WHERE nkey IN (?, ?)');
+        $st->execute([$legacy, $target]);
+        $nd = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $nd[$r['nkey']] = (int) $r['first_seen'];
+        if (isset($nd[$legacy], $nd[$target])) {
+            $p->prepare('UPDATE rep_node SET first_seen = ? WHERE nkey = ?')->execute([min($nd[$legacy], $nd[$target]), $target]);
+            $p->prepare('DELETE FROM rep_node WHERE nkey = ?')->execute([$legacy]);
+        } elseif (isset($nd[$legacy])) {
+            $p->prepare('UPDATE rep_node SET nkey = ? WHERE nkey = ?')->execute([$target, $legacy]);
+        }
+        if ($own) $p->commit();
+        return true;
+    } catch (Throwable $e) {
+        if ($own && $p->inTransaction()) $p->rollBack();
+        error_log('submw rep merge legacy: ' . $e->getMessage());
+        return false;
+    }
+}
+
+function rep_via_settle(PDO $p, array &$nodes) {
+    if (!$nodes) return;
+    try { $groups = rep_node_groups($p); } catch (Throwable $e) { return; }
+    $rv = [];
+    foreach ($nodes as $n) {
+        $leg = rep_node_key($n['type'], $n['server'], $n['port']);
+        if ($n['nkey'] !== $leg) $rv[$n['type'] . '|' . $n['server'] . '|' . $n['port']][$n['nkey']] = true;
+    }
+    foreach ($nodes as $tok => $n) {
+        $gk  = $n['type'] . '|' . $n['server'] . '|' . $n['port'];
+        $leg = rep_node_key($n['type'], $n['server'], $n['port']);
+        $keys = array_values(array_unique(array_merge($groups[$gk] ?? [], array_keys($rv[$gk] ?? []))));
+        $other = array_values(array_diff($keys, [$leg]));
+        if (count($other) !== 1) continue;
+        if ($n['nkey'] === $leg) { $nodes[$tok]['nkey'] = $other[0]; continue; }
+        if (in_array($leg, $groups[$gk] ?? [], true) && rep_merge_legacy($p, $leg, $n['nkey'])) $groups[$gk] = [$n['nkey']];
+    }
+}
+
+function rep_via_backfill() {
+    if (!rep_ensure() || !($p = db())) return 0;
+    try { $groups = rep_node_groups($p); } catch (Throwable $e) { return 0; }
+    $n = 0;
+    foreach ($groups as $gk => $keys) {
+        if (count($keys) !== 2) continue;
+        [$type, $server, $port] = explode('|', $gk);
+        $leg = rep_node_key($type, $server, (int) $port);
+        if (!in_array($leg, $keys, true)) continue;
+        $other = array_values(array_diff($keys, [$leg]));
+        if (count($other) === 1 && rep_merge_legacy($p, $leg, $other[0])) $n++;
+    }
+    return $n;
+}
+
 // Индекс корзины, в которую попадает середина удачных замеров; -1 — замеров нет.
 function rep_median_bucket(array $b) {
     $total = array_sum($b);
@@ -436,6 +519,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             'name'   => rep_str($n['name'] ?? '', 191),
         ];
     }
+    rep_via_settle($p, $nodes);
 
     // Часы не новее последнего принятого от этого устройства уже посчитаны.
     $devrow = rep_dev_row($short, $hwid);
