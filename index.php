@@ -362,8 +362,13 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any
     && !$panel_hwid_block && !squadconf_user_inactive($gate_short)) {
     $u_state = squadconf_user_state($short_uuid);
     if ($u_state['squads'] || $u_state['status'] !== '') {
-        $u_cfgs = wglease_select($short_uuid, $current_hwid, $u_state['squads'], squadconf_supported_types($response, $format));
-        if ($u_cfgs) { $response = squadconf_inject($response, $format, $u_cfgs); $log_wg = count($u_cfgs); }
+        $u_types = squadconf_supported_types($response, $format);
+        $u_cfgs = wglease_select($short_uuid, $current_hwid, $u_state['squads'], $u_types);
+        if ($u_cfgs) {
+            $u_body = squadconf_inject($response, $format, $u_cfgs);
+            if ($u_body !== $response) $log_wg = count(array_filter($u_cfgs, fn($c) => in_array((string) ($c['type'] ?? ''), $u_types, true)));
+            $response = $u_body;
+        }
     }
 }
 
