@@ -356,6 +356,18 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'parse_batch' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $b = squadconf_batch_rows(squadconf_batch_items((string) ($_POST['files_json'] ?? ''), (string) ($_POST['raw_batch'] ?? '')), (string) ($_POST['label_prefix'] ?? ''));
+        $out = []; $n = 0;
+        foreach ($b['rows'] as $r) {
+            $n++;
+            $out[] = ['n' => $r['ok'] ? $r['name'] : ($r['src'] !== '' ? $r['src'] : 'фрагмент ' . $n), 'ok' => $r['ok'], 'v' => $r['ver'], 'vc' => $r['ver'] !== '' ? awg_ver_class($r['ver']) : '', 'ep' => (string) ($r['parsed']['peer']['Endpoint'] ?? ''), 'w' => $r['warn']];
+        }
+        echo json_encode(['ok' => true, 'items' => $out, 'cut' => $b['cut']], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'test_forward' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $targets = null;
@@ -620,7 +632,7 @@ if (isset($_GET['ajax']) && is_auth()) {
         if (!csrf_ok_get()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $perr = ''; $pwarn = ''; $ptot = null;
         $rows = wglease_sizing($perr, $pwarn, $ptot);
-        if ($perr === '') wglease_sizing_save($rows, $ptot);
+        if ($perr === '') wglease_sizing_save($rows, $ptot, $pwarn);
         $sc = wglease_sizing_cached();
         echo json_encode(['ok' => $perr === '', 'error' => $perr, 'warn' => $pwarn, 'rows' => $rows, 'ts' => $sc['ts'], 'totals' => $sc['totals']], JSON_UNESCAPED_UNICODE);
         exit();
@@ -1104,36 +1116,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
                 $items[] = [trim((string) $lbl), $raw];
             }
         }
-        $fj = json_decode((string) ($_POST['files_json'] ?? ''), true);
-        if (is_array($fj)) {
-            foreach ($fj as $f) {
-                if (!is_array($f)) continue;
-                $raw = (string) ($f['c'] ?? '');
-                if (trim($raw) === '') continue;
-                $lbl = preg_replace('/\.[A-Za-z0-9]+$/', '', (string) ($f['n'] ?? ''));
-                $items[] = [trim((string) $lbl), $raw];
-            }
-        }
-        $rawb = (string) ($_POST['raw_batch'] ?? '');
-        if (trim($rawb) !== '') {
-            foreach (preg_split('/(?=\[Interface\])/i', $rawb) as $blk) {
-                if (trim($blk) !== '') $items[] = ['', $blk];
-            }
-        }
+        $items = array_merge($items, squadconf_batch_items((string) ($_POST['files_json'] ?? ''), (string) ($_POST['raw_batch'] ?? '')));
         if (!$squads || !$items) {
             flash('Выберите сквад и добавьте файлы или вставьте конфиги');
         } else {
-            $added = 0; $skipped = 0; $auto = 0;
-            foreach ($items as $it) {
-                [$lbl, $raw] = $it;
-                $parsed = squadconf_parse_any($raw);
-                if (!is_array($parsed) || empty($parsed['ok']) || !in_array($parsed['type'] ?? '', ['wireguard', 'amneziawg'], true)) { $skipped++; continue; }
-                if ($lbl === '') { $auto++; $lbl = (($parsed['type'] === 'amneziawg') ? 'AWG' : 'WG') . ' ' . $auto; }
-                if ($prefix !== '') $lbl = $prefix . ' · ' . $lbl;
-                squadconf_add($squads, $parsed['type'], mb_substr(squadconf_flag_label($lbl), 0, 191), $raw, json_encode($parsed, JSON_UNESCAPED_UNICODE), $grp);
+            $b = squadconf_batch_rows($items, $prefix);
+            $added = 0; $skipped = 0;
+            foreach ($b['rows'] as $r) {
+                if (!$r['ok']) { $skipped++; continue; }
+                squadconf_add($squads, $r['parsed']['type'], $r['name'], $r['raw'], json_encode($r['parsed'], JSON_UNESCAPED_UNICODE), $grp);
                 $added++;
             }
-            flash('Добавлено WG/AWG: ' . $added . ($skipped ? (', пропущено (не WG/AWG или ошибка): ' . $skipped) : ''));
+            flash('Добавлено WG/AWG: ' . $added . ($skipped ? (', пропущено (не WG/AWG или ошибка): ' . $skipped) : '') . ($b['cut'] ? (', не загружено сверх лимита в 200: ' . $b['cut']) : ''));
         }
         header('Location: index.php?tab=wg_pool'); exit();
     }
@@ -1284,33 +1278,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         form_saved('pagekeys');
     }
 
-    if ($action === 'save_ua_rules') {
-        if (isset($_POST['reset'])) {
-            set_setting('ua_delivery_rules', '');
-            flash('Правила отдачи сброшены к стандартным');
-        } else {
-            $uas    = is_array($_POST['rule_ua'] ?? null) ? $_POST['rule_ua'] : [];
-            $labels = is_array($_POST['rule_label'] ?? null) ? $_POST['rule_label'] : [];
-            $cores  = is_array($_POST['rule_core'] ?? null) ? $_POST['rule_core'] : [];
-            $awg    = is_array($_POST['rule_no_awg'] ?? null) ? $_POST['rule_no_awg'] : [];
-            $wg     = is_array($_POST['rule_no_wg'] ?? null) ? $_POST['rule_no_wg'] : [];
-            $rules = []; $seen = [];
-            foreach ($uas as $i => $ua) {
-                $ua = strtolower(trim((string) $ua));
-                if ($ua === '' || isset($seen[$ua])) continue;
-                $seen[$ua] = true;
-                $lbl = mb_substr(trim((string) ($labels[$i] ?? '')), 0, 60);
-                $rules[] = [
-                    'ua'     => mb_substr($ua, 0, 60),
-                    'label'  => $lbl !== '' ? $lbl : $ua,
-                    'core'   => mb_substr(trim((string) ($cores[$i] ?? '')), 0, 24),
-                    'no_awg' => isset($awg[$i]) ? 1 : 0,
-                    'no_wg'  => isset($wg[$i]) ? 1 : 0,
-                ];
-            }
-            set_setting('ua_delivery_rules', json_encode($rules, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            flash('Правила отдачи по UA сохранены');
-        }
+    if ($action === 'wg_mig_ack') {
+        set_setting('wg_v3_mig_note', '');
+        header('Location: index.php?tab=wg_pool'); exit();
+    }
+
+    if ($action === 'save_wg_except') {
+        $ex = squadconf_wg_except_from_post(is_array($_POST['ex_ua'] ?? null) ? $_POST['ex_ua'] : [], is_array($_POST['ex_block'] ?? null) ? $_POST['ex_block'] : []);
+        set_setting('wg_ua_except', json_encode($ex, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        flash($ex ? 'Исключения сохранены' : 'Исключений нет — WG и AWG уходят по формату');
         form_saved('wg_pool');
     }
 
@@ -1330,6 +1306,7 @@ if ($tab === 'settings') $tab = 'connection';
 if ($tab === 'headers') $tab = 'rules';
 $rl_view = ($tab === 'reqlog' && ($_GET['view'] ?? '') === 'clients') ? 'clients' : '';
 rules_migrate_legacy();
+squadconf_migrate_v3();
 update_autocheck();
 $token = csrf_token();
 $flash = take_flash();
@@ -1537,7 +1514,7 @@ if ($tab === 'subst' && remnawave_url() !== '' && remnawave_token() !== '') {
 
 $sqcfg_squads = []; $sqcfg_squads_err = ''; $sqcfg_names = [];
 $sqcfg_simple = []; $sqcfg_wg = [];
-$sqcfg_modes = []; $sqcfg_stock = []; $sqcfg_free = []; $sqcfg_leases = []; $sqcfg_lease_by_cfg = []; $sqcfg_hwid_plat = []; $sqcfg_dupes = []; $sqcfg_reclaim_days = 14; $sqcfg_sizing = ['rows' => [], 'ts' => 0];
+$sqcfg_modes = []; $sqcfg_leases = []; $sqcfg_hwid_plat = []; $sqcfg_dupes = []; $sqcfg_reclaim_days = 14; $sqcfg_sizing = ['rows' => [], 'ts' => 0];
 if ($tab === 'squad_configs' || $tab === 'wg_pool') {
     if (remnawave_url() !== '' && remnawave_token() !== '') $sqcfg_squads = remnawave_internal_squads($sqcfg_squads_err);
     foreach ($sqcfg_squads as $s) $sqcfg_names[$s['uuid']] = $s['name'];
@@ -1557,15 +1534,7 @@ if ($tab === 'wg_pool') {
     $sqcfg_reclaim_days = wglease_reclaim_days();
     foreach ($sqcfg_squads as $s) $sqcfg_modes[$s['uuid']] = wglease_mode($s['uuid']);
     $sqcfg_lease_n = [];
-    foreach ($sqcfg_leases as $l) { $sqcfg_lease_by_cfg[(int) $l['config_id']] = $l; $sqcfg_lease_n[(int) $l['config_id']] = ($sqcfg_lease_n[(int) $l['config_id']] ?? 0) + 1; }
-    foreach ($sqcfg_wg as $c) {
-        if ((int) $c['enabled'] !== 1) continue;
-        $leased = isset($sqcfg_lease_by_cfg[(int) $c['id']]);
-        foreach (squadconf_squads_of($c) as $sq) {
-            $sqcfg_stock[$sq] = ($sqcfg_stock[$sq] ?? 0) + 1;
-            if (!$leased) $sqcfg_free[$sq] = ($sqcfg_free[$sq] ?? 0) + 1;
-        }
-    }
+    foreach ($sqcfg_leases as $l) $sqcfg_lease_n[(int) $l['config_id']] = ($sqcfg_lease_n[(int) $l['config_id']] ?? 0) + 1;
     $sqcfg_hwid_plat = wglease_hwid_platforms();
     $sqcfg_dupes = array_filter($sqcfg_lease_n, fn($n) => $n > 1);
     $sqcfg_sizing = wglease_sizing_cached();
@@ -1742,6 +1711,9 @@ $nav = [
 ?>
 <?php
 $upd_avail = update_available();
+$wg_mig_note = json_decode((string) setting('wg_v3_mig_note', ''), true);
+$wg_mig_note = is_array($wg_mig_note) ? array_values(array_filter($wg_mig_note, 'is_string')) : [];
+$nav_badge = array_filter(['update' => $upd_avail ? 'Доступно обновление' : '', 'wg_pool' => $wg_mig_note ? 'После обновления: проверьте WG / AWG' : '']);
 $nav_sections = [
     ['l' => 'Главное',          'coll' => false, 'k' => 'main',   'items' => ['users', 'chat', 'reqlog']],
     ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
@@ -1777,9 +1749,9 @@ function pager_cookie_size($store_key, $default = 25) {
     $v = (int) ($_COOKIE['pgr_' . $store_key] ?? 0);
     return in_array($v, [25, 50, 100, 200], true) ? $v : $default;
 }
-function nav_link($key, $it, $active, $badge = false) {
+function nav_link($key, $it, $active, $badge = '') {
     $svg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
-    $dot = $badge ? '<span class="nav-dot" title="Доступно обновление"></span>' : '';
+    $dot = $badge !== '' ? '<span class="nav-dot" title="' . h($badge) . '"></span>' : '';
     return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '">' . $svg . '<span>' . h($it[0]) . '</span>' . $dot . '</a>';
 }
 ?>
@@ -1788,11 +1760,11 @@ function nav_link($key, $it, $active, $badge = false) {
         <div class="rw-brand"><?php if ($brand_icon !== ''): ?><img src="<?= h($brand_icon) ?>" alt=""><?php elseif ($brand_emoji !== ''): ?><span class="rw-emoji"><?= $brand_emoji ?></span><?php else: ?><img src="<?= $default_logo ?>" alt=""><?php endif; ?><b><?= h($brand['name']) ?></b></div>
         <nav class="rw-nav">
             <?php $tab_nav = $tab === 'whlog_other' ? 'whlog' : $tab;?>
-            <?php foreach ($nav_sections as $sec): $active_in = in_array($tab_nav, $sec['items'], true); ?>
+            <?php foreach ($nav_sections as $sec): $active_in = in_array($tab_nav, $sec['items'], true) || array_intersect($sec['items'], array_keys($nav_badge)); ?>
                 <?php if (empty($sec['coll'])): ?>
                     <div class="navgroup"><?= h($sec['l']) ?></div>
                     <?php foreach ($sec['items'] as $key): ?>
-                        <?= nav_link($key, $nav[$key], $tab_nav === $key, $key === 'update' && $upd_avail) ?>
+                        <?= nav_link($key, $nav[$key], $tab_nav === $key, $nav_badge[$key] ?? '') ?>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="<?= navacc_cls($sec['k'], $active_in) ?>" data-acc="<?= h($sec['k']) ?>">
@@ -1802,7 +1774,7 @@ function nav_link($key, $it, $active, $badge = false) {
                         </button>
                         <div class="navacc-b">
                             <?php foreach ($sec['items'] as $key): ?>
-                                <?= nav_link($key, $nav[$key], $tab_nav === $key, $key === 'update' && $upd_avail) ?>
+                                <?= nav_link($key, $nav[$key], $tab_nav === $key, $nav_badge[$key] ?? '') ?>
                             <?php endforeach; ?>
                         </div>
                     </div>

@@ -165,7 +165,7 @@
     td{font-variant-numeric:tabular-nums}
     @media(min-width:901px){
         thead th{position:sticky;top:64px;z-index:5;background:var(--card)}
-        .rl-wrap thead th,.cv-wrap thead th,.ua-rules-wrap thead th{position:static}
+        .rl-wrap thead th,.cv-wrap thead th{position:static}
     }
     tr:hover td{background:var(--hover2)}
     .logtbl{font-size:.9rem}
