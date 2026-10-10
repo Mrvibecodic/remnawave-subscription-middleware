@@ -21,6 +21,8 @@
         .ts-tbl .tag{padding:.12rem .45rem;white-space:nowrap}
         .ts-wrap{overflow-x:auto;margin-top:.6rem}
         .ts-opt{font-size:.82rem;color:var(--muted);margin-top:.5rem}
+        .ts-all{margin-top:.4rem}
+        .ts-all summary{cursor:pointer;font-size:.82rem;font-weight:600;color:var(--accent-text)}
     </style>
     <div class="card">
         <h2 style="margin-top:0;font-size:1rem">Подключение</h2>
@@ -121,7 +123,7 @@
         <div class="ts-head">
             <div>
                 <h3>Права API-токена</h3>
-                <div class="muted" style="font-size:.85rem;max-width:760px">Прослойка спрашивает панель по каждому праву, которое ей может понадобиться, и показывает, каких не хватает. Права записи проверяются запросом с заведомо неверными данными: панель сначала проверяет права, потом данные — и отклоняет запрос, ничего не меняя. «Нужно» — право используется при текущих настройках; остальные понадобятся, если включить соответствующую функцию.</div>
+                <div class="muted" style="font-size:.85rem;max-width:760px">Прослойка спрашивает панель по каждому праву, которое ей может понадобиться, и показывает, каких не хватает. Права записи проверяются запросом с заведомо неверными данными: панель сначала проверяет права, потом данные — и отклоняет запрос, ничего не меняя. «Нужно» — право используется при текущих настройках. «По желанию» — для отдельных кнопок (правка, создание и удаление пользователей во вкладке «Пользователи») и выключенных функций; без них эти кнопки просто будут неактивны.</div>
             </div>
             <button type="button" class="btn ghost" id="tsRun"<?= (remnawave_url() === '' || remnawave_token() === '') ? ' disabled' : '' ?>>Проверить</button>
         </div>
@@ -159,7 +161,13 @@
             } else if (!d.msg) {
                 body.appendChild(el('div', 'info', 'Всех прав, нужных при текущих настройках, хватает.'));
             }
-            if (opt.length) body.appendChild(el('div', 'ts-opt', 'Ещё нет (сейчас не используются): ' + opt.join(', ')));
+            if (opt.length) {
+                body.appendChild(el('div', 'ts-opt', 'Ещё нет — нужны для отдельных кнопок и выключенных функций: ' + opt.join(', ')));
+                var all = need.concat(opt), ob = el('div', 'codeblk'), obb = el('button', 'copybtn', 'Копировать'), opre = el('pre', '', JSON.stringify(all, null, 2));
+                obb.type = 'button'; obb.addEventListener('click', function(){ copy(opre.textContent, obb); });
+                var od = el('details', 'ts-all'), os = el('summary', '', 'Все недостающие права одним списком (' + all.length + ')');
+                ob.appendChild(obb); ob.appendChild(opre); od.appendChild(os); od.appendChild(ob); body.appendChild(od);
+            }
             var wrap = el('div', 'ts-wrap'), t = el('table', 'ts-tbl'), th = el('thead'), tr = el('tr');
             ['Право', 'Для чего', 'Сейчас', 'Статус'].forEach(function(h){ tr.appendChild(el('th', '', h)); });
             th.appendChild(tr); t.appendChild(th);
@@ -171,7 +179,7 @@
                 row.appendChild(el('td', '', r.w));
                 row.appendChild(el('td', r.need ? '' : 'muted', r.need ? 'нужно' : 'по желанию'));
                 var tg = el('span', 'tag ' + s[1], s[0]);
-                if (r.e || (r.st === 'err' && r.code)) tg.title = r.e || ('HTTP ' + r.code);
+                if (r.e || (r.st === 'err' && r.code)) tg.setAttribute('data-tip', r.e || ('HTTP ' + r.code));
                 c4.appendChild(tg); row.appendChild(c4);
                 tb.appendChild(row);
             });
