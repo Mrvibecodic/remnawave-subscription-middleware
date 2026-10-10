@@ -230,9 +230,22 @@ function remnawave_external_squads(&$error = '') {
     $out = [];
     if (is_array($list)) foreach ($list as $s) {
         if (!is_array($s) || empty($s['uuid'])) continue;
-        $out[] = ['uuid' => (string) $s['uuid'], 'name' => (string) ($s['name'] ?? $s['uuid']), 'members' => (int) ($s['info']['membersCount'] ?? 0)];
+        $out[] = ['uuid' => (string) $s['uuid'], 'name' => (string) ($s['name'] ?? $s['uuid']), 'members' => (int) ($s['info']['membersCount'] ?? 0), 'hwid' => remnawave_hwid_settings_norm($s['hwidSettings'] ?? null)];
     }
     return $out;
+}
+
+function remnawave_hwid_settings_norm($h) {
+    if (!is_array($h) || !array_key_exists('enabled', $h)) return null;
+    return ['enabled' => (bool) $h['enabled'], 'limit' => isset($h['fallbackDeviceLimit']) ? (int) $h['fallbackDeviceLimit'] : null];
+}
+
+function remnawave_hwid_settings(&$error = '') {
+    $error = '';
+    [$ok, $code, $data, $e] = remnawave_api_get('/api/subscription-settings');
+    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return null; }
+    $resp = $data['response'] ?? $data;
+    return remnawave_hwid_settings_norm(is_array($resp) ? ($resp['hwidSettings'] ?? null) : null);
 }
 
 function remnawave_sub_templates(&$error = '') {

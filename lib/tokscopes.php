@@ -26,6 +26,7 @@ function tokscope_catalog() {
         ['s' => 'hwid-user-devices:delete', 'm' => 'POST', 'p' => '/api/hwid/devices/delete', 'b' => '[]', 'w' => 'Удаление устройства пользователя (запись)', 'need' => false],
         ['s' => 'internal-squads:list', 'm' => 'GET', 'p' => '/api/internal-squads', 'w' => 'Списки сквадов в настройках и в карточке пользователя', 'need' => true],
         ['s' => 'external-squads:list', 'm' => 'GET', 'p' => '/api/external-squads', 'w' => 'Внешний сквад для грейса и в карточке пользователя', 'need' => $grace],
+        ['s' => 'subscription-settings:get', 'm' => 'GET', 'p' => '/api/subscription-settings', 'w' => 'Общий лимит устройств в карточке пользователя', 'need' => false],
         ['s' => 'subscription-template:list', 'm' => 'GET', 'p' => '/api/subscription-templates', 'w' => 'Поиск шаблона xray-json для доп. конфигов', 'need' => $pool && squadconf_xray_json_enabled()],
         ['s' => 'subscription-template:get', 'm' => 'GET', 'p' => '/api/subscription-templates/submw-probe', 'w' => 'Тело шаблона xray-json для доп. конфигов', 'need' => $pool && squadconf_xray_json_enabled()],
         ['s' => 'subscriptions:by-short-uuid-protected', 'm' => 'GET', 'p' => '/api/subscriptions/by-short-uuid/' . $rnd, 'w' => 'Хосты панели и серверы второй подписки для «Ключей на странице»', 'need' => pagekeys_active() && (pagekeys_with_panel() || (pagekeys_with_addsub() && addsub_enabled()))],

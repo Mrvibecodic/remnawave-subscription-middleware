@@ -506,6 +506,8 @@ function soon(u){var e=expMs(u);return u.st==='ACTIVE'&&!isGr(u)&&e>now()&&e-now
 function stInfo(u){if(isGr(u))return{c:'st-vio',t:'Грейс'};return({ACTIVE:{c:'st-ok',t:'Активен'},EXPIRED:{c:'st-bad',t:'Истёк'},DISABLED:{c:'st-mut',t:'Выключен'},LIMITED:{c:'st-warn',t:'Лимит'}})[u.st]||{c:'st-mut',t:u.st||'—'};}
 function pill(u){var s=stInfo(u);return '<span class="ux-pill '+s.c+'"'+(u.st==='LIMITED'&&!isGr(u)?' data-tip="Трафик закончился"':'')+'><i></i>'+s.t+'</span>';}
 function hwTxt(v){return v===null||v===undefined?'как в панели':(v===0?'без лимита':String(v));}
+function hwSrc(u){if(!META||!META.hwid)return null;var s=META.hwid,from='panel';if(u.ex)for(var i=0;i<META.ex.length;i++)if(META.ex[i].uuid===u.ex&&META.ex[i].hwid){s=META.ex[i].hwid;from='ex';}return{s:s,from:from};}
+function hwEff(u){var h=hwSrc(u);if(u.hw===0)return{lim:null,txt:'без лимита',d:'без лимита'};if(!h){return u.hw?{lim:u.hw,txt:String(u.hw),d:'свой'}:{lim:null,txt:'как в панели',d:'как в панели'};}if(!h.s.enabled)return{lim:null,txt:'выключен в панели',d:'выключен в панели'};if(u.hw)return{lim:u.hw,txt:String(u.hw),d:'свой'};var w=h.from==='ex'?'из внешнего сквада':'общий из панели';return{lim:h.s.limit,txt:h.s.limit+' — '+w,d:w};}
 function bySu(su){for(var i=0;i<U.length;i++)if(U[i].su===su)return U[i];return null;}
 function canW(sc){return !sc||C.ts[sc]!=='miss';}
 function roTip(sc){return 'Нет права '+sc+' у API-токена';}
@@ -514,7 +516,7 @@ function copy(v,m){if(!v)return;var done=function(){toast(m||'Скопирова
 function fb2(v){try{var t=document.createElement('textarea');t.value=v;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();}catch(e){}}
 function post(a,data){var f=new FormData();f.append('csrf',C.csrf);Object.keys(data||{}).forEach(function(k){f.append(k,data[k]);});return fetch('?ajax='+a,{method:'POST',body:f,credentials:'same-origin'}).then(function(r){return r.json();}).catch(function(){return{ok:false,error:'Сетевая ошибка'};});}
 function getj(a,q){return fetch('?ajax='+a+(q||''),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).catch(function(){return{ok:false,error:'Сетевая ошибка'};});}
-function loadMeta(){if(META)return Promise.resolve(META);if(!METAP)METAP=getj('ua_meta').then(function(d){if(d&&d.ok){META={sq:d.sq||[],ex:d.ex||[],nodes:d.nodes||{}};META.sq.forEach(function(s){SQN[s.uuid]=s.name;});}else{METAP=null;}return META;});return METAP;}
+function loadMeta(){if(META)return Promise.resolve(META);if(!METAP)METAP=getj('ua_meta').then(function(d){if(d&&d.ok){META={sq:d.sq||[],ex:d.ex||[],nodes:d.nodes||{},hwid:d.hwid||null};META.sq.forEach(function(s){SQN[s.uuid]=s.name;});}else{METAP=null;}return META;});return METAP;}
 function applyMw(su,mw){if(!mw)return;if(mw.grace)C.gr[su]=mw.grace;else delete C.gr[su];if(mw.addsub)C.as[su]=mw.addsub;else delete C.as[su];if(mw.nolog)C.nl[su]=1;else delete C.nl[su];var b=(mw.ov||[]).some(function(o){return o.t==='shortuuid'&&o.r==='blocked';});if(b)C.ovb[su]=1;else delete C.ovb[su];}
 function putUser(nu,mw,oldSu){var i=-1;for(var k=0;k<U.length;k++)if(U[k].su===(oldSu||nu.su)){i=k;break;}if(i>-1)U[i]=nu;else U.unshift(nu);nu.sq.forEach(function(id,j){if(nu.sqn[j])SQN[id]=nu.sqn[j];});applyMw(nu.su,mw);if(CARD&&!CARD.create&&CARD.u.su===(oldSu||nu.su)){CARD.u=nu;if(mw)CARD.mw=mw;}return nu;}
 
@@ -719,7 +721,7 @@ function openQr(u){if(!u.lk)return;qrLib().then(function(){$('uxQrBox').innerHTM
 
 var CARD=null;
 function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,seq:0};drawCard();$('uxOv').classList.add('open');document.body.style.overflow='hidden';refreshCard();}
-function refreshCard(){if(!CARD||CARD.create)return;var su=CARD.u.su,s=++CARD.seq;loadMeta().then(function(){if(CARD&&!CARD.create&&CARD.seq===s&&CARD.tab!=='edit')drawCard();});getj('ua_user','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;if(d.ok){putUser(d.user,d.mw);if(CARD.tab==='edit'&&CARD.F&&CARD.O&&CARD.O.upd!==d.user.upd&&!diffList().length)CARD.F=null;if(CARD.tab!=='edit'||!CARD.F)drawCard();render();}else{CARD.err=d.error;if(CARD.tab!=='edit')drawCard();}});}
+function refreshCard(){if(!CARD||CARD.create)return;var su=CARD.u.su,s=++CARD.seq;loadMeta().then(function(){if(CARD&&!CARD.create&&CARD.seq===s){var f=$('uxForm'),sc=f?f.scrollTop:0;drawCard();f=$('uxForm');if(f)f.scrollTop=sc;}});getj('ua_user','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;if(d.ok){putUser(d.user,d.mw);if(CARD.tab==='edit'&&CARD.F&&CARD.O&&CARD.O.upd!==d.user.upd&&!diffList().length)CARD.F=null;if(CARD.tab!=='edit'||!CARD.F)drawCard();render();}else{CARD.err=d.error;if(CARD.tab!=='edit')drawCard();}});}
 function openCreate(){CARD={u:null,tab:'edit',create:true,F:null,done:null};drawCard();$('uxOv').classList.add('open');document.body.style.overflow='hidden';loadMeta().then(function(){if(CARD&&CARD.create&&!CARD.done){var sc=$('uxForm')?$('uxForm').scrollTop:0;drawCard();if($('uxForm'))$('uxForm').scrollTop=sc;}});setTimeout(function(){var i=$('fUser');if(i)i.focus();},60);}
 function closeCard(force){
  if(!CARD)return;
@@ -768,7 +770,7 @@ function ovHtml(u){
  h+='<div class="ux-dk">'+
   '<div><div class="k">Трафик</div><div class="v">'+fb(u.used)+'</div><div class="d">'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div>'+
   '<div><div class="k">Истекает</div><div class="v">'+(u.exp?fd(e):'—')+'</div><div class="d" style="color:'+(e<now()?'var(--c-bad-fg)':(e-now()<7*DAY?'var(--c-warn-fg)':'var(--muted)'))+'">'+(u.exp?rel(e):'')+'</div></div>'+
-  '<div><div class="k">Устройства</div><div class="v">'+(CARD.devs?CARD.devs.length:'…')+(u.hw?' / '+u.hw:'')+'</div><div class="d">лимит: '+hwTxt(u.hw)+'</div></div>'+
+  '<div><div class="k">Устройства</div><div class="v">'+(CARD.devs?CARD.devs.length:'…')+(hwEff(u).lim?' / '+hwEff(u).lim:'')+'</div><div class="d">лимит: '+esc(hwEff(u).d)+'</div></div>'+
   '<div><div class="k">Онлайн</div><div class="v" style="font-size:.98rem">'+(u.on?ago(u.on*1000):'—')+'</div><div class="d">'+(u.node?esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):'не подключался')+'</div></div></div>';
  var sqs=u.sq.map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join(' ')||'<span class="m">нет</span>';
  var row=function(k,v){return '<dt>'+k+'</dt><dd>'+v+'</dd>';},emp='<span class="m">—</span>';
@@ -797,7 +799,7 @@ function loadDevs(){var su=CARD.u.su;CARD.devs=false;getj('hwids','&uuid='+encod
 function devHtml(u){
  if(!CARD.devs)return '<div class="ux-load">Загрузка…</div>';
  if(CARD.devErr)return '<div class="ux-warn">'+esc(CARD.devErr)+'</div>';
- var ds=CARD.devs,h='<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.8rem"><span class="muted" style="font-size:.88rem">Устройств: <b style="color:var(--text-strong)">'+ds.length+'</b>'+(u.hw?' из '+u.hw:'')+' · лимит: '+hwTxt(u.hw)+'</span>'+(ds.length>1?'<button type="button" class="wb sm bad" data-a="delall" data-w="hwid-user-devices:delete">'+ico('trash')+'Удалить все</button>':'')+'</div>';
+ var ds=CARD.devs,h='<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.8rem"><span class="muted" style="font-size:.88rem">Устройств: <b style="color:var(--text-strong)">'+ds.length+'</b>'+(hwEff(u).lim?' из '+hwEff(u).lim:'')+' · лимит: '+esc(hwEff(u).d)+'</span>'+(ds.length>1?'<button type="button" class="wb sm bad" data-a="delall" data-w="hwid-user-devices:delete">'+ico('trash')+'Удалить все</button>':'')+'</div>';
  if(!ds.length)return h+'<div class="ux-empty">Устройств нет — клиент ещё не присылал HWID.</div>';
  return h+ds.map(function(d,i){var hw=d.hwid||'',bl=C.hwb.indexOf(String(hw).toLowerCase())>-1,dt=Date.parse(d.updatedAt||d.createdAt||'');return '<div class="ux-dev"><div class="l"><span class="os">'+ico('dev',17)+'</span><div style="min-width:0"><div class="m1">'+esc(d.deviceModel||d.platform||'Устройство')+(bl?' <span class="ux-pill st-bad" style="font-size:.66rem">блок</span>':'')+'</div><div class="m2">'+esc([d.platform,d.osVersion].filter(Boolean).join(' ')||'ОС неизвестна')+(d.userAgent?' · '+esc(d.userAgent):'')+'</div><div class="m3">'+esc(hw)+(isNaN(dt)?'':' · '+fdt(dt))+'</div></div></div><div class="a"><button type="button" class="wb sm" data-a="hwblock" data-i="'+i+'">'+ico(bl?'check':'ban')+(bl?'Разблок.':'Блок')+'</button><button type="button" class="wb sm bad" data-a="hwdel" data-i="'+i+'" data-w="hwid-user-devices:delete">'+ico('trash')+'Удалить</button></div></div>';}).join('');
 }
@@ -883,9 +885,9 @@ function formHtml(create){
   '<div class="ux-f"><label for="fTs">Сброс трафика</label><select id="fTs">'+STRAT.map(function(s){return '<option value="'+s[0]+'"'+(F.ts===s[0]?' selected':'')+'>'+s[1]+'</option>';}).join('')+'</select><div class="hint2" style="font-size:.76rem;color:var(--muted)">Когда панель обнуляет использованное.</div></div></div>');
  var hm=F.hw===null?'def':(F.hw===0?'off':'num');
  h+=fsec('dev','Устройства'+was(),
-  '<div class="ux-seg" id="fHwM">'+[['def','Как в панели'],['off','Без лимита'],['num','Своё число']].map(function(m){return '<button type="button" data-hm="'+m[0]+'" class="'+(hm===m[0]?'on':'')+'">'+m[1]+'</button>';}).join('')+'</div>'+
+  '<div class="ux-seg" id="fHwM">'+[['def','Как в панели'+(function(){var h=create?(META&&META.hwid?{s:META.hwid}:null):hwSrc(u);return h&&h.s.enabled&&h.s.limit!=null?' · '+h.s.limit:'';})()],['off','Без лимита'],['num','Своё число']].map(function(m){return '<button type="button" data-hm="'+m[0]+'" class="'+(hm===m[0]?'on':'')+'">'+m[1]+'</button>';}).join('')+'</div>'+
   '<div class="ux-inl" id="fHwBox" style="margin-top:.6rem;max-width:14rem'+(hm==='num'?'':';display:none')+'"><input type="number" id="fHw" min="1" value="'+(F.hw>0?F.hw:3)+'" aria-label="Лимит устройств"><span class="muted" style="font-size:.84rem;white-space:nowrap">устройств</span></div><div class="ux-err" data-e="hw"></div>'+
-  '<div class="hint2">Работает, если в панели включён лимит HWID.</div>');
+  '<div class="hint2">'+(function(){var h=create?(META&&META.hwid?{s:META.hwid}:null):hwSrc(u);if(!h)return 'Работает, если в панели включён лимит HWID.';if(!h.s.enabled)return 'Лимит HWID в панели выключен — число устройств сейчас не ограничено.';return 'Общий лимит '+(h.from==='ex'?'внешнего сквада':'панели')+': '+h.s.limit+'.';})()+'</div>');
  var sqList=META?META.sq:null;
  h+=fsec('net','Доступ'+was(),
   '<div class="ux-f"><label>Внутренние сквады</label>'+(sqList?'<div class="ux-sqg" id="fSq">'+sqList.map(function(s){var on=F.sq.indexOf(s.uuid)>-1;return '<label class="ux-sqi'+(on?' on':'')+(s.uuid===GSQ?' gr':'')+'"><input type="checkbox" class="ux-cbx" value="'+esc(s.uuid)+'"'+(on?' checked':'')+'><span class="nm">'+esc(s.name)+'</span><span class="c" data-tip="Пользователей в скваде">'+(s.members||0)+'</span></label>';}).join('')+'</div>':'<div class="ux-load">Загрузка сквадов…</div>')+
@@ -961,7 +963,7 @@ function doSave(){
  if(!gr&&u.st==='EXPIRED'&&d.indexOf('exp')>-1&&F.exp>now()&&F.status==='ACTIVE')notes.push(['check','ok','Статус станет «Активен»','']);
  var fields={};d.forEach(function(k){fields[API[k]]=apiVal(k,F[k]);});
  cfm({ic:'save',tone:gr?'vio':'acc',title:'Сохранить изменения',sub:'<b>'+esc(u.un)+'</b> · '+d.length+' '+plural(d.length,'поле','поля','полей'),
-  rows:d.map(function(k){return [FICO[k],LBL[k],fmtH(k,O[k]),fmtH(k,F[k]),k==='sq'];}),notes:notes,hint:'В панель уйдут только эти поля',ok:'Сохранить',onOk:function(){
+  rows:d.map(function(k){return [FICO[k],LBL[k],k==='hw'?esc(hwEff({hw:O[k],ex:F.ex}).txt):fmtH(k,O[k]),k==='hw'?esc(hwEff({hw:F[k],ex:F.ex}).txt):fmtH(k,F[k]),k==='sq'];}),notes:notes,hint:'В панель уйдут только эти поля',ok:'Сохранить',onOk:function(){
    busy(true);
    post('ua_save',{su:u.su,fields:JSON.stringify(fields),upd:CARD.O.upd,reset:gr&&CARD.resetTr?'1':''}).then(function(r){
     busy(false);
