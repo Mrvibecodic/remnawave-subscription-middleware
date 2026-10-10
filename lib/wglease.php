@@ -131,9 +131,7 @@ function wglease_select($short_uuid, $hwid, array $u_squads, $types = null) {
     $short_uuid = (string) $short_uuid;
     $hwid = (string) $hwid;
     $ua = substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
-    if (!$u_squads) return [];
-    $cfgs = squadconf_for_squads($u_squads);
-    if (!$cfgs) return [];
+    $cfgs = $u_squads ? squadconf_for_squads($u_squads) : [];
     $by_squad = [];
     foreach ($cfgs as $c) {
         foreach (squadconf_squads_of($c) as $sq) {
@@ -174,6 +172,7 @@ function wglease_select($short_uuid, $hwid, array $u_squads, $types = null) {
             if ($pick) { $added[(int) $pick['id']] = true; $out[] = $pick; }
         }
     }
+    if (grace_is_active($short_uuid)) return $out;
     foreach (wglease_manual_for_user($short_uuid, $hwid) as $c) {
         $id = (int) $c['id'];
         if (!isset($added[$id])) { $added[$id] = true; $out[] = $c; }
