@@ -1,662 +1,750 @@
 <?php
-$wg_psize = pager_cookie_size('wgpool_size');
 $wg_uc = wglease_user_cache();
-$wgp_hint = 'Добавлено — реально зарегистрированные устройства из базы hwid. Красным — пул меньше факта.';
-$wgp_ts = (int) ($sqcfg_sizing['ts'] ?? 0);
-$wgp_msg0 = '';
-if (($sqcfg_sizing['rows'] ?? []) && $wgp_ts > 0) {
-    $d = max(0, time() - $wgp_ts);
-    $ago = $d < 60 ? 'только что' : ($d < 3600 ? intdiv($d, 60) . ' мин назад' : ($d < 86400 ? intdiv($d, 3600) . ' ч назад' : intdiv($d, 86400) . ' дн назад'));
-    $wgp_msg0 = 'Последний расчёт: ' . $ago . '. ' . $wgp_hint;
+$wgx_members = [];
+foreach ($sqcfg_squads as $s) $wgx_members[$s['uuid']] = (int) $s['members'];
+$wgx_sizing = $sqcfg_sizing['rows'] ?? [];
+$wgx_lz = []; $wgx_lany = [];
+foreach ($sqcfg_leases as $l) {
+    $lp = (int) $l['manual'] === 1 ? '__manual__' : (string) $l['pool_id'];
+    $lk = $lp . ':' . (int) $l['config_id'];
+    if (!isset($wgx_lz[$lk]) || (int) $l['manual'] === 1) $wgx_lz[$lk] = $l;
+    $lc = (int) $l['config_id'];
+    if (!isset($wgx_lany[$lc]) || (int) $l['manual'] === 1) $wgx_lany[$lc] = $l;
 }
+$wgx_cfg = [];
+$wgx_cell = [];
+$wgx_pools = [];
+foreach ($sqcfg_squads as $s) $wgx_pools[$s['uuid']] = ['mode' => $sqcfg_modes[$s['uuid']] ?? wglease_mode($s['uuid']), 'groups' => [], 'vers' => [], 'n' => 0];
+$wgx_kpi = ['all' => 0, 'used' => 0, 'free' => 0, 'shared' => 0, 'off' => 0, 'v3' => 0];
+$wgx_cnt = ['' => 0, 'free' => 0, 'used' => 0, 'all' => 0, 'off' => 0];
+$sqcfg_edit = [];
+foreach ($sqcfg_wg as $c) {
+    $id = (int) $c['id'];
+    $pn = json_decode((string) ($c['parsed'] ?? ''), true);
+    $pn = is_array($pn) ? $pn : [];
+    $t = (string) ($c['type'] ?? '');
+    $ver = $t === 'amneziawg' ? awg_version($pn) : '';
+    $vl = $t === 'amneziawg' ? ('AWG ' . $ver) : 'WG';
+    $sqs = squadconf_squads_of($c);
+    if (!$sqs) $sqs = ['__manual__'];
+    $grp = trim((string) ($c['grp'] ?? ''));
+    $on = (int) $c['enabled'] === 1;
+    $busy = false; $free = false; $shared = false;
+    foreach ($sqs as $pk) {
+        $mode = $pk === '__manual__' ? 'manual' : ($sqcfg_modes[$pk] ?? wglease_mode($pk));
+        $lz = $mode === 'shared' ? null : ($wgx_lz[$pk . ':' . $id] ?? ($wgx_lany[$id] ?? null));
+        $st = !$on ? 'off' : ($lz ? 'used' : ($mode === 'shared' ? 'all' : 'free'));
+        if ($st === 'used') $busy = true;
+        if ($st === 'free') $free = true;
+        if ($st === 'all') $shared = true;
+        $wgx_cnt[''] ++; $wgx_cnt[$st]++;
+        $su = $lz ? trim((string) ($lz['short_uuid'] ?? '')) : '';
+        $hw = $lz ? (string) ($lz['hwid'] ?? '') : '';
+        $dev = ($su !== '' && $hw !== '' && !empty($wg_uc[$su]['d'][$hw])) ? $wg_uc[$su]['d'][$hw] : null;
+        $lua = $lz ? trim((string) ($lz['ua'] ?? '')) : '';
+        $wgx_cell[$pk . ':' . $id] = [
+            'id' => $id, 'n' => (string) ($c['name'] ?? ''), 'v' => $vl, 'vc' => awg_ver_class($vl), 'p' => $pk, 'sq' => array_values($sqs), 'g' => $grp,
+            'ep' => (string) ($pn['peer']['Endpoint'] ?? ''), 'st' => $st, 'on' => $on ? 1 : 0,
+            'su' => $su, 'u' => ($su !== '' && !empty($wg_uc[$su]['u'])) ? (string) $wg_uc[$su]['u'] : '', 'hw' => $hw,
+            'dm' => $dev ? (string) ($dev['m'] ?? '') : '', 'dp' => $hw !== '' ? (string) ($dev['p'] ?? ($sqcfg_hwid_plat[$hw] ?? '')) : '',
+            'cl' => squadconf_client_label($lua), 'seen' => $lz ? (int) ($lz['seen_ts'] ?? 0) : 0,
+            'man' => $lz ? (int) ($lz['manual'] ?? 0) : 0,
+        ];
+        if (!isset($wgx_pools[$pk])) $wgx_pools[$pk] = ['mode' => $mode, 'groups' => [], 'vers' => [], 'n' => 0];
+        $gk = $grp !== '' ? $grp : ($t === 'amneziawg' ? 'AWG' : 'WG');
+        if (!isset($wgx_pools[$pk]['groups'][$gk])) $wgx_pools[$pk]['groups'][$gk] = ['label' => $grp, 'ids' => [], 'on' => 0, 'free' => 0, 'vers' => []];
+        $wgx_pools[$pk]['groups'][$gk]['ids'][] = $id;
+        $wgx_pools[$pk]['groups'][$gk]['vers'][$vl] = true;
+        if ($on) $wgx_pools[$pk]['groups'][$gk]['on']++;
+        if ($st === 'free') $wgx_pools[$pk]['groups'][$gk]['free']++;
+        $wgx_pools[$pk]['vers'][$vl] = true;
+        $wgx_pools[$pk]['n']++;
+    }
+    $wgx_cfg[$id] = ['n' => (string) ($c['name'] ?? ''), 'v' => $vl, 'busy' => $busy];
+    $sqcfg_edit[$id] = ['squads' => array_values($sqs), 'name' => (string) ($c['name'] ?? ''), 'raw' => (string) $c['raw'], 'grp' => $grp];
+    $wgx_kpi['all']++;
+    if (!$on) $wgx_kpi['off']++; elseif ($busy) $wgx_kpi['used']++; elseif ($free) $wgx_kpi['free']++; elseif ($shared) $wgx_kpi['shared']++;
+    if ($ver === '3.0' || $ver === '3.1') $wgx_kpi['v3']++;
+}
+$wgx_order = array_values(array_filter(array_keys($wgx_pools), fn($pk) => $pk !== '__manual__'));
+$wgx_filled = array_values(array_filter($wgx_order, fn($pk) => $wgx_pools[$pk]['n'] > 0));
+$wgx_man = array_values(array_filter($sqcfg_leases, fn($l) => (int) $l['manual'] === 1));
+$wgx_man_cfgs = $wgx_pools['__manual__']['n'] ?? 0;
+$wgx_need = function ($pk) use ($wgx_sizing, $wgx_pools) {
+    $r = $wgx_sizing[$pk] ?? null;
+    if (!$r) return null;
+    $m = $wgx_pools[$pk]['mode'] ?? 'shared';
+    if ($m === 'users') return (int) ($r['active'] ?? 0);
+    if ($m === 'devices') return (int) ($r['devices'] ?? 0);
+    return null;
+};
+$wgx_panel_ok = $sqcfg_squads_err === '' && $sqcfg_squads;
+$wgx_pname = fn($pk) => $pk === '__manual__' ? $sqcfg_names['__manual__'] : ($sqcfg_names[$pk] ?? ($wgx_panel_ok ? 'Сквад удалён из панели' : ('Сквад ' . mb_substr($pk, 0, 8) . '…')));
+$wgx_except = squadconf_wg_except();
+$wgx_sq_all = $sqcfg_squads;
+foreach ($wgx_order as $pk) if (!isset($sqcfg_names[$pk])) $wgx_sq_all[] = ['uuid' => $pk, 'name' => $wgx_pname($pk), 'members' => ''];
+$wgx_names = ['__manual__' => $wgx_pname('__manual__')];
+foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
 ?>
     <?php include __DIR__ . '/_sqcfg_css.php'; ?>
     <style>
-        .ua-rules-wrap{overflow-x:auto}
-        .ua-rules-tbl input[type="text"]{font-size:.82rem;padding:.35rem .5rem;background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--text)}
-        .ua-rules-tbl .ua-mono{font-family:monospace}
-        .ua-rules-tbl .ua-core{max-width:8rem}
-        .ua-rules-tbl .ua-c{text-align:center;white-space:nowrap;width:1%}
-        .ua-rules-tbl .ua-del{padding:.3rem .55rem}
-        .ua-rules-tbl .ua-ck{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;margin:0}
-        .file-btn{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--line);background:var(--bg2);color:var(--text);border-radius:9px;padding:.6rem .95rem;font-size:.86rem;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s}
-        .file-btn:hover{border-color:var(--accent);background:var(--accent-light)}
-        .file-btn svg{color:var(--accent-text)}
-        .wgpool-tbl .sqcfg-sel{padding:.3rem 2rem .3rem .6rem;font-size:.82rem}
-        .wgp-warn{color:var(--c-warn-fg);font-weight:700}
-        .wg-bulkbar{display:flex;align-items:center;gap:.75rem;margin:0 0 .8rem;flex-wrap:wrap}
-        .wg-leasebar{display:flex;align-items:center;gap:.75rem;margin:0 0 .7rem;flex-wrap:wrap}
-        .wg-editbar{margin:0 0 .8rem}
-        .wg-editbar .we-lbl{font-size:.82rem;margin-bottom:.4rem}
-        .wg-editbar .we-grid{display:grid;grid-template-columns:minmax(150px,240px) 1fr;gap:.6rem;align-items:center}
-        .wg-editbar .we-grid select,.wg-editbar .we-grid input{margin:0}
-        .wg-editbar .we-btns{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.5rem}
-        .wg-dupe-warn{color:var(--red);font-weight:600;font-size:.82rem}
-        #wgTbl td:first-child,#wgTbl th:first-child{text-align:center}
-        .osico{display:inline-block;width:15px;height:15px;vertical-align:-2px;background:var(--text-strong);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
-        .wg-issued-dev{display:inline-flex;align-items:center;gap:3px;opacity:.85}
-        .wg-cli{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:.02rem .4rem;font-size:.72rem;color:var(--muted);vertical-align:1px}
-        .wg-tip{position:relative;cursor:help}
-        #wgTbl td:nth-child(7),#wgTbl th:nth-child(7){min-width:210px}
-        #wgTbl td:nth-child(6){white-space:nowrap}
-        .wg-issued{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .3rem;max-width:100%;vertical-align:bottom}
-        .wg-issued>.wg-tip{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .3rem;min-width:0;max-width:100%}
-        .wg-issued-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+        .wgx{--wgx-gap:.9rem}
+        .wgx .card{margin-bottom:var(--wgx-gap);padding:1rem 1.1rem}
+        .wgx .card h2{font-size:1rem;margin:0}
+        .wgx-top{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem}
+        .wgx-kpi{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem 1.1rem;font-size:.86rem;color:var(--muted);flex:1 1 auto;min-width:0}
+        .wgx-kpi b{color:var(--text-strong);font-size:1.15rem;font-variant-numeric:tabular-nums;margin-right:.2rem}
+        .wgx-acts{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+        .wgx .wb{background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.42rem .8rem;font-size:.82rem;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;line-height:1.2}
+        .wgx .wb:hover{background:var(--hover);filter:none;border-color:var(--accent)}
+        .wgx .wb:active{transform:none}
+        .wgx .wb.pri{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+        .wgx .wb.pri:hover{background:var(--accent-h)}
+        .wgx .wb.sm{padding:.26rem .55rem;font-size:.76rem}
+        .wgx .wb.bad{color:var(--c-bad-fg)}
+        .wgx .wb svg{width:15px;height:15px;flex:none}
+        .wgx-note{display:flex;gap:.6rem;align-items:flex-start;font-size:.82rem;padding:.55rem .8rem;border-radius:8px;margin-top:.7rem;background:var(--c-info-bg)}
+        .wgx-note.bad{background:var(--c-bad-bg)}
+        .wgx-note b{color:var(--text-strong)}
+        .wgx-grid{display:grid;grid-template-columns:minmax(300px,24rem) minmax(0,1fr);gap:var(--wgx-gap);align-items:start}
+        .wgx-grid>.card{margin:0;min-width:0}
+        @media(max-width:1100px){.wgx-grid{grid-template-columns:minmax(0,1fr)}}
+        .wgx-h{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.75rem;flex-wrap:wrap}
+        .wgx-pools{display:flex;flex-direction:column;gap:.6rem}
+        .wgx-pool{border:1px solid var(--line);border-radius:10px;background:var(--bg2);padding:.65rem .75rem;display:flex;flex-direction:column;gap:.55rem}
+        .wgx-pool.empty{background:transparent;padding:.5rem .75rem;gap:.4rem}
+        .wgx-pool.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+        .wgx-ph{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+        .wgx .wgx-pname{background:none;border:0;padding:0;color:var(--text-strong);font-weight:700;font-size:.92rem;cursor:pointer;text-align:left}
+        .wgx .wgx-pname:hover{background:none;filter:none;color:var(--accent-text)}
+        .wgx .wgx-pname:active{transform:none}
+        .wgx-pm{font-size:.74rem;color:var(--muted)}
+        .wgx-vt{display:inline-flex;font-size:.68rem;font-weight:700;padding:.08rem .4rem;border-radius:999px;white-space:nowrap}
+        .wv-wg{background:var(--c-info-bg);color:var(--c-info-fg)}
+        .wv-2{background:var(--c-violet-bg);color:var(--c-violet-fg)}
+        .wv-3{background:var(--c-warn-bg);color:var(--c-warn-fg)}
+        .wgx-ph .wgx-vts{display:flex;gap:.25rem;margin-left:auto}
+        .wgx-seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--card)}
+        .wgx .wgx-seg label{display:block;flex:1 1 0;min-width:0;margin:0;font-size:.72rem;font-weight:600;color:var(--muted);text-align:center;padding:.32rem .2rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .wgx-seg label+label{border-left:1px solid var(--line)}
+        .wgx-seg input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+        .wgx-seg label:has(input:checked){background:var(--accent-light);color:var(--accent-text)}
+        .wgx-seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:-2px}
+        .wgx-gr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.15rem .6rem;font-size:.78rem;align-items:center}
+        .wgx-gr .gn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .wgx-gr .gc{color:var(--muted);font-variant-numeric:tabular-nums}
+        .wgx-gr .gc b{color:var(--text-strong)}
+        .wgx-gr .gc.low b{color:var(--c-warn-fg)}
+        .wgx-bar{grid-column:1/-1;height:4px;border-radius:999px;background:var(--hover);overflow:hidden}
+        .wgx-bar i{display:block;height:100%;background:var(--accent)}
+        .wgx-bar.low i{background:var(--c-warn-fg)}
+        .wgx-pf{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+        .wgx-man{display:flex;flex-direction:column;font-size:.78rem}
+        .wgx-man>div{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;border-top:1px dashed var(--line)}
+        .wgx-man>div:first-child{border-top:0}
+        .wgx-man .mu{font-weight:600;color:var(--text-strong);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .wgx-man .mc{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+        .wgx-man form{margin:0}
+        .wgx .wx{background:none;border:0;padding:.1rem .3rem;color:var(--muted);font-size:.9rem;line-height:1;border-radius:5px}
+        .wgx .wx:hover{background:var(--hover);color:var(--c-bad-fg);filter:none}
+        .wgx-days{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;font-size:.78rem;color:var(--muted);margin-top:.7rem}
+        .wgx .wgx-days input[type=number]{width:3.8rem;height:auto;min-height:0;padding:.22rem .4rem;font-size:.8rem;margin:0}
+        .wgx-tools{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
+        .wgx-chf{display:flex;flex-wrap:wrap;gap:.3rem}
+        .wgx .wgx-chf button{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:999px;padding:.22rem .65rem;font-size:.76rem;font-weight:600}
+        .wgx .wgx-chf button:hover{filter:none;border-color:var(--accent);background:var(--card)}
+        .wgx .wgx-chf button.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+        .wgx .wgx-chf button span{color:inherit;opacity:.75;margin-left:.2rem;font-variant-numeric:tabular-nums}
+        .wgx-tools select,.wgx-tools input[type=search]{width:auto;padding:.32rem .55rem;font-size:.8rem;min-width:0}
+        .wgx-tools input[type=search]{flex:1 1 10rem;max-width:none;background:var(--bg2);border:1px solid var(--line);color:var(--text);border-radius:8px}
+        .wgx-sec{margin-top:.8rem}
+        .wgx-sec-h{font-size:.74rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem;display:flex;gap:.5rem;align-items:center}
+        .wgx-grp{margin-bottom:.55rem}
+        .wgx-grp-h{font-size:.76rem;color:var(--muted);margin-bottom:.3rem;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+        .wgx-grp-h b{color:var(--text)}
+        .wgx-chips{display:flex;flex-wrap:wrap;gap:.3rem}
+        .wgx .wgx-chip{background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:.22rem .5rem .22rem .4rem;font-size:.76rem;font-weight:500;display:inline-flex;align-items:center;gap:.35rem;max-width:15rem}
+        .wgx .wgx-chip:hover{filter:none;background:var(--hover);border-color:var(--accent)}
+        .wgx .wgx-chip:active{transform:none}
+        .wgx-chip .lb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .wgx-chip .dt{width:7px;height:7px;border-radius:50%;flex:none;background:var(--muted)}
+        .wgx-chip.st-free .dt{background:var(--c-ok-fg)}
+        .wgx-chip.st-used .dt,.wgx-chip.st-all .dt{background:var(--accent)}
+        .wgx-chip.st-off{opacity:.55}
+        .wgx-chip.st-off .lb{text-decoration:line-through}
+        .wgx .wgx-chip.pk{border-color:var(--accent);background:var(--accent-light)}
+        .wgx .wgx-chip.chk{border-color:var(--accent);background:var(--accent);color:var(--on-accent)}
+        .wgx .wgx-chip.chk .dt{background:var(--on-accent)}
+        .wgx-legend{display:flex;gap:.8rem;flex-wrap:wrap;font-size:.72rem;color:var(--muted);margin-top:.6rem}
+        .wgx-legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:.3rem;vertical-align:1px}
+        .wgx-empty{color:var(--muted);font-size:.84rem;padding:.6rem 0}
+        .wgx-pop{position:fixed;z-index:60;width:min(340px,calc(100vw - 24px));background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:.8rem .9rem;display:flex;flex-direction:column;gap:.5rem;font-size:.8rem}
+        .wgx-pop .pt{display:flex;align-items:center;gap:.45rem;font-weight:700;color:var(--text-strong);font-size:.9rem}
+        .wgx-pop dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.2rem .7rem;margin:0}
+        .wgx-pop dt{color:var(--muted)}
+        .wgx-pop dd{margin:0;min-width:0;overflow-wrap:anywhere}
+        .wgx-pop .pa{display:flex;flex-wrap:wrap;gap:.35rem;padding-top:.45rem;border-top:1px solid var(--line)}
+        .wgx-bulk{position:sticky;bottom:.6rem;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;margin-top:.8rem;padding:.55rem .7rem;border-radius:10px;background:var(--card);border:1px solid var(--accent);box-shadow:var(--shadow);font-size:.8rem}
+        .wgx-bulk select,.wgx-bulk input{width:auto;padding:.28rem .5rem;font-size:.8rem;min-width:0}
+        .wgx-bulk input{flex:1 1 7rem;max-width:12rem}
+        .wgx-who{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem}
+        @media(max-width:900px){.wgx-who{grid-template-columns:minmax(0,1fr)}}
+        .wgx-fmt{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:.3rem .8rem;font-size:.8rem;align-items:center}
+        .wgx-fmt .fh{font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+        .wgx-fmt b{color:var(--text-strong);font-weight:600}
+        .wgx-ok{color:var(--c-ok-fg);font-weight:600}
+        .wgx-no{color:var(--muted)}
+        .wgx-sub{font-size:.78rem;color:var(--muted);margin-top:.55rem;line-height:1.5}
+        .wgx-ex{display:flex;flex-direction:column;gap:.35rem}
+        .wgx-ex-r{display:flex;gap:.35rem;align-items:center}
+        .wgx-ex-r input{flex:1 1 auto;padding:.3rem .5rem;font-size:.8rem;font-family:monospace}
+        .wgx .wgx-ex-r select{width:auto;flex:none;min-width:10.5rem;white-space:nowrap;padding:.3rem 1.8rem .3rem .5rem;font-size:.8rem}
+        .wgx details summary{cursor:pointer;font-size:.82rem;color:var(--accent-text);font-weight:600}
+        .wgx details p,.wgx details li{font-size:.8rem;color:var(--muted);line-height:1.55}
+        .wgx-dr-ov{position:fixed;inset:0;z-index:90;background:rgba(3,6,15,.55)}
+        .wgx-dr{position:fixed;top:0;right:0;bottom:0;z-index:91;width:min(620px,100vw);background:var(--card);border-left:1px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column}
+        .wgx-dr-h{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1.1rem;border-bottom:1px solid var(--line);font-weight:700;color:var(--text-strong)}
+        .wgx-dr-b{padding:1rem 1.1rem;overflow-y:auto;display:flex;flex-direction:column;gap:.8rem;flex:1}
+        .wgx-dr-f{padding:.75rem 1.1rem;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap}
+        .wgx-drop{border:1.5px dashed var(--line);border-radius:10px;padding:1rem;text-align:center;font-size:.82rem;color:var(--muted);display:flex;flex-direction:column;gap:.5rem;align-items:center}
+        .wgx-drop.on{border-color:var(--accent);background:var(--accent-light)}
+        .wgx-dr textarea{font-family:monospace;font-size:.78rem}
+        .wgx-dr .lbl{font-size:.78rem;font-weight:600;color:var(--muted);margin:0 0 .3rem}
+        .wgx-dr .row2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+        .wgx-dr .row2 input{padding:.4rem .55rem;font-size:.84rem}
+        .wgx-prev{width:100%;border-collapse:collapse;font-size:.78rem}
+        .wgx-prev td{padding:.3rem .35rem;border-top:1px solid var(--line);vertical-align:top}
+        .wgx-prev td:first-child,.wgx-prev td:nth-child(2){white-space:nowrap}
+        .wgx-prev td.ep{font-family:monospace;font-size:.72rem;color:var(--muted);overflow-wrap:anywhere}
+        .wgx-prev .bad{color:var(--c-bad-fg)}
+        .wgx-prev .wn{color:var(--c-warn-fg)}
+        .wgx .sq-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+        [hidden]{display:none!important}
     </style>
-    <section class="<?= coll_cls('wgpool_help') ?>" data-coll="wgpool_help">
-        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Как работает пул и почему так</span>
-            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-        </button>
-        <div class="coll-body">
-            <p class="muted" style="margin-top:0">WireGuard/AmneziaWG используют публичный ключ как идентификатор пира: у пира один текущий endpoint, и при одновременной работе двух устройств с <b>одним</b> ключом endpoint перетирается на «последнего» — соединения флапают. Поэтому одно одновременное устройство = один ключ = один peer на сервере.</p>
-            <p class="muted">Прослойка ключи не генерит (их делают в Amnezia / WG-панели / CLI), а <b>раздаёт</b> готовые конфиги из пула, закрепляя за подписчиком или устройством отдельный, никем больше не используемый <code>.conf</code>. Закрепление «липкое»: после импорта клиент держит ключ, пока сам не перечитает подписку.</p>
-            <ul class="muted" style="margin:.2rem 0 0;padding-left:1.1rem;line-height:1.65">
-                <li><b>Общий</b> — конфиги сквада дописываются всем подписчикам. Когда уникальность ключа не нужна.</li>
-                <li><b>На пользователя</b> — из пула выдаётся один WG/AWG-конфиг на подписчика; hwid не нужен.</li>
-                <li><b>На устройство</b> — один конфиг на пару пользователь+устройство (hwid). Клиент не прислал hwid → конфиг не подмешиваем (иначе флап).</li>
-            </ul>
-            <p class="muted" style="margin-bottom:0">VLESS-конфиги сквада в любом режиме отдаются всем — управляй ими во вкладке «Доп. конфиги». Конфигов в пуле меньше, чем нужно устройств → части подписчиков WG не достанется (без флапа). Смотри расчёт ниже.</p>
-        </div>
-    </section>
 
-    <section class="<?= coll_cls('wgpool_upload') ?>" data-coll="wgpool_upload">
-        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Загрузка WG / AWG конфигов</span>
-            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-        </button>
-        <div class="coll-body">
-            <?php if ($sqcfg_squads_err !== ''): ?>
-                <div class="warn">Список сквадов недоступен: <?= h($sqcfg_squads_err) ?>. Проверьте URL панели и токен во вкладке «Подключение».</div>
-            <?php elseif (!$sqcfg_squads): ?>
-                <div class="warn">Внутренние сквады не получены. Настройте подключение к панели.</div>
+<div class="wgx">
+    <div class="card">
+        <div class="wgx-top">
+            <div class="wgx-kpi">
+                <span><b><?= (int) $wgx_kpi['all'] ?></b>конфигов</span>
+                <span><b><?= (int) $wgx_kpi['used'] ?></b>выдано</span>
+                <span><b><?= (int) $wgx_kpi['free'] ?></b>свободно</span>
+                <?php if ($wgx_kpi['shared']): ?><span><b><?= (int) $wgx_kpi['shared'] ?></b>общих</span><?php endif; ?>
+                <?php if ($wgx_kpi['off']): ?><span><b><?= (int) $wgx_kpi['off'] ?></b>выключено</span><?php endif; ?>
+                <?php if ($wgx_man): ?><span><b><?= count($wgx_man) ?></b>вручную</span><?php endif; ?>
+            </div>
+            <div class="wgx-acts">
+                <button type="button" class="wb" id="wgxManOpen"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Назначить вручную</button>
+                <button type="button" class="wb pri" data-upload=""><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 9l5-5 5 5M12 4v12"/></svg>Загрузить .conf</button>
+            </div>
+        </div>
+        <?php if ($wg_mig_note): ?>
+            <div class="wgx-note"><div><b>После обновления прослойки</b><ul style="margin:.3rem 0 0;padding-left:1.1rem"><?php foreach ($wg_mig_note as $ln): ?><li><?= h($ln) ?></li><?php endforeach; ?></ul></div><form method="post" style="margin:0 0 0 auto"><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="wg_mig_ack"><button type="submit" class="wb sm">Понятно</button></form></div>
+        <?php endif; ?>
+        <?php if ($sqcfg_squads_err !== ''): ?>
+            <div class="wgx-note bad"><span>Список сквадов недоступен: <?= h($sqcfg_squads_err) ?>. Проверьте URL панели и токен во вкладке «Подключение».</span></div>
+        <?php endif; ?>
+        <?php if ($sqcfg_dupes): ?>
+            <div class="wgx-note bad"><span>Дубли выдачи: <b><?= count($sqcfg_dupes) ?></b> конфиг(ов) числятся выданными больше одного раза — это наследие прошлых версий.</span><form method="post" style="margin:0 0 0 auto" onsubmit="return uiConfirmForm(this,'Сбросить все автовыдачи? Ручные назначения останутся. Клиентам нужно будет один раз обновить подписку.','Сбросить')"><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="pool_reset_leases"><button type="submit" class="wb sm">Сбросить выдачи</button></form></div>
+        <?php endif; ?>
+        <?php if ($wgx_kpi['v3']): ?>
+            <div class="wgx-note"><span><span class="wgx-vt wv-3">AWG 3.x</span> В пулах есть конфиги AmneziaWG 3.x — их получат: <b><?= h(implode(', ', squadconf_awg_audience('3.0'))) ?></b>. Throne до версии <?= h(awg_client_min('throne', '3.0')) ?> их не получает, а на mihomo до <?= h(awg_client_min('mihomo', '3.0')) ?> узел будет в списке, но не подключится.</span></div>
+        <?php endif; ?>
+    </div>
+
+    <div class="wgx-grid">
+        <div class="card">
+            <div class="wgx-h"><h2>Пулы</h2><span class="wgx-pm">пул = сквад панели</span></div>
+            <?php if (!$wgx_order && !$wgx_man_cfgs): ?>
+                <p class="wgx-empty"><?= $sqcfg_squads_err !== '' ? 'Сквады панели недоступны — пока можно загрузить конфиги только в ручную привязку.' : 'В панели нет внутренних сквадов. Конфиги можно загрузить в ручную привязку.' ?></p>
             <?php endif; ?>
-            <p class="muted" style="margin-top:0">Пакетно: выбери <code>.conf</code>-файлы (метка из имени файла) и/или вставь несколько конфигов подряд — режутся по секции <code>[Interface]</code>. Тип определяется автоматически; <b>битые и не-WG/AWG молча пропускаются</b> — после загрузки покажу, сколько добавлено и сколько пропущено. <b>До 200 файлов за раз</b> — они читаются прямо в браузере, серверный лимит на число файлов не мешает.</p>
-            <form method="post" enctype="multipart/form-data" autocomplete="off" id="wgUpForm">
-                <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                <input type="hidden" name="action" value="batch_wg_config">
-                <input type="hidden" name="files_json" id="wgFilesJson">
-                <label>Куда <span class="muted" style="font-weight:400">— сквады (пул) или ручная привязка</span></label>
-                <div class="sq-grid">
-                    <label class="sq-item sq-manual"><input type="checkbox" name="squads[]" value="__manual__" checked><span class="sq-mtxt"><span class="sq-n">🔧 Ручная привязка</span><span class="muted" style="font-size:.72rem">в обход сквадов</span></span></label>
-                    <?php foreach ($sqcfg_squads as $s): ?>
-                        <label class="sq-item"><input type="checkbox" name="squads[]" value="<?= h($s['uuid']) ?>"><span class="sq-n"><?= h($s['name']) ?></span><span class="muted" style="font-size:.78rem"><?= (int) $s['members'] ?></span></label>
-                    <?php endforeach; ?>
-                </div>
-
-                <div class="wg-up-grid" style="margin-top:1rem">
-                    <div>
-                        <label>Файлы .conf <span class="muted" style="font-weight:400">— можно несколько</span></label>
-                        <label class="file-btn">
-                            <input type="file" name="conf_files[]" id="wgFiles" accept=".conf,.txt" multiple hidden>
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>
-                            <span>Выбрать .conf файлы</span>
-                        </label>
-                        <div id="wgFilesInfo" class="muted" style="font-size:.8rem;margin-top:.5rem">Файлы не выбраны</div>
-                    </div>
-                    <div>
-                        <label>…и/или вставка текстом</label>
-                        <textarea name="raw_batch" rows="7" spellcheck="false" placeholder="[Interface]&#10;PrivateKey = …&#10;[Peer]&#10;…&#10;&#10;[Interface]&#10;… следующий конфиг …" style="font-family:monospace;font-size:.82rem"></textarea>
-                    </div>
-                </div>
-                <div class="mc-grid" style="margin-top:1rem;align-items:end">
-                    <div>
-                        <label>Префикс метки <span class="muted" style="font-weight:400">— необязательно</span></label>
-                        <input type="text" name="label_prefix" class="sqcfg-flag" maxlength="120" placeholder="напр.: Нидерланды">
-                    </div>
-                    <div>
-                        <label>Группа / подпул <span class="muted" style="font-weight:400">— необязательно</span></label>
-                        <input type="text" name="grp" maxlength="64" placeholder="напр.: NL">
-                    </div>
-                    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-                        <button type="submit" class="btn">Загрузить</button>
-                        <span class="muted" style="font-size:.8rem">Метки потом можно переименовать в списке.</span>
-                    </div>
-                </div>
-                <p class="muted" style="font-size:.8rem;margin-top:.5rem;line-height:1.5">Флаг страны подставится сам, если страна стоит в начале префикса: «Нидерланды» → 🇳🇱. Без префикса флаг берётся из имени файла: <code>Germany-1.conf</code> → 🇩🇪, <code>NL-2.conf</code> → 🇳🇱.</p>
-                <p class="muted" style="font-size:.8rem;margin-top:.5rem;line-height:1.5">💡 <b>Группа/подпул</b> делит конфиги внутри одного сквада на независимые пулы. В режиме «на пользователя/устройство» юзер получит <b>по одному из каждой группы</b>: загрузи германские с группой <code>DE</code>, нидерландские — с <code>NL</code>, и в одном скваде каждый получит 1 DE + 1 NL. Пусто — общий пул по типу, как раньше.</p>
-            </form>
-        </div>
-    </section>
-
-    <section class="<?= coll_cls('wgpool_modes') ?>" data-coll="wgpool_modes">
-        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Режим пула по сквадам</span>
-            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-        </button>
-        <div class="coll-body">
-            <p class="muted" style="margin-top:0">Как раздаются WG/AWG-конфиги каждого сквада. «Потребность» считается по панели: фактические устройства из базы hwid.</p>
-            <?php $wgpT0 = $sqcfg_sizing['totals'] ?? ['records' => 0, 'unique' => 0]; ?>
-            <div id="wgpTotals" class="muted" style="font-size:.82rem;margin:.2rem 0 .8rem">Всего регистраций устройств: <b id="wgpTotRec"><?= (int) $wgpT0['records'] ?></b> · уникальных hwid: <b id="wgpTotUniq"><?= (int) $wgpT0['unique'] ?></b></div>
-            <?php if (!$sqcfg_squads): ?>
-                <div class="warn">Сквады не получены — настройте подключение к панели.</div>
-            <?php else: ?>
-            <form method="post" data-autosave>
+            <form method="post" id="wgxModes" autocomplete="off">
                 <input type="hidden" name="csrf" value="<?= h($token) ?>">
                 <input type="hidden" name="action" value="save_pool_modes">
-                <table class="logtbl wgpool-tbl">
-                    <thead><tr><th>Сквад</th><th>Режим</th><th>В пуле (своб/всего)</th><th>Учёток: актив. / всего</th><th>Добавлено (факт)</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($sqcfg_squads as $s): $pu = $s['uuid']; $pm = $sqcfg_modes[$pu] ?? 'shared'; ?>
-                        <tr>
-                            <td><?= h($s['name']) ?></td>
-                            <td>
-                                <select name="pool_mode[<?= h($pu) ?>]" class="sqcfg-sel">
-                                    <option value="shared"<?= $pm === 'shared' ? ' selected' : '' ?>>Общий</option>
-                                    <option value="users"<?= $pm === 'users' ? ' selected' : '' ?>>На пользователя</option>
-                                    <option value="devices"<?= $pm === 'devices' ? ' selected' : '' ?>>На устройство</option>
-                                </select>
-                            </td>
-                            <td><b><?= (int) ($sqcfg_free[$pu] ?? 0) ?></b> / <?= (int) ($sqcfg_stock[$pu] ?? 0) ?></td>
-                            <?php $sz = $sqcfg_sizing['rows'][$pu] ?? null; $szHas = !empty($sqcfg_sizing['rows']); $uTxt = $sz ? ((int) ($sz['active'] ?? 0) . ' / ' . (int) ($sz['users'] ?? 0)) : ($szHas ? '0' : '—'); $dVal = $sz ? (int) ($sz['devices'] ?? 0) : ($szHas ? 0 : null); $dWarn = ($dVal !== null && (int) ($sqcfg_free[$pu] ?? 0) < $dVal) ? ' wgp-warn' : ''; ?>
-                            <td class="wgp-u" data-su="<?= h($pu) ?>"><?= h($uTxt) ?></td>
-                            <td class="wgp-d<?= $dWarn ?>" data-su="<?= h($pu) ?>"><?= $dVal === null ? '—' : (int) $dVal ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-                <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-top:1rem">
-                    <button type="submit" class="btn">Сохранить режимы</button>
-                    <button type="button" class="sqcfg-btn" id="wgpCalc">Рассчитать потребность</button>
-                    <label class="muted" style="display:flex;align-items:center;gap:.4rem;margin:0;font-weight:400">авто-возврат слота через
-                        <input type="number" name="wgpool_reclaim_days" value="<?= (int) $sqcfg_reclaim_days ?>" min="1" max="365" style="width:5rem"> дн. неактивности</label>
+                <div class="wgx-pools">
+                <?php foreach ($wgx_order as $pk): $pl = $wgx_pools[$pk]; $pm = $pl['mode']; $need = $wgx_need($pk); ?>
+                    <div class="wgx-pool<?= $pl['n'] ? '' : ' empty' ?>" data-pool="<?= h($pk) ?>">
+                        <div class="wgx-ph">
+                            <button type="button" class="wgx-pname" data-pool="<?= h($pk) ?>" title="Показать конфиги этого пула"><?= h($wgx_pname($pk)) ?></button>
+                            <span class="wgx-pm"><?= isset($wgx_members[$pk]) ? (int) $wgx_members[$pk] . ' польз.' : '' ?></span>
+                            <span class="wgx-vts"><?php if (!$pl['n']): ?><span class="wgx-pm">пусто</span><?php endif; ?><?php foreach (array_keys($pl['vers']) as $v): ?><span class="wgx-vt <?= awg_ver_class($v) ?>"><?= h($v) ?></span><?php endforeach; ?></span>
+                        </div>
+                        <div class="wgx-seg" role="radiogroup" aria-label="Как выдавать в <?= h($wgx_pname($pk)) ?>">
+                            <?php foreach (['shared' => 'Всем', 'users' => 'Пользователю', 'devices' => 'Устройству'] as $mv => $ml): ?>
+                                <label title="<?= $mv === 'shared' ? 'Одни и те же конфиги всем подписчикам сквада' : ($mv === 'users' ? 'Отдельный ключ каждому пользователю' : 'Отдельный ключ каждому устройству (нужен hwid)') ?>"><input type="radio" name="pool_mode[<?= h($pk) ?>]" value="<?= $mv ?>" data-was="<?= $pm === $mv ? '1' : '0' ?>"<?= $pm === $mv ? ' checked' : '' ?>><?= $ml ?></label>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php foreach ($pl['groups'] as $gk => $g): $tot = (int) $g['on']; $fr = (int) $g['free']; $short = $need !== null && $tot < $need; $low = $pm !== 'shared' && (($tot > 0 && $fr === 0) || $short); $pct = $tot > 0 ? (int) round(($pm === 'shared' ? $tot : $fr) * 100 / $tot) : 0; ?>
+                            <div class="wgx-gr">
+                                <span class="gn"><?= h($g['label'] !== '' ? $g['label'] : 'без группы') ?> <span class="wgx-pm">· <?= h(implode(', ', array_keys($g['vers']))) ?></span></span>
+                                <?php if ($pm === 'shared'): ?>
+                                    <span class="gc"><b><?= $tot ?></b> всем</span>
+                                <?php else: ?>
+                                    <span class="gc<?= $low ? ' low' : '' ?>"<?= $short ? ' title="Нужно ~' . (int) $need . ', а конфигов ' . $tot . '"' : '' ?>><b><?= $fr ?></b> из <?= $tot ?> свободно<?= $short ? ' · нужно ~' . (int) $need : '' ?></span>
+                                <?php endif; ?>
+                                <span class="wgx-bar<?= $low ? ' low' : '' ?>"><i style="width:<?= $pct ?>%"></i></span>
+                            </div>
+                        <?php endforeach; ?>
+                        <div class="wgx-pf">
+                            <button type="button" class="wb sm" data-upload="<?= h($pk) ?>">+ Загрузить сюда</button>
+                            <?php if ($need !== null): ?><span class="wgx-pm">в каждую группу нужно ~<?= (int) $need ?> — по числу <?= $pm === 'devices' ? 'устройств' : 'активных' ?></span><?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                <?php if ($wgx_man_cfgs || $wgx_man): ?>
+                    <div class="wgx-pool" data-pool="__manual__">
+                        <div class="wgx-ph">
+                            <button type="button" class="wgx-pname" data-pool="__manual__" title="Показать конфиги ручной привязки">Ручная привязка</button>
+                            <span class="wgx-pm"><?= count($wgx_man) ?> из <?= (int) $wgx_man_cfgs ?> назначено</span>
+                            <span class="wgx-vts"><?php foreach (array_keys($wgx_pools['__manual__']['vers'] ?? []) as $v): ?><span class="wgx-vt <?= awg_ver_class($v) ?>"><?= h($v) ?></span><?php endforeach; ?></span>
+                        </div>
+                        <?php if ($wgx_man): ?>
+                        <div class="wgx-man">
+                            <?php foreach ($wgx_man as $l): $lc = $wgx_cfg[(int) $l['config_id']] ?? ['n' => '#' . (int) $l['config_id'] . ' — конфиг удалён']; $lsu = (string) $l['short_uuid']; $lhw = (string) ($l['hwid'] ?? ''); $ln = !empty($wg_uc[$lsu]['u']) ? (string) $wg_uc[$lsu]['u'] : $lsu; $ldev = $lhw !== '' ? (string) ($wg_uc[$lsu]['d'][$lhw]['m'] ?? ($sqcfg_hwid_plat[$lhw] ?? 'устройство')) : 'любое устройство'; ?>
+                                <div>
+                                    <span class="mu" title="<?= h($lsu) ?>"><?= h($ln) ?></span>
+                                    <span class="mc"><?= h($lc['n'] !== '' ? $lc['n'] : ('#' . (int) $l['config_id'])) ?> · <?= h($ldev) ?></span>
+                                    <button type="button" class="wx" title="Снять назначение" data-mandel="<?= (int) $l['id'] ?>" aria-label="Снять назначение">✕</button>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                        <div class="wgx-pf"><button type="button" class="wb sm" data-manopen>Назначить</button><button type="button" class="wb sm" data-upload="__manual__">+ Загрузить сюда</button></div>
+                    </div>
+                <?php endif; ?>
                 </div>
-                <div id="wgpCalcMsg" class="muted" style="font-size:.8rem;margin-top:.5rem"><?= h($wgp_msg0) ?></div>
-                <div class="muted" style="font-size:.78rem;line-height:1.6;margin-top:.7rem">
-                    <b>В пуле</b> — свободных / всего WG/AWG-конфигов (слотов); выданные устройствам вычитаются из «свободных». <b>Учёток</b> — пользователей сквада: активных / всего. <b>Добавлено (факт)</b> — реально зарегистрировано устройств юзерами сквада, из базы hwid. Красным, если конфигов меньше факта.
-                </div>
+                <div class="wgx-days" title="Если клиент не обновлял подписку столько дней, его автовыдача освобождается для других">Слот вернётся в пул через <input type="number" name="wgpool_reclaim_days" id="wgxDays" value="<?= (int) $sqcfg_reclaim_days ?>" min="1" max="365" aria-label="Дней"> дн. тишины</div>
             </form>
+            <?php if (!empty($sqcfg_sizing['warn'])): ?><div class="wgx-note bad" style="margin-top:.6rem"><span>Потребность посчитана не полностью: <?= h($sqcfg_sizing['warn']) ?></span></div><?php endif; ?>
+            <?php if ($wgx_order): ?>
+            <div class="wgx-pf" style="margin-top:.6rem">
+                <button type="button" class="wb sm" id="wgxCalc" title="Посчитать по панели, сколько активных пользователей и устройств в каждом скваде">Посчитать потребность</button>
+                <form method="post" style="margin:0" onsubmit="return uiConfirmForm(this,'Сбросить все автовыдачи? Ручные назначения останутся. Клиентам нужно будет один раз обновить подписку.','Сбросить')"><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="pool_reset_leases"><button type="submit" class="wb sm">Сбросить автовыдачи</button></form>
+                <span class="wgx-pm" id="wgxCalcMsg"></span>
+            </div>
             <?php endif; ?>
         </div>
-    </section>
 
-    <section class="<?= coll_cls('wgpool_uarules') ?>" data-coll="wgpool_uarules">
-        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Правила отдачи по UA</span>
-            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-        </button>
-        <div class="coll-body">
-            <p class="muted" style="margin-top:0">Клиент определяется по подстроке в его User-Agent. Если UA подходит под правило, отмеченный тип конфигов ему <b>не отдаётся и не занимает слот пула</b>. AmneziaWG умеют только клиенты на ядре <b>mihomo (Clash)</b> и нативные wg://-клиенты (Throne); на ядрах <b>xray</b> и <b>sing-box</b> обфускации нет — таким идёт обычный WireGuard. Галочки можно менять, правила — дописывать своими UA.</p>
-            <form method="post" autocomplete="off">
+        <div class="card" id="wgxCfg">
+            <div class="wgx-h">
+                <h2>Конфиги</h2>
+                <?php if ($sqcfg_wg): ?><button type="button" class="wb sm" id="wgxSelMode" aria-pressed="false">Выбрать</button><?php endif; ?>
+            </div>
+            <div class="wgx-tools">
+                    <div class="wgx-chf" id="wgxSt" role="group" aria-label="Состояние">
+                        <button type="button" class="on" data-st="">Все<span><?= (int) $wgx_cnt[''] ?></span></button>
+                        <button type="button" data-st="free">Свободны<span><?= (int) $wgx_cnt['free'] ?></span></button>
+                        <button type="button" data-st="used">Выданы<span><?= (int) $wgx_cnt['used'] ?></span></button>
+                        <?php if ($wgx_cnt['all']): ?><button type="button" data-st="all">Общие<span><?= (int) $wgx_cnt['all'] ?></span></button><?php endif; ?>
+                        <?php if ($wgx_cnt['off']): ?><button type="button" data-st="off">Выключены<span><?= (int) $wgx_cnt['off'] ?></span></button><?php endif; ?>
+                    </div>
+                    <select id="wgxPool" aria-label="Пул">
+                        <option value="">Все пулы</option>
+                        <?php foreach ($wgx_filled as $pk): ?><option value="<?= h($pk) ?>"><?= h($wgx_pname($pk)) ?></option><?php endforeach; ?>
+                        <?php if ($wgx_man_cfgs): ?><option value="__manual__">Ручная привязка</option><?php endif; ?>
+                    </select>
+                    <input type="search" id="wgxQ" placeholder="метка, адрес, пользователь" aria-label="Поиск">
+            </div>
+            <?php if (!$sqcfg_wg): ?>
+                <p class="wgx-empty">Здесь будут конфиги. Загрузите .conf-файлы — можно сразу пачкой.</p>
+            <?php endif; ?>
+            <div id="wgxList">
+            <?php foreach (array_merge($wgx_filled, $wgx_man_cfgs ? ['__manual__'] : []) as $pk): $pl = $wgx_pools[$pk]; ?>
+                <div class="wgx-sec" data-pool="<?= h($pk) ?>">
+                    <div class="wgx-sec-h"><?= h($wgx_pname($pk)) ?> <span style="text-transform:none;letter-spacing:0;font-weight:500"><?= $pl['mode'] === 'manual' ? '' : h(['shared' => '· всем', 'users' => '· на пользователя', 'devices' => '· на устройство'][$pl['mode']] ?? '') ?></span></div>
+                    <?php foreach ($pl['groups'] as $gk => $g): $mixed = count($g['vers']) > 1; ?>
+                        <div class="wgx-grp">
+                            <div class="wgx-grp-h"><b><?= h($g['label'] !== '' ? $g['label'] : 'без группы') ?></b><?php if (!$mixed): ?><span class="wgx-vt <?= awg_ver_class(array_key_first($g['vers'])) ?>"><?= h(array_key_first($g['vers'])) ?></span><?php endif; ?><span><?= count($g['ids']) ?> шт.</span></div>
+                            <div class="wgx-chips">
+                            <?php foreach ($g['ids'] as $cid): $x = $wgx_cell[$pk . ':' . $cid]; $tip = $x['n'] . ($x['st'] === 'used' ? ' — ' . ($x['u'] !== '' ? $x['u'] : $x['su']) : ($x['st'] === 'free' ? ' — свободен' : ($x['st'] === 'off' ? ' — выключен' : ' — всем'))); ?>
+                                <button type="button" class="wgx-chip st-<?= $x['st'] ?>" data-id="<?= $cid ?>" data-k="<?= h($pk . ':' . $cid) ?>" data-st="<?= $x['st'] ?>" data-q="<?= h(mb_strtolower($x['n'] . ' ' . $x['ep'] . ' ' . $x['u'] . ' ' . $x['su'])) ?>" title="<?= h($tip) ?>"><i class="dt"></i><span class="lb"><?= h($x['n'] !== '' ? $x['n'] : ('#' . $cid)) ?></span><?php if ($mixed): ?><span class="wgx-vt <?= h($x['vc']) ?>"><?= h(str_replace('AWG ', '', $x['v'])) ?></span><?php endif; ?></button>
+                            <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endforeach; ?>
+            </div>
+            <?php if ($sqcfg_wg): ?>
+            <p class="wgx-empty" id="wgxNone" hidden>Ничего не найдено — измените фильтр.</p>
+            <div class="wgx-legend"><span><i style="background:var(--c-ok-fg)"></i>свободен</span><span><i style="background:var(--accent)"></i>выдан или общий</span><span><i style="background:var(--muted)"></i>выключен</span><span>нажмите на конфиг — подробности и действия</span></div>
+            <div class="wgx-bulk" id="wgxBulk" hidden>
+                <b id="wgxBulkN">0</b> выбрано
+                <select id="wgxBulkAct" aria-label="Действие">
+                    <option value="grp">Задать группу</option>
+                    <option value="mtu">MTU</option>
+                    <option value="keepalive">PersistentKeepalive</option>
+                    <option value="dns">DNS</option>
+                    <option value="allowedips">AllowedIPs</option>
+                    <option value="del">Удалить</option>
+                </select>
+                <input type="text" id="wgxBulkVal" placeholder="значение (пусто — убрать)" aria-label="Значение">
+                <button type="button" class="wb sm pri" id="wgxBulkGo">Применить</button>
+                <button type="button" class="wb sm" id="wgxBulkAll">Выбрать видимые</button>
+                <button type="button" class="wb sm" id="wgxBulkX">Отмена</button>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="wgx-h"><h2>Кто что получает</h2><span class="wgx-pm">решается само — по формату, который панель отдала клиенту</span></div>
+        <div class="wgx-who">
+            <div>
+                <div class="wgx-fmt">
+                    <span class="fh">Формат</span><span class="fh">Ядро</span><span class="fh">Добавляем</span>
+                    <?php
+                    $wgx_enc = ['wireguard' => 'wireguard://', 'wg' => 'wg://', 'incy_uri' => 'amneziawg://', 'incy_box' => 'JSON xray', 'amnezia_wg' => 'JSON sing-box', 'singbox' => 'JSON sing-box', 'xray' => 'JSON xray'];
+                    foreach (squadconf_delivery_matrix() as $r):
+                        $wgk = $r['wg'];
+                        $wgh = array_values(array_unique(array_filter(array_map(fn($e) => ($r['core'] === 'свой' || str_ends_with($wgx_enc[$e] ?? '', '://')) ? ($wgx_enc[$e] ?? '') : '', $wgk))));
+                        $awh = array_values(array_unique(array_filter(array_map(fn($e) => $r['core'] === 'свой' ? ($wgx_enc[$e] ?? '') : '', $r['awg']))));
+                        $vh = $r['min'] !== '' ? awg_client_ranges($r['min']) : '';
+                    ?>
+                    <b><?= h($r['label']) ?></b><span><?= h($r['core']) ?></span><span><?php if ($wgk): ?><span class="wgx-ok">WG</span><?= $wgh ? ' <span class="wgx-pm">' . h(implode(', ', $wgh)) . '</span>' : '' ?><?php else: ?><span class="wgx-no">без WG</span><?= $r['wg_toggle'] ? ' <span class="wgx-pm">(включается на «Доп. конфигах»)</span>' : '' ?><?php endif; ?> · <?php if ($r['awg']): ?><span class="wgx-ok">AWG</span><?php $ah = array_filter([$r['note'] ?? '', $awh ? implode(', ', $awh) : '', $vh]); ?><?= $ah ? ' <span class="wgx-pm">' . h(implode('; ', $ah)) . '</span>' : '' ?><?php else: ?><span class="wgx-no">без AWG</span><?php endif; ?></span>
+                    <?php endforeach; ?>
+                </div>
+                <p class="wgx-sub">Поддерживаются официальные ядра Xray, mihomo и sing-box, а также Throne и INCY — у них AmneziaWG в собственном движке. Другие сборки-форки (sing-box-extended, sing-box-lx, amnezia-box и прочие) получают то же, что официальный sing-box или Xray. Конфиг, который клиент не примет, не уходит ему и не занимает слот пула.</p>
+            </div>
+            <form method="post" autocomplete="off" id="wgxExForm">
                 <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                <input type="hidden" name="action" value="save_ua_rules">
-                <div class="ua-rules-wrap">
-                <table class="logtbl ua-rules-tbl" id="uaRulesTbl">
-                    <thead><tr><th>Клиент</th><th>UA содержит</th><th>Ядро</th><th class="ua-c">Без AWG</th><th class="ua-c">Без WG</th><th class="ua-c"></th></tr></thead>
-                    <tbody>
-                    <?php $uar = squadconf_ua_rules(); $ri = 0; foreach ($uar as $r): ?>
-                        <tr>
-                            <td><input type="text" name="rule_label[<?= $ri ?>]" value="<?= h($r['label']) ?>" maxlength="60" placeholder="Название"></td>
-                            <td><input type="text" name="rule_ua[<?= $ri ?>]" value="<?= h($r['ua']) ?>" maxlength="60" placeholder="напр. happ" class="ua-mono"></td>
-                            <td><input type="text" name="rule_core[<?= $ri ?>]" value="<?= h($r['core']) ?>" maxlength="24" placeholder="—" class="ua-core"></td>
-                            <td class="ua-c"><input type="checkbox" class="ua-ck" name="rule_no_awg[<?= $ri ?>]" value="1"<?= !empty($r['no_awg']) ? ' checked' : '' ?>></td>
-                            <td class="ua-c"><input type="checkbox" class="ua-ck" name="rule_no_wg[<?= $ri ?>]" value="1"<?= !empty($r['no_wg']) ? ' checked' : '' ?>></td>
-                            <td class="ua-c"><button type="button" class="danger ua-del" title="Удалить строку">🗑</button></td>
-                        </tr>
-                    <?php $ri++; endforeach; ?>
-                    </tbody>
-                </table>
+                <input type="hidden" name="action" value="save_wg_except">
+                <div class="lbl" style="font-size:.8rem;font-weight:600;margin-bottom:.4rem">Исключения <span class="wgx-pm" style="font-weight:400">— подстрока User-Agent клиента</span></div>
+                <div class="wgx-ex" id="wgxEx">
+                    <?php foreach ($wgx_except as $r): ?>
+                        <div class="wgx-ex-r"><input type="text" name="ex_ua[]" value="<?= h($r['ua']) ?>" maxlength="60" aria-label="Подстрока UA"><select name="ex_block[]" aria-label="Что не отдавать"><option value="awg"<?= $r['block'] === 'awg' ? ' selected' : '' ?>>без AWG</option><option value="all"<?= $r['block'] === 'all' ? ' selected' : '' ?>>без WG и AWG</option></select><button type="button" class="wx" data-exdel aria-label="Убрать">✕</button></div>
+                    <?php endforeach; ?>
                 </div>
-                <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:1rem">
-                    <button type="submit" class="btn">Сохранить правила</button>
-                    <button type="button" class="sqcfg-btn" id="uaAddRow">+ Клиент</button>
-                    <button type="submit" class="sqcfg-btn" name="reset" value="1" onclick="return confirm('Сбросить правила отдачи к стандартным?')">Сбросить к стандартным</button>
-                </div>
+                <div class="wgx-pf" style="margin-top:.45rem"><button type="button" class="wb sm" id="wgxExAdd">+ Исключение</button><button type="submit" class="wb sm pri" id="wgxExSave" hidden>Сохранить</button></div>
+                <p class="wgx-sub" style="margin-top:.4rem">Например, Clash-клиент не на mihomo, который не тянет AmneziaWG, или Throne, если ему нужен только WG. Обычно список пуст.</p>
             </form>
         </div>
-    </section>
-    <script>
-    (function(){
-        var tbl=document.getElementById('uaRulesTbl'); if(!tbl) return;
-        var tb=tbl.querySelector('tbody');
-        var nextIdx=tb.querySelectorAll('tr').length;
-        function rowHtml(i){
-            return '<td><input type="text" name="rule_label['+i+']" maxlength="60" placeholder="Название"></td>'
-                +'<td><input type="text" name="rule_ua['+i+']" maxlength="60" placeholder="напр. happ" class="ua-mono"></td>'
-                +'<td><input type="text" name="rule_core['+i+']" maxlength="24" placeholder="—" class="ua-core"></td>'
-                +'<td class="ua-c"><input type="checkbox" class="ua-ck" name="rule_no_awg['+i+']" value="1"></td>'
-                +'<td class="ua-c"><input type="checkbox" class="ua-ck" name="rule_no_wg['+i+']" value="1"></td>'
-                +'<td class="ua-c"><button type="button" class="danger ua-del" title="Удалить строку">🗑</button></td>';
-        }
-        var add=document.getElementById('uaAddRow');
-        if(add) add.addEventListener('click',function(){
-            var tr=document.createElement('tr'); tr.innerHTML=rowHtml(nextIdx++); tb.appendChild(tr);
-            var inp=tr.querySelector('input[name^="rule_label"]'); if(inp) inp.focus();
-        });
-        tb.addEventListener('click',function(e){
-            var b=e.target.closest?e.target.closest('.ua-del'):null;
-            if(b){ var tr=b.closest('tr'); if(tr) tr.parentNode.removeChild(tr); }
-        });
-    })();
-    </script>
+        <details style="margin-top:.6rem">
+            <summary>Как работает пул</summary>
+            <p>WireGuard и AmneziaWG узнают клиента по публичному ключу: если два устройства работают с одним ключом, соединение «прыгает» между ними. Поэтому прослойка раздаёт готовые конфиги из пула и закрепляет за пользователем или устройством отдельный ключ. Ключи она не создаёт — их делают в Amnezia, WG-панели или CLI.</p>
+            <ul>
+                <li><b>Всем</b> — конфиги сквада получают все его подписчики. Когда уникальный ключ не нужен.</li>
+                <li><b>На пользователя</b> — каждому подписчику свой конфиг из каждой группы; hwid не нужен.</li>
+                <li><b>На устройство</b> — свой конфиг на каждое устройство (hwid). Клиент без hwid конфиг не получает.</li>
+                <li><b>Группа</b> делит пул сквада: загрузите германские конфиги с группой DE, нидерландские — с NL, и каждый получит 1 DE + 1 NL.</li>
+                <li><b>Throne и INCY</b> получают AmneziaWG в своём формате. INCY на компьютере AWG не поддерживает — ему уходит только WG, и слот AWG он не занимает.</li>
+                <li><b>Ручная привязка</b> — конфиг закрепляется за конкретным пользователем в обход сквадов. В грейсе не выдаётся.</li>
+            </ul>
+        </details>
+    </div>
+</div>
 
-    <section class="<?= coll_cls('wgpool_manual') ?>" data-coll="wgpool_manual">
-        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Ручная привязка конфига</span>
-            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-        </button>
-        <div class="coll-body">
-            <p class="muted" style="margin-top:0">Выбери пользователя и конфиг из группы <b>«Ручная привязка»</b> (загруженные выше с галочкой «Ручная привязка» — в обход сквадов). Закрепить можно на пользователя целиком или на конкретное устройство (hwid). Привязка одна на пользователя/устройство — новая заменяет прежнюю. <b>Важно:</b> один WG/AWG-конфиг не привязывай разным юзерам/устройствам — это два устройства на одном ключе и флап.</p>
+<div class="wgx"><div class="wgx-pop" id="wgxPop" hidden role="dialog" aria-label="Конфиг">
+    <div class="pt"><span id="wgxPopN"></span><span class="wgx-vt" id="wgxPopV"></span><button type="button" class="wx" id="wgxPopX" style="margin-left:auto" aria-label="Закрыть">✕</button></div>
+    <dl id="wgxPopD"></dl>
+    <div class="pa">
+        <button type="button" class="wb sm sqcfg-edit" id="wgxPopEdit" data-id="">Изменить</button>
+        <button type="button" class="wb sm" id="wgxPopFree">Освободить</button>
+        <button type="button" class="wb sm" id="wgxPopTog">Выключить</button>
+        <button type="button" class="wb sm" id="wgxPopDl">Скачать .conf</button>
+        <button type="button" class="wb sm bad" id="wgxPopDel">Удалить</button>
+    </div>
+</div></div>
+
+<form method="post" id="wgxF1" hidden><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value=""><input type="hidden" name="ret" value="wg_pool"><input type="hidden" name="id" value=""><input type="hidden" name="enabled" value=""></form>
+<form method="post" id="wgxFB" hidden><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value=""><input type="hidden" name="ret" value="wg_pool"><input type="hidden" name="ids" value=""><input type="hidden" name="param" value=""><input type="hidden" name="value" value=""><input type="hidden" name="group" value=""></form>
+
+<div class="wgx-dr-ov" id="wgxDrOv" hidden></div>
+<div class="wgx-dr" id="wgxDr" hidden role="dialog" aria-label="Загрузка конфигов">
+    <form method="post" enctype="multipart/form-data" autocomplete="off" id="wgUpForm" style="display:contents">
+        <input type="hidden" name="csrf" value="<?= h($token) ?>">
+        <input type="hidden" name="action" value="batch_wg_config">
+        <input type="hidden" name="files_json" id="wgFilesJson">
+        <div class="wgx-dr-h"><span>Загрузка конфигов</span><button type="button" class="modal-x" id="wgxDrX" aria-label="Закрыть">×</button></div>
+        <div class="wgx-dr-b wgx">
+            <div class="wgx-drop" id="wgxDrop">
+                <span>Перетащите .conf-файлы сюда — до 200 за раз</span>
+                <label class="wb sm" style="margin:0;cursor:pointer"><input type="file" name="conf_files[]" id="wgFiles" accept=".conf,.txt" multiple hidden>Выбрать файлы</label>
+            </div>
+            <div>
+                <div class="lbl">…или вставьте текст нескольких конфигов подряд</div>
+                <textarea name="raw_batch" id="wgxRaw" rows="4" spellcheck="false" placeholder="[Interface]&#10;PrivateKey = …&#10;[Peer]&#10;…"></textarea>
+            </div>
+            <table class="wgx-prev" id="wgxPrev" hidden><tbody></tbody></table>
+            <div>
+                <div class="lbl">Куда</div>
+                <div class="sq-grid" id="wgxDest">
+                    <label class="sq-item sq-manual"><input type="checkbox" name="squads[]" value="__manual__"><span class="sq-mtxt"><span class="sq-n">Ручная привязка</span><span class="muted" style="font-size:.72rem">в обход сквадов</span></span></label>
+                    <?php foreach ($sqcfg_squads as $s): ?>
+                        <label class="sq-item"><input type="checkbox" name="squads[]" value="<?= h($s['uuid']) ?>"><span class="sq-n"><?= h($s['name']) ?></span><span class="muted" style="font-size:.78rem"><?= $s['members'] === '' ? '' : (int) $s['members'] ?></span></label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <div class="row2">
+                <div><div class="lbl">Группа</div><input type="text" name="grp" maxlength="64" placeholder="напр. DE"></div>
+                <div><div class="lbl">Префикс метки</div><input type="text" name="label_prefix" class="sqcfg-flag" maxlength="120" placeholder="напр. Германия"></div>
+            </div>
+            <p class="wgx-sub" style="margin:0">Флаг страны подставится сам: «Германия» → 🇩🇪. Без префикса метка берётся из имени файла. Битые и не WG/AWG конфиги пропускаются.</p>
+        </div>
+        <div class="wgx-dr-f wgx"><span class="wgx-pm" id="wgxUpSum">Выберите файлы или вставьте текст</span><button type="submit" class="wb pri" id="wgxUpGo" disabled>Загрузить</button></div>
+    </form>
+</div>
+
+<div id="wgxManModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-head"><div>Назначить конфиг вручную</div><button type="button" class="modal-x" data-manclose>×</button></div>
+        <div class="modal-body">
             <form method="post" autocomplete="off">
                 <input type="hidden" name="csrf" value="<?= h($token) ?>">
                 <input type="hidden" name="action" value="pool_manual_add">
                 <input type="hidden" name="ret" value="wg_pool">
                 <input type="hidden" name="short_uuid" id="wgm_short">
-                <div class="sqcfg-grid">
-                    <div>
-                        <label>Пользователь (shortUuid или имя)</label>
-                        <div style="display:flex;gap:.4rem"><input type="text" id="wgm_q" placeholder="shortUuid / username" style="flex:1"><button type="button" class="sqcfg-btn" id="wgm_find">Найти</button></div>
-                    </div>
-                    <div>
-                        <label>Конфиг</label>
-                        <select name="config_id" id="wgm_cfg" class="sqcfg-sel">
-                            <option value="">—</option>
-                            <?php foreach ($sqcfg_wg as $c): if ((int) $c['enabled'] !== 1 || !in_array('__manual__', squadconf_squads_of($c), true)) continue; ?><option value="<?= (int) $c['id'] ?>"><?= h(($c['name'] !== null && $c['name'] !== '') ? $c['name'] : ('#' . $c['id'])) ?></option><?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label>Устройство (необязательно)</label>
-                        <select id="wgm_hwid" name="hwid" class="sqcfg-sel"><option value="">— любое (на пользователя)</option></select>
-                    </div>
-                </div>
-                <div id="wgm_info" class="muted" style="font-size:.82rem;margin:.6rem 0"></div>
-                <button type="submit" class="btn" id="wgm_submit" disabled>Привязать</button>
-            </form>
-            <?php
-                $wg_ids = [];
-                foreach ($sqcfg_wg as $c) $wg_ids[(int) $c['id']] = (string) ($c['name'] ?? '');
-                $man = array_values(array_filter($sqcfg_leases, fn($l) => (int) $l['manual'] === 1 && isset($wg_ids[(int) $l['config_id']])));
-            ?>
-            <h2 style="font-size:.95rem;margin:1.3rem 0 .5rem">Текущие привязки (<?= count($man) ?>)</h2>
-            <?php if (!$man): ?><p class="muted">Пока пусто.</p><?php else: ?>
-            <table class="logtbl">
-                <thead><tr><th>Конфиг</th><th>Пользователь</th><th>Устройство</th><th></th></tr></thead>
-                <tbody>
-                <?php foreach ($man as $l): $lcid = (int) $l['config_id']; ?>
-                    <tr>
-                        <td><?= $wg_ids[$lcid] !== '' ? h($wg_ids[$lcid]) : ('#' . $lcid) ?></td>
-                        <td style="font-family:monospace;font-size:.78rem"><?= h((string) $l['short_uuid']) ?></td>
-                        <td style="font-family:monospace;font-size:.76rem"><?= $l['hwid'] !== null && $l['hwid'] !== '' ? h((string) $l['hwid']) : '<span class="muted">любое</span>' ?></td>
-                        <td style="text-align:right">
-                            <form method="post" style="margin:0" onsubmit="return uiConfirmForm(this,'Снять привязку?')">
-                                <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                                <input type="hidden" name="action" value="pool_manual_del">
-                                <input type="hidden" name="ret" value="wg_pool">
-                                <input type="hidden" name="id" value="<?= (int) $l['id'] ?>">
-                                <button type="submit" class="danger">🗑</button>
-                            </form>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php endif; ?>
-        </div>
-    </section>
-
-    <div class="card">
-        <div class="loghead">
-            <h2>WG / AWG конфиги (<?= count($sqcfg_wg) ?>)</h2>
-            <?php if ($sqcfg_wg): ?>
-            <div class="loghead-r">
-                <label class="pgr-size" style="display:inline-flex;align-items:center;gap:.4rem;margin:0;font-weight:400">На странице:
-                    <select id="wgSize" onchange="SQCFGP.setSize(parseInt(this.value,10))">
-                        <option value="25"<?= $wg_psize==25?' selected':'' ?>>25</option>
-                        <option value="50"<?= $wg_psize==50?' selected':'' ?>>50</option>
-                        <option value="100"<?= $wg_psize==100?' selected':'' ?>>100</option>
-                        <option value="200"<?= $wg_psize==200?' selected':'' ?>>200</option>
-                    </select>
-                </label>
-            </div>
-            <?php endif; ?>
-        </div>
-        <?php if (!$sqcfg_wg): ?>
-            <p class="muted">Пока пусто. Загрузите WG/AWG-конфиги выше.</p>
-        <?php else: $sqcfg_edit = []; ?>
-        <div class="wg-leasebar">
-            <?php if ($sqcfg_dupes): ?><span class="wg-dupe-warn">⚠ дубли выдачи: <?= count($sqcfg_dupes) ?> конфиг(ов) числятся выданными более одного раза (наследие прошлых версий) — нажми «Сбросить выдачи»</span><?php endif; ?>
-            <form method="post" style="margin:0;margin-left:auto" onsubmit="return uiConfirmForm(this,'Сбросить все авто-выдачи пула? Ручные привязки останутся. Клиентам нужно будет один раз обновить подписку.')">
-                <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                <input type="hidden" name="action" value="pool_reset_leases">
-                <button type="submit" class="sqcfg-btn" title="Удалить авто-выдачи (manual=0) — пул переразложится начисто, без дублей">↻ Сбросить выдачи</button>
-            </form>
-        </div>
-        <div class="wg-bulkbar">
-            <span id="wgChkCount" class="muted">Выбрано: 0</span>
-            <span style="flex:1"></span>
-            <button type="button" id="wgDelSel" class="danger" disabled>🗑 Удалить выбранные</button>
-            <button type="button" id="wgDelAll" class="danger">🗑 Удалить все</button>
-        </div>
-        <form method="post" id="wgBulkForm" style="display:none">
-            <input type="hidden" name="csrf" value="<?= h($token) ?>">
-            <input type="hidden" name="action" value="del_squad_configs">
-            <input type="hidden" name="ret" value="wg_pool">
-            <input type="hidden" name="ids" id="wgBulkIds">
-        </form>
-        <div class="wg-editbar">
-            <div class="we-lbl muted">Массово изменить параметр:</div>
-            <div class="we-grid">
-                <select id="wgEditParam" class="sqcfg-sel">
-                    <option value="mtu">MTU</option>
-                    <option value="keepalive">PersistentKeepalive</option>
-                    <option value="dns">DNS</option>
-                    <option value="allowedips">AllowedIPs</option>
+                <label>Пользователь</label>
+                <div style="display:flex;gap:.4rem;margin-bottom:.4rem"><input type="text" id="wgm_q" placeholder="shortUuid или имя" style="flex:1"><button type="button" class="btn ghost" id="wgm_find">Найти</button></div>
+                <div id="wgm_info" class="muted" style="font-size:.82rem;margin-bottom:.8rem"></div>
+                <label>Конфиг</label>
+                <select name="config_id" id="wgm_cfg" style="margin-bottom:.8rem">
+                    <option value="">—</option>
+                    <?php foreach ($sqcfg_wg as $c): if ((int) $c['enabled'] !== 1 || !in_array('__manual__', squadconf_squads_of($c), true)) continue; $mx = $wgx_cfg[(int) $c['id']]; ?><option value="<?= (int) $c['id'] ?>"><?= h(($mx['n'] !== '' ? $mx['n'] : ('#' . $c['id'])) . ' · ' . $mx['v'] . ($mx['busy'] ? ' · занят' : '')) ?></option><?php endforeach; ?>
                 </select>
-                <input type="text" id="wgEditValue" placeholder="значение (пусто — убрать поле)">
-            </div>
-            <div class="we-btns">
-                <button type="button" id="wgEditSel" class="sqcfg-btn" disabled>К выбранным</button>
-                <button type="button" id="wgEditAll" class="sqcfg-btn">Ко всем</button>
-            </div>
-        </div>
-        <form method="post" id="wgEditForm" style="display:none">
-            <input type="hidden" name="csrf" value="<?= h($token) ?>">
-            <input type="hidden" name="action" value="bulk_edit_param">
-            <input type="hidden" name="ret" value="wg_pool">
-            <input type="hidden" name="ids" id="wgEditIds">
-            <input type="hidden" name="param" id="wgEditParamH">
-            <input type="hidden" name="value" id="wgEditValueH">
-        </form>
-        <div class="wg-editbar">
-            <div class="we-lbl muted">Группа (подпул):</div>
-            <div class="we-grid">
-                <input type="text" id="wgGrpValue" maxlength="64" placeholder="напр. NL (пусто — очистить)">
-            </div>
-            <div class="we-btns">
-                <button type="button" id="wgGrpSel" class="sqcfg-btn" disabled>К выбранным</button>
-                <button type="button" id="wgGrpAll" class="sqcfg-btn">Ко всем</button>
-            </div>
-        </div>
-        <form method="post" id="wgGrpForm" style="display:none">
-            <input type="hidden" name="csrf" value="<?= h($token) ?>">
-            <input type="hidden" name="action" value="bulk_set_group">
-            <input type="hidden" name="ret" value="wg_pool">
-            <input type="hidden" name="ids" id="wgGrpIds">
-            <input type="hidden" name="group" id="wgGrpValueH">
-        </form>
-        <style>#wgTbl.pgr-pre tbody tr:nth-child(n+<?= $wg_psize + 1 ?>){display:none}#wgPager{min-height:2.1rem}</style>
-        <table class="logtbl pgr-pre" id="wgTbl">
-            <thead><tr><th style="width:1%"><input type="checkbox" id="wgChkAll" aria-label="Выбрать все"></th><th>Сквады</th><th>Тип</th><th>Метка</th><th>Группа</th><th>Статус</th><th>Выдан</th><th></th></tr></thead>
-            <tbody>
-            <?php foreach ($sqcfg_wg as $c):
-                $pn = json_decode((string) ($c['parsed'] ?? ''), true);
-                $sumr = is_array($pn) ? squadconf_summary($pn) : ($c['type'] ?? '');
-                $csquads = squadconf_squads_of($c);
-                $on = (int) $c['enabled'] === 1;
-                $cgrp = trim((string) ($c['grp'] ?? ''));
-                $sqcfg_edit[(int) $c['id']] = ['squads' => array_values($csquads), 'name' => (string) ($c['name'] ?? ''), 'raw' => (string) $c['raw'], 'grp' => $cgrp];
-                $lz = $sqcfg_lease_by_cfg[(int) $c['id']] ?? null;
-            ?>
-            <tr>
-                <td><input type="checkbox" class="wg-chk" value="<?= (int) $c['id'] ?>"></td>
-                <td><?php foreach ($csquads as $sq): ?><span class="sq-tag"><?= h($sqcfg_names[$sq] ?? $sq) ?></span><?php endforeach; ?></td>
-                <td><span class="tag normal"><?= h($sumr) ?></span></td>
-                <td><?= $c['name'] !== null && $c['name'] !== '' ? h($c['name']) : '<span class="muted">—</span>' ?></td>
-                <td><?= $cgrp !== '' ? '<span class="sq-tag">' . h($cgrp) . '</span>' : '<span class="muted">—</span>' ?></td>
-                <td>
-                    <form method="post" style="margin:0;display:inline">
-                        <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                        <input type="hidden" name="action" value="toggle_squad_config">
-                        <input type="hidden" name="ret" value="wg_pool">
-                        <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
-                        <input type="hidden" name="enabled" value="<?= $on ? '0' : '1' ?>">
-                        <button type="submit" class="sqcfg-btn <?= $on ? '' : 'off' ?>"><?= $on ? '✅ Включён' : '⛔ Выключен' ?></button>
-                    </form>
-                </td>
-                <td>
-                <?php if ($lz): $lsu = trim((string) ($lz['short_uuid'] ?? '')); $lhw = (string) ($lz['hwid'] ?? ''); $lplat = $lhw !== '' ? (string) ($sqcfg_hwid_plat[$lhw] ?? '') : ''; $lua = (string) ($lz['ua'] ?? ''); ?>
-                    <?php $lname = ($lsu !== '' && !empty($wg_uc[$lsu]['u'])) ? (string) $wg_uc[$lsu]['u'] : ($lsu !== '' ? $lsu : '—'); ?>
-                    <span class="wg-issued" data-su="<?= h($lsu) ?>" data-hwid="<?= h($lhw) ?>" data-plat="<?= h($lplat) ?>" data-ua="<?= h($lua) ?>" data-manual="<?= (int) ($lz['manual'] ?? 0) ?>"><span class="wg-issued-name"><?= h($lname) ?></span></span>
-                <?php else: ?>
-                    <span class="muted">свободен</span>
-                <?php endif; ?>
-                </td>
-                <td style="text-align:right;white-space:nowrap">
-                    <?php if ($lz && (int) ($lz['manual'] ?? 0) === 0): ?>
-                    <form method="post" style="margin:0;display:inline" onsubmit="return uiConfirmForm(this,'Освободить слот? Текущая выдача снимется, конфиг станет свободным и уйдёт следующему совместимому устройству.')">
-                        <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                        <input type="hidden" name="action" value="pool_free_slot">
-                        <input type="hidden" name="ret" value="wg_pool">
-                        <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
-                        <button type="submit" class="sqcfg-btn" title="Снять выдачу — конфиг станет свободным">✕ Слот</button>
-                    </form>
-                    <?php endif; ?>
-                    <button type="button" class="sqcfg-btn sqcfg-edit" data-id="<?= (int) $c['id'] ?>">✎ Изменить</button>
-                    <form method="post" style="margin:0;display:inline" onsubmit="return uiConfirmForm(this,'Удалить этот конфиг?')">
-                        <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                        <input type="hidden" name="action" value="del_squad_config">
-                        <input type="hidden" name="ret" value="wg_pool">
-                        <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
-                        <button type="submit" class="danger">🗑 Удалить</button>
-                    </form>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <div id="wgPager" style="margin-top:.85rem;display:flex;justify-content:flex-end"></div>
-        <?php endif; ?>
-    </div>
-
-    <div id="sqEditModal" class="modal-overlay">
-        <div class="modal">
-            <div class="modal-head">
-                <div>Редактировать конфиг</div>
-                <button type="button" class="modal-x" onclick="sqEditClose()">×</button>
-            </div>
-            <div class="modal-body">
-                <form method="post" autocomplete="off">
-                    <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                    <input type="hidden" name="action" value="edit_squad_config">
-                    <input type="hidden" name="ret" value="wg_pool">
-                    <input type="hidden" name="id" id="sqedit_id" value="">
-                    <div style="margin-bottom:.85rem">
-                        <label>Сквады</label>
-                        <div class="sq-grid" id="sqedit_chips">
-                            <label class="sq-item sq-manual"><input type="checkbox" name="squads[]" value="__manual__"><span class="sq-mtxt"><span class="sq-n">🔧 Ручная привязка</span><span class="muted" style="font-size:.72rem">в обход сквадов</span></span></label>
-                            <?php foreach ($sqcfg_squads as $s): ?>
-                                <label class="sq-item"><input type="checkbox" name="squads[]" value="<?= h($s['uuid']) ?>"><span class="sq-n"><?= h($s['name']) ?></span><span class="muted" style="font-size:.78rem"><?= (int) $s['members'] ?></span></label>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                    <div style="margin-bottom:.85rem">
-                        <label>Метка</label>
-                        <input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required>
-                        <div class="muted" style="font-size:.8rem;margin-top:.4rem;line-height:1.5">Страна в начале метки — флаг подставится сам (Нидерланды → 🇳🇱, Европа → 🇪🇺).</div>
-                    </div>
-                    <div style="margin-bottom:.85rem">
-                        <label>Группа / подпул <span class="muted" style="font-weight:400">— необязательно</span></label>
-                        <input type="text" name="grp" id="sqedit_grp" maxlength="64" placeholder="напр.: NL">
-                    </div>
-                    <div style="margin-bottom:.85rem">
-                        <label>Конфиг</label>
-                        <textarea name="raw" id="sqedit_raw" rows="11" spellcheck="false" required style="font-family:monospace;font-size:.82rem"></textarea>
-                    </div>
-                    <div style="display:flex;gap:.6rem">
-                        <button type="submit" class="btn">Сохранить изменения</button>
-                        <button type="button" class="sqcfg-btn" onclick="sqEditClose()">Отмена</button>
-                    </div>
-                </form>
-            </div>
+                <label>Устройство</label>
+                <select id="wgm_hwid" name="hwid" style="margin-bottom:1rem"><option value="">любое (на пользователя)</option></select>
+                <p class="muted" style="font-size:.78rem;margin:0 0 1rem">Конфиги для ручной привязки — загруженные в «Ручную привязку». Одно назначение на пользователя или устройство: новое заменяет прежнее. Один конфиг не назначайте двум людям — это один ключ на двоих.</p>
+                <button type="submit" class="btn" id="wgm_submit" disabled>Назначить</button>
+            </form>
         </div>
     </div>
+</div>
 
-    <?php include __DIR__ . '/_sqcfg_js.php'; ?>
-    <script>
-    window.SQCFG = <?= json_encode($sqcfg_edit ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    window.WG_UCACHE = <?= json_encode($wg_uc, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    sqcfgInitEdit();
-    sqcfgInitPager('wgTbl', 'wgPager', 'wgSize', 'wgpool_size');
-    sqcfgInitFileBtn('wgFiles', 'wgFilesInfo');
-    (function(){
-        var form = document.getElementById('wgUpForm'), inp = document.getElementById('wgFiles'), hid = document.getElementById('wgFilesJson');
-        if (!form || !inp || !hid) return;
-        var done = false;
-        form.addEventListener('submit', function(e){
-            if (done) return;
-            if (!inp.files || !inp.files.length) return;
-            e.preventDefault();
-            var files = Array.prototype.slice.call(inp.files), out = [], left = files.length;
-            files.forEach(function(f){
-                var fr = new FileReader();
-                fr.onload = function(){ out.push({n: f.name, c: String(fr.result)}); if (--left === 0) fin(); };
-                fr.onerror = function(){ if (--left === 0) fin(); };
-                fr.readAsText(f);
-            });
-            function fin(){ hid.value = JSON.stringify(out); inp.disabled = true; done = true; form.submit(); }
-        });
-    })();
-    (function(){
-        var form = document.getElementById('wgEditForm');
-        if (!form) return;
-        var selB = document.getElementById('wgEditSel'), allB = document.getElementById('wgEditAll');
-        var pIn = document.getElementById('wgEditParam'), vIn = document.getElementById('wgEditValue');
-        var idsH = document.getElementById('wgEditIds'), pH = document.getElementById('wgEditParamH'), vH = document.getElementById('wgEditValueH');
-        function chks(){ return Array.prototype.slice.call(document.querySelectorAll('.wg-chk')); }
-        function checked(){ return chks().filter(function(c){ return c.checked; }).map(function(c){ return c.value; }); }
-        function upd(){ if (selB) selB.disabled = checked().length === 0; }
-        document.addEventListener('change', function(e){ if (e.target && e.target.classList && (e.target.classList.contains('wg-chk') || e.target.id === 'wgChkAll')) upd(); });
-        function go(ids){
-            if (!ids.length) return;
-            var label = pIn.options[pIn.selectedIndex].text, v = vIn.value;
-            uiConfirm('Изменить «' + label + '» = "' + (v || '(убрать поле)') + '" у ' + ids.length + ' конфиг(ов)?', function(){
-                idsH.value = ids.join(','); pH.value = pIn.value; vH.value = v; form.submit();
-            }, 'Применить', false);
-        }
-        if (selB) selB.addEventListener('click', function(){ go(checked()); });
-        if (allB) allB.addEventListener('click', function(){ go(chks().map(function(c){ return c.value; })); });
-        upd();
-    })();
-    (function(){
-        var form = document.getElementById('wgGrpForm');
-        if (!form) return;
-        var selB = document.getElementById('wgGrpSel'), allB = document.getElementById('wgGrpAll');
-        var vIn = document.getElementById('wgGrpValue');
-        var idsH = document.getElementById('wgGrpIds'), vH = document.getElementById('wgGrpValueH');
-        function chks(){ return Array.prototype.slice.call(document.querySelectorAll('.wg-chk')); }
-        function checked(){ return chks().filter(function(c){ return c.checked; }).map(function(c){ return c.value; }); }
-        function upd(){ if (selB) selB.disabled = checked().length === 0; }
-        document.addEventListener('change', function(e){ if (e.target && e.target.classList && (e.target.classList.contains('wg-chk') || e.target.id === 'wgChkAll')) upd(); });
-        function go(ids){
-            if (!ids.length) return;
-            var v = vIn.value.trim();
-            uiConfirm('Проставить группу "' + (v || '(очистить)') + '" у ' + ids.length + ' конфиг(ов)?', function(){
-                idsH.value = ids.join(','); vH.value = v; form.submit();
-            }, 'Применить', false);
-        }
-        if (selB) selB.addEventListener('click', function(){ go(checked()); });
-        if (allB) allB.addEventListener('click', function(){ go(chks().map(function(c){ return c.value; })); });
-        upd();
-    })();
-    (function(){
-        var all = document.getElementById('wgChkAll'), selBtn = document.getElementById('wgDelSel'), allBtn = document.getElementById('wgDelAll');
-        var cnt = document.getElementById('wgChkCount'), form = document.getElementById('wgBulkForm'), idsInp = document.getElementById('wgBulkIds');
-        if (!form) return;
-        function chks(){ return Array.prototype.slice.call(document.querySelectorAll('.wg-chk')); }
-        function upd(){ var a = chks(), n = a.filter(function(c){ return c.checked; }).length; if (cnt) cnt.textContent = 'Выбрано: ' + n; if (selBtn) selBtn.disabled = n === 0; if (all){ all.checked = n > 0 && n === a.length; all.indeterminate = n > 0 && n < a.length; } }
-        if (all) all.addEventListener('change', function(){ var c = all.checked; chks().forEach(function(x){ x.checked = c; }); upd(); });
-        document.addEventListener('change', function(e){ if (e.target && e.target.classList && e.target.classList.contains('wg-chk')) upd(); });
-        function go(ids, msg){ if (!ids.length) return; uiConfirm(msg, function(){ idsInp.value = ids.join(','); form.submit(); }, 'Удалить', true); }
-        if (selBtn) selBtn.addEventListener('click', function(){ var ids = chks().filter(function(c){ return c.checked; }).map(function(c){ return c.value; }); go(ids, 'Удалить выбранные конфиги: ' + ids.length + '?'); });
-        if (allBtn) allBtn.addEventListener('click', function(){ var ids = chks().map(function(c){ return c.value; }); go(ids, 'Удалить ВСЕ ' + ids.length + ' конфигов из пула? Отменить нельзя.'); });
-        upd();
-    })();
-    (function(){
-        var cells = Array.prototype.slice.call(document.querySelectorAll('.wg-issued'));
-        if (!cells.length) return;
-        var CACHE = window.WG_UCACHE || {};
-        function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':s); return d.innerHTML.replace(/"/g,'&quot;'); }
-        function osFile(p){ p=String(p||'').toLowerCase();
-            if(/ios|iphone|ipad|ipados|mac|darwin|os ?x/.test(p)) return 'apple';
-            if(/android/.test(p)) return 'android';
-            if(/win/.test(p)) return 'windows';
-            if(/linux|ubuntu|debian|fedora|arch|centos/.test(p)) return 'linux';
-            return 'device'; }
-        function ico(f){ return '<span class="osico" style="-webkit-mask-image:url(assets/os/'+f+'.svg);mask-image:url(assets/os/'+f+'.svg)"></span>'; }
-        function clientName(ua){ var raw=String(ua||''), u=raw.toLowerCase(); if(!u) return '';
-            if(/v2rayng/.test(u)) return 'v2rayNG';
-            if(/v2rayn(?!g)/.test(u)) return 'v2rayN';
-            if(/v2raytun/.test(u)) return 'v2RayTun';
-            if(/happ/.test(u)) return 'Happ';
-            if(/incy/.test(u)) return 'INCY';
-            if(/throne/.test(u)) return 'Throne';
-            if(/hiddify/.test(u)) return 'Hiddify';
-            if(/karing/.test(u)) return 'Karing';
-            if(/clash|mihomo|meta|stash|flclash|verge|koala/.test(u)) return 'Clash/Mihomo';
-            if(/sing[- ]?box/.test(u)) return 'sing-box';
-            if(/streisand/.test(u)) return 'Streisand';
-            if(/shadowrocket/.test(u)) return 'Shadowrocket';
-            if(/nekobox|nekoray/.test(u)) return 'NekoBox';
-            var m=raw.split(/[\/ ]/)[0]; return m ? m.slice(0,24) : raw.slice(0,24); }
-        function render(c, name, model, plat, lim){
-            var su=c.dataset.su||'', hw=c.dataset.hwid||'', man=c.dataset.manual==='1';
-            var ua=c.dataset.ua||'', cli=clientName(ua);
-            plat = plat || c.dataset.plat || '';
-            var disp = name || su || '—';
-            var lines = [];
-            if (name) lines.push(name);
-            if (su) lines.push('ID: ' + su);
-            lines.push('клиент: ' + (cli || 'неизвестен'));
-            if (hw) { lines.push((model?model+' · ':'') + (plat||'ОС не определена')); lines.push('hwid: ' + hw); }
-            else lines.push('привязка на пользователя');
-            if (lim != null) lines.push('лимит устройств: ' + lim);
-            if (man) lines.push('ручная привязка');
-            if (ua) lines.push('UA: ' + ua);
-            var tip = lines.join('\n');
-            var dev = hw
-                ? ('<span class="wg-issued-dev">(' + ico(osFile(plat)) + ')</span>')
-                : ('<span class="muted" style="font-size:.72rem">(на польз.)</span>');
-            var cliTag = cli ? (' <span class="wg-cli">' + esc(cli) + '</span>') : '';
-            c.innerHTML = '<span class="wg-tip" data-tip="'+esc(tip)+'"><span class="wg-issued-name">'+esc(disp)+'</span> '+dev+cliTag+(man?' <span class="muted">🔧</span>':'')+'</span>';
-        }
-        function fromCache(c){
-            var su=c.dataset.su||'', e=su?CACHE[su]:null; if(!e) return false;
-            var hw=c.dataset.hwid||'', dv=(e.d&&e.d[hw])?e.d[hw]:null;
-            render(c, e.u||su, dv?(dv.m||''):'', dv?(dv.p||''):(c.dataset.plat||''), (e.lim!=null?e.lim:null));
-            return true;
-        }
-        var bySu={};
-        cells.forEach(function(c){
-            if(fromCache(c)) return;
-            render(c,'','',c.dataset.plat||'',null);
-            var su=c.dataset.su||''; if(su)(bySu[su]=bySu[su]||[]).push(c);
-        });
-        Object.keys(bySu).forEach(function(su){
-            fetch('?ajax=pool_user&q='+encodeURIComponent(su)).then(function(r){return r.json();}).then(function(d){
-                if(!d||!d.ok||!d.user) return;
-                var uname=d.user.username||su, lim=(d.user.hwidDeviceLimit!=null?d.user.hwidDeviceLimit:null), devs=d.devices||[];
-                bySu[su].forEach(function(c){
-                    var hw=c.dataset.hwid||'', dev=null;
-                    for(var i=0;i<devs.length;i++){ if(String(devs[i].hwid||'')===hw){ dev=devs[i]; break; } }
-                    render(c, uname, dev?(dev.deviceModel||''):'', dev?(dev.platform||''):(c.dataset.plat||''), lim);
+<form method="post" id="wgxManDelF" hidden><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="pool_manual_del"><input type="hidden" name="ret" value="wg_pool"><input type="hidden" name="id" value=""></form>
+
+<div id="sqEditModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-head"><div>Изменить конфиг</div><button type="button" class="modal-x" onclick="sqEditClose()">×</button></div>
+        <div class="modal-body">
+            <form method="post" autocomplete="off">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="edit_squad_config">
+                <input type="hidden" name="ret" value="wg_pool">
+                <input type="hidden" name="id" id="sqedit_id" value="">
+                <label>Куда</label>
+                <div class="sq-grid" id="sqedit_chips" style="margin-bottom:.85rem">
+                    <label class="sq-item sq-manual"><input type="checkbox" name="squads[]" value="__manual__"><span class="sq-mtxt"><span class="sq-n">Ручная привязка</span><span class="muted" style="font-size:.72rem">в обход сквадов</span></span></label>
+                    <?php foreach ($wgx_sq_all as $s): ?>
+                        <label class="sq-item"><input type="checkbox" name="squads[]" value="<?= h($s['uuid']) ?>"><span class="sq-n"><?= h($s['name']) ?></span><span class="muted" style="font-size:.78rem"><?= $s['members'] === '' ? '' : (int) $s['members'] ?></span></label>
+                    <?php endforeach; ?>
+                </div>
+                <div style="display:grid;grid-template-columns:2fr 1fr;gap:.6rem;margin-bottom:.85rem">
+                    <div><label>Метка</label><input type="text" name="name" id="sqedit_name" class="sqcfg-flag" maxlength="191" required></div>
+                    <div><label>Группа</label><input type="text" name="grp" id="sqedit_grp" maxlength="64" placeholder="напр. NL"></div>
+                </div>
+                <label>Конфиг</label>
+                <textarea name="raw" id="sqedit_raw" rows="11" spellcheck="false" required style="font-family:monospace;font-size:.8rem;margin-bottom:.85rem"></textarea>
+                <div style="display:flex;gap:.6rem"><button type="submit" class="btn">Сохранить</button><button type="button" class="btn ghost" onclick="sqEditClose()">Отмена</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<?php include __DIR__ . '/_sqcfg_js.php'; ?>
+<script>
+window.SQCFG = <?= json_encode($sqcfg_edit, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+window.WGX = <?= json_encode($wgx_cell, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+sqcfgInitEdit();
+(function(){
+    var NAMES = <?= json_encode($wgx_names, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    var CSRF = <?= json_encode($token) ?>;
+    var D = window.WGX || {};
+    var $ = function(id){ return document.getElementById(id); };
+    function esc(s){ var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+    function ago(ts){ if (!ts) return ''; var d = Math.max(0, Math.floor(Date.now() / 1000) - ts); if (d < 3600) return Math.max(1, Math.floor(d / 60)) + ' мин назад'; if (d < 86400) return Math.floor(d / 3600) + ' ч назад'; return Math.floor(d / 86400) + ' дн назад'; }
+
+    var stF = '', poolF = '', q = '', sel = false, picked = {};
+    var chips = Array.prototype.slice.call(document.querySelectorAll('.wgx-chip'));
+    function apply(){
+        var any = 0;
+        document.querySelectorAll('.wgx-sec').forEach(function(sec){
+            var secVis = 0;
+            if (poolF && sec.dataset.pool !== poolF) { sec.hidden = true; return; }
+            sec.querySelectorAll('.wgx-grp').forEach(function(g){
+                var n = 0;
+                g.querySelectorAll('.wgx-chip').forEach(function(c){
+                    var ok = (!stF || c.dataset.st === stF) && (!q || c.dataset.q.indexOf(q) > -1);
+                    c.hidden = !ok; if (ok) n++;
                 });
-            }).catch(function(){});
+                g.hidden = n === 0; secVis += n;
+            });
+            sec.hidden = secVis === 0; any += secVis;
         });
-    })();
-    (function(){
-        var NAMES = <?= json_encode($sqcfg_names, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-        sqcfgInitManual(NAMES);
-        function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':s); return d.innerHTML.replace(/"/g,'&quot;'); }
-        function wgpApply(rows){
-            document.querySelectorAll('.wgp-u').forEach(function(td){
-                var row = td.parentNode, su = td.dataset.su, r = (rows || {})[su];
-                var dd = row.querySelector('.wgp-d');
-                var stock = parseInt((row.children[2] || {}).textContent || '0', 10);
-                if (!r) { td.textContent = '0'; dd.textContent = '0'; dd.classList.remove('wgp-warn'); return; }
-                td.textContent = (r.active || 0) + ' / ' + (r.users || 0);
-                dd.textContent = r.devices || 0;
-                if (stock < (r.devices || 0)) dd.classList.add('wgp-warn'); else dd.classList.remove('wgp-warn');
-            });
+        if ($('wgxNone')) $('wgxNone').hidden = any > 0 || !chips.length;
+        document.querySelectorAll('.wgx-pool').forEach(function(p){ p.classList.toggle('sel', !!poolF && p.dataset.pool === poolF); });
+    }
+    var stBox = $('wgxSt');
+    if (stBox) stBox.addEventListener('click', function(e){ var b = e.target.closest('button'); if (!b) return; stF = b.dataset.st; stBox.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); }); apply(); });
+    if ($('wgxPool')) $('wgxPool').addEventListener('change', function(){ poolF = this.value; apply(); });
+    if ($('wgxQ')) $('wgxQ').addEventListener('input', function(){ q = this.value.trim().toLowerCase(); apply(); });
+    document.querySelectorAll('.wgx-pname').forEach(function(b){ b.addEventListener('click', function(){ var v = b.dataset.pool; poolF = poolF === v ? '' : v; if ($('wgxPool')) $('wgxPool').value = poolF; apply(); if (poolF && window.innerWidth <= 1100) $('wgxCfg').scrollIntoView({behavior: 'smooth', block: 'start'}); }); });
+
+    var pop = $('wgxPop'), cur = null, f1 = $('wgxF1');
+    function f1go(action, id, extra){ f1.elements.action.value = action; f1.elements.id.value = id; f1.elements.enabled.value = extra || ''; f1.submit(); }
+    function popClose(){ pop.hidden = true; document.querySelectorAll('.wgx-chip.pk').forEach(function(c){ c.classList.remove('pk'); }); cur = null; }
+    function cid(){ return cur && D[cur] ? String(D[cur].id) : ''; }
+    function popOpen(chip){
+        var k = chip.dataset.k, id = chip.dataset.id, x = D[k]; if (!x) return;
+        if (cur) popClose();
+        cur = k; chip.classList.add('pk');
+        $('wgxPopN').textContent = x.n || ('#' + id);
+        var v = $('wgxPopV'); v.textContent = x.v; v.className = 'wgx-vt ' + x.vc;
+        var pn = function(s){ return NAMES[s] || s; };
+        var also = (x.sq || []).filter(function(s){ return s !== x.p; }).map(pn).join(', ');
+        var rows = [['Пул', pn(x.p) + (x.g ? ' · группа ' + x.g : '')]];
+        if (also) rows.push(['Также в', also]);
+        rows.push(['Адрес', x.ep || '—']);
+        if (x.st === 'used') {
+            var who = (x.u || x.su) + (x.man ? ' · вручную' : '');
+            var dev = x.hw ? ((x.dm ? x.dm + ' · ' : '') + (x.dp || 'устройство')) : 'любое устройство';
+            rows.push(['Выдан', who]); rows.push(['Устройство', dev]);
+            if (x.cl || x.seen) rows.push(['Клиент', (x.cl || '—') + (x.seen ? ' · ' + ago(x.seen) : '')]);
+        } else rows.push(['Состояние', x.st === 'free' ? 'свободен' : (x.st === 'off' ? 'выключен' : 'общий — получают все в скваде')]);
+        $('wgxPopD').innerHTML = rows.map(function(r){ return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>'; }).join('');
+        $('wgxPopEdit').dataset.id = id;
+        $('wgxPopFree').hidden = !(x.st === 'used' && !x.man);
+        $('wgxPopTog').textContent = x.on ? 'Выключить' : 'Включить';
+        var r = chip.getBoundingClientRect(), pw = Math.min(340, window.innerWidth - 24);
+        pop.hidden = false;
+        var ph = pop.offsetHeight, top = r.bottom + 6;
+        if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+        pop.style.top = top + 'px';
+        pop.style.left = Math.min(Math.max(12, r.left), window.innerWidth - pw - 12) + 'px';
+    }
+    function bulkSync(){ var n = Object.keys(picked).length; $('wgxBulkN').textContent = n; }
+    function setSel(on){ sel = on; $('wgxSelMode').setAttribute('aria-pressed', on ? 'true' : 'false'); $('wgxSelMode').classList.toggle('pri', on); $('wgxBulk').hidden = !on; if (!on) { picked = {}; chips.forEach(function(c){ c.classList.remove('chk'); }); } bulkSync(); popClose(); }
+    document.addEventListener('click', function(e){
+        var chip = e.target.closest('.wgx-chip');
+        if (chip) {
+            if (sel) { var id = chip.dataset.id, on = !picked[id]; if (on) picked[id] = 1; else delete picked[id]; document.querySelectorAll('.wgx-chip[data-id="' + id + '"]').forEach(function(c){ c.classList.toggle('chk', on); }); bulkSync(); return; }
+            if (cur === chip.dataset.k) popClose(); else popOpen(chip);
+            return;
         }
-        var WGP_HINT = 'Добавлено — реально зарегистрированные устройства из базы hwid. Красным — пул меньше факта.';
-        var calc = document.getElementById('wgpCalc'), wgpMsg = document.getElementById('wgpCalcMsg');
-        if (calc) {
-            calc.addEventListener('click', function(){
-                if (wgpMsg) wgpMsg.textContent = 'Считаю по панели…'; calc.disabled = true;
-                fetch('?ajax=pool_sizing&csrf=<?= h($token) ?>').then(function(r){ return r.json(); }).then(function(d){
-                    calc.disabled = false;
-                    if (!d.ok) { if (wgpMsg) wgpMsg.textContent = 'Ошибка: ' + (d.error || 'нет данных'); return; }
-                    wgpApply(d.rows);
-                    if (d.totals) { var tr = document.getElementById('wgpTotRec'), tu = document.getElementById('wgpTotUniq'); if (tr) tr.textContent = d.totals.records || 0; if (tu) tu.textContent = d.totals.unique || 0; }
-                    var extra = d.warn ? (' <span class="wgp-warn">hwid-эндпоинт: ' + esc(d.warn) + '</span>') : '';
-                    if (wgpMsg) wgpMsg.innerHTML = 'Рассчитано только что. ' + WGP_HINT + extra;
-                }).catch(function(){ calc.disabled = false; if (wgpMsg) wgpMsg.textContent = 'Ошибка запроса'; });
-            });
-        }
-    })();
-    </script>
+        if (!pop.hidden && !e.target.closest('#wgxPop')) popClose();
+    });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { popClose(); drClose(); manClose(); } });
+    window.addEventListener('resize', popClose);
+    document.addEventListener('scroll', function(){ if (!pop.hidden) popClose(); }, true);
+    $('wgxPopX').addEventListener('click', popClose);
+    $('wgxPopEdit').addEventListener('click', popClose);
+    $('wgxPopFree').addEventListener('click', function(){ var id = cid(); uiConfirm('Освободить конфиг? Выдача снимется, и конфиг уйдёт следующему подходящему клиенту.', function(){ f1go('pool_free_slot', id); }, 'Освободить', false); });
+    $('wgxPopTog').addEventListener('click', function(){ var id = cid(), x = D[cur]; f1go('toggle_squad_config', id, x.on ? '0' : '1'); });
+    $('wgxPopDel').addEventListener('click', function(){ var id = cid(), x = D[cur]; uiConfirm('Удалить конфиг «' + (x.n || ('#' + id)) + '»?' + (x.sq && x.sq.length > 1 ? ' Он удалится из всех пулов.' : ''), function(){ f1go('del_squad_config', id); }, 'Удалить', true); });
+    $('wgxPopDl').addEventListener('click', function(){ var x = (window.SQCFG || {})[cid()]; if (!x) return; var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([x.raw], {type: 'text/plain'})); a.download = (String(x.name || 'wg').replace(/[^\w.\-]+/g, '_').replace(/^_+|_+$/g, '') || 'wg') + '.conf'; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500); });
+
+    if ($('wgxSelMode')) $('wgxSelMode').addEventListener('click', function(){ setSel(!sel); });
+    if ($('wgxBulkX')) $('wgxBulkX').addEventListener('click', function(){ setSel(false); });
+    if ($('wgxBulkAll')) $('wgxBulkAll').addEventListener('click', function(){ chips.forEach(function(c){ if (!c.hidden && c.offsetParent !== null) { picked[c.dataset.id] = 1; c.classList.add('chk'); } }); bulkSync(); });
+    if ($('wgxBulkAct')) $('wgxBulkAct').addEventListener('change', function(){ $('wgxBulkVal').hidden = this.value === 'del'; });
+    if ($('wgxBulkGo')) $('wgxBulkGo').addEventListener('click', function(){
+        var ids = Object.keys(picked); if (!ids.length) return;
+        var a = $('wgxBulkAct').value, v = $('wgxBulkVal').value.trim(), f = $('wgxFB');
+        f.elements.ids.value = ids.join(',');
+        if (a === 'del') { f.elements.action.value = 'del_squad_configs'; uiConfirm('Удалить выбранные конфиги: ' + ids.length + '?', function(){ f.submit(); }, 'Удалить', true); return; }
+        if (a === 'grp') { f.elements.action.value = 'bulk_set_group'; f.elements.group.value = v; uiConfirm('Задать группу «' + (v || 'без группы') + '» у ' + ids.length + ' конфиг(ов)?', function(){ f.submit(); }, 'Применить', false); return; }
+        f.elements.action.value = 'bulk_edit_param'; f.elements.param.value = a; f.elements.value.value = v;
+        uiConfirm('Изменить ' + $('wgxBulkAct').options[$('wgxBulkAct').selectedIndex].text + ' = «' + (v || 'убрать поле') + '» у ' + ids.length + ' конфиг(ов)?', function(){ f.submit(); }, 'Применить', false);
+    });
+
+    var mf = $('wgxModes');
+    if (mf) mf.addEventListener('change', function(e){
+        var t = e.target;
+        if (t.id === 'wgxDays') { mf.submit(); return; }
+        if (t.type !== 'radio') return;
+        var grp = mf.querySelectorAll('input[name="' + t.name + '"]'), prev = null;
+        grp.forEach(function(r){ if (r.dataset.was === '1') prev = r; });
+        var nm = (t.closest('.wgx-pool').querySelector('.wgx-pname') || {}).textContent || '';
+        var pending = true, dlg = document.getElementById('uiDlg');
+        function back(){ if (pending && prev) prev.checked = true; pending = false; }
+        uiConfirm('Сменить режим пула «' + nm + '» на «' + t.parentNode.textContent.trim() + '»? Автовыдачи этого пула сбросятся, клиенты получат конфиги заново при следующем обновлении подписки.', function(){ pending = false; mf.submit(); }, 'Сменить', false);
+        if (dlg && window.MutationObserver) { var mo = new MutationObserver(function(){ if (!dlg.classList.contains('open')) { mo.disconnect(); setTimeout(back, 0); } }); mo.observe(dlg, {attributes: true, attributeFilter: ['class']}); }
+    });
+
+    document.addEventListener('click', function(e){
+        var d = e.target.closest('[data-mandel]');
+        if (!d) return;
+        uiConfirm('Снять ручное назначение?', function(){ var f = $('wgxManDelF'); f.elements.id.value = d.dataset.mandel; f.submit(); }, 'Снять', true);
+    });
+
+    var calc = $('wgxCalc');
+    if (calc) calc.addEventListener('click', function(){
+        var m = $('wgxCalcMsg'); m.textContent = 'Считаю по панели…'; calc.disabled = true;
+        fetch('?ajax=pool_sizing&csrf=' + encodeURIComponent(CSRF)).then(function(r){ return r.json(); }).then(function(d){
+            if (!d.ok) { calc.disabled = false; m.textContent = 'Ошибка: ' + (d.error || 'нет данных'); return; }
+            location.reload();
+        }).catch(function(){ calc.disabled = false; m.textContent = 'Панель не ответила'; });
+    });
+
+    var exBox = $('wgxEx'), exSave = $('wgxExSave');
+    function exDirty(){ if (exSave) exSave.hidden = false; }
+    if ($('wgxExAdd')) $('wgxExAdd').addEventListener('click', function(){
+        var r = document.createElement('div'); r.className = 'wgx-ex-r';
+        r.innerHTML = '<input type="text" name="ex_ua[]" maxlength="60" placeholder="напр. stash" aria-label="Подстрока UA"><select name="ex_block[]" aria-label="Что не отдавать"><option value="awg">без AWG</option><option value="all">без WG и AWG</option></select><button type="button" class="wx" data-exdel aria-label="Убрать">✕</button>';
+        exBox.appendChild(r); r.querySelector('input').focus(); exDirty();
+    });
+    if (exBox) { exBox.addEventListener('click', function(e){ var b = e.target.closest('[data-exdel]'); if (b) { b.parentNode.remove(); exDirty(); } }); exBox.addEventListener('input', exDirty); exBox.addEventListener('change', exDirty); }
+
+    var dr = $('wgxDr'), drOv = $('wgxDrOv'), upF = $('wgUpForm'), files = $('wgFiles'), raw = $('wgxRaw'), prev = $('wgxPrev'), upGo = $('wgxUpGo'), sum = $('wgxUpSum');
+    function drOpen(pool){
+        dr.hidden = false; drOv.hidden = false;
+        $('wgxDest').querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = !!pool && cb.value === pool; var l = cb.closest('.sq-item'); if (l) l.classList.toggle('on', cb.checked); });
+        refresh();
+    }
+    function drClose(){ if (dr) { dr.hidden = true; drOv.hidden = true; } }
+    document.querySelectorAll('[data-upload]').forEach(function(b){ b.addEventListener('click', function(){ drOpen(b.dataset.upload); }); });
+    if ($('wgxDrX')) $('wgxDrX').addEventListener('click', drClose);
+    if (drOv) drOv.addEventListener('click', drClose);
+    var fileItems = [], parsed = [], seq = 0;
+    function render(){
+        var tb = prev.querySelector('tbody'), ok = 0, html = '';
+        parsed.forEach(function(p){
+            var st = !p.ok ? '<span class="bad">' + esc(p.w) + '</span>' : (p.w ? '<span class="wn">' + esc(p.w) + '</span>' : '<span style="color:var(--c-ok-fg)">ок</span>');
+            if (p.ok) ok++;
+            html += '<tr><td>' + esc(p.n) + '</td><td>' + (p.v ? '<span class="wgx-vt ' + esc(p.vc) + '">' + esc(p.v) + '</span>' : '') + '</td><td class="ep">' + esc(p.ep || '') + '</td><td>' + st + '</td></tr>';
+        });
+        tb.innerHTML = html; prev.hidden = !parsed.length;
+        var dest = $('wgxDest').querySelectorAll('input:checked').length;
+        upGo.disabled = !ok || !dest;
+        upGo.textContent = ok ? 'Загрузить ' + ok : 'Загрузить';
+        sum.textContent = !parsed.length ? 'Выберите файлы или вставьте текст' : (ok + ' из ' + parsed.length + ' подходят' + (parsed.length - ok ? ' · ' + (parsed.length - ok) + ' будет пропущено' : '') + (dest ? '' : ' · отметьте, куда загрузить'));
+    }
+    function refresh(){
+        var my = ++seq;
+        if (!fileItems.length && !raw.value.trim()) { parsed = []; render(); return; }
+        upGo.disabled = true; sum.textContent = 'Проверяю…';
+        var f = new FormData(); f.append('csrf', CSRF); f.append('files_json', JSON.stringify(fileItems)); f.append('raw_batch', raw.value); f.append('label_prefix', upF.elements.label_prefix.value);
+        fetch('?ajax=parse_batch', {method: 'POST', body: f}).then(function(r){ return r.json(); }).then(function(d){
+            if (my !== seq) return;
+            parsed = (d && d.items) || []; render();
+            if (d && d.cut) sum.textContent += ' · сверх лимита в 200 не загрузится: ' + d.cut;
+        }).catch(function(){ if (my === seq) { parsed = []; render(); sum.textContent = 'Не удалось проверить — загрузка всё равно пропустит битые конфиги'; upGo.disabled = !$('wgxDest').querySelectorAll('input:checked').length; } });
+    }
+    function readFiles(list){
+        var arr = Array.prototype.slice.call(list || []), left = arr.length; fileItems = []; ++seq; upGo.disabled = true; sum.textContent = 'Читаю файлы…';
+        if (!left) { refresh(); return; }
+        arr.forEach(function(f){ var fr = new FileReader(); fr.onload = function(){ fileItems.push({n: f.name, c: String(fr.result)}); if (--left === 0) refresh(); }; fr.onerror = function(){ if (--left === 0) refresh(); }; fr.readAsText(f); });
+    }
+    if (files) files.addEventListener('change', function(){ readFiles(files.files); });
+    if (raw) raw.addEventListener('input', function(){ clearTimeout(raw._t); raw._t = setTimeout(refresh, 250); });
+    if (upF) upF.elements.label_prefix.addEventListener('input', function(){ clearTimeout(raw._t); raw._t = setTimeout(refresh, 400); });
+    if ($('wgxDest')) $('wgxDest').addEventListener('change', render);
+    var drop = $('wgxDrop');
+    if (drop) {
+        ['dragenter', 'dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('on'); }); });
+        ['dragleave', 'drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('on'); }); });
+        drop.addEventListener('drop', function(e){ readFiles(e.dataTransfer.files); });
+    }
+    if (upF) upF.addEventListener('submit', function(){ $('wgFilesJson').value = JSON.stringify(fileItems); if (files) files.disabled = true; upGo.classList.add('busy'); });
+
+    var man = $('wgxManModal');
+    function manOpen(){ if (man) man.classList.add('open'); var qi = $('wgm_q'); if (qi) setTimeout(function(){ qi.focus(); }, 30); }
+    function manClose(){ if (man) man.classList.remove('open'); }
+    document.querySelectorAll('#wgxManOpen,[data-manopen]').forEach(function(b){ b.addEventListener('click', manOpen); });
+    document.querySelectorAll('[data-manclose]').forEach(function(b){ b.addEventListener('click', manClose); });
+    if (man) man.addEventListener('click', function(e){ if (e.target === man) manClose(); });
+    if ($('wgm_q')) $('wgm_q').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); $('wgm_find').click(); } });
+    sqcfgInitManual(NAMES);
+    apply();
+})();
+</script>

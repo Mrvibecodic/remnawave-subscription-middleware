@@ -1,6 +1,6 @@
     <style>
-        .wg-up-grid,.mc-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
-        @media(max-width:720px){.wg-up-grid,.mc-grid{grid-template-columns:1fr}}
+        .mc-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
+        @media(max-width:720px){.mc-grid{grid-template-columns:1fr}}
         .sqcfg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem 1rem;align-items:end}
         .sqcfg-grid label{font-weight:600}
         .sqcfg-sel{appearance:none;-webkit-appearance:none;-moz-appearance:none;padding-right:2.2rem;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .75rem center;background-size:.95rem}

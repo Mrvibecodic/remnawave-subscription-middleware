@@ -127,7 +127,7 @@ function wglease_reclaim_days() { return max(1, (int) (setting('wgpool_reclaim_d
 
 function wglease_dev_cap() { return max(1, (int) (setting('wgpool_dev_cap', '10') ?: 10)); }
 
-function wglease_select($short_uuid, $hwid, array $u_squads, $types = null) {
+function wglease_select($short_uuid, $hwid, array $u_squads, array $prof) {
     $short_uuid = (string) $short_uuid;
     $hwid = (string) $hwid;
     $ua = substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
@@ -149,16 +149,18 @@ function wglease_select($short_uuid, $hwid, array $u_squads, $types = null) {
     foreach ($u_squads as $sq) {
         $mode = wglease_mode($sq);
         if ($mode === 'shared') continue;
-        $by_group = [];
+        $by_group = []; $group_ids = [];
         foreach ($by_squad[$sq] ?? [] as $c) {
             $id = (int) $c['id'];
             if (isset($added[$id])) continue;
             $t = (string) ($c['type'] ?? '');
             if ($t === 'vless') { $added[$id] = true; $out[] = $c; continue; }
-            if ($types !== null && !in_array($t, $types, true)) continue;
+            if (!squadconf_type_ok($c, $prof)) continue;
             $g = trim((string) ($c['grp'] ?? ''));
             $sub = ($g === '') ? ('t:' . $t) : ('t:' . $t . '|g:' . $g);
-            $by_group[$sub][] = $c;
+            $by_group[$sub] = $by_group[$sub] ?? [];
+            $group_ids[$sub][] = $id;
+            if (squadconf_cfg_ok($c, $prof)) $by_group[$sub][] = $c;
         }
         if (!$by_group) continue;
         if ($mode === 'devices') {
@@ -168,7 +170,7 @@ function wglease_select($short_uuid, $hwid, array $u_squads, $types = null) {
             $base = 's:' . $short_uuid;
         }
         foreach ($by_group as $sub => $cands) {
-            $pick = wglease_pick($sq, $base . '|' . $sub, $short_uuid, ($mode === 'devices' ? $hwid : ''), $cands, $ua);
+            $pick = wglease_pick($sq, $base . '|' . $sub, $short_uuid, ($mode === 'devices' ? $hwid : ''), $cands, $ua, $group_ids[$sub]);
             if ($pick) { $added[(int) $pick['id']] = true; $out[] = $pick; }
         }
     }
@@ -182,7 +184,7 @@ function wglease_select($short_uuid, $hwid, array $u_squads, $types = null) {
 
 function wglease_key($pool_id, $subkey) { return sha1((string) $pool_id . '|' . (string) $subkey); }
 
-function wglease_pick($pool_id, $subkey, $short_uuid, $hwid, array $cands, $ua = '') {
+function wglease_pick($pool_id, $subkey, $short_uuid, $hwid, array $cands, $ua = '', array $keep_ids = []) {
     wglease_ensure();
     if (!($p = db()) || !$cands) return null;
     $ua = (string) $ua;
@@ -203,6 +205,7 @@ function wglease_pick($pool_id, $subkey, $short_uuid, $hwid, array $cands, $ua =
         return $by_id[(int) $row['config_id']];
     }
     if ($row && !isset($by_id[(int) $row['config_id']])) {
+        if (in_array((int) $row['config_id'], $keep_ids, true)) return null;
         if ((int) $row['manual'] === 0) {
             try { $p->prepare('DELETE FROM wg_lease WHERE id = ?')->execute([(int) $row['id']]); } catch (Throwable $e) {}
         } else {
@@ -371,15 +374,6 @@ function wglease_free($config_id) {
     } catch (Throwable $e) { return 0; }
 }
 
-function wglease_dupes() {
-    wglease_ensure();
-    if (!($p = db())) return [];
-    $out = [];
-    try { foreach ($p->query('SELECT config_id, COUNT(*) c FROM wg_lease GROUP BY config_id HAVING COUNT(*) > 1') as $r) $out[(int) $r['config_id']] = (int) $r['c']; }
-    catch (Throwable $e) {}
-    return $out;
-}
-
 function wglease_list($pool_id = '') {
     wglease_ensure();
     if (!($p = db())) return [];
@@ -393,13 +387,6 @@ function wglease_list($pool_id = '') {
         foreach ($p->query('SELECT * FROM wg_lease ORDER BY pool_id, manual DESC, seen_ts DESC') as $r) $out[] = $r;
         return $out;
     } catch (Throwable $e) { return []; }
-}
-
-function wglease_manual_count() {
-    wglease_ensure();
-    if (!($p = db())) return 0;
-    try { return (int) $p->query('SELECT COUNT(*) FROM wg_lease WHERE manual = 1')->fetchColumn(); }
-    catch (Throwable $e) { return 0; }
 }
 
 function wglease_hwid_platforms() {
@@ -515,7 +502,8 @@ function wglease_sizing(&$err = '', &$warn = '', &$totals = null) {
     return $out;
 }
 
-function wglease_sizing_save($rows, $totals = null) {
+function wglease_sizing_save($rows, $totals = null, $warn = '') {
+    set_setting('wgpool_sizing_warn', (string) $warn);
     set_setting('wgpool_sizing_cache', json_encode(is_array($rows) ? $rows : [], JSON_UNESCAPED_UNICODE));
     set_setting('wgpool_sizing_totals', json_encode(is_array($totals) ? $totals : ['records' => 0, 'unique' => 0], JSON_UNESCAPED_UNICODE));
     set_setting('wgpool_sizing_ts', (string) time());
@@ -528,7 +516,7 @@ function wglease_sizing_cached() {
     $tj = (string) setting('wgpool_sizing_totals', '');
     $tot = $tj !== '' ? json_decode($tj, true) : [];
     if (!is_array($tot)) $tot = [];
-    return ['rows' => $rows, 'ts' => (int) setting('wgpool_sizing_ts', '0'), 'totals' => ['records' => (int) ($tot['records'] ?? 0), 'unique' => (int) ($tot['unique'] ?? 0)]];
+    return ['rows' => $rows, 'ts' => (int) setting('wgpool_sizing_ts', '0'), 'warn' => (string) setting('wgpool_sizing_warn', ''), 'totals' => ['records' => (int) ($tot['records'] ?? 0), 'unique' => (int) ($tot['unique'] ?? 0)]];
 }
 
 
