@@ -437,6 +437,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
   "hwid-user-devices:delete",
   "internal-squads:list",
   "external-squads:list",
+  "subscription-settings:get",
   "subscription-template:list",
   "subscription-template:get",
   "system:metadata",
@@ -461,6 +462,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
   "hwid-user-devices:list-by-user",
   "internal-squads:list",
   "external-squads:list",
+  "subscription-settings:get",
   "subscription-template:list",
   "subscription-template:get",
   "system:metadata",
@@ -475,7 +477,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 
 Не хочется возиться с отдельными эндпоинтами — можно выдать по ресурсам целиком:
 `users:read`, `users:write`, `hwid-user-devices:read`, `hwid-user-devices:write`,
-`internal-squads:read`, `external-squads:read`, `subscription-template:read`,
+`internal-squads:read`, `external-squads:read`, `subscription-settings:read`, `subscription-template:read`,
 `system:read`, `nodes:read`, `hosts:read`, `config-profiles:read`, `subscriptions:read`. Прав
 будет больше необходимого, но записывать токен сможет только в пользователей и
 устройства.
@@ -493,6 +495,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 | «Пользователи» — устройства пользователя | `hwid-user-devices:list-by-user` |
 | «Пользователи» — кнопка «удалить устройство» | `hwid-user-devices:delete` **(запись)** |
 | «Пользователи» — карточка: сквады и ноды по именам | `internal-squads:list`, `external-squads:list`, `nodes:list` |
+| «Пользователи» — общий лимит устройств в карточке | `subscription-settings:get` (без него вместо числа — «как в панели») |
 | «Пользователи» — правка, продление, возврат из грейса | `users:by-short-uuid`, `users:update` **(запись)** |
 | «Пользователи» — сброс трафика | `users:reset-traffic` **(запись)** |
 | «Пользователи» — включить / выключить | `users:enable`, `users:disable` **(запись)** |
@@ -529,6 +532,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 | `/api/hwid/devices/delete` | POST | `hwid-user-devices:delete` | **write** | удаление устройства по клику в админке |
 | `/api/internal-squads` | GET | `internal-squads:list` | read | списки сквадов в настройках |
 | `/api/external-squads` | GET | `external-squads:list` | read | внешний сквад для грейса |
+| `/api/subscription-settings` | GET | `subscription-settings:get` | read | общий лимит устройств для карточки пользователя |
 | `/api/subscription-templates` | GET | `subscription-template:list` | read | поиск шаблона xray-json по имени |
 | `/api/subscription-templates/{uuid}` | GET | `subscription-template:get` | read | тело шаблона xray-json для доп. конфигов |
 | `/api/system/metadata` | GET | `system:metadata` | read | версия панели |

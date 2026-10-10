@@ -226,10 +226,12 @@ function ua_meta() {
         $list = is_array($nr) ? ($nr['nodes'] ?? (isset($nr[0]) ? $nr : [])) : [];
         foreach ((array) $list as $n) if (is_array($n) && !empty($n['uuid'])) $nodes[(string) $n['uuid']] = (string) ($n['name'] ?? '');
     }
+    $e3 = '';
     return [
         'sq'    => remnawave_internal_squads($e1),
         'ex'    => remnawave_external_squads($e2),
         'nodes' => $nodes,
+        'hwid'  => remnawave_hwid_settings($e3),
         'err'   => $e1,
     ];
 }
