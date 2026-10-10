@@ -112,7 +112,7 @@
     .repbox-f{display:block;padding:.6rem .9rem;border-top:1px solid var(--line);text-align:center;font-size:.8rem;font-weight:600;color:var(--accent-text);text-decoration:none}
     .repbox-f:hover{background:var(--hover2)}
     .hbtn-badge{position:absolute;top:-7px;right:-8px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ef4444;color:#fff;font-size:.68rem;font-weight:700;line-height:18px;text-align:center;font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--bg)}
-    .sw-tip{position:fixed;left:0;top:0;z-index:1000;max-width:min(340px,calc(100vw - 16px));padding:.45rem .65rem;border-radius:10px;background:var(--card);color:var(--text);border:1px solid var(--line);box-shadow:0 12px 32px rgba(2,6,23,.28);font-size:.78rem;line-height:1.4;font-weight:500;letter-spacing:0;text-transform:none;white-space:normal;pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s ease,transform .12s ease}
+    .sw-tip{position:fixed;left:0;top:0;z-index:1000;max-width:min(340px,calc(100vw - 16px));padding:.45rem .65rem;border-radius:10px;background:var(--card);color:var(--text);border:1px solid var(--line);box-shadow:0 12px 32px rgba(2,6,23,.28);font-size:.78rem;line-height:1.4;font-weight:500;letter-spacing:0;text-transform:none;white-space:pre-line;pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s ease,transform .12s ease}
     .sw-tip.on{opacity:1;transform:none}
     #ghStarCount{display:inline-flex;align-items:center;height:20px;color:var(--text-strong);font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
     #ghStarCount:empty{display:none}
@@ -209,8 +209,6 @@
     @keyframes btnspin{to{transform:rotate(360deg)}}
     button.busy,.btn.busy{pointer-events:none;opacity:.8}
     button.busy::before,.btn.busy::before{content:"";display:inline-block;width:13px;height:13px;margin-right:.45rem;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:btnspin .7s linear infinite}
-    .tipbox{position:fixed;left:0;top:0;z-index:200;max-width:18rem;white-space:pre-line;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:var(--radius);padding:.4rem .6rem;font-size:.78rem;line-height:1.45;box-shadow:var(--shadow);pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s ease,transform .12s ease}
-    .tipbox.on{opacity:1;transform:translateY(0)}
     .seg a{display:inline-flex;align-items:center;text-decoration:none;white-space:nowrap}
     .seg a:hover{background:var(--hover);color:var(--text)}
     .phone{background:#000;border:8px solid;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.5)}
