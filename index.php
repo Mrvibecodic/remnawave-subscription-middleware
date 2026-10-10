@@ -360,9 +360,9 @@ $log_wg = 0;
 $log_as = ['s' => 'off'];
 if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any()
     && !$panel_hwid_block && !squadconf_user_inactive($gate_short)) {
-    $u_squads = squadconf_user_squads($short_uuid);
-    if ($u_squads) {
-        $u_cfgs = wglease_select($short_uuid, $current_hwid, $u_squads, squadconf_supported_types($response, $format));
+    $u_state = squadconf_user_state($short_uuid);
+    if ($u_state['squads'] || $u_state['status'] !== '') {
+        $u_cfgs = wglease_select($short_uuid, $current_hwid, $u_state['squads'], squadconf_supported_types($response, $format));
         if ($u_cfgs) { $response = squadconf_inject($response, $format, $u_cfgs); $log_wg = count($u_cfgs); }
     }
 }
