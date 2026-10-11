@@ -35,6 +35,29 @@ $c_color  = chat_widget_color();
         .cb-reply{display:flex;gap:.5rem;padding:.7rem;border-top:1px solid var(--line);background:var(--card)}
         .cb-reply textarea{flex:1;border:1px solid var(--line);border-radius:10px;padding:.55rem .8rem;resize:none}
         .cb-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:.9rem}
+        .cb-reply textarea{min-height:40px;max-height:140px;overflow-y:auto}
+        .cb-back{display:none}
+        .cb-hl{display:flex;align-items:center;gap:.4rem;min-width:0}
+        @media(max-width:760px){
+            .cb-chat{display:block;height:auto;border-radius:12px}
+            .cb-list{border-right:0;max-height:none;overflow:visible}
+            .cb-sess{padding:.85rem .9rem}
+            .cb-sess:last-child{border-bottom:0}
+            .cb-sess .cb-sn{font-size:.95rem}
+            .cb-sess .cb-sp{font-size:.82rem}
+            .cb-conv{display:none}
+            .cb-chat.cb-open .cb-conv{display:flex;position:fixed;left:0;right:0;top:0;height:100vh;height:100dvh;z-index:90;background:var(--bg)}
+            .cb-chat.cb-open .cb-chead{padding:calc(.45rem + env(safe-area-inset-top)) max(.6rem,env(safe-area-inset-right)) .45rem max(.4rem,env(safe-area-inset-left));min-height:56px}
+            .cb-back{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:40px;height:40px;padding:0;border:0;background:none;color:var(--text-strong);cursor:pointer}
+            .cb-back:hover,.cb-back:active{background:var(--hover);filter:none;transform:none;border-radius:10px}
+            .cb-chead .cb-hn{font-size:1rem}
+            .cb-del .cb-dt{display:none}
+            .cb-msgs{padding:.8rem max(.7rem,env(safe-area-inset-right)) .8rem max(.7rem,env(safe-area-inset-left));overscroll-behavior:contain}
+            .cb-m{max-width:86%;font-size:.95rem}
+            .cb-reply{padding:.55rem max(.6rem,env(safe-area-inset-right)) calc(.55rem + env(safe-area-inset-bottom)) max(.6rem,env(safe-area-inset-left));align-items:flex-end}
+            .cb-reply .btn{min-height:40px}
+            html:has(.cb-chat.cb-open){overflow:hidden}
+        }
     </style>
 
     <div class="card">
@@ -46,8 +69,8 @@ $c_color  = chat_widget_color();
             <div class="cb-list" id="cbList"></div>
             <div class="cb-conv">
                 <div class="cb-chead" id="cbHead" style="display:none">
-                    <span class="cb-hn" id="cbHeadName"></span>
-                    <button type="button" class="btn ghost" onclick="cbDelete()">🗑 Удалить чат</button>
+                    <div class="cb-hl"><button type="button" class="cb-back" onclick="cbBack()" aria-label="К списку диалогов"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button><span class="cb-hn" id="cbHeadName"></span></div>
+                    <button type="button" class="btn ghost cb-del" onclick="cbDelete()" aria-label="Удалить чат">🗑<span class="cb-dt"> Удалить чат</span></button>
                 </div>
                 <div class="cb-msgs" id="cbMsgs"><div class="cb-empty">Выберите диалог слева</div></div>
                 <div class="cb-reply" style="display:none" id="cbReplyBox">
@@ -145,7 +168,24 @@ $c_color  = chat_widget_color();
     <script>
     var CB_CSRF = <?= json_encode($token) ?>;
     var CB_SESS = <?= json_encode($chat_sessions, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    var cbCur = 0, cbLast = 0, cbSeen = {}, cbBusy = false, cbSBusy = false, cbSAgain = false, cbListSig = null;
+    var cbCur = 0, cbLast = 0, cbSeen = {}, cbBusy = false, cbSBusy = false, cbSAgain = false, cbListSig = null, cbPushed = false;
+    var cbMq = matchMedia('(max-width:760px)');
+    function cbFit(){var c=document.querySelector('.cb-chat.cb-open .cb-conv');var v=window.visualViewport;if(!c)return;if(!v||!cbMq.matches){c.style.height='';c.style.top='';return;}c.style.height=v.height+'px';c.style.top=v.offsetTop+'px';}
+    if(window.visualViewport){visualViewport.addEventListener('resize',cbFit);visualViewport.addEventListener('scroll',cbFit);}
+    function cbGrow(){var t=document.getElementById('cbReply');if(!t)return;t.style.height='auto';t.style.height=Math.min(t.scrollHeight+2,140)+'px';}
+    function cbClose(){
+        cbCur=0;cbLast=0;cbSeen={};
+        document.querySelector('.cb-chat').classList.remove('cb-open');
+        var cv=document.querySelector('.cb-conv');if(cv){cv.style.height='';cv.style.top='';}
+        document.getElementById('cbMsgs').innerHTML='<div class="cb-empty">Выберите диалог слева</div>';
+        document.getElementById('cbReplyBox').style.display='none';
+        document.getElementById('cbHead').style.display='none';
+        document.querySelectorAll('.cb-sess').forEach(function(x){x.classList.remove('sel');});
+        cbListSig=null;cbLoadSessions();
+    }
+    function cbBack(){if(cbPushed){cbPushed=false;history.back();}cbClose();}
+    window.addEventListener('popstate',function(){if(cbPushed){cbPushed=false;cbClose();}});
+    cbMq.addEventListener('change',function(){if(cbMq.matches&&cbCur&&!cbPushed){history.pushState({cbChat:cbCur},'');cbPushed=true;}cbFit();});
     function cbEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function cbLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);function p(n){return(n<10?'0':'')+n;}return p(d.getHours())+':'+p(d.getMinutes());}
     document.querySelectorAll('.cb-pre').forEach(function(el){el.addEventListener('click',function(){document.querySelectorAll('.cb-pre').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');});});
@@ -201,8 +241,11 @@ $c_color  = chat_widget_color();
         document.getElementById('cbHead').style.display='flex';
         var box=document.getElementById('cbMsgs');box.innerHTML='';
         document.getElementById('cbReplyBox').style.display='flex';
+        document.querySelector('.cb-chat').classList.add('cb-open');
+        if(cbMq.matches&&!cbPushed){history.pushState({cbChat:id},'');cbPushed=true;}
+        cbFit();
         fetch('?ajax=chat_msgs&sid='+id+'&after=0&csrf='+encodeURIComponent(CB_CSRF),{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
-            if(!d.ok)return;
+            if(!d.ok||id!==cbCur)return;
             var n=0;
             (d.messages||[]).forEach(function(m){if(cbPutMsg(m))n++;});
             if(n)box.scrollTop=box.scrollHeight;
@@ -215,23 +258,20 @@ $c_color  = chat_widget_color();
             var fd=new URLSearchParams();fd.set('csrf',CB_CSRF);fd.set('sid',sid);
             fetch('?ajax=chat_delete',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()})
                 .then(function(r){return r.json();}).then(function(){
-                    cbCur=0;cbLast=0;cbSeen={};
-                    document.getElementById('cbMsgs').innerHTML='<div class="cb-empty">Выберите диалог слева</div>';
-                    document.getElementById('cbReplyBox').style.display='none';
-                    document.getElementById('cbHead').style.display='none';
-                    cbLoadSessions();
+                    if(cbCur===sid)cbBack();else cbLoadSessions();
                 });
         },'Удалить',true);
     }
     function cbPollMsgs(){
         if(!cbCur||cbBusy)return; cbBusy=true;
-        fetch('?ajax=chat_msgs&sid='+cbCur+'&after='+cbLast,{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
-            cbBusy=false; if(d.ok)(d.messages||[]).forEach(cbAddMsg);
+        var sid=cbCur;
+        fetch('?ajax=chat_msgs&sid='+sid+'&after='+cbLast,{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+            cbBusy=false; if(d.ok&&sid===cbCur)(d.messages||[]).forEach(cbAddMsg);
         }).catch(function(){cbBusy=false;});
     }
     function cbSend(){
         var ta=document.getElementById('cbReply');var t=ta.value.trim();if(!t||!cbCur)return;
-        ta.value='';
+        ta.value='';cbGrow();
         var fd=new URLSearchParams();fd.set('csrf',CB_CSRF);fd.set('sid',cbCur);fd.set('body',t);
         fetch('?ajax=chat_reply',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()})
             .then(function(r){return r.json();}).then(function(){cbPollMsgs();cbLoadSessions();});
@@ -266,7 +306,9 @@ $c_color  = chat_widget_color();
             el.innerHTML=parts.join(' · ');
         });
     }
-    document.getElementById('cbReply').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();cbSend();}});
+    document.getElementById('cbReply').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!matchMedia('(pointer:coarse)').matches){e.preventDefault();cbSend();}});
+    document.getElementById('cbReply').addEventListener('input',cbGrow);
+    if(history.state&&history.state.cbChat){if(cbMq.matches){cbPushed=true;cbOpen(history.state.cbChat);}else history.replaceState(null,'');}
     cbRenderList(CB_SESS);
     setInterval(function(){if(!document.hidden){cbPollMsgs();cbLoadSessions();}},5000);
     </script>
