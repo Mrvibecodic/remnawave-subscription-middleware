@@ -1627,7 +1627,7 @@ $emoji_favicon = ($brand_icon === '' && $brand_emoji !== '')
 $fav_href = $brand_icon !== '' ? $brand_icon : ($emoji_favicon !== '' ? $emoji_favicon : $default_logo);
 ?>
 <!DOCTYPE html><html lang="ru" class="lp"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title><?= h($brand['name']) ?> · админка</title>
 <link rel="icon" href="<?= h($fav_href) ?>">
 <?php
@@ -1852,6 +1852,7 @@ $nav_off_alert = array_intersect_key($nav_badge, $nav_off);
             <?php endforeach; ?>
         </nav>
         <div class="rw-foot">
+            <a class="rw-out" href="?logout=1&amp;csrf=<?= h($token) ?>"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Выйти</a>
             <div class="theme-seg" role="group" aria-label="Тема оформления">
                 <button type="button" data-theme-set="light" onclick="setTheme('light')" aria-label="Светлая тема" title="Светлая"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Свет</span></button>
                 <button type="button" data-theme-set="system" onclick="setTheme('system')" aria-label="Системная тема" title="Как в системе"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>Авто</span></button>
@@ -1894,7 +1895,7 @@ window.addEventListener('pagehide',function(){lock=0;save();});})();</script>
             . (!$pm_sup ? ' · ниже минимально поддерживаемой ' . panel_min_supported() : ''));
 ?>
                 <a class="hbtn hbtn-ver hbtn-panel" href="?tab=sysinfo" id="panelVerBadge" data-min="<?= h(panel_min_supported()) ?>" title="<?= h($pm_ttl) ?>">Панель <code id="panelVerText"><?= $pm_ver !== '' ? h($pm_ver) : '—' ?></code><?php if ($pm_ver !== '' && !$pm_sup): ?><span class="hbtn-dot" id="panelVerDot" title="Версия панели ниже поддерживаемой"></span><?php endif; ?></a>
-                <a class="hbtn" href="?logout=1&amp;csrf=<?= h($token) ?>" title="Выйти" aria-label="Выйти"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
+                <a class="hbtn hbtn-out" href="?logout=1&amp;csrf=<?= h($token) ?>" title="Выйти" aria-label="Выйти"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a>
             </div>
         </header>
         <script>(function(){
@@ -2006,11 +2007,15 @@ var show=function(a){var s=a.getAttribute('data-tip');if(!s){hide();return;}cur=
 var r=a.getBoundingClientRect(),w=d.offsetWidth,h=d.offsetHeight,x=r.left+r.width/2-w/2,y=r.top-h-8;if(y<6)y=r.bottom+8;x=Math.max(8,Math.min(x,innerWidth-w-8));
 d.style.left=Math.round(x)+'px';d.style.top=Math.round(y)+'px';requestAnimationFrame(function(){if(cur===a)d.classList.add('on');});};
 var pick=function(t){if(!t||!t.closest)return null;var a=t.closest('[data-tip],.rvp [title]');if(!a)return null;if(a.hasAttribute('title')&&!a.hasAttribute('data-tip')){a.setAttribute('data-tip',a.getAttribute('title'));a.removeAttribute('title');}return a;};
-document.addEventListener('mouseover',function(e){var a=pick(e.target);if(a===cur)return;if(a)show(a);else hide();});
-document.addEventListener('focusin',function(e){var a=pick(e.target);if(a)show(a);});
-document.addEventListener('focusout',hide);
-document.addEventListener('mouseout',function(e){if(cur&&!e.relatedTarget)hide();});
-document.addEventListener('mousedown',hide,true);
+var touch=false,tt=0;
+var pt=function(e){if(e.pointerType)touch=e.pointerType!=='mouse';};
+document.addEventListener('pointerdown',pt,true);document.addEventListener('pointermove',pt,true);
+document.addEventListener('mouseover',function(e){if(touch)return;var a=pick(e.target);if(a===cur)return;if(a)show(a);else hide();});
+document.addEventListener('focusin',function(e){if(touch)return;var a=pick(e.target);if(a)show(a);});
+document.addEventListener('focusout',function(){if(!touch)hide();});
+document.addEventListener('mouseout',function(e){if(!touch&&cur&&!e.relatedTarget)hide();});
+document.addEventListener('mousedown',function(){if(!touch)hide();},true);
+document.addEventListener('click',function(e){if(!touch)return;var a=pick(e.target);clearTimeout(tt);if(!a||a===cur){hide();return;}if(!a.matches('.tip-tap')){for(var x=e.target;x&&x!==document.body;x=x.parentElement){if(x.matches('a,button,input,select,textarea,label,summary,[role=button],[onclick]')||getComputedStyle(x).cursor==='pointer'){hide();return;}}}show(a);tt=setTimeout(hide,5000);},true);
 window.addEventListener('scroll',hide,true);
 window.addEventListener('resize',hide);
 var m=document.getElementById('repMail');
@@ -2058,6 +2063,7 @@ var HELP={
 };
 function help(k){var d=HELP[k];if(!d)return;document.getElementById('helpTitle').textContent=d.t;document.getElementById('helpBody').innerHTML=d.h;document.getElementById('helpOv').classList.add('open');}
 function helpClose(){var o=document.getElementById('helpOv');if(o)o.classList.remove('open');}
+(function(){var mq=matchMedia('(max-width:600px)');var run=function(){if(!mq.matches)return;document.querySelectorAll('.set-d:not([data-cl])').forEach(function(d){d.setAttribute('data-cl','');if(d.closest('label'))return;var vis=d.offsetParent!==null;d.classList.add('clamp');var more=vis?d.scrollHeight>d.clientHeight+2:d.textContent.trim().length>110;if(!more){d.classList.remove('clamp');return;}var b=document.createElement('button');b.type='button';b.className='set-more';b.textContent='подробнее';b.setAttribute('aria-expanded','false');b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();var c=d.classList.toggle('clamp');b.textContent=c?'подробнее':'свернуть';b.setAttribute('aria-expanded',c?'false':'true');});d.after(b);});};var undo=function(){document.querySelectorAll('.set-more').forEach(function(b){b.remove();});document.querySelectorAll('.set-d[data-cl]').forEach(function(d){d.classList.remove('clamp');d.removeAttribute('data-cl');});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();mq.addEventListener('change',function(){if(mq.matches)run();else undo();});})();
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){helpClose();if(window.uiDlgClose)uiDlgClose();}});
 function themeMark(t){if(!t){try{t=localStorage.getItem('submw_theme')||'system';}catch(e){t='system';}}document.querySelectorAll('.theme-seg button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-theme-set')===t);});}
 function setTheme(t){try{localStorage.setItem('submw_theme',t);}catch(e){}var eff=t;if(t==='system'){eff=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',eff);themeMark(t);}
@@ -2084,7 +2090,7 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
     window.uiToast=function(message){
         if(!toastEl) return;
         toastEl.textContent=message; toastEl.classList.add('show');
-        clearTimeout(toastT); toastT=setTimeout(function(){toastEl.classList.remove('show');},10000);
+        clearTimeout(toastT); toastT=setTimeout(function(){toastEl.classList.remove('show');},matchMedia('(max-width:900px)').matches?4000:10000);
     };
     toastEl && toastEl.addEventListener('click',function(){toastEl.classList.remove('show');});
     var fm=document.getElementById('flashMsg'); if(fm && fm.getAttribute('data-msg')) uiToast(fm.getAttribute('data-msg'));

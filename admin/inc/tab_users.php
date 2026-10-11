@@ -676,13 +676,13 @@ function qrSvg(t){var q=qrcode(0,'M');q.addData(t);q.make();return q.createSvgTa
 function openQr(u){if(!u.lk)return;qrLib().then(function(){$('uxQrBox').innerHTML=qrSvg(u.lk);$('uxQrT').textContent='QR-код · '+u.un;$('uxQrL').textContent=u.lk;$('uxQrCopy').onclick=function(){copy(u.lk,'Ссылка подписки скопирована');};$('uxQrOv').classList.add('open');},function(){if(window.uiAlert)uiAlert('Не загрузился генератор QR-кода');});}
 
 var CARD=null;
-function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,seq:0};drawCard();$('uxOv').classList.add('open');document.body.style.overflow='hidden';refreshCard();}
+function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,seq:0};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';refreshCard();}
 function refreshCard(){if(!CARD||CARD.create)return;var su=CARD.u.su,s=++CARD.seq;loadMeta().then(function(){if(CARD&&!CARD.create&&CARD.seq===s){var f=$('uxForm'),sc=f?f.scrollTop:0;drawCard();f=$('uxForm');if(f)f.scrollTop=sc;}});getj('ua_user','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;if(d.ok){putUser(d.user,d.mw);if(CARD.tab==='edit'&&CARD.F&&CARD.O&&CARD.O.upd!==d.user.upd&&!diffList().length)CARD.F=null;if(CARD.tab!=='edit'||!CARD.F)drawCard();render();}else{CARD.err=d.error;if(CARD.tab!=='edit')drawCard();}});}
-function openCreate(){CARD={u:null,tab:'edit',create:true,F:null,done:null};drawCard();$('uxOv').classList.add('open');document.body.style.overflow='hidden';loadMeta().then(function(){if(CARD&&CARD.create&&!CARD.done){var sc=$('uxForm')?$('uxForm').scrollTop:0;drawCard();if($('uxForm'))$('uxForm').scrollTop=sc;}});setTimeout(function(){var i=$('fUser');if(i)i.focus();},60);}
+function openCreate(){CARD={u:null,tab:'edit',create:true,F:null,done:null};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';loadMeta().then(function(){if(CARD&&CARD.create&&!CARD.done){var sc=$('uxForm')?$('uxForm').scrollTop:0;drawCard();if($('uxForm'))$('uxForm').scrollTop=sc;}});setTimeout(function(){var i=$('fUser');if(i)i.focus();},60);}
 function closeCard(force){
  if(!CARD)return;
  if(!force&&CARD.tab==='edit'&&!CARD.done&&CARD.F&&diffList().length){cfm({ic:'alert',tone:'warn',title:'Закрыть без сохранения?',sub:'изменения в форме пропадут',ok:'Закрыть',danger:true,onOk:function(){cfClose();closeCard(true);}});return;}
- $('uxOv').classList.remove('open');document.body.style.overflow='';CARD=null;
+ $('uxOv').classList.remove('open');document.documentElement.style.overflow='';document.body.style.overflow='';CARD=null;
 }
 function head(u){
  var off=u.st==='DISABLED',ini=u.un.replace(/[^a-zA-Zа-яА-Я0-9]/g,'').slice(0,2)||'?';
