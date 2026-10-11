@@ -339,6 +339,53 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-warn{background:var(--c-bad-bg);color:var(--c-bad-fg);border-radius:10px;padding:.6rem .8rem;font-size:.85rem;margin-bottom:.8rem}
 .ux-dr .ux-tag{font-size:.7rem}
 .ux-dv{white-space:nowrap}
+@media(max-width:820px){
+.ux-dh{padding:calc(.8rem + env(safe-area-inset-top)) max(1rem,env(safe-area-inset-right)) .7rem max(1rem,env(safe-area-inset-left));gap:.6rem}
+.ux-tabs{padding:0 max(.6rem,env(safe-area-inset-right)) 0 max(.6rem,env(safe-area-inset-left));overflow-x:auto;scrollbar-width:none}
+.ux-tabs::-webkit-scrollbar{display:none}
+.ux-dr .ux-tabs button{flex:none;padding:.7rem .7rem}
+.ux-db{padding:1rem max(1rem,env(safe-area-inset-right)) calc(1.4rem + env(safe-area-inset-bottom)) max(1rem,env(safe-area-inset-left));overscroll-behavior:contain}
+.ux-df{padding:.65rem max(1rem,env(safe-area-inset-right)) calc(.65rem + env(safe-area-inset-bottom)) max(1rem,env(safe-area-inset-left));border-radius:0;flex-wrap:wrap}
+.ux-dr{height:100vh;height:100dvh;bottom:auto}
+}
+@media(max-width:600px){
+.ux-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem}
+.ux .ux-kpi{padding:.5rem .6rem;border-radius:10px}
+.ux-kpi .k{font-size:.62rem;letter-spacing:.02em;line-height:1.25;align-items:flex-start}
+.ux-kpi .k i{margin-top:.25em}
+.ux-kpi .v{font-size:1.2rem;margin-top:auto}
+.ux-kpi .d{display:none}
+.ux-tbl tbody tr{grid-template-columns:minmax(0,1fr) auto;gap:.3rem .6rem;padding:.65rem .75rem}
+.ux-tbl td[data-l]::before{content:none}
+.ux-tbl td.c-st{grid-row:2;grid-column:1;justify-content:flex-start}
+.ux-tbl td.c-ex{grid-row:2;grid-column:2;justify-content:flex-end;text-align:right}
+.ux-tbl td.c-ex .ux-dt{font-size:.8rem}
+.ux-tbl td.c-tr{grid-row:3;grid-column:1/3}
+.ux-tbl td.c-tr .ux-tr{width:100%}
+.ux-tbl td.c-sq{grid-row:4;grid-column:1;justify-content:flex-start;min-width:0;overflow:hidden}
+.ux-tbl td.c-on{grid-row:4;grid-column:2;justify-content:flex-end}
+.ux-tbl td.c-on .ux-on{font-size:.76rem}
+.ux-tbl.compact td.c-sq,.ux-tbl.compact td.c-on,.ux-tbl.compact td.c-tr{display:none}
+.ux-tbl .acts{display:flex;gap:.15rem}
+.ux-tbl .acts .ux-ib{width:38px;height:38px}
+.u-sub{max-width:100%}
+.ux-dh .r1{gap:.65rem}
+.ux-av{width:36px;height:36px;border-radius:10px;font-size:.9rem}
+.ux-dh .nm{font-size:1.02rem;gap:.35rem}
+.ux-dh .x{width:40px;height:40px;margin:-.3rem -.4rem 0 auto}
+.ux-dh .r2{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -1rem;padding:0 1rem}
+.ux-dh .r2::-webkit-scrollbar{display:none}
+.ux-dh .r2 .wb{flex:none;min-height:38px}
+.ux-dh .r2 .ux-ib{flex:none;width:38px;height:38px}
+.ux-dh .r2 [data-a=reset],.ux-dh .r2 [data-a=enable],.ux-dh .r2 [data-a=disable]{display:none}
+.ux-dr[data-view=edit] .ux-dh .r2,.ux-dr[data-view=edit] .ux-dh .id{display:none}
+.ux-dr[data-view=edit] .ux-dh{padding-bottom:.55rem}
+.ux-menu{left:0!important;right:0;top:auto!important;bottom:0;min-width:0;width:100%;max-height:80vh;max-height:80dvh;overflow-y:auto;border-radius:16px 16px 0 0;border-bottom:0;padding:.5rem .5rem calc(.5rem + env(safe-area-inset-bottom));box-shadow:0 0 0 100vmax rgba(2,6,23,.45);animation:sheetIn .18s ease-out;overscroll-behavior:contain}
+.ux-menu button{min-height:46px;padding:.55rem .8rem;font-size:.95rem;gap:.8rem}
+.ux-menu button svg{width:18px;height:18px}
+.ux-cbx{width:20px;height:20px}
+.ux-cbx:checked::after{left:6px;top:2px;width:5px;height:10px}
+}
     </style>
 <div class="ux" id="ux">
     <?php if ($users_err): ?>
@@ -676,14 +723,29 @@ function qrSvg(t){var q=qrcode(0,'M');q.addData(t);q.make();return q.createSvgTa
 function openQr(u){if(!u.lk)return;qrLib().then(function(){$('uxQrBox').innerHTML=qrSvg(u.lk);$('uxQrT').textContent='QR-код · '+u.un;$('uxQrL').textContent=u.lk;$('uxQrCopy').onclick=function(){copy(u.lk,'Ссылка подписки скопирована');};$('uxQrOv').classList.add('open');},function(){if(window.uiAlert)uiAlert('Не загрузился генератор QR-кода');});}
 
 var CARD=null;
-function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,seq:0};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';refreshCard();}
+function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,seq:0};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';cardPush();refreshCard();}
 function refreshCard(){if(!CARD||CARD.create)return;var su=CARD.u.su,s=++CARD.seq;loadMeta().then(function(){if(CARD&&!CARD.create&&CARD.seq===s){var f=$('uxForm'),sc=f?f.scrollTop:0;drawCard();f=$('uxForm');if(f)f.scrollTop=sc;}});getj('ua_user','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;if(d.ok){putUser(d.user,d.mw);if(CARD.tab==='edit'&&CARD.F&&CARD.O&&CARD.O.upd!==d.user.upd&&!diffList().length)CARD.F=null;if(CARD.tab!=='edit'||!CARD.F)drawCard();render();}else{CARD.err=d.error;if(CARD.tab!=='edit')drawCard();}});}
-function openCreate(){CARD={u:null,tab:'edit',create:true,F:null,done:null};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';loadMeta().then(function(){if(CARD&&CARD.create&&!CARD.done){var sc=$('uxForm')?$('uxForm').scrollTop:0;drawCard();if($('uxForm'))$('uxForm').scrollTop=sc;}});setTimeout(function(){var i=$('fUser');if(i)i.focus();},60);}
+function openCreate(){CARD={u:null,tab:'edit',create:true,F:null,done:null};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';cardPush();loadMeta().then(function(){if(CARD&&CARD.create&&!CARD.done){var sc=$('uxForm')?$('uxForm').scrollTop:0;drawCard();if($('uxForm'))$('uxForm').scrollTop=sc;}});setTimeout(function(){var i=$('fUser');if(i)i.focus();},60);}
 function closeCard(force){
  if(!CARD)return;
  if(!force&&CARD.tab==='edit'&&!CARD.done&&CARD.F&&diffList().length){cfm({ic:'alert',tone:'warn',title:'Закрыть без сохранения?',sub:'изменения в форме пропадут',ok:'Закрыть',danger:true,onOk:function(){cfClose();closeCard(true);}});return;}
  $('uxOv').classList.remove('open');document.documentElement.style.overflow='';document.body.style.overflow='';CARD=null;
+ if(cardPushed){cardPushed=false;history.back();}
 }
+var cardPushed=false;
+function cardPush(){if(!cardPushed&&matchMedia('(max-width:900px)').matches){history.pushState({uxCard:1},'');cardPushed=true;}}
+if(history.state&&history.state.uxCard)history.replaceState(null,'');
+window.addEventListener('popstate',function(){
+ if(!cardPushed)return;cardPushed=false;if(!CARD)return;
+ var dlg=document.getElementById('uiDlg');
+ if(dlg&&dlg.classList.contains('open')){}
+ else if($('uxCfOv').classList.contains('open'))cfClose();
+ else if($('uxMenu').classList.contains('open'))closeMenu();
+ else if($('uxPickOv').classList.contains('open'))closePick();
+ else if($('uxQrOv').classList.contains('open'))$('uxQrOv').classList.remove('open');
+ else closeCard();
+ if(CARD)cardPush();
+});
 function head(u){
  var off=u.st==='DISABLED',ini=u.un.replace(/[^a-zA-Zа-яА-Я0-9]/g,'').slice(0,2)||'?';
  return '<div class="ux-dh"><div class="r1"><div class="ux-av">'+esc(ini)+'</div><div style="min-width:0"><div class="nm">'+esc(u.un)+' '+pill(u)+(u.tag?' <span class="ux-tag">'+esc(u.tag)+'</span>':'')+'</div>'+
@@ -699,6 +761,7 @@ function head(u){
 function drawCard(){
  if(!CARD)return;
  var dr=$('uxDr'),u=CARD.u;
+ dr.setAttribute('data-view',CARD.create?'create':CARD.tab);
  if(CARD.create){dr.innerHTML=CARD.done?createDone():formHtml(true);if(!CARD.done)bindForm(true);applyRo(dr);if(CARD.done)qrLib().then(function(){var b=$('uxOkQr');if(b&&CARD&&CARD.done)b.innerHTML=qrSvg(CARD.done.lk);},function(){});return;}
  if(CARD.tab==='edit'){dr.innerHTML=head(u)+formHtml(false);bindForm(false);applyRo(dr);return;}
  var h=head(u)+'<div class="ux-db">'+(CARD.err?'<div class="ux-warn">'+esc(CARD.err)+'</div>':'');
@@ -1009,7 +1072,8 @@ $('uxTag').addEventListener('change',function(){S.tag=this.value;S.page=1;render
 document.addEventListener('change',function(e){var t=e.target;if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
 document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
 window.addEventListener('resize',closeMenu);
-document.addEventListener('scroll',closeMenu,true);
+document.addEventListener('scroll',function(e){if(e.target&&e.target.closest&&e.target.closest('#uxMenu'))return;closeMenu();},true);
+document.addEventListener('click',function(e){if(!$('uxMenu').classList.contains('open')||!matchMedia('(max-width:600px)').matches||(e.target.closest&&e.target.closest('#uxMenu')))return;e.preventDefault();e.stopPropagation();closeMenu();},true);
 fillSelects();render();
 })();
     </script>
