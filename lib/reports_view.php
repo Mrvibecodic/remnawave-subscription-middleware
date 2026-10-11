@@ -11,7 +11,8 @@ const REP_VIEW_KIND_SETS = ['home' => ['wifi', 'wired']];
 const REP_VIEW_KIND_SET_NAMES = ['home' => 'Домашний (Wi-Fi и кабель)'];
 // Ниже стольких пингов доля неудач — шум, а не оценка.
 const REP_VIEW_MIN_PINGS = 20;
-const REP_VIEW_VERDICT_TTL = 259200;
+const REP_VIEW_VERDICT_TTL = 432000;
+const REP_VIEW_RECHECK = ['ok' => 259200, 'frozen' => 259200, 'dead' => 21600];
 
 function rep_view_filters(array $q) {
     $p = (int) ($q['p'] ?? 7);
@@ -894,14 +895,17 @@ function rep_view_news($limit = 12) {
     if (!$devs) return $out;
     $shorts = array_values(array_unique(array_map('strval', array_column($devs, 'short_uuid'))));
     $st = [];
-    $rows = rep_view_rows('SELECT s.short_uuid, s.hwid, s.nkey, MAX(' . rep_dead_sql('s.') . ') AS dead, MAX(CASE WHEN s.verdict = ? AND s.vat >= ? THEN 1 ELSE 0 END) AS frz'
+    $rows = rep_view_rows('SELECT s.short_uuid, s.hwid, s.nkey, MAX(' . rep_dead_sql('s.') . ') AS dead, MAX(CASE WHEN s.verdict = ? AND s.vat >= ? THEN 1 ELSE 0 END) AS frz,'
+        . ' MIN(CASE WHEN s.verdict = ? AND s.vat >= ? THEN s.vat END) AS fa, MAX(CASE WHEN s.verdict = ? AND s.vat >= ? THEN s.vat END) AS fb'
         . ' FROM rep_state s JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid AND s.last_seen = d.last_report'
         . ' WHERE s.short_uuid IN (' . implode(', ', array_fill(0, count($shorts), '?')) . ') GROUP BY s.short_uuid, s.hwid, s.nkey',
-        array_merge(['frozen', time() - REP_VIEW_VERDICT_TTL], $shorts));
+        array_merge(array_merge(...array_fill(0, 3, ['frozen', time() - REP_VIEW_VERDICT_TTL])), $shorts));
     foreach ($rows as $r) {
         $k = $r['short_uuid'] . '|' . $r['hwid'];
         $st[$k]['dead'] = ($st[$k]['dead'] ?? 0) + (int) $r['dead'];
         $st[$k]['frz']  = ($st[$k]['frz'] ?? 0) + (int) $r['frz'];
+        if ((int) $r['fa'] > 0) $st[$k]['fa'] = min($st[$k]['fa'] ?? PHP_INT_MAX, (int) $r['fa']);
+        if ((int) $r['fb'] > 0) $st[$k]['fb'] = max($st[$k]['fb'] ?? 0, (int) $r['fb']);
     }
     $names = chan_names_map();
     foreach ($devs as $i => $d) {
@@ -912,6 +916,7 @@ function rep_view_news($limit = 12) {
             's' => (string) $d['short_uuid'], 'nm' => (string) ($names[$d['short_uuid']] ?? ''),
             'm' => (string) $d['model'] === '-' ? '' : (string) $d['model'], 'o' => (string) $d['os'], 'p' => (string) $d['plat'], 'c' => (string) $d['client'],
             't' => (int) $d['last_report'], 'dead' => (int) ($st[$k]['dead'] ?? 0), 'frz' => (int) ($st[$k]['frz'] ?? 0), 'nw' => $new ? 1 : 0,
+            'fa' => (int) ($st[$k]['fa'] ?? 0), 'fb' => (int) ($st[$k]['fb'] ?? 0), 'fn' => isset($st[$k]['fa']) ? $st[$k]['fa'] + REP_VIEW_RECHECK['frozen'] : 0,
         ];
     }
 

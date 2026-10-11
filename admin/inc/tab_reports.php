@@ -95,8 +95,8 @@ $rv_win = static function ($w) use ($rv_per_t) {
     $t = [
         'p'  => [$rv_per_t, 'Сумма всех часов с замерами за выбранный период, с учётом фильтров сети и платформы.'],
         'pd' => [$rv_per_t, 'Считается целыми сутками UTC, поэтому захватывает и начало первых суток периода. Фильтр платформы здесь не применяется.'],
-        '48' => ['последние 48 ч устройств', 'В каждой сети устройства — 48 часов до её последнего часа с замерами, а не весь период. Период лишь отбирает сети, по которым пришёл отчёт. Проверка 16–20 — последняя, не старше 3 суток.'],
-        '6'  => ['по последним отчётам', 'Молчание узла — по последним (до 6) часам с замерами в каждой сети устройства: ни одного ответа за эти часы. «Режется» — по последней проверке 16–20 не старше 3 суток. Отчёт приходит не чаще раза в 6 часов, при плановом обновлении подписки, так что это не «прямо сейчас».'],
+        '48' => ['последние 48 ч устройств', 'В каждой сети устройства — 48 часов до её последнего часа с замерами, а не весь период. Период лишь отбирает сети, по которым пришёл отчёт. Проверка 16–20 — последняя, не старше 5 суток.'],
+        '6'  => ['по последним отчётам', 'Молчание узла — по последним (до 6) часам с замерами в каждой сети устройства: ни одного ответа за эти часы. «Режется» — по последней проверке 16–20 не старше 5 суток: клиент повторяет её не раньше чем через 3 суток, а новый итог с того же устройства сразу заменяет прежний. Отчёт приходит не чаще раза в 6 часов, при плановом обновлении подписки, так что это не «прямо сейчас».'],
     ][$w];
 
     return '<span class="rv-win" data-tip="' . h($t[1]) . '"><svg class="rvi"><use href="#rvi-clock"/></svg>' . h($t[0]) . '</span>';
@@ -675,6 +675,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         var M = window.SUBMW_CIS;
         var CIS = {RU:1, BY:1, UA:1, MD:1, GE:1, AM:1, AZ:1, KZ:1, UZ:1, TM:1, KG:1, TJ:1};
         var KIND = {wifi: 'Wi-Fi', mobile: 'Мобильная', wired: 'Кабель', other: 'Другая'};
+        var RCK = <?= json_encode(REP_VIEW_RECHECK, $rv_js) ?>;
         var MED = ['< 100 мс', '100–200 мс', '200–400 мс', '400–800 мс', '0,8–1,5 с', '> 1,5 с'];
         var VIEWS = {all: [0, 0, 1000, 540]};
         var st = {view: 'all', vb: VIEWS.all.slice(), metric: 'fail', sel: null, side: null};
@@ -1328,6 +1329,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var nodeNm = function (k) { return (c.nk[k] && c.nk[k].nm) || k; };
             nkeys.sort(function (a, b) { return nodeNm(a).localeCompare(nodeNm(b)); });
             var peer = function (asn, k) { return c.peers[asn + '|' + k] || null; };
+            var q2 = function (n) { return (n < 10 ? '0' : '') + n; };
+            var tfm = function (t) { var x = new Date(t * 1000); return q2(x.getDate()) + '.' + q2(x.getMonth() + 1) + ' ' + q2(x.getHours()) + ':' + q2(x.getMinutes()); };
             var diag = [];
             nkeys.forEach(function (k) {
                 var on = nets.filter(function (n) { return n.cells[k] && n.cells[k].pn > 0; }), dd = on.filter(function (n) { return n.cells[k].dead; });
@@ -1345,7 +1348,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             });
             nets.forEach(function (n) {
                 var fz = nkeys.filter(function (k) { return n.cells[k] && n.cells[k].v === 'frozen'; });
-                if (fz.length) diag.push({j: fz[0] + '|' + n.net, s: 'warn', ic: 'scissors', t: '16–20 режется в сети «' + label(n) + '»: ' + fz.map(nodeNm).join(', '), w: 'Пинг до узлов проходит, а соединение рвётся после первых килобайт — признак DPI. Помогает другой транспорт или порт.'});
+                var fa = 0, fb = 0; fz.forEach(function (k) { var t = n.cells[k].va; if (t > 0) { fa = fa ? Math.min(fa, t) : t; fb = Math.max(fb, t); } });
+                if (fz.length) diag.push({j: fz[0] + '|' + n.net, s: 'warn', ic: 'scissors', t: '16–20 режется в сети «' + label(n) + '»: ' + fz.map(nodeNm).join(', '), w: 'Пинг до узлов проходит, а соединение рвётся после первых килобайт — признак DPI. Помогает другой транспорт или порт.' + (fa ? ' Проверка — ' + (fb - fa > 3600 ? tfm(fa) + '–' + (tfm(fa).slice(0, 5) === tfm(fb).slice(0, 5) ? tfm(fb).slice(6) : tfm(fb)) : tfm(fb)) + '; ' + (fa + RCK.frozen > Date.now() / 1000 ? 'клиент повторит её не раньше ' + tfm(fa + RCK.frozen) + ', пока приложение запущено, и новый итог придёт со следующим отчётом.' : 'повтор ожидался с ' + tfm(fa + RCK.frozen) + ' — новый итог придёт со следующим отчётом и заменит этот.') : '')});
             });
             var mb = [0, 0, 0, 0, 0, 0], tp = 0, tf = 0;
             rs.forEach(function (r) { tp += r.pn; tf += r.pf; if (r.med >= 0) mb[r.med] += r.pn - r.pf; });
@@ -1356,8 +1360,6 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 diag.push({s: 'warn', ic: 'clock', t: 'Высокий пинг: медиана ' + MED[med], w: best.length ? 'Ближе всего сейчас: ' + esc(best.join(', ')) + '.' : ''});
             }
             if (!diag.length) diag.push({s: 'ok', ic: 'check', t: 'Все узлы отвечают во всех сетях', w: 'Неудачных пингов ' + pct(tp >= 20 ? tf / tp : null) + ', медиана ' + (MED[med] || '—') + '.'});
-            var q2 = function (n) { return (n < 10 ? '0' : '') + n; };
-            var tfm = function (t) { var x = new Date(t * 1000); return q2(x.getDate()) + '.' + q2(x.getMonth() + 1) + ' ' + q2(x.getHours()) + ':' + q2(x.getMinutes()); };
             var medOf = function (b) { var t = 0, s2 = 0; b.forEach(function (x) { t += x; }); if (!t) return -1; for (var i = 0; i < 6; i++) { s2 += b[i]; if (s2 * 2 >= t) return i; } return 5; };
             var dRows = (c.days || []).filter(function (r) { return r.hw === d.hw; });
             var dayList = []; dRows.forEach(function (r) { if (dayList.indexOf(r.d) < 0) dayList.push(r.d); }); dayList.sort(function (a, b) { return b - a; });
@@ -1467,7 +1469,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     + show.map(function (k) { var nd = c.nk[k] || {}; return '<tr data-k="' + esc(k) + '"' + (sel && sel[0] === k ? ' class="cur"' : '') + '><td class="rh">' + flagFor(nd.cc, nodeNm(k)) + '<b>' + esc(nodeNm(k)) + '</b><small>' + esc(nd.t || '') + '</small></td>' + mNets.map(function (n) { return '<td>' + cell(n.cells[k], k + '|' + n.net) + '</td>'; }).join('') + '</tr>'; }).join('')
                     + '</tbody></table></div>' : '<p class="muted">' + (CS.day ? 'За этот день пингов нет.' : 'Пингов в отчётах нет.') + '</p>')
                 + (sr && CS.day ? dayDetail(sr, sn, sel) : '')
-                + (sr && !CS.day ? '<div class="rv-mxd"><h3>' + esc(nodeNm(sel[0])) + ' в сети «' + esc(label(sn)) + '» — последние 48 часов</h3><div class="muted" style="font-size:.8rem">Пингов ' + sr.pn + ', неудачных ' + sr.pf + ' · медиана ' + (MED[sr.med] || '—') + p90(sr.hc) + (sr.v && VTX[sr.v] ? ' · 16–20: ' + VTX[sr.v] + (sr.vs ? ', код ' + sr.vs : '') + (sr.va ? ', ' + new Date(sr.va * 1000).toLocaleString('ru-RU', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) : '') : '') + (sp ? ' · у других клиентов этого провайдера: неудач ' + pct(sp.fail) + ', медиана ' + (MED[sp.med] || '—') + (sp.dead ? ', без ответа ' + sp.dead + ' из ' + sp.n : '') : '') + '</div>'
+                + (sr && !CS.day ? '<div class="rv-mxd"><h3>' + esc(nodeNm(sel[0])) + ' в сети «' + esc(label(sn)) + '» — последние 48 часов</h3><div class="muted" style="font-size:.8rem">Пингов ' + sr.pn + ', неудачных ' + sr.pf + ' · медиана ' + (MED[sr.med] || '—') + p90(sr.hc) + (sr.v && VTX[sr.v] ? ' · 16–20: ' + VTX[sr.v] + (sr.vs ? ', код ' + sr.vs : '') + (sr.va ? ', ' + tfm(sr.va) + (RCK[sr.v] ? (sr.va + RCK[sr.v] > Date.now() / 1000 ? ', повтор не раньше ' : ', повтор ожидался с ') + tfm(sr.va + RCK[sr.v]) : '') : '') : '') + (sp ? ' · у других клиентов этого провайдера: неудач ' + pct(sp.fail) + ', медиана ' + (MED[sp.med] || '—') + (sp.dead ? ', без ответа ' + sp.dead + ' из ' + sp.n : '') : '') + '</div>'
                     + '<div class="rv-hist">' + histCells(sr.hist, sr.hh, d.lh) + '</div><div class="rv-hax"><span>48 ч назад</span><span>24 ч</span><span>сейчас</span></div>'
                     + '<div class="rv-legend"><span><i style="background:var(--rq1)"></i>&lt; 100 мс</span><span><i style="background:var(--rq2)"></i>100–200</span><span><i style="background:var(--rq3)"></i>200–400</span><span><i style="background:var(--rq4)"></i>400–800</span><span><i style="background:var(--rq5)"></i>&gt; 0,8 с</span><span><i class="hx" style="background:repeating-linear-gradient(135deg,var(--rq5) 0 3px,transparent 3px 6px)"></i>нет ответа</span><span><i style="background:var(--line)"></i>нет замеров в этой сети</span><span><i style="background:transparent;box-shadow:inset 0 0 0 1px var(--line)"></i>отчёт ещё не пришёл</span></div>'
                     + (sr.hist ? '' : '<div class="muted" style="font-size:.78rem;margin-top:.3rem">' + esc(histWhy(sr.seen)) + '</div>') + hoursTbl(sr) + '</div>' : '')
