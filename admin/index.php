@@ -235,6 +235,52 @@ function nav_hidden_get() {
 }
 function form_saved($tab) { if (!empty($_POST['xhr'])) { header('Content-Type: application/json; charset=utf-8'); echo json_encode(['ok' => true, 'msg' => take_flash()], JSON_UNESCAPED_UNICODE); exit(); } header('Location: index.php?tab=' . $tab); exit(); }
 
+function adm_tok($name) {
+    static $css = null;
+    if ($css === null) $css = (string) @file_get_contents(__DIR__ . '/assets/admin.css');
+    return preg_match('/--' . preg_quote($name, '/') . ':(#[0-9a-fA-F]{3,8})\b/', $css, $m) ? $m[1] : '';
+}
+
+if (isset($_GET['manifest'])) {
+    $mf_bg = adm_tok('bg');
+    $mf_name = 'Прослойка';
+    $mf_icons = [];
+    if (is_auth()) {
+        try {
+            $mf_b = service_brand();
+            $mf_name = (string) $mf_b['name'];
+            $mf_lf = (string) $mf_b['logo_file'];
+            if ($mf_lf !== '' && strpos($mf_lf, '..') === false && is_file(__DIR__ . '/' . $mf_lf)) {
+                $mf_gi = @getimagesize(__DIR__ . '/' . $mf_lf);
+                if ($mf_gi && $mf_gi[0] >= 144 && $mf_gi[0] === $mf_gi[1]) {
+                    $mf_icons[] = ['src' => $mf_lf, 'sizes' => $mf_gi[0] . 'x' . $mf_gi[1], 'type' => (string) $mf_gi['mime'], 'purpose' => 'any'];
+                }
+            }
+        } catch (Throwable $e) {}
+    }
+    if (!$mf_icons) {
+        $mf_icons[] = ['src' => 'assets/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any'];
+        $mf_icons[] = ['src' => 'assets/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any'];
+        $mf_icons[] = ['src' => 'assets/icon.svg', 'sizes' => 'any', 'type' => 'image/svg+xml', 'purpose' => 'any'];
+    }
+    $mf_icons[] = ['src' => 'assets/icon-mask-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable'];
+    $mf = [
+        'id'         => './index.php',
+        'name'       => $mf_name . ' · админка',
+        'short_name' => mb_strlen($mf_name) > 12 ? mb_substr($mf_name, 0, 12) : $mf_name,
+        'lang'       => 'ru',
+        'start_url'  => './index.php',
+        'scope'      => './',
+        'display'    => 'standalone',
+        'icons'      => $mf_icons,
+    ];
+    if ($mf_bg !== '') { $mf['background_color'] = $mf_bg; $mf['theme_color'] = $mf_bg; }
+    header('Content-Type: application/manifest+json; charset=utf-8');
+    header('Cache-Control: private, no-cache');
+    echo json_encode($mf, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    exit();
+}
+
 if (isset($_GET['logout'])) {
     if (!is_auth() || csrf_ok_get()) { $_SESSION = []; session_destroy(); }
     header('Location: index.php'); exit();
@@ -267,37 +313,55 @@ if (!is_auth()) {
     }
     ?>
     <!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="dark">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <meta name="robots" content="noindex, nofollow">
     <title>Админка · вход</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%2322b8cf'%3E%3Cpath%20d='M12%202l8%203v6c0%205-3.5%208.5-8%2010-4.5-1.5-8-5-8-10V5z'/%3E%3C/svg%3E">
+    <script>(function(){try{var t=localStorage.getItem('submw_theme');if(!t||t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+    <script>window.rwTC=function(){var c=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();if(!c)return;var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.name='theme-color';document.head.appendChild(m);}m.content=c;};document.addEventListener('DOMContentLoaded',rwTC);</script>
+    <link rel="manifest" href="index.php?manifest=1" crossorigin="use-credentials">
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="assets/fonts.css?v=<?= substr(@md5_file(__DIR__ . '/assets/fonts.css') ?: '0', 0, 10) ?>">
+    <link rel="stylesheet" href="assets/admin.css?v=<?= substr(@md5_file(__DIR__ . '/assets/admin.css') ?: '0', 0, 10) ?>">
     <style>
-        body{font-family:Segoe UI,Roboto,Arial,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
-        .card{background:#1e293b;padding:2rem;border-radius:.75rem;width:320px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
-        h1{font-size:1.1rem;margin:0 0 1.25rem}
-        label{display:block;font-size:.8rem;margin:.75rem 0 .25rem;color:#94a3b8}
-        input{width:100%;padding:.6rem;border:1px solid #334155;background:#0f172a;color:#e2e8f0;border-radius:.4rem;box-sizing:border-box}
-        input:focus{outline:none;border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,.35)}
-        input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus{-webkit-text-fill-color:#e2e8f0;-webkit-box-shadow:0 0 0 1000px #0f172a inset;caret-color:#e2e8f0}
-        button{width:100%;margin-top:1.25rem;padding:.7rem;background:#4f46e5;color:#fff;border:0;border-radius:.4rem;font-weight:600;cursor:pointer}
-        button:disabled{opacity:.6;cursor:default}
-        .err{color:#f87171;font-size:.85rem;margin-top:.75rem;min-height:1rem}
-        .ok{color:#4ade80;font-size:.85rem;margin-bottom:.75rem}
-    </style></head><body>
-    <form class="card" method="post">
-        <h1>Прослойка подписки · вход</h1>
-        <?php if ($just_installed): ?><div class="ok">Установка завершена. Войдите.</div><?php endif; ?>
-        <label for="username">Логин</label><input id="username" name="user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
+        html[data-theme=light]{color-scheme:light}
+        html[data-theme=dark],html[data-theme=black]{color-scheme:dark}
+        .lg{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:max(24px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:radial-gradient(120% 80% at 50% 0%,var(--accent-light),transparent 60%),var(--bg)}
+        .lg-card{width:min(380px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:1.6rem 1.4rem 1.3rem}
+        .lg-logo{width:48px;height:48px;border-radius:14px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;margin-bottom:1rem}
+        .lg-card h1{font-size:1.25rem;margin:0;color:var(--text-strong);font-weight:700}
+        .lg-sub{margin:.25rem 0 .6rem;color:var(--muted);font-size:.88rem}
+        .lg-card label{margin:.9rem 0 .35rem}
+        .lg-card input[type=text],.lg-card input[type=password]{min-height:46px;font-size:16px}
+        .lg-pw{position:relative}
+        .lg-pw input{padding-right:48px}
+        .lg-eye{position:absolute;top:0;right:0;width:46px;height:46px;padding:0;display:flex;align-items:center;justify-content:center;background:none;border:0;border-radius:var(--radius);color:var(--muted);min-height:0}
+        .lg-eye:hover,.lg-eye:active{background:none;color:var(--text-strong);filter:none;transform:none}
+        .lg-eye[aria-pressed=true]{color:var(--accent-text)}
+        .lg-go{width:100%;min-height:46px;margin-top:1.3rem;font-size:.95rem;border-radius:10px}
+        .lg-go:disabled{opacity:.6;cursor:default}
+        .lg-err{color:var(--c-bad-fg);font-size:.86rem;margin-top:.8rem;min-height:1.2rem}
+        .lg-ok{background:var(--c-ok-bg);color:var(--c-ok-fg);border-radius:10px;padding:.55rem .75rem;font-size:.86rem;margin:.4rem 0 .2rem}
+    </style></head><body class="lg">
+    <form class="lg-card" method="post">
+        <div class="lg-logo"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z"/></svg></div>
+        <h1>Вход в админку</h1>
+        <p class="lg-sub">Прослойка подписки</p>
+        <?php if ($just_installed): ?><div class="lg-ok">Установка завершена. Войдите.</div><?php endif; ?>
+        <label for="username">Логин</label><input id="username" name="user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" value="<?= h(is_string($_POST['user'] ?? null) ? $_POST['user'] : '') ?>" required autofocus>
         <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-        <label for="password">Пароль</label><input id="password" name="pass" type="password" autocomplete="current-password" required>
-        <button type="submit">🔑 Войти</button>
-        <div class="err"><?= h($err) ?></div>
+        <label for="password">Пароль</label>
+        <div class="lg-pw"><input id="password" name="pass" type="password" autocomplete="current-password" enterkeyhint="go" required><button type="button" class="lg-eye" aria-label="Показать пароль" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+        <button type="submit" class="lg-go">Войти</button>
+        <div class="lg-err" role="alert"><?= h($err) ?></div>
     </form>
     <script>
     (function(){
-        var f = document.querySelector('form.card'), b = f.querySelector('button');
-        f.addEventListener('submit', function () { b.disabled = true; });
+        var f = document.querySelector('form.lg-card'), b = f.querySelector('.lg-go'), pw = document.getElementById('password'), eye = f.querySelector('.lg-eye');
+        f.addEventListener('submit', function () { pw.type = 'password'; b.disabled = true; });
         addEventListener('pageshow', function (e) { if (e.persisted) b.disabled = false; });
+        if (document.getElementById('username').value) pw.focus();
+        eye.addEventListener('click', function () { var on = pw.type === 'password'; pw.type = on ? 'text' : 'password'; eye.setAttribute('aria-pressed', on ? 'true' : 'false'); eye.setAttribute('aria-label', on ? 'Скрыть пароль' : 'Показать пароль'); pw.focus(); });
     })();
     </script>
     </body></html>
@@ -1637,6 +1701,8 @@ foreach (['cyrillic', 'latin'] as $f_sub) {
 }
 ?>
 <script>(function(){try{var t=localStorage.getItem('submw_theme');if(!t||t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+<script>window.rwTC=function(){var c=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();if(!c)return;var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.name='theme-color';document.head.appendChild(m);}m.content=c;};document.addEventListener('DOMContentLoaded',rwTC);</script>
+<link rel="manifest" href="index.php?manifest=1" crossorigin="use-credentials">
 <?php
 $lp_map = [
     'users'       => ['utbl_size', 50],
@@ -2067,9 +2133,9 @@ function helpClose(){var o=document.getElementById('helpOv');if(o)o.classList.re
 (function(){var mq=matchMedia('(max-width:600px)');var run=function(){if(!mq.matches)return;document.querySelectorAll('.set-d:not([data-cl])').forEach(function(d){d.setAttribute('data-cl','');if(d.closest('label'))return;var vis=d.offsetParent!==null;d.classList.add('clamp');var more=vis?d.scrollHeight>d.clientHeight+2:d.textContent.trim().length>110;if(!more){d.classList.remove('clamp');return;}var b=document.createElement('button');b.type='button';b.className='set-more';b.textContent='подробнее';b.setAttribute('aria-expanded','false');b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();var c=d.classList.toggle('clamp');b.textContent=c?'подробнее':'свернуть';b.setAttribute('aria-expanded',c?'false':'true');});d.after(b);});};var undo=function(){document.querySelectorAll('.set-more').forEach(function(b){b.remove();});document.querySelectorAll('.set-d[data-cl]').forEach(function(d){d.classList.remove('clamp');d.removeAttribute('data-cl');});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();mq.addEventListener('change',function(){if(mq.matches)run();else undo();});})();
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){helpClose();if(window.uiDlgClose)uiDlgClose();}});
 function themeMark(t){if(!t){try{t=localStorage.getItem('submw_theme')||'system';}catch(e){t='system';}}document.querySelectorAll('.theme-seg button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-theme-set')===t);});}
-function setTheme(t){try{localStorage.setItem('submw_theme',t);}catch(e){}var eff=t;if(t==='system'){eff=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',eff);themeMark(t);}
+function setTheme(t){try{localStorage.setItem('submw_theme',t);}catch(e){}var eff=t;if(t==='system'){eff=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',eff);themeMark(t);if(window.rwTC)rwTC();}
 themeMark();
-if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(e){var t='system';try{t=localStorage.getItem('submw_theme')||'system';}catch(_){}if(t==='system')document.documentElement.setAttribute('data-theme',e.matches?'dark':'light');});}
+if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(e){var t='system';try{t=localStorage.getItem('submw_theme')||'system';}catch(_){}if(t==='system'){document.documentElement.setAttribute('data-theme',e.matches?'dark':'light');if(window.rwTC)rwTC();}});}
 (function(){
     var dlg=document.getElementById('uiDlg'), msg=document.getElementById('uiDlgMsg'),
         title=document.getElementById('uiDlgTitle'), ok=document.getElementById('uiDlgOk'),
