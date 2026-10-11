@@ -153,7 +153,21 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rq.q4{background:color-mix(in srgb,var(--rq4) 18%,transparent);color:var(--rq4)}
     .rq.q5{background:color-mix(in srgb,var(--rq5) 18%,transparent);color:var(--rq5)}
     .rv-fl{font-family:'Twemoji Country Flags',sans-serif;font-size:1.05em;line-height:1}
-    .rv-chart{width:100%;height:170px;display:block}
+    .rv-chart{width:100%;height:150px;display:block;touch-action:pan-y}
+    .rv-chart .hit{fill:transparent}
+    .rv-chart g:hover .hit,.rv-chart g.sel .hit{fill:var(--hover)}
+    .rv-chart g.sel .ok{opacity:.9}
+    .rv-cax{position:relative;height:16px;margin-top:3px}
+    .rv-cax span{position:absolute;top:0;font-size:.68rem;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+    .rv-csel{display:none;min-height:1.4rem;margin-top:.4rem;font-size:.84rem;color:var(--text-strong);font-variant-numeric:tabular-nums}
+    .rv-hint-t{display:none}
+    @media(hover:none){.rv-hint-m{display:none}.rv-hint-t{display:inline}.rv-csel{display:block}}
+    .rv-mapbox.fs{position:fixed;inset:0;z-index:89;border:0;border-radius:0;touch-action:none}
+    .rv-mapbox.fs svg.rv-map{width:100%;height:100%;aspect-ratio:auto}
+    .rv-mapbox.fs .rv-zoom{top:calc(.6rem + env(safe-area-inset-top));right:calc(.6rem + env(safe-area-inset-right))}
+    .rv-mapbox.fs .rv-zhint{bottom:calc(.7rem + env(safe-area-inset-bottom))}
+    html:has(.rv-mapbox.fs){overflow:hidden}
+    @media(pointer:coarse){.rv-zoom button{width:42px;height:42px}}
     .rv-chart .ok{fill:var(--accent);opacity:.55}
     .rv-chart .bad{fill:var(--rq5);opacity:.85}
     .rv-chart .ax{fill:var(--muted);font-size:10px}
@@ -319,6 +333,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-drw-bg.open{opacity:1;pointer-events:auto}
     .rv-drw{position:fixed;top:0;right:0;bottom:0;width:min(1060px,96vw);background:var(--bg);border-left:1px solid var(--line);box-shadow:-20px 0 60px rgba(0,0,0,.35);transform:translateX(102%);transition:transform .22s ease;z-index:91;display:flex;flex-direction:column}
     .rv-drw.open{transform:none}
+    .rv-drw:not(.open){visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s}
     .rv-dh .btn{display:inline-flex;align-items:center;gap:.4rem}
     .rv-dh{display:flex;align-items:center;gap:.8rem;padding:.9rem 1.2rem;border-bottom:1px solid var(--line);background:var(--card);flex-wrap:wrap}
     .rv-dh h2{margin:0;font-size:1.2rem;color:var(--text-strong)}
@@ -415,6 +430,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
   <symbol id="rvi-pin" viewBox="0 0 24 24"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></symbol>
   <symbol id="rvi-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
   <symbol id="rvi-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="rvi-full" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="rvi-shrink" viewBox="0 0 24 24"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></symbol>
   <symbol id="rvi-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
   <symbol id="rvi-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
 </svg>
@@ -480,6 +497,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                         <button type="button" id="rvZin" aria-label="Приблизить" title="Приблизить"><svg class="rvi"><use href="#rvi-plus"/></svg></button>
                         <button type="button" id="rvZout" aria-label="Отдалить" title="Отдалить" disabled><svg class="rvi"><use href="#rvi-minus"/></svg></button>
                         <button type="button" id="rvZreset" aria-label="Вся карта" title="Вся карта" hidden><svg class="rvi"><use href="#rvi-reset"/></svg></button>
+                        <button type="button" id="rvZfs" aria-label="Во весь экран" title="Во весь экран"><svg class="rvi"><use href="#rvi-full"/></svg></button>
                     </div>
                     <div class="rv-zhint" id="rvZhint">Нажмите на карту или держите Ctrl, чтобы приближать колёсиком</div>
                 </div>
@@ -512,7 +530,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         $W = 1000; $H = 150; $bw = $W / $cnt;
         $rv_dt = static fn($fmt, $t) => $rv_series['step'] === 3600 ? date($fmt, $t) : gmdate($fmt, $t);
         ?>
-        <svg class="rv-chart" viewBox="0 0 <?= $W ?> <?= $H + 18 ?>" preserveAspectRatio="none">
+        <svg class="rv-chart" viewBox="0 0 <?= $W ?> <?= $H ?>" preserveAspectRatio="none" data-n="<?= $cnt ?>">
             <line class="gl" x1="0" y1="<?= $H ?>" x2="<?= $W ?>" y2="<?= $H ?>"/>
             <?php foreach ($pts as $i => $pt):
                 if ($pt['pn'] <= 0) continue;
@@ -523,19 +541,23 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 $tr = ' — пингов ' . $pt['pn'] . ', неудачных ' . $pt['pf'] . ($pt['fail'] !== null ? ' (' . $rv_pct($pt['fail']) . ')' : '') . ', медиана ' . $rv_med($pt['med']);
                 $tt = $rv_dt($rv_series['step'] === 3600 ? 'd.m H:00' : 'd.m', $pt['t']) . $tr;
             ?>
-            <g data-tip="<?= h($tt) ?>"<?= $rv_series['step'] === 3600 ? ' data-ts="' . (int) $pt['t'] . '" data-tipr="' . h($tr) . '"' : '' ?>>
+            <g data-i="<?= $i ?>" data-tip="<?= h($tt) ?>"<?= $rv_series['step'] === 3600 ? ' data-ts="' . (int) $pt['t'] . '" data-tipr="' . h($tr) . '"' : '' ?>>
+                <rect class="hit" x="<?= round($i * $bw, 1) ?>" y="0" width="<?= round(max(1, $bw), 1) ?>" height="<?= $H ?>"/>
                 <rect class="ok" x="<?= round($x, 1) ?>" y="<?= round($H - $hOk - $hBad, 1) ?>" width="<?= round($w, 1) ?>" height="<?= round($hOk, 1) ?>"/>
                 <?php if ($hBad > 0): ?><rect class="bad" x="<?= round($x, 1) ?>" y="<?= round($H - $hBad, 1) ?>" width="<?= round($w, 1) ?>" height="<?= round(max($hBad, 1), 1) ?>"/><?php endif; ?>
             </g>
             <?php endforeach; ?>
+        </svg>
+        <div class="rv-cax">
             <?php
             $marks = $rv_series['step'] === 3600 ? ($rv_f['p'] === 1 ? 6 : 24) : 5;
             foreach ($pts as $i => $pt):
                 if ($i % $marks !== 0 || $i * $bw > $W - 40) continue; ?>
-            <text class="ax" x="<?= round($i * $bw + 2, 1) ?>" y="<?= $H + 13 ?>"<?= $rv_series['step'] === 3600 ? ' data-ts="' . (int) $pt['t'] . '" data-f="' . ($rv_f['p'] === 1 ? 'hm' : 'dm') . '"' : '' ?>><?= h($rv_dt($rv_series['step'] === 3600 && $rv_f['p'] === 1 ? 'H:00' : 'd.m', $pt['t'])) ?></text>
+            <span style="left:<?= round($i / $cnt * 100, 2) ?>%"<?= $rv_series['step'] === 3600 ? ' data-ts="' . (int) $pt['t'] . '" data-f="' . ($rv_f['p'] === 1 ? 'hm' : 'dm') . '"' : '' ?>><?= h($rv_dt($rv_series['step'] === 3600 && $rv_f['p'] === 1 ? 'H:00' : 'd.m', $pt['t'])) ?></span>
             <?php endforeach; ?>
-        </svg>
-        <div class="rv-legend"><span><i style="background:var(--accent);opacity:.55"></i>удачные</span><span><i style="background:var(--rq5)"></i>неудачные</span><span>Наведите на столбец — подробности.</span></div>
+        </div>
+        <div class="rv-csel" id="rvCsel" aria-live="polite"></div>
+        <div class="rv-legend"><span><i style="background:var(--accent);opacity:.55"></i>удачные</span><span><i style="background:var(--rq5)"></i>неудачные</span><span class="rv-hint-m">Наведите на столбец — подробности.</span><span class="rv-hint-t">Нажмите на столбец или проведите пальцем — подробности над легендой.</span></div>
     </div>
 
     <div class="card">
@@ -666,6 +688,24 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 else if (el.hasAttribute('data-tipr')) el.setAttribute('data-tip', dm(d) + ' ' + hm(d) + el.getAttribute('data-tipr'));
                 else if (el.hasAttribute('data-f')) el.textContent = el.getAttribute('data-f') === 'hm' ? hm(d) : dm(d);
             });
+        })();
+        (function () {
+            var sv = document.querySelector('.rv-chart'), out = document.getElementById('rvCsel');
+            if (!sv || !window.matchMedia || !matchMedia('(hover:none)').matches) return;
+            var gs = [].slice.call(sv.querySelectorAll('g[data-i]')), n = +sv.getAttribute('data-n') || 1, cur = null, on = false;
+            if (!gs.length) return;
+            gs.forEach(function (g) { g.setAttribute('data-ct', g.getAttribute('data-tip') || ''); g.removeAttribute('data-tip'); });
+            var at = function (cx) {
+                var r = sv.getBoundingClientRect(), i = (cx - r.left) / r.width * n, best = null, bd = 1e9;
+                gs.forEach(function (g) { var d = Math.abs(+g.getAttribute('data-i') + .5 - i); if (d < bd) { bd = d; best = g; } });
+                if (!best || best === cur) return;
+                if (cur) cur.classList.remove('sel');
+                cur = best; cur.classList.add('sel');
+                if (out) out.textContent = cur.getAttribute('data-ct');
+            };
+            sv.addEventListener('pointerdown', function (e) { on = true; at(e.clientX); });
+            sv.addEventListener('pointermove', function (e) { if (on) at(e.clientX); });
+            ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (t) { sv.addEventListener(t, function () { on = false; }); });
         })();
         var NAMES = <?= json_encode((object) $rv_names, $rv_js) ?>;
         var Q0 = <?= json_encode($rv_f['q'], $rv_js) ?>;
@@ -1044,11 +1084,14 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         };
 
         var MAPW = 1000, MAPH = 540, MINW = 45;
+        var asp = function () { var bx = document.getElementById('rvMapBox'); if (!bx || !bx.classList.contains('fs')) return MAPH / MAPW; var b = bx.getBoundingClientRect(); return b.width > 0 && b.height > 0 ? b.height / b.width : MAPH / MAPW; };
+        var maxW = function () { return Math.max(MAPW, MAPH / asp()); };
         var clampVB = function (v) {
-            var w = Math.max(MINW, Math.min(MAPW, v[2])), h = w * MAPH / MAPW;
+            var a = asp(), w = Math.max(MINW, Math.min(maxW(), v[2])), h = w * a;
             var cx = v[0] + v[2] / 2, cy = v[1] + v[3] / 2;
             var x = Math.max(-w * .25, Math.min(MAPW - w * .75, cx - w / 2)), y = Math.max(-h * .25, Math.min(MAPH - h * .75, cy - h / 2));
-            if (w >= MAPW) { x = 0; y = 0; }
+            if (w >= MAPW) x = (MAPW - w) / 2;
+            if (h >= MAPH) y = (MAPH - h) / 2;
             return [x, y, w, h];
         };
         var raf = 0, anim = 0;
@@ -1057,8 +1100,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var near = function (a) { return a.every(function (v, i) { return Math.abs(v - st.vb[i]) < .5; }); };
             var zi = document.getElementById('rvZin'), zo = document.getElementById('rvZout'), zr = document.getElementById('rvZreset');
             if (zi) zi.disabled = st.vb[2] <= MINW + .5;
-            if (zo) zo.disabled = st.vb[2] >= MAPW - .5;
-            if (zr) zr.hidden = near(VIEWS.all);
+            if (zo) zo.disabled = st.vb[2] >= maxW() - .5;
+            if (zr) zr.hidden = near(clampVB([0, 0, maxW(), maxW() * asp()]));
         };
         var zoomTo = function (v, animate) {
             var to = clampVB(v), from = st.vb.slice();
@@ -1074,8 +1117,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             anim = requestAnimationFrame(step);
         };
         var zoomAt = function (factor, px, py, animate) {
-            var v = st.vb, w = Math.max(MINW, Math.min(MAPW, v[2] / factor)), f = w / v[2];
-            zoomTo([px - (px - v[0]) * f, py - (py - v[1]) * f, w, w * MAPH / MAPW], animate);
+            var v = st.vb, w = Math.max(MINW, Math.min(maxW(), v[2] / factor)), f = w / v[2];
+            zoomTo([px - (px - v[0]) * f, py - (py - v[1]) * f, w, w * asp()], animate);
         };
         var mapBox = document.getElementById('rvMapBox');
         var toMap = function (cx, cy) { var b = mapBox.getBoundingClientRect(), v = st.vb; return [v[0] + (cx - b.left) / b.width * v[2], v[1] + (cy - b.top) / b.height * v[3]]; };
@@ -1110,8 +1153,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 if (ids.length >= 2 && p0[ids[0]] && p0[ids[1]]) {
                     var a = drag.ptrs[ids[0]], c = drag.ptrs[ids[1]], a0 = p0[ids[0]], c0 = p0[ids[1]];
                     var d0 = Math.hypot(a0.x - c0.x, a0.y - c0.y) || 1, d1 = Math.hypot(a.x - c.x, a.y - c.y) || 1;
-                    var w = Math.max(MINW, Math.min(MAPW, v0[2] * d0 / d1)), mx0 = (a0.x + c0.x) / 2, my0 = (a0.y + c0.y) / 2, mx1 = (a.x + c.x) / 2, my1 = (a.y + c.y) / 2;
-                    var px = v0[0] + (mx0 - b.left) / b.width * v0[2], py = v0[1] + (my0 - b.top) / b.height * v0[3], h = w * MAPH / MAPW;
+                    var w = Math.max(MINW, Math.min(maxW(), v0[2] * d0 / d1)), mx0 = (a0.x + c0.x) / 2, my0 = (a0.y + c0.y) / 2, mx1 = (a.x + c.x) / 2, my1 = (a.y + c.y) / 2;
+                    var px = v0[0] + (mx0 - b.left) / b.width * v0[2], py = v0[1] + (my0 - b.top) / b.height * v0[3], h = w * asp();
                     st.vb = clampVB([px - (mx1 - b.left) / b.width * w, py - (my1 - b.top) / b.height * h, w, h]);
                     drag.moved = true; redraw(); return;
                 }
@@ -1134,7 +1177,23 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var zbtn = function (id, fn) { var el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
             zbtn('rvZin', function () { zoomAt(2, st.vb[0] + st.vb[2] / 2, st.vb[1] + st.vb[3] / 2, true); });
             zbtn('rvZout', function () { zoomAt(.5, st.vb[0] + st.vb[2] / 2, st.vb[1] + st.vb[3] / 2, true); });
-            zbtn('rvZreset', function () { closePop(); zoomTo(VIEWS.all.slice(), true); });
+            zbtn('rvZreset', function () { closePop(); zoomTo([0, 0, maxW(), maxW() * asp()], true); });
+            var fsPushed = false;
+            var setFs = function (on) {
+                var w = st.vb[2], cx = st.vb[0] + st.vb[2] / 2, cy = st.vb[1] + st.vb[3] / 2, fb = document.getElementById('rvZfs');
+                mapBox.classList.toggle('fs', on);
+                if (fb) { fb.setAttribute('aria-label', on ? 'Свернуть карту' : 'Во весь экран'); fb.title = on ? 'Свернуть карту' : 'Во весь экран'; fb.querySelector('use').setAttribute('href', on ? '#rvi-shrink' : '#rvi-full'); }
+                cancelAnimationFrame(anim);
+                st.vb = clampVB([cx - w / 2, cy - w * asp() / 2, w, w * asp()]);
+                redraw();
+                if (on && !fsPushed) { history.pushState({rvMap: 1}, ''); fsPushed = true; }
+            };
+            var exitFs = function () { if (fsPushed) { fsPushed = false; history.back(); } setFs(false); };
+            if (history.state && history.state.rvMap) history.replaceState(null, '');
+            zbtn('rvZfs', function () { if (mapBox.classList.contains('fs')) exitFs(); else setFs(true); });
+            window.addEventListener('popstate', function () { if (fsPushed) { fsPushed = false; setFs(false); } });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && mapBox.classList.contains('fs') && !document.querySelector('.rv-drw.open, .rv-mod.open')) exitFs(); }, true);
+            window.addEventListener('resize', function () { if (mapBox.classList.contains('fs')) { st.vb = clampVB(st.vb); redraw(); } });
         }
 
         var histWhy = function (seen) {

@@ -102,27 +102,34 @@ if (!is_installed()) {
     $host_guess = $prefill['mirror_domain'] ?? ($_SERVER['HTTP_HOST'] ?? '');
     ?>
     <!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <meta name="robots" content="noindex, nofollow">
     <title>Установка прослойки</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%2322b8cf'%3E%3Cpath%20d='M12%202l8%203v6c0%205-3.5%208.5-8%2010-4.5-1.5-8-5-8-10V5z'/%3E%3C/svg%3E">
+    <script>(function(){try{var t=localStorage.getItem('submw_theme');if(!t||t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+    <script>window.rwTC=function(){var c=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();if(!c)return;var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.name='theme-color';document.head.appendChild(m);}m.content=c;};document.addEventListener('DOMContentLoaded',rwTC);</script>
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="assets/fonts.css?v=<?= substr(@md5_file(__DIR__ . '/assets/fonts.css') ?: '0', 0, 10) ?>">
+    <link rel="stylesheet" href="assets/admin.css?v=<?= substr(@md5_file(__DIR__ . '/assets/admin.css') ?: '0', 0, 10) ?>">
     <style>
-        body{font-family:Segoe UI,Roboto,Arial,sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:2rem}
-        .wrap{max-width:640px;margin:0 auto}
-        h1{font-size:1.3rem}
-        .card{background:#1e293b;border:1px solid #334155;border-radius:.6rem;padding:1.25rem;margin-bottom:1.25rem}
-        h2{font-size:1rem;margin:0 0 .5rem}
-        label{display:block;font-size:.8rem;color:#94a3b8;margin:.7rem 0 .25rem}
-        input{width:100%;padding:.55rem;background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:.4rem;box-sizing:border-box}
-        .row{display:flex;gap:1rem}.row>div{flex:1}
-        button{margin-top:1.25rem;padding:.75rem 1.5rem;background:#4f46e5;color:#fff;border:0;border-radius:.4rem;font-weight:600;cursor:pointer;font-size:1rem}
-        button:disabled{opacity:.6;cursor:default}
-        .err{background:#7f1d1d;color:#fecaca;padding:.7rem 1rem;border-radius:.4rem;margin-bottom:1rem;white-space:pre-wrap}
-        .muted{color:#94a3b8;font-size:.82rem}
-        pre{background:#0b1220;padding:1rem;border-radius:.4rem;overflow:auto;font-size:.8rem}
-        code{background:#0b1220;padding:.1rem .35rem;border-radius:.25rem}
+        html[data-theme=light]{color-scheme:light}
+        html[data-theme=dark],html[data-theme=black]{color-scheme:dark}
+        body{background:radial-gradient(120% 50% at 50% 0%,var(--accent-light),transparent 60%),var(--bg)}
+        .wrap{max-width:680px;margin:0 auto;padding:max(28px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(32px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+        .in-h{display:flex;align-items:center;gap:.8rem;margin:0 0 1.2rem}
+        .in-logo{width:44px;height:44px;border-radius:12px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;flex:none}
+        .in-h h1{font-size:1.3rem;margin:0;color:var(--text-strong);line-height:1.25}
+        .in-h p{margin:.15rem 0 0;color:var(--muted);font-size:.86rem}
+        .card h2{font-size:1rem;margin:0 0 .4rem}
+        .card .muted{font-size:.82rem;margin:.4rem 0 0}
+        .warn{border-radius:12px;white-space:pre-wrap}
+        .in-go{width:100%;min-height:48px;font-size:1rem;border-radius:12px;margin-top:.2rem}
+        .in-go:disabled{opacity:.6;cursor:default}
+        input[type=text],input[type=password],select{min-height:44px}
+        @media(max-width:900px){input,select{font-size:16px!important}}
     </style></head><body><div class="wrap">
-    <h1>Установка прослойки подписки</h1>
-    <?php if ($err): ?><div class="err"><?= h($err) ?></div><?php endif; ?>
+    <div class="in-h"><div class="in-logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z"/></svg></div><div><h1>Установка прослойки подписки</h1><p>Один раз — дальше всё настраивается в админке</p></div></div>
+    <?php if ($err): ?><div class="warn" role="alert"><?= h($err) ?></div><?php endif; ?>
     <?php if (!empty($GLOBALS['manual_config'])): ?>
         <div class="card"><pre><?= h($GLOBALS['manual_config']) ?></pre></div>
     <?php endif; ?>
@@ -130,7 +137,7 @@ if (!is_installed()) {
         <div class="card">
             <h2>Режим работы</h2>
             <label>Что делает прослойка</label>
-            <select name="sub_source" id="subSource" onchange="submwMode()" style="width:100%;padding:.55rem;background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:.4rem">
+            <select name="sub_source" id="subSource" onchange="submwMode()">
                 <option value="mirror" <?= $pf_mode==='mirror'?'selected':'' ?>>Зеркало — проксирует origin-домен подписки</option>
                 <option value="panel" <?= $pf_mode==='panel'?'selected':'' ?>>Основная подписка (sub-сервис панели)</option>
             </select>
@@ -148,27 +155,27 @@ if (!is_installed()) {
             <h2>Домены</h2>
             <div id="mirrorOrigin">
             <label>Origin — реальный домен подписки Remnawave *</label>
-            <input name="target_domain" value="<?= h($_POST['target_domain'] ?? ($prefill['target_domain'] ?? '')) ?>" placeholder="sub.example.com">
+            <input name="target_domain" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['target_domain'] ?? ($prefill['target_domain'] ?? '')) ?>" placeholder="sub.example.com">
             <p class="muted">Только домен, без <code>https://</code> и без пути. Пример: <code>sub.example.com</code></p>
             </div>
             <label>Домен зеркала (где стоит прослойка)</label>
-            <input name="mirror_domain" value="<?= h($_POST['mirror_domain'] ?? $host_guess) ?>" placeholder="mirror.example.com">
+            <input name="mirror_domain" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['mirror_domain'] ?? $host_guess) ?>" placeholder="mirror.example.com">
             <p class="muted">Тоже только домен, без <code>https://</code>. На зеркало уже указывают подписки юзеров — менять его не нужно.</p>
         </div>
         <div class="card">
             <h2>API Remnawave (для списка юзеров)</h2>
-            <label>URL панели</label><input name="remnawave_url" value="<?= h($_POST['remnawave_url'] ?? $pf_rw_url) ?>" placeholder="https://panel.example.com или http://127.0.0.1:3000">
+            <label>URL панели</label><input name="remnawave_url" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['remnawave_url'] ?? $pf_rw_url) ?>" placeholder="https://panel.example.com или http://127.0.0.1:3000">
             <p class="muted">Полный адрес <b>со схемой</b> <code>https://</code> и без <code>/</code> на конце. Пример: <code>https://panel.example.com</code></p>
-            <label>Cookie панели (если защита eGames; иначе пусто)</label><input name="remnawave_cookie" value="<?= h($_POST['remnawave_cookie'] ?? '') ?>" placeholder="aB3xK9pQ=Zt7mW2nR">
+            <label>Cookie панели (если защита eGames; иначе пусто)</label><input name="remnawave_cookie" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['remnawave_cookie'] ?? '') ?>" placeholder="aB3xK9pQ=Zt7mW2nR">
             <p class="muted">Нужна, только если панель закрыта cookie-защитой eGames reverse-proxy (без верной куки панель отдаёт 404); иначе оставьте пустым. Формат <code>имя=значение</code>.<br><b>Где взять:</b> проще всего в браузере — войдите в панель, F12 → Application (Storage) → Cookies → выберите домен панели → скопируйте защитную куку (её имя и значение). Либо в конфиге вашего eGames reverse-proxy (nginx/Caddy), где проверяется кука, или в выводе установщика eGames при настройке.</p>
-            <label>X-Api-Key (если панель за caddy-with-auth; иначе пусто)</label><input name="remnawave_xapikey" value="<?= h($_POST['remnawave_xapikey'] ?? '') ?>">
+            <label>X-Api-Key (если панель за caddy-with-auth; иначе пусто)</label><input name="remnawave_xapikey" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" value="<?= h($_POST['remnawave_xapikey'] ?? '') ?>">
             <p class="muted">Нужен, только если панель закрыта по официальной схеме Remnawave «Caddy with custom path» (caddy-with-auth) — тогда без верного заголовка <code>X-Api-Key</code> Caddy не пропускает запросы к <code>/api/*</code>, и грейс/HWID работать не будут. <b>Где взять:</b> портал авторизации Caddy → <code>https://панель/&lt;REMNAWAVE_CUSTOM_LOGIN_ROUTE&gt;/auth</code> → вкладка <b>API-keys</b> → создать ключ.</p>
-            <label>API-токен (раздел API Tokens в панели)</label><input name="remnawave_api_key" value="<?= h($_POST['remnawave_api_key'] ?? '') ?>">
+            <label>API-токен (раздел API Tokens в панели)</label><input name="remnawave_api_key" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" value="<?= h($_POST['remnawave_api_key'] ?? '') ?>">
         </div>
         <div class="card">
             <h2>Вебхук</h2>
             <label>Секрет вебхука (то же значение пойдёт в .env панели)</label>
-            <input name="webhook_secret" value="<?= h($_POST['webhook_secret'] ?? bin2hex(random_bytes(32))) ?>">
+            <input name="webhook_secret" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" value="<?= h($_POST['webhook_secret'] ?? bin2hex(random_bytes(32))) ?>">
             <p class="muted">Минимум 32 символа, только <code>a-z A-Z 0-9</code> (требование панели). Сгенерированный подходит. После установки во вкладке «Подключение» будут готовые строки для <code>.env</code> панели.</p>
         </div>
         <div class="card">
@@ -179,7 +186,7 @@ if (!is_installed()) {
                 <div><label for="admin_pass2">Повтор пароля *</label><input id="admin_pass2" name="admin_pass2" type="password" autocomplete="new-password"></div>
             </div>
         </div>
-        <button type="submit">🚀 Установить</button>
+        <button type="submit" class="in-go">Установить</button>
     </form>
     </div>
     <script>
