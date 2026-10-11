@@ -390,3 +390,24 @@ html.lp .pgr-bot{min-height:36px}
     .theme-seg button{min-height:38px}
     input[type=checkbox]:not(.ux-cbx):not(.switch input),input[type=radio]{width:20px;height:20px}
 }
+@media(max-width:900px){
+    table.logtbl:has(th),table.tcards{display:block;white-space:normal;overflow:visible;border-radius:0;font-size:.88rem;min-width:0!important;width:100%}
+    table.logtbl:has(th)>thead,table.tcards>thead,table.logtbl:has(th)>colgroup,table.tcards>colgroup,table.logtbl:has(th)>tbody>tr:has(>th),table.tcards>tbody>tr:has(>th){display:none}
+    table.logtbl:has(th)>tbody,table.tcards>tbody{display:block}
+    table.logtbl:has(th)>tbody>tr,table.tcards>tbody>tr{display:block;border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:.45rem .8rem;margin-bottom:.55rem}
+    table.logtbl:has(th)>tbody>tr>td,table.tcards>tbody>tr>td{display:flow-root;padding:.3rem 0;border:0;box-shadow:none;background:transparent;text-align:right;min-width:0;width:auto;height:auto;overflow-wrap:anywhere;white-space:normal}
+    table.logtbl:has(th)>tbody>tr>td::before,table.tcards>tbody>tr>td::before{content:attr(data-label);float:left;max-width:45%;margin-right:.9rem;padding-top:.1em;color:var(--muted);font-size:.76rem;font-weight:500;text-align:left;text-transform:none;letter-spacing:0}
+    table.logtbl:has(th)>tbody>tr>td:has(>input,>select),table.tcards>tbody>tr>td:has(>input,>select){display:flex;justify-content:space-between;align-items:center;gap:.9rem}
+    table.logtbl:has(th)>tbody>tr>td:has(>input,>select)::before,table.tcards>tbody>tr>td:has(>input,>select)::before{float:none;flex:0 0 auto;margin:0;padding:0}
+    table.logtbl:has(th)>tbody>tr>td[data-label=""]::before,table.tcards>tbody>tr>td[data-label=""]::before,table.logtbl:has(th)>tbody>tr>td:not([data-label])::before,table.tcards>tbody>tr>td:not([data-label])::before{content:none}
+    table.logtbl:has(th)>tbody>tr>td:not([data-label]),table.tcards>tbody>tr>td:not([data-label]),table.logtbl:has(th)>tbody>tr>td[data-label=""],table.tcards>tbody>tr>td[data-label=""]{text-align:left}
+    table.logtbl:has(th)>tbody>tr:hover>td,table.tcards>tbody>tr:hover>td{background:transparent}
+    table.logtbl:has(th)>tbody>tr>td>input:not([type=checkbox]):not([type=radio]),table.tcards>tbody>tr>td>input:not([type=checkbox]):not([type=radio]),table.logtbl:has(th)>tbody>tr>td>select,table.tcards>tbody>tr>td>select{flex:1 1 auto;min-width:0;width:auto;max-width:60%}
+    table.logtbl:has(th)>tbody>tr>td>label.chk,table.tcards>tbody>tr>td>label.chk{display:inline-flex;vertical-align:middle}
+    table.logtbl:not(:has(th)){white-space:normal}
+    div.cv-wrap{overflow:visible;border:0;border-radius:0}
+    table.gctbl>tbody>tr>td:first-child{width:auto;text-align:left}
+    table.logtbl>tbody>tr:has(+tr.wh-det.open){margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0}
+    table.logtbl>tbody>tr.wh-det{border-top:1px dashed var(--line);border-top-left-radius:0;border-top-right-radius:0;padding:.6rem .8rem}
+    table.logtbl>tbody>tr.wh-det>td{padding:0}
+}
