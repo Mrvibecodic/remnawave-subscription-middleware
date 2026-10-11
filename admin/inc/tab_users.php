@@ -67,10 +67,6 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux .ux-seg button:active,.ux-dr .ux-seg button:active{transform:none}
 .ux .ux-seg button.on,.ux-dr .ux-seg button.on{background:var(--accent-light);color:var(--accent-text);font-weight:600}
 .ux-seg svg{width:15px;height:15px}
-.ux-bulk{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.75rem;padding:.5rem .6rem .5rem .85rem;border:1px solid var(--accent);background:var(--accent-light);border-radius:10px;font-size:.84rem}
-.ux-bulk[hidden]{display:none}
-.ux-bulk b{color:var(--text-strong);margin-right:.4rem}
-.ux-bulk .sp{flex:1}
 .ux-wrap{margin-top:.85rem;border:1px solid var(--line);border-radius:12px;overflow:clip}
 .ux-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:.86rem;min-width:0}
 .ux-tbl thead th{position:sticky;top:64px;z-index:5;background:var(--bg2);font-size:.71rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;text-align:left;padding:0 .7rem;height:40px;white-space:nowrap;box-shadow:inset 0 -1px 0 var(--line);border:0}
@@ -82,18 +78,14 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-tbl tbody tr:last-child td{box-shadow:none}
 .ux-tbl tbody tr{cursor:pointer}
 .ux-tbl tbody tr:hover td{background:var(--hover2)}
-.ux-tbl tbody tr.sel td{background:var(--accent-light)}
 .ux-tbl.compact td{padding-top:.3rem;padding-bottom:.3rem;height:34px}
 .ux-tbl.compact .u-sub{display:none}
-.ux-tbl .cb{width:34px;padding-right:0}
 .ux-tbl .acts{width:1%;white-space:nowrap;text-align:right;padding-right:.45rem}
 .ux-tbl .acts .ux-ib.q{opacity:0}
 .ux-tbl tr:hover .acts .ux-ib.q,.ux-tbl tr:focus-within .acts .ux-ib.q{opacity:1}
 .ux-cbx{appearance:none;-webkit-appearance:none;width:16px;height:16px;margin:0;border:1.5px solid var(--muted);border-radius:4px;background:transparent;cursor:pointer;position:relative;vertical-align:middle;display:inline-block;padding:0;min-height:0}
 .ux-cbx:checked{background:var(--accent);border-color:var(--accent)}
 .ux-cbx:checked::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid var(--on-accent);border-width:0 2px 2px 0;transform:rotate(45deg)}
-.ux-cbx:indeterminate{background:var(--accent);border-color:var(--accent)}
-.ux-cbx:indeterminate::after{content:"";position:absolute;left:3px;right:3px;top:6px;height:2px;background:var(--on-accent)}
 .u-nm{color:var(--text-strong);font-weight:600;display:flex;align-items:center;gap:.4rem;min-width:0}
 .u-nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .u-sub{display:block;color:var(--muted);font-size:.76rem;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:16rem}
@@ -229,13 +221,6 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-opt .ux-cbx{margin-top:.15rem;flex:none}
 .ux-opt b{color:var(--text-strong)}
 .ux-opt .d{display:block;font-size:.78rem;color:var(--muted);margin-top:.1rem;font-weight:400}
-.ux-more{border:1px dashed var(--line);border-radius:12px;padding:.1rem .95rem;margin-bottom:.8rem}
-.ux-more summary{cursor:pointer;font-size:.86rem;font-weight:700;color:var(--text);padding:.65rem 0;list-style:none;display:flex;gap:.5rem;align-items:center}
-.ux-more summary::-webkit-details-marker{display:none}
-.ux-more summary::before{content:'';width:.4rem;height:.4rem;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);margin-right:.15rem;transition:transform .15s}
-.ux-more[open] summary::before{transform:rotate(45deg)}
-.ux-more[open]{padding-bottom:.9rem}
-.ux-more summary .m{font-weight:400;color:var(--muted);font-size:.8rem}
 .ux-dev{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem .8rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);margin-bottom:.55rem}
 .ux-dev .l{display:flex;gap:.75rem;align-items:center;min-width:0}
 .ux-dev .os{width:34px;height:34px;border-radius:9px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none}
@@ -269,14 +254,12 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-wrap{border:0;overflow:visible}
 .ux-tbl,.ux-tbl tbody{display:block}
 .ux-tbl thead{display:none}
-.ux-tbl tbody tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.35rem .6rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:.75rem .8rem;margin-bottom:.6rem;align-items:center}
-.ux-tbl tbody tr.sel{border-color:var(--accent)}
-.ux-tbl tbody tr:hover td,.ux-tbl tbody tr.sel td{background:transparent}
+.ux-tbl tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.35rem .6rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:.75rem .8rem;margin-bottom:.6rem;align-items:center}
+.ux-tbl tbody tr:hover td{background:transparent}
 .ux-tbl td{display:block;padding:0;height:auto;box-shadow:none}
-.ux-tbl td.cb{grid-row:1;grid-column:1}
-.ux-tbl td.c-nm{grid-row:1;grid-column:2}
-.ux-tbl td.acts{grid-row:1;grid-column:3}
-.ux-tbl td.c-st,.ux-tbl td.c-tr,.ux-tbl td.c-ex,.ux-tbl td.c-dv,.ux-tbl td.c-on,.ux-tbl td.c-sq{grid-column:2/4;display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.ux-tbl td.c-nm{grid-row:1;grid-column:1}
+.ux-tbl td.acts{grid-row:1;grid-column:2}
+.ux-tbl td.c-st,.ux-tbl td.c-tr,.ux-tbl td.c-ex,.ux-tbl td.c-dv,.ux-tbl td.c-on,.ux-tbl td.c-sq{grid-column:1/3;display:flex;justify-content:space-between;align-items:center;gap:1rem}
 .ux-tbl td.c-on,.ux-tbl td.c-sq{display:flex}
 .ux-tbl td[data-l]::before{content:attr(data-l);color:var(--muted);font-size:.78rem}
 .ux-tbl .acts .ux-ib.q{opacity:1}
@@ -375,20 +358,9 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
                 <button type="button" data-dens="1" aria-label="Компактная плотность"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 5h16M4 9.7h16M4 14.3h16M4 19h16"/></svg></button>
             </div>
         </div>
-        <div class="ux-bulk" id="uxBulk" hidden>
-            <b id="uxBulkN"></b>
-            <button type="button" class="wb sm" data-bulk="extend" data-w="users:update">Продлить…</button>
-            <button type="button" class="wb sm" data-bulk="reset" data-w="users:reset-traffic">Сбросить трафик</button>
-            <button type="button" class="wb sm" data-bulk="squads" data-w="users:update">Сквады…</button>
-            <button type="button" class="wb sm" data-bulk="disable" data-w="users:disable">Выключить</button>
-            <button type="button" class="wb sm" data-bulk="enable" data-w="users:enable">Включить</button>
-            <span class="sp"></span>
-            <button type="button" class="wb sm" data-bulk="clear">Снять выбор</button>
-        </div>
         <div class="ux-wrap">
             <table class="ux-tbl" id="uxTbl">
                 <thead><tr>
-                    <th class="cb"><input type="checkbox" class="ux-cbx" id="uxAll" aria-label="Выбрать всех на странице"></th>
                     <th class="srt" data-s="name">Пользователь<span class="sar"></span></th>
                     <th class="srt" data-s="st">Статус<span class="sar"></span></th>
                     <th class="srt" data-s="tr">Трафик<span class="sar"></span></th>
@@ -440,7 +412,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 document.documentElement.classList.remove('lp');
 var C=window.UX_CFG,U=window.UX_USERS||[];
 var GSQ=C.gsq||'',DAY=86400000,GB=1073741824;
-var S={f:'all',q:'',sq:'',tag:'',sort:'exp',dir:1,page:1,size:50,sel:{},dens:0};
+var S={f:'all',q:'',sq:'',tag:'',sort:'exp',dir:1,page:1,size:50,dens:0};
 try{var v0=parseInt(localStorage.getItem('utbl_size'),10);if([10,25,50,0].indexOf(v0)>-1)S.size=v0;}catch(e){}
 try{if(localStorage.getItem('utbl_dens')==='1')S.dens=1;}catch(e){}
 var STRAT=[['NO_RESET','Без сброса'],['DAY','Каждый день'],['WEEK','Каждую неделю'],['MONTH','Каждый месяц'],['MONTH_ROLLING','Ежемесячно от даты создания']];
@@ -568,10 +540,9 @@ function rowHtml(u){
  var bc=u.tl?(pc>=100?'lv-b':(pc>=80?'lv-w':'')):'lv-i';
  var rc=e<now()?'lv-b':(e-now()<=7*DAY?'lv-w':'');
  var sh=u.sq.slice(0,1).map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join('')+(u.sq.length>1?'<span class="ux-sq" data-tip="'+esc(u.sq.slice(1).map(sqName).join(', '))+'">+'+(u.sq.length-1)+'</span>':'');
- var ot=u.on*1000,live=u.on&&now()-ot<5*60000,sel=!!S.sel[u.su];
+ var ot=u.on*1000,live=u.on&&now()-ot<5*60000;
  var sub=u.desc?esc(u.desc):'<span style="font-family:ui-monospace,monospace">'+esc(u.su)+'</span>';
- return '<tr data-su="'+esc(u.su)+'"'+(sel?' class="sel"':'')+'>'+
-  '<td class="cb"><input type="checkbox" class="ux-cbx" data-cb'+(sel?' checked':'')+' aria-label="Выбрать '+esc(u.un)+'"></td>'+
+ return '<tr data-su="'+esc(u.su)+'">'+
   '<td class="c-nm"><div class="u-nm"><span>'+esc(u.un)+'</span>'+(u.tag?'<span class="ux-tag">'+esc(u.tag)+'</span>':'')+(C.ovb[u.su]?'<span class="ux-pill st-bad" data-tip="Заблокирован в оверрайдах" style="font-size:.66rem">блок</span>':'')+'</div><span class="u-sub">'+sub+'</span></td>'+
   '<td class="c-st" data-l="Статус">'+pill(u)+'</td>'+
   '<td class="c-tr" data-l="Трафик"><div class="ux-tr"><div class="t"><b>'+fb(u.used)+'</b><span>'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</span></div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div></td>'+
@@ -580,17 +551,14 @@ function rowHtml(u){
   '<td class="c-on" data-l="Онлайн"><span class="ux-on'+(live?' live':'')+'"><i></i>'+(u.on?ago(ot):'не подключался')+'</span></td>'+
   '<td class="acts"><button type="button" class="ux-ib q" data-act="copy" data-tip="'+(u.lk?'Скопировать ссылку подписки':'Не задан адрес зеркала')+'" aria-label="Скопировать ссылку"'+(u.lk?'':' disabled')+'>'+ico('copy')+'</button><button type="button" class="ux-ib" data-act="menu" aria-label="Действия" aria-haspopup="menu">'+ico('more')+'</button></td></tr>';
 }
-var VIEW=[];
-function pageRows(){var per=S.size||VIEW.length||1,st=(S.page-1)*per;return VIEW.slice(st,st+per);}
 function render(){
  renderKpis();
  var list=U.filter(matches);
  list.sort(function(a,b){var x=skey(a),y=skey(b);return(x<y?-1:x>y?1:0)*S.dir;});
- VIEW=list;
  var per=S.size||list.length||1,pages=Math.max(1,Math.ceil(list.length/per));
  if(S.page>pages)S.page=pages;
  var st=(S.page-1)*per,pg=list.slice(st,st+per);
- $('uxBody').innerHTML=pg.length?pg.map(rowHtml).join(''):'<tr><td colspan="8"><div class="ux-empty">'+(U.length?'Под фильтр никто не подходит.':'Пользователей пока нет.')+'</div></td></tr>';
+ $('uxBody').innerHTML=pg.length?pg.map(rowHtml).join(''):'<tr><td colspan="7"><div class="ux-empty">'+(U.length?'Под фильтр никто не подходит.':'Пользователей пока нет.')+'</div></td></tr>';
  $('uxCnt').textContent=list.length===U.length?'· '+U.length:'· '+list.length+' из '+U.length;
  $('uxTbl').classList.toggle('compact',S.dens===1);
  document.querySelectorAll('.ux-flt [data-dens]').forEach(function(b){b.classList.toggle('on',+b.dataset.dens===S.dens);});
@@ -599,9 +567,6 @@ function render(){
  $('uxChips').innerHTML=chips.map(function(c){return '<span class="ux-chip">'+esc(c[1])+'<button type="button" data-unchip="'+c[0]+'" aria-label="Сбросить фильтр">×</button></span>';}).join(' ');
  $('uxPgr').innerHTML='<span>'+(list.length?(st+1)+'–'+Math.min(st+per,list.length)+' из '+list.length:'0')+'</span><div class="nav">'+(pages>1?'<button type="button" class="wb sm" data-pg="-1"'+(S.page<=1?' disabled':'')+' aria-label="Предыдущая страница">◀</button><span>стр. '+S.page+' / '+pages+'</span><button type="button" class="wb sm" data-pg="1"'+(S.page>=pages?' disabled':'')+' aria-label="Следующая страница">▶</button>':'')+'<label style="margin:0;display:flex;align-items:center;font-size:.82rem">На странице<select id="uxSize"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="0">Все</option></select></label></div>';
  $('uxSize').value=String(S.size);
- var all=$('uxAll'),c=pg.filter(function(u){return S.sel[u.su];}).length,ns=Object.keys(S.sel).length;
- all.checked=c>0&&c===pg.length;all.indeterminate=c>0&&c<pg.length;
- $('uxBulk').hidden=ns===0;$('uxBulkN').textContent='Выбрано: '+ns;
  applyRo(document.getElementById('ux'));
 }
 function applyRo(root){root.querySelectorAll('[data-w]').forEach(function(b){var sc=b.dataset.w;var dis=!canW(sc);if(dis){b.disabled=true;b.setAttribute('data-tip',roTip(sc));}else if((b.getAttribute('data-tip')||'').indexOf('Нет права')===0){b.removeAttribute('data-tip');}});}
@@ -620,7 +585,6 @@ function cfm(o){
 }
 function cfClose(){$('uxCfOv').classList.remove('open');CF=null;}
 function chips(ids){return ids&&ids.length?ids.map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join(''):'нет';}
-function nUsers(n){return '<b>'+n+'</b> '+plural(n,'пользователь','пользователя','пользователей');}
 
 var menuFor=null;
 function openMenu(btn,u){
@@ -641,25 +605,16 @@ function closeMenu(){$('uxMenu').classList.remove('open');menuFor=null;}
 
 function busy(on){var ok=$('uxCfOk');if(ok){ok.disabled=on;ok.classList.toggle('busy',on);}}
 function runOne(a,data,okMsg){busy(true);return post(a,data).then(function(d){busy(false);if(!d.ok){if(d.conflict&&d.user){cfClose();putUser(d.user,d.mw,data.su);render();if(CARD)drawCard();}if(window.uiAlert)uiAlert(d.conflict?'Пользователя изменили, пока страница была открыта. Данные обновлены — проверьте и повторите.':(d.error||'Ошибка'),d.conflict?'Данные устарели':'Панель не приняла');return d;}cfClose();if(d.user)putUser(d.user,d.mw,data.su);if(d.warn&&window.uiAlert)uiAlert(d.warn);else if(okMsg)toast(okMsg);render();if(CARD)drawCard();return d;});}
-function runMany(list,mk,label){
- cfClose();var i=0,ok=0,fail=[];
- (function next(){
-  if(i>=list.length){toast(label+': '+ok+(fail.length?' · ошибок '+fail.length:''));if(fail.length&&window.uiAlert)uiAlert(fail.slice(0,8).join('\n'),'Не получилось');render();return;}
-  var u=list[i++],q=mk(u);toast(label+'… '+i+' / '+list.length);
-  post(q[0],q[1]).then(function(d){if(d.ok){ok++;if(d.user)putUser(d.user,d.mw,u.su);}else{if(d.conflict&&d.user)putUser(d.user,d.mw,u.su);fail.push(u.un+': '+(d.conflict?'изменён в панели, данные обновлены — повторите':(d.error||'ошибка')));}next();});
- })();
-}
 function graceRestore(u){var g=gInfo(u);if(!g)return{};var f={trafficLimitBytes:g.tl,trafficLimitStrategy:g.ts,hwidDeviceLimit:g.hw};if(g.sq&&g.sq.length)f.activeInternalSquads=g.sq;if(g.ex!==null)f.externalSquadUuid=g.ex||null;return f;}
 function extFields(u,days){var b=isGr(u)?now():Math.max(now(),expMs(u));var f=isGr(u)?graceRestore(u):{};f.expireAt=Math.round((b+days*DAY)/1000);return f;}
-function extend(list,days){
- var ng=list.filter(isGr).length,ne=list.filter(function(u){return u.st==='EXPIRED';}).length,notes=[],one=list.length===1;
- if(ng)notes.push(['hour','vio',one?'Грейс завершится':'В грейсе: '+ng,'прежний тариф вернётся']);
- if(ne)notes.push(['check','ok',one?'Станет «Активен»':'Истёкших: '+ne,one?'срок — от сегодня':'станут «Активен»']);
- cfm({ic:'calp',title:'Продлить на '+dd(days),sub:one?'<b>'+esc(list[0].un)+'</b>':nUsers(list.length),
-  rows:list.slice(0,6).map(function(u){return ['cal',one?'Срок':esc(u.un),u.exp?fd(expMs(u)):'—',fd(extFields(u,days).expireAt*1000)];}),more:list.length>6?'и ещё '+(list.length-6):'',
+function extend(u,days){
+ var notes=[];
+ if(isGr(u))notes.push(['hour','vio','Грейс завершится','прежний тариф вернётся']);
+ if(u.st==='EXPIRED')notes.push(['check','ok','Станет «Активен»','срок — от сегодня']);
+ cfm({ic:'calp',title:'Продлить на '+dd(days),sub:'<b>'+esc(u.un)+'</b>',
+  rows:[['cal','Срок',u.exp?fd(expMs(u)):'—',fd(extFields(u,days).expireAt*1000)]],
   notes:notes,hint:'Активным — от текущей даты окончания',ok:'Продлить',onOk:function(){
-   if(one){var u=list[0];runOne('ua_save',{su:u.su,fields:JSON.stringify(extFields(u,days)),upd:u.upd,reset:isGr(u)&&C.reset?'1':''},'Продлено · '+u.un);}
-   else runMany(list,function(u){return ['ua_save',{su:u.su,fields:JSON.stringify(extFields(u,days)),upd:u.upd,reset:isGr(u)&&C.reset?'1':''}];},'Продлено');
+   runOne('ua_save',{su:u.su,fields:JSON.stringify(extFields(u,days)),upd:u.upd,reset:isGr(u)&&C.reset?'1':''},'Продлено · '+u.un);
   }});
 }
 function act(u,a){
@@ -668,7 +623,7 @@ function act(u,a){
  if(a==='disable')return cfm({ic:'power',tone:'bad',title:'Выключить пользователя',sub:'<b>'+esc(u.un)+'</b>',rows:[['power','Статус',stInfo(u).t,'Выключен']],notes:[['ban','bad','Подписка перестанет работать','до включения']],hint:'Срок и трафик не меняются',ok:'Выключить',danger:true,onOk:function(){runOne('ua_act',one,'Выключен · '+u.un);}});
  if(a==='enable')return cfm({ic:'power',tone:'ok',title:'Включить пользователя',sub:'<b>'+esc(u.un)+'</b>',rows:[['power','Статус','Выключен',expMs(u)<now()?'Истёк':'Активен']],notes:expMs(u)<now()?[['alert','warn','Срок уже прошёл','продлите, чтобы подписка заработала']]:[],ok:'Включить',onOk:function(){runOne('ua_act',one,'Включён · '+u.un);}});
  if(a==='revoke')return cfm({ic:'key',tone:'warn',title:'Новые ключи',sub:'<b>'+esc(u.un)+'</b>',notes:[['link','info','Ссылка остаётся прежней','меняются пароли VLESS, Trojan, Shadowsocks'],['refresh','warn','Клиенту нужно обновить подписку','старые конфиги перестанут работать']],ok:'Выпустить',onOk:function(){runOne('ua_act',one,'Ключи перевыпущены · '+u.un);}});
- if(a==='del')return cfm({ic:'trash',tone:'bad',title:'Удалить пользователя',sub:'<b>'+esc(u.un)+'</b> · из панели',notes:[['alert','bad','Это необратимо','ссылка перестанет работать сразу'],['shield','info','Прослойка подчистит своё','оверрайды, доп-подписку, WG/AWG, грейс']],ok:'Удалить',danger:true,onOk:function(){busy(true);post('ua_act',{su:u.su,act:'delete'}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();U=U.filter(function(x){return x.su!==u.su;});delete S.sel[u.su];closeCard(true);toast('Удалён · '+u.un);render();});}});
+ if(a==='del')return cfm({ic:'trash',tone:'bad',title:'Удалить пользователя',sub:'<b>'+esc(u.un)+'</b> · из панели',notes:[['alert','bad','Это необратимо','ссылка перестанет работать сразу'],['shield','info','Прослойка подчистит своё','оверрайды, доп-подписку, WG/AWG, грейс']],ok:'Удалить',danger:true,onOk:function(){busy(true);post('ua_act',{su:u.su,act:'delete'}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();U=U.filter(function(x){return x.su!==u.su;});closeCard(true);toast('Удалён · '+u.un);render();});}});
 }
 function doAction(a,u){
  if(a==='open')return openCard(u,'ov');
@@ -676,35 +631,20 @@ function doAction(a,u){
  if(a==='devs')return openCard(u,'dev');
  if(a==='copy')return copy(u.lk,'Ссылка подписки скопирована');
  if(a==='qr')return openQr(u);
- if(a==='ext30')return extend([u],30);
- if(a==='ext')return pickExtend([u]);
+ if(a==='ext30')return extend(u,30);
+ if(a==='ext')return pickExtend(u);
  if(a==='addsub')return pickAddsub(u);
  if(a==='nolog'){var on=!C.nl[u.su];post('toggle_nolog',{short_uuid:u.su,nolog:on?'1':'0'}).then(function(d){if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка');return;}if(d.nolog)C.nl[u.su]=1;else delete C.nl[u.su];if(CARD&&CARD.mw&&CARD.u.su===u.su)CARD.mw.nolog=!!d.nolog;toast(d.nolog?'Запросы '+u.un+' скрыты из лога':'Запросы '+u.un+' снова в логе');if(CARD)drawCard();});return;}
  if(['reset','disable','enable','revoke','del'].indexOf(a)>-1)return act(u,a);
 }
 function openPick(t,html){$('uxPickT').textContent=t;$('uxPickB').innerHTML=html;$('uxPickOv').classList.add('open');applyRo($('uxPickB'));}
 function closePick(){$('uxPickOv').classList.remove('open');}
-function pickExtend(list){
- openPick(list.length===1?'Продлить · '+list[0].un:'Продлить выбранных ('+list.length+')',
+function pickExtend(u){
+ openPick('Продлить · '+u.un,
   '<div class="ux-pre" style="margin:0 0 .9rem">'+[[30,'+1 месяц'],[90,'+3 месяца'],[180,'+6 месяцев'],[365,'+1 год']].map(function(p){return '<button type="button" class="wb" data-days="'+p[0]+'">'+p[1]+'</button>';}).join(' ')+'</div>'+
   '<label for="uxPkD" style="font-size:.84rem;color:var(--muted);font-weight:600">Своё число дней</label><div style="display:flex;gap:.5rem;margin-top:.35rem"><input type="number" id="uxPkD" min="1" value="14" style="margin:0;max-width:9rem"><button type="button" class="btn" id="uxPkGo">Продлить</button></div>'+
   '<p class="muted" style="font-size:.8rem;margin:.8rem 0 0">Истёкшим — от сегодня, остальным — от даты окончания.</p>');
- $('uxPickB').onclick=function(e){var b=e.target.closest('[data-days]');if(b){closePick();extend(list,+b.dataset.days);}if(e.target.id==='uxPkGo'){var d=parseInt($('uxPkD').value,10);if(d>0){closePick();extend(list,d);}}};
-}
-function pickSquads(list){
- loadMeta().then(function(){
-  var sq=(META?META.sq:[]).filter(function(s){return s.uuid!==GSQ;});
-  if(!sq.length){if(window.uiAlert)uiAlert('Не удалось получить список сквадов из панели');return;}
-  openPick('Сквады выбранных ('+list.length+')',
-   '<div class="ux-seg" id="uxPkM" style="margin-bottom:.8rem"><button type="button" class="on" data-m="add">Добавить</button><button type="button" data-m="del">Убрать</button><button type="button" data-m="set">Заменить</button></div>'+
-   '<div class="ux-sqg">'+sq.map(function(s){return '<label class="ux-sqi" style="display:flex;align-items:center;gap:.55rem;border:1px solid var(--line);padding:.5rem .65rem;border-radius:9px;background:var(--bg2);cursor:pointer;margin:0"><input type="checkbox" class="ux-cbx" value="'+esc(s.uuid)+'"><span style="flex:1;font-weight:600;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(s.name)+'</span></label>';}).join('')+'</div>'+
-   '<p class="muted" style="font-size:.8rem;margin:.8rem 0">Грейс-сквадом управляет прослойка, его здесь нет.</p><button type="button" class="btn" id="uxPkGo">Применить</button>');
-  var mode='add';
-  $('uxPickB').onclick=function(e){var b=e.target.closest('#uxPkM button');if(b){mode=b.dataset.m;$('uxPkM').querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b);});}
-   if(e.target.id==='uxPkGo'){var ids=[].map.call($('uxPickB').querySelectorAll('input:checked'),function(i){return i.value;});if(!ids.length)return;closePick();
-    var nx=function(u){var cur=u.sq.filter(function(x){return x!==GSQ;});return mode==='add'?cur.concat(ids.filter(function(x){return cur.indexOf(x)<0;})):mode==='del'?cur.filter(function(x){return ids.indexOf(x)<0;}):ids.slice();};
-    cfm({ic:'net',title:mode==='add'?'Добавить сквады':mode==='del'?'Убрать сквады':'Заменить сквады',sub:nUsers(list.length),rows:[[mode==='del'?'x':'plus',mode==='add'?'Добавить':mode==='del'?'Убрать':'Станут',null,chips(ids)]],notes:list.some(isGr)?[['hour','vio','У кого грейс — он завершится','']]:[],ok:'Применить',onOk:function(){runMany(list,function(u){return ['ua_save',{su:u.su,fields:JSON.stringify({activeInternalSquads:nx(u)}),upd:u.upd}];},'Сквады обновлены');}});}};
- });
+ $('uxPickB').onclick=function(e){var b=e.target.closest('[data-days]');if(b){closePick();extend(u,+b.dataset.days);}if(e.target.id==='uxPkGo'){var d=parseInt($('uxPkD').value,10);if(d>0){closePick();extend(u,d);}}};
 }
 function pickAddsub(u){
  var cur=C.as[u.su]||'';
@@ -823,7 +763,7 @@ function histHtml(u){
 }
 
 function snapF(u){return{upd:u.upd||'',exp:expMs(u),status:u.st==='DISABLED'?'DISABLED':'ACTIVE',tl:u.tl,ts:u.ts,hw:u.hw,sq:u.sq.slice().sort(),ex:u.ex||'',tag:u.tag||'',desc:u.desc||'',tg:u.tg||'',email:u.em||''};}
-function newF(){var d=new Date(now()+30*DAY);d.setSeconds(0,0);return{exp:d.getTime(),status:'ACTIVE',tl:0,ts:'NO_RESET',hw:null,sq:[],ex:'',tag:'',desc:'',tg:'',email:'',username:'',short:'',vless:'',trojan:'',ss:'',addsub:'',nolog:false,tpl:''};}
+function newF(){var d=new Date(now()+30*DAY);d.setSeconds(0,0);return{exp:d.getTime(),status:'ACTIVE',tl:0,ts:'NO_RESET',hw:null,sq:[],ex:'',tag:'',desc:'',tg:'',email:'',username:'',addsub:'',nolog:false,tpl:''};}
 function graceF(g,F){F.sq=g.sq.slice().sort();F.tl=g.tl;F.ts=g.ts;F.hw=g.hw;if(g.ex!==null)F.ex=g.ex||'';}
 var LBL={exp:'Срок',status:'Статус',tl:'Лимит трафика',ts:'Сброс трафика',hw:'Лимит устройств',sq:'Сквады',ex:'Внешний сквад',tag:'Тег',desc:'Описание',tg:'Telegram ID',email:'Email'};
 var FICO={exp:'cal',status:'power',tl:'wave',ts:'refresh',hw:'dev',sq:'net',ex:'link',tag:'tag',desc:'edit',tg:'send',email:'mail'};
@@ -832,7 +772,7 @@ function fmtF(k,v){if(k==='exp')return v?fdt(v):'—';if(k==='status')return v==
 function fmtH(k,v){if(k==='sq')return chips(v);return esc(fmtF(k,v));}
 function apiVal(k,v){if(k==='exp')return Math.round(v/1000);if(k==='ex')return v||null;return v;}
 function diffList(){
- if(!CARD||!CARD.F)return[];if(CARD.create){var F0=CARD.F;return(F0.username||F0.addsub||F0.desc.trim()||F0.tag||F0.tg||F0.email||F0.short||F0.vless||F0.trojan||F0.ss)?[1]:[];}
+ if(!CARD||!CARD.F)return[];if(CARD.create){var F0=CARD.F;return(F0.username||F0.addsub||F0.desc.trim()||F0.tag||F0.tg||F0.email)?[1]:[];}
  var O=CARD.O,F=CARD.F,out=[];
  Object.keys(LBL).forEach(function(k){var a=O[k],b=F[k];if(k==='sq'){if(a.join()!==b.join())out.push(k);}else if(k==='exp'){if(Math.abs(a-b)>59000)out.push(k);}else if(String(a==null?'':a)!==String(b==null?'':b)||(k==='hw'&&a!==b))out.push(k);});
  return out;
@@ -842,10 +782,6 @@ function errs(){
  var F=CARD.F,E={},cr=CARD.create;
  if(F.exp<=now()&&(cr||Math.abs(F.exp-CARD.O.exp)>59000))E.exp='Панель не принимает дату в прошлом';
  if(cr){if(!/^[a-zA-Z0-9_-]{3,36}$/.test(F.username))E.username=F.username?'3–36 символов: латиница, цифры, _ и -':'Обязательное поле';else if(U.some(function(u){return u.un.toLowerCase()===F.username.toLowerCase();}))E.username='Такое имя уже есть в панели';
-  if(F.short&&(F.short.length<16||F.short.length>64))E.short='От 16 до 64 символов';
-  if(F.vless&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(F.vless))E.vless='Нужен UUID';
-  if(F.trojan&&(F.trojan.length<8||F.trojan.length>32))E.trojan='От 8 до 32 символов';
-  if(F.ss&&(F.ss.length<8||F.ss.length>32))E.ss='От 8 до 32 символов';
   if(F.addsub&&!/^https?:\/\//i.test(F.addsub))E.addsub='Адрес начинается с http:// или https://';}
  if(F.tag&&!/^[A-Z0-9_]{1,16}$/.test(F.tag))E.tag='До 16 символов: A–Z, 0–9, _';
  if(F.email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(F.email))E.email='Неверный email';
@@ -899,8 +835,6 @@ function formHtml(create){
   '<div class="ux-f"><label for="fEm">Email</label><input type="email" id="fEm" value="'+esc(F.email)+'" placeholder="user@example.com"><div class="ux-err" data-e="email"></div></div>'+
   '<div class="ux-f" style="grid-column:1/-1"><label for="fDesc">Описание</label><textarea id="fDesc" rows="2" placeholder="Видно только в панели и здесь">'+esc(F.desc)+'</textarea></div></div>');
  if(create){
-  h+='<details class="ux-more"><summary>Дополнительно <span class="m">— shortUuid и ключи</span></summary><div class="ux-g2">'+
-   [['short','fShort','Свой shortUuid','16–64 символа. Лучше оставить панели.'],['vless','fVless','VLESS UUID',''],['trojan','fTrojan','Пароль Trojan','8–32 символа'],['ss','fSs','Пароль Shadowsocks','8–32 символа']].map(function(x){return '<div class="ux-f"><label for="'+x[1]+'">'+x[2]+'</label><input type="text" id="'+x[1]+'" class="mono" value="'+esc(F[x[0]])+'" placeholder="сгенерирует панель" spellcheck="false" autocomplete="off"><div class="ux-err" data-e="'+x[0]+'"></div>'+(x[3]?'<div class="hint2" style="font-size:.76rem;color:var(--muted)">'+x[3]+'</div>':'')+'</div>';}).join('')+'</div></details>';
   h+=fsec('shield','Прослойка',
    '<div class="ux-f"><label for="fAdd">Доп-подписка</label><input type="text" id="fAdd" class="mono" value="'+esc(F.addsub)+'" placeholder="https://…/sub/… — необязательно" spellcheck="false"><div class="ux-err" data-e="addsub"></div><div class="hint2">Серверы второй подписки подмешаются в ссылку.</div></div>'+
    '<label class="ux-opt" style="margin-top:.8rem"><input type="checkbox" class="ux-cbx" id="fNolog"'+(F.nolog?' checked':'')+'><span><b>Не писать запросы в лог</b><span class="d">Например, для своих тестовых пользователей.</span></span></label>');
@@ -916,7 +850,7 @@ function bindForm(create){
   var E=errs(),allE=errs(),d=diffList(),u=CARD.u,T=CARD.touched||(CARD.touched={});
   Object.keys(E).forEach(function(k){if(create&&!CARD.tried&&!T[k])delete E[k];});
   root.querySelectorAll('[data-e]').forEach(function(el){el.textContent=E[el.dataset.e]||'';});
-  var map={exp:'fExp',username:'fUser',tag:'fTag',tg:'fTg',email:'fEm',short:'fShort',vless:'fVless',trojan:'fTrojan',ss:'fSs',addsub:'fAdd'};
+  var map={exp:'fExp',username:'fUser',tag:'fTag',tg:'fTg',email:'fEm',addsub:'fAdd'};
   Object.keys(map).forEach(function(k){var el=$(map[k]);if(el)el.classList.toggle('err',!!E[k]);});
   if(!create){var cm={exp:'fExp',tl:'fTl',ts:'fTs',ex:'fEx',tag:'fTag',tg:'fTg',email:'fEm',desc:'fDesc'};Object.keys(cm).forEach(function(k){var el=$(cm[k]);if(el)el.classList.toggle('chg',d.indexOf(k)>-1&&!E[k]);});}
   var w=$('fWill');if(w)w.innerHTML=F.exp>now()?'До <b>'+fdt(F.exp)+'</b> · '+rel(F.exp):'';
@@ -942,7 +876,7 @@ function bindForm(create){
  on('fEm','input',function(){F.email=this.value.trim();upd();});
  on('fEm','blur',function(){touch('email');upd();});
  on('fDesc','input',function(){F.desc=this.value;upd();});
- [['fShort','short'],['fVless','vless'],['fTrojan','trojan'],['fSs','ss'],['fAdd','addsub']].forEach(function(x){on(x[0],'input',function(){F[x[1]]=x[1]==='trojan'||x[1]==='ss'?this.value:this.value.trim();upd();});on(x[0],'blur',function(){touch(x[1]);upd();});});
+ on('fAdd','input',function(){F.addsub=this.value.trim();upd();});on('fAdd','blur',function(){touch('addsub');upd();});
  on('fNolog','change',function(){F.nolog=this.checked;});
  on('fTpl','change',function(){F.tpl=this.value;var x=bySu(this.value);if(x){var s=snapF(x);F.sq=s.sq.filter(function(q){return q!==GSQ;});F.tl=s.tl;F.ts=s.ts;F.hw=s.hw;F.ex=s.ex;F.tag=s.tag;if(isGr(x))graceF(gInfo(x),F);}var sc=$('uxForm').scrollTop;drawCard();$('uxForm').scrollTop=sc;});
  on('fRestore','change',function(){CARD.restore=this.checked;var keep={exp:F.exp,status:F.status,tag:F.tag,desc:F.desc,tg:F.tg,email:F.email};CARD.F=snapF(CARD.u);Object.keys(keep).forEach(function(k){CARD.F[k]=keep[k];});if(CARD.restore)graceF(gInfo(CARD.u),CARD.F);var sc=$('uxForm').scrollTop;drawCard();$('uxForm').scrollTop=sc;});
@@ -980,10 +914,9 @@ function doCreate(){
  var notes=[];if(F.status==='DISABLED')notes.push(['power','warn','Создаётся выключенным','']);if(F.addsub)notes.push(['link','info','Доп-подписка',esc(F.addsub)]);if(F.nolog)notes.push(['eyeoff','info','Запросы не пишутся в лог','']);
  cfm({ic:'plus',title:'Создать пользователя',sub:'<b>'+esc(F.username)+'</b> · в панели Remnawave',
   rows:[['cal','Срок',null,fdt(F.exp)],['wave','Трафик',null,esc(fmtF('tl',F.tl)+(F.tl&&F.ts!=='NO_RESET'?' · '+fmtF('ts',F.ts).toLowerCase():''))],['dev','Устройства',null,esc(hwTxt(F.hw))],['net','Сквады',null,chips(F.sq)],['link','Внешний сквад',null,fmtH('ex',F.ex)]],
-  notes:notes,hint:(F.short||F.vless||F.trojan||F.ss)?'Часть ключей — свои':'shortUuid и ключи сгенерирует панель',ok:'Создать',onOk:function(){
+  notes:notes,hint:'Ссылку и ключи сгенерирует панель',ok:'Создать',onOk:function(){
    var f={username:F.username,expireAt:Math.round(F.exp/1000),status:F.status,trafficLimitBytes:F.tl,trafficLimitStrategy:F.ts,activeInternalSquads:F.sq};
    if(F.hw!==null)f.hwidDeviceLimit=F.hw;if(F.ex)f.externalSquadUuid=F.ex;if(F.tag)f.tag=F.tag;if(F.desc.trim())f.description=F.desc;if(F.tg)f.telegramId=F.tg;if(F.email)f.email=F.email;
-   if(F.short)f.shortUuid=F.short;if(F.vless)f.vlessUuid=F.vless;if(F.trojan)f.trojanPassword=F.trojan;if(F.ss)f.ssPassword=F.ss;
    busy(true);
    post('ua_create',{fields:JSON.stringify(f),addsub:F.addsub,nolog:F.nolog?'1':''}).then(function(r){
     busy(false);
@@ -1017,16 +950,8 @@ document.addEventListener('click',function(e){
  var dn=t.closest('.ux-flt [data-dens]');if(dn){S.dens=+dn.dataset.dens;try{localStorage.setItem('utbl_dens',String(S.dens));}catch(_){}render();return;}
  var uc=t.closest('[data-unchip]');if(uc){S[uc.dataset.unchip]='';fillSelects();S.page=1;render();return;}
  var pg=t.closest('[data-pg]');if(pg){S.page+=+pg.dataset.pg;render();return;}
- var bk=t.closest('[data-bulk]');if(bk){if(bk.disabled)return;var L=U.filter(function(u){return S.sel[u.su];}),a=bk.dataset.bulk;
-  if(a==='clear'){S.sel={};render();}else if(a==='extend')pickExtend(L);else if(a==='squads')pickSquads(L);
-  else if(a==='reset')cfm({ic:'reset',tone:'info',title:'Сбросить трафик',sub:nUsers(L.length),rows:[['wave','Использовано',fb(L.reduce(function(x,u){return x+u.used;},0))+' всего','0 Б']],hint:'Лимиты и сроки не меняются',ok:'Сбросить',onOk:function(){runMany(L,function(u){return ['ua_act',{su:u.su,act:'reset'}];},'Трафик сброшен');}});
-  else if(a==='disable')cfm({ic:'power',tone:'bad',title:'Выключить выбранных',sub:nUsers(L.length),notes:[['ban','bad','Подписки перестанут работать','до включения']],hint:'Сроки и трафик не меняются',ok:'Выключить',danger:true,onOk:function(){runMany(L,function(u){return ['ua_act',{su:u.su,act:'disable'}];},'Выключено');}});
-  else if(a==='enable')cfm({ic:'power',tone:'ok',title:'Включить выбранных',sub:nUsers(L.length),hint:'С прошедшим сроком станут «Истёк»',ok:'Включить',onOk:function(){runMany(L,function(u){return ['ua_act',{su:u.su,act:'enable'}];},'Включено');}});
-  return;}
  var tr=t.closest('#uxBody tr[data-su]');
  if(tr){var u=bySu(tr.dataset.su);if(!u)return;
-  if(t.closest('[data-cb]')){if(t.checked)S.sel[u.su]=1;else delete S.sel[u.su];render();return;}
-  if(t.closest('.cb'))return;
   var ab=t.closest('[data-act]');if(ab){if(ab.disabled)return;if(ab.dataset.act==='menu'){if(menuFor===u)closeMenu();else openMenu(ab,u);}else doAction(ab.dataset.act,u);return;}
   openCard(u,'ov');return;}
  if(t.closest('#uxDr')){
@@ -1049,7 +974,7 @@ $('uxCreate').addEventListener('click',function(){if(!this.disabled)openCreate()
 $('uxQ').addEventListener('input',function(){S.q=this.value.trim().toLowerCase();S.page=1;render();});
 $('uxSq').addEventListener('change',function(){S.sq=this.value;S.page=1;render();});
 $('uxTag').addEventListener('change',function(){S.tag=this.value;S.page=1;render();});
-document.addEventListener('change',function(e){var t=e.target;if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}if(t.id==='uxAll'){pageRows().forEach(function(u){if(t.checked)S.sel[u.su]=1;else delete S.sel[u.su];});render();}});
+document.addEventListener('change',function(e){var t=e.target;if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
 document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
 window.addEventListener('resize',closeMenu);
 document.addEventListener('scroll',closeMenu,true);

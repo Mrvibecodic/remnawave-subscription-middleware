@@ -18,7 +18,7 @@ function tokscope_catalog() {
         ['s' => 'users:reset-traffic', 'm' => 'POST', 'p' => '/api/users/submw-probe/actions/reset-traffic', 'b' => '[]', 'w' => 'Грейс-сквад и кнопка «Сбросить трафик» (запись)', 'need' => $grace && (grace_traffic_bytes() > 0 || grace_reset_traffic_on_exit())],
         ['s' => 'users:create', 'm' => 'POST', 'p' => '/api/users', 'b' => '[]', 'w' => 'Создание пользователя во вкладке «Пользователи» (запись)', 'need' => false],
         ['s' => 'users:enable', 'm' => 'POST', 'p' => '/api/users/submw-probe/actions/enable', 'b' => '[]', 'w' => 'Кнопка «Включить» у пользователя (запись)', 'need' => false],
-        ['s' => 'users:disable', 'm' => 'POST', 'p' => '/api/users/submw-probe/actions/disable', 'b' => '[]', 'w' => 'Кнопка «Выключить» у пользователя (запись)', 'need' => false],
+        ['s' => 'users:disable', 'm' => 'POST', 'p' => '/api/users/submw-probe/actions/disable', 'b' => '[]', 'w' => 'Кнопка «Выключить» у пользователя и выключение истёкшего или лимитного из формы (запись)', 'need' => false],
         ['s' => 'users:revoke-subscription', 'm' => 'POST', 'p' => '/api/users/submw-probe/actions/revoke', 'b' => '[]', 'w' => 'Новые ключи пользователю (запись)', 'need' => false],
         ['s' => 'users:delete', 'm' => 'DELETE', 'p' => '/api/users/submw-probe', 'w' => 'Удаление пользователя (запись)', 'need' => false],
         ['s' => 'hwid-user-devices:list', 'm' => 'GET', 'p' => '/api/hwid/devices?size=1&start=0', 'w' => 'Подсчёт устройств для пула WG / AWG', 'need' => $pool],

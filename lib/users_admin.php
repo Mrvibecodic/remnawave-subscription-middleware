@@ -94,7 +94,7 @@ function ua_fields(array $in, $create, &$err) {
             case 'description':
                 $v = trim((string) $v);
                 if ($v === '') { if (!$create) $out[$k] = null; break; }
-                $out[$k] = mb_substr($v, 0, 1000);
+                $out[$k] = $v;
                 break;
             case 'tag':
                 $v = strtoupper(trim((string) $v));
@@ -245,7 +245,7 @@ function ua_fetch($short, &$err = '', &$code = 0) {
 function ua_after_write($short, $u) {
     squadconf_cache_drop($short);
     addsub_cache_drop($short);
-    if (is_array($u) && ua_ts($u['expireAt'] ?? null) > time() && ($u['status'] ?? '') !== 'DISABLED') delete_override('shortuuid', $short, 'webhook');
+    if (is_array($u) && ua_ts($u['expireAt'] ?? null) > time() && ($u['status'] ?? '') === 'ACTIVE') delete_override('shortuuid', $short, 'webhook');
 }
 
 function ua_resp_user($resp, $short) {
@@ -267,6 +267,8 @@ function ua_save($short, array $raw, $expect_upd = '', $reset = false) {
         return ['ok' => false, 'conflict' => true, 'error' => 'Пользователя изменили, пока форма была открыта', 'user' => ua_norm($u), 'mw' => ua_mw($short, (string) ($u['username'] ?? ''))];
     }
     $ref = rw_user_ref($u);
+    $dis = ($fields['status'] ?? '') === 'DISABLED' && !in_array((string) ($u['status'] ?? ''), ['ACTIVE', 'DISABLED'], true);
+    if ($dis) unset($fields['status']);
     $g = grace_find($short);
     $gk = ['expireAt', 'status', 'trafficLimitBytes', 'trafficLimitStrategy', 'hwidDeviceLimit', 'activeInternalSquads', 'externalSquadUuid'];
     $claimed = false;
@@ -276,12 +278,19 @@ function ua_save($short, array $raw, $expect_upd = '', $reset = false) {
         $claimed = $c;
     }
     api_ctx('admin', $short);
-    $resp = null; $e = ''; $code = 0;
-    if (!remnawave_update_user($ref, $fields, $e, $code, $resp)) {
-        if ($claimed) grace_unclaim_end($short);
-        return ['ok' => false, 'error' => panel_err_text($resp, $code, $e)];
+    $resp = null; $e = ''; $code = 0; $dr = null; $warn = '';
+    if ($dis) {
+        $de = ''; $dc = 0;
+        if (!remnawave_user_post($ref, 'disable', 'disable', null, $de, $dc, $dr)) return ['ok' => false, 'error' => $de];
+        $resp = $dr;
+        api_ctx('admin', $short);
     }
-    $warn = '';
+    if ($fields && !remnawave_update_user($ref, $fields, $e, $code, $resp)) {
+        if ($claimed) grace_unclaim_end($short);
+        if (!$dis) return ['ok' => false, 'error' => panel_err_text($resp, $code, $e)];
+        $warn = 'Выключен, но остальные поля не сохранились: ' . panel_err_text($resp, $code, $e);
+        $resp = $dr;
+    }
     if ($claimed && $reset) {
         api_ctx('admin', $short);
         $re = '';
@@ -343,16 +352,6 @@ function ua_create(array $raw, array $extra) {
     foreach ($body as $k => $v) if ($v === null && $k !== 'externalSquadUuid') unset($body[$k]);
     if (array_key_exists('externalSquadUuid', $body) && $body['externalSquadUuid'] === null) unset($body['externalSquadUuid']);
     $body = ['username' => $un] + $body;
-    $su = trim((string) ($raw['shortUuid'] ?? ''));
-    if ($su !== '') { if (strlen($su) < 16 || strlen($su) > 64) return ['ok' => false, 'error' => 'shortUuid: от 16 до 64 символов']; $body['shortUuid'] = $su; }
-    $vl = trim((string) ($raw['vlessUuid'] ?? ''));
-    if ($vl !== '') { if (!ua_uuid_ok($vl)) return ['ok' => false, 'error' => 'VLESS UUID — неверный формат']; $body['vlessUuid'] = strtolower($vl); }
-    foreach (['trojanPassword' => 'Trojan', 'ssPassword' => 'Shadowsocks'] as $k => $lbl) {
-        $v = (string) ($raw[$k] ?? '');
-        if ($v === '') continue;
-        if (strlen($v) < 8 || strlen($v) > 32) return ['ok' => false, 'error' => 'Пароль ' . $lbl . ': от 8 до 32 символов'];
-        $body[$k] = $v;
-    }
     $add = trim((string) ($extra['addsub'] ?? ''));
     if ($add !== '' && !preg_match('~^https?://~i', $add)) return ['ok' => false, 'error' => 'Доп-подписка: адрес должен начинаться с http:// или https://'];
     api_ctx('admin', '');
