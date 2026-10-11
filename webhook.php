@@ -139,6 +139,7 @@ if ($short_uuid !== '') {
     if ($event === 'user.deleted') {
         delete_override('shortuuid', $short_uuid, 'webhook');
         grace_cleanup($short_uuid);
+        fc_del($short_uuid);
         wglease_purge_user($short_uuid);
         if (function_exists('chan_index_drop')) {
             try { chan_index_drop($short_uuid); chan_state_drop($short_uuid); rep_forget($short_uuid); }
@@ -189,6 +190,11 @@ if ($short_uuid !== '') {
         upsert_override('shortuuid', $short_uuid, 'expired', 'webhook', $username, 'auto: ' . $event);
         $action = 'set_expired';
     }
+}
+
+if ($short_uuid !== '' && $event === 'user.first_connected') {
+    $fa = fc_apply($short_uuid, $data);
+    if ($fa !== '') $action = $fa;
 }
 
 log_webhook($event, $short_uuid ?: null, $username, $status, true, $action, $data);

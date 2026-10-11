@@ -580,6 +580,9 @@ function db_migrate(array $from, array $to, &$err = '') {
     if (in_array('addsub_swap', $tables, true) && function_exists('addsub_swap_ddl')) {
         try { $dst->exec(addsub_swap_ddl($drv)); } catch (Throwable $e) {}
     }
+    if (in_array('first_conn', $tables, true) && function_exists('fc_ddl')) {
+        try { $dst->exec(fc_ddl($drv)); } catch (Throwable $e) {}
+    }
     $verb = ($drv === 'mysql') ? 'REPLACE' : 'INSERT OR REPLACE';
     $dst_cols = [];
     foreach ($tables as $t) {

@@ -50,6 +50,111 @@ function ua_norm($u) {
     ];
 }
 
+const FC_MAX_WAIT = 2592000;
+
+function fc_ddl($drv) {
+    if ($drv === 'mysql') return "CREATE TABLE IF NOT EXISTS first_conn (short_uuid VARCHAR(191) NOT NULL, dur BIGINT NOT NULL DEFAULT 0, until_ts BIGINT NOT NULL DEFAULT 0, created_ts BIGINT NOT NULL DEFAULT 0, conn_ts BIGINT NOT NULL DEFAULT 0, err VARCHAR(500) NULL, PRIMARY KEY (short_uuid)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    return "CREATE TABLE IF NOT EXISTS first_conn (short_uuid TEXT NOT NULL PRIMARY KEY, dur INTEGER NOT NULL DEFAULT 0, until_ts INTEGER NOT NULL DEFAULT 0, created_ts INTEGER NOT NULL DEFAULT 0, conn_ts INTEGER NOT NULL DEFAULT 0, err TEXT NULL)";
+}
+
+function fc_ensure() {
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    if (!($p = db())) return false;
+    try { $p->exec(fc_ddl(db_driver())); $ok = true; }
+    catch (Throwable $e) { error_log('submw first_conn table: ' . $e->getMessage()); $ok = false; }
+    return $ok;
+}
+
+function fc_get($short) {
+    $short = (string) $short;
+    if ($short === '' || !fc_ensure()) return null;
+    try {
+        $st = db()->prepare('SELECT * FROM first_conn WHERE short_uuid = ?');
+        $st->execute([$short]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        return $r ?: null;
+    } catch (Throwable $e) { return null; }
+}
+
+function fc_put($short, $dur, $until, $created, $conn = 0, $err = null) {
+    if ((string) $short === '' || !fc_ensure()) return false;
+    $verb = db_driver() === 'mysql' ? 'REPLACE' : 'INSERT OR REPLACE';
+    try {
+        db()->prepare("$verb INTO first_conn (short_uuid, dur, until_ts, created_ts, conn_ts, err) VALUES (?, ?, ?, ?, ?, ?)")
+            ->execute([(string) $short, (int) $dur, (int) $until, (int) $created, (int) $conn, $err === null ? null : mb_substr((string) $err, 0, 500)]);
+        return true;
+    } catch (Throwable $e) { error_log('submw first_conn put: ' . $e->getMessage()); return false; }
+}
+
+function fc_del($short) {
+    if ((string) $short === '' || !fc_ensure()) return false;
+    try {
+        $st = db()->prepare('DELETE FROM first_conn WHERE short_uuid = ?');
+        $st->execute([(string) $short]);
+        return $st->rowCount() === 1;
+    } catch (Throwable $e) { return false; }
+}
+
+function fc_view($r) {
+    return is_array($r) ? ['dur' => (int) $r['dur'], 'until' => (int) $r['until_ts'], 'at' => (int) $r['conn_ts'], 'err' => (string) ($r['err'] ?? '')] : null;
+}
+
+function fc_map() {
+    $out = [];
+    if (!fc_ensure()) return $out;
+    $now = time();
+    try {
+        $st = db()->prepare('DELETE FROM first_conn WHERE (conn_ts = 0 AND until_ts < ?) OR (conn_ts > 0 AND conn_ts + dur < ?)');
+        $st->bindValue(1, $now - 86400, PDO::PARAM_INT);
+        $st->bindValue(2, $now, PDO::PARAM_INT);
+        $st->execute();
+        foreach (db()->query('SELECT * FROM first_conn') as $r) $out[(string) $r['short_uuid']] = fc_view($r);
+    } catch (Throwable $e) {}
+    return $out;
+}
+
+function fc_claim($short, $t) {
+    if ((string) $short === '' || !fc_ensure()) return false;
+    try {
+        $st = db()->prepare('UPDATE first_conn SET conn_ts = ?, err = NULL WHERE short_uuid = ? AND conn_ts = 0');
+        $st->bindValue(1, (int) $t, PDO::PARAM_INT);
+        $st->bindValue(2, (string) $short);
+        $st->execute();
+        return $st->rowCount() === 1;
+    } catch (Throwable $e) { return false; }
+}
+
+function fc_fail($short, $err) {
+    if (!fc_ensure()) return;
+    try { db()->prepare('UPDATE first_conn SET err = ? WHERE short_uuid = ?')->execute([mb_substr((string) $err, 0, 500), (string) $short]); }
+    catch (Throwable $e) {}
+}
+
+function fc_write($short, $ref, $t, array $r) {
+    $exp = (int) $t + (int) $r['dur'];
+    if ($exp <= time() + 60) { fc_del($short); return 'first_late'; }
+    api_ctx('first_conn', $short);
+    $e = ''; $code = 0; $resp = null;
+    if (remnawave_update_user($ref, ['expireAt' => gmdate('Y-m-d\TH:i:s.000\Z', $exp)], $e, $code, $resp)) { fc_del($short); return 'first_conn'; }
+    fc_fail($short, panel_err_text($resp, $code, $e));
+    return 'first_err';
+}
+
+function fc_apply($short, $data) {
+    $r = fc_get($short);
+    if (!$r || (int) $r['conn_ts'] > 0) return '';
+    $data = is_array($data) ? $data : [];
+    $tr = is_array($data['userTraffic'] ?? null) ? $data['userTraffic'] : $data;
+    $now = time();
+    $t = ua_ts($tr['firstConnectedAt'] ?? null);
+    if ($t <= 0 || $t > $now + 300) $t = $now;
+    $t = max($t, (int) $r['created_ts']);
+    if (!fc_claim($short, $t)) return '';
+    if ($t > (int) $r['until_ts']) { fc_del($short); return 'first_late'; }
+    return fc_write($short, rw_user_ref($data), $t, $r);
+}
+
 function ua_uuid_ok($v) { return is_string($v) && preg_match('~^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$~i', $v); }
 
 function ua_fields(array $in, $create, &$err) {
@@ -150,7 +255,7 @@ function ua_grace_map() {
 
 function ua_mw($short, $username = '') {
     $short = (string) $short;
-    $out = ['grace' => ua_grace_info($short), 'ov' => [], 'addsub' => '', 'nolog' => nolog_is_set($short), 'wg' => ['m' => 0, 'a' => 0], 'last' => null];
+    $out = ['grace' => ua_grace_info($short), 'ov' => [], 'addsub' => '', 'nolog' => nolog_is_set($short), 'wg' => ['m' => 0, 'a' => 0], 'last' => null, 'fc' => fc_view(fc_get($short))];
     $p = db();
     if (!$p || $short === '') return $out;
     try {
@@ -290,6 +395,8 @@ function ua_save($short, array $raw, $expect_upd = '', $reset = false) {
         if (!$dis) return ['ok' => false, 'error' => panel_err_text($resp, $code, $e)];
         $warn = 'Выключен, но остальные поля не сохранились: ' . panel_err_text($resp, $code, $e);
         $resp = $dr;
+    } elseif (isset($fields['expireAt'])) {
+        fc_del($short);
     }
     if ($claimed && $reset) {
         api_ctx('admin', $short);
@@ -303,6 +410,7 @@ function ua_save($short, array $raw, $expect_upd = '', $reset = false) {
 }
 
 function ua_action($short, $act) {
+    if ($act === 'fccancel') return fc_del($short) || !fc_get($short) ? ['ok' => true] : ['ok' => false, 'error' => 'База данных недоступна'];
     $err = ''; $code = 0;
     $u = ua_fetch($short, $err, $code);
     if (!$u) return ['ok' => false, 'error' => $err];
@@ -316,11 +424,20 @@ function ua_action($short, $act) {
         $ok = remnawave_user_post($ref, 'revoke', 'revoke', ['revokeOnlyPasswords' => true], $e, $code, $resp);
     } elseif ($act === 'reset') {
         $ok = remnawave_reset_traffic($ref, $e);
+    } elseif ($act === 'fcretry') {
+        $r = fc_get($short);
+        if (!$r || (int) $r['conn_ts'] <= 0) return ['ok' => false, 'error' => 'Записывать нечего'];
+        $res = fc_write($short, $ref, (int) $r['conn_ts'], $r);
+        if ($res === 'first_err') { $f = fc_get($short); return ['ok' => false, 'error' => (string) ($f['err'] ?? 'Панель не приняла')]; }
+        if ($res === 'first_late') $aw = 'Срок от подключения уже прошёл — отметка снята, дата не менялась';
+        $ok = true;
+        $resp = null;
     } elseif ($act === 'delete') {
         $ok = remnawave_delete_user($ref, $e, $code);
         if ($ok) {
             delete_override('shortuuid', $short);
             addsub_map_del($short);
+            fc_del($short);
             nolog_set($short, false);
             grace_cleanup($short);
             wglease_purge_user($short);
@@ -337,9 +454,9 @@ function ua_action($short, $act) {
     }
     if (!$ok) return ['ok' => false, 'error' => $e ?: ('HTTP ' . $code)];
     $nu = ua_resp_user($resp, $short) ?: $u;
-    if ($act === 'reset') { $e2 = ''; $nu = remnawave_get_user_by_short($short, $e2) ?: $nu; }
+    if ($act === 'reset' || $act === 'fcretry') { $e2 = ''; $nu = remnawave_get_user_by_short($short, $e2) ?: $nu; }
     ua_after_write($short, $nu);
-    return ['ok' => true, 'user' => ua_norm($nu), 'mw' => ua_mw($short, $un)];
+    return ['ok' => true, 'user' => ua_norm($nu), 'mw' => ua_mw($short, $un), 'warn' => $aw ?? ''];
 }
 
 function ua_create(array $raw, array $extra) {
@@ -354,6 +471,15 @@ function ua_create(array $raw, array $extra) {
     $body = ['username' => $un] + $body;
     $add = trim((string) ($extra['addsub'] ?? ''));
     if ($add !== '' && !preg_match('~^https?://~i', $add)) return ['ok' => false, 'error' => 'Доп-подписка: адрес должен начинаться с http:// или https://'];
+    $fcd = (int) ($extra['fcdur'] ?? 0);
+    $win = 0;
+    if ($fcd !== 0) {
+        if ($fcd < 3600 || $fcd > 100 * 366 * 86400) return ['ok' => false, 'error' => 'Срок от первого подключения — от часа'];
+        if (!fc_ensure()) return ['ok' => false, 'error' => 'База данных недоступна'];
+        $win = min($fcd, FC_MAX_WAIT);
+        $body['expireAt'] = gmdate('Y-m-d\TH:i:s.000\Z', time() + $win);
+        $body['status'] = 'ACTIVE';
+    }
     api_ctx('admin', '');
     $code = 0;
     $u = remnawave_create_user($body, $err, $code);
@@ -362,5 +488,6 @@ function ua_create(array $raw, array $extra) {
     $warn = '';
     if ($add !== '' && !addsub_map_set($short, $add, '')) $warn = 'Пользователь создан, но доп-подписка не привязалась';
     if (!empty($extra['nolog'])) nolog_set($short, true);
+    if ($fcd !== 0 && !fc_put($short, $fcd, ua_ts($u['expireAt'] ?? null) ?: time() + $win, time())) $warn = ($warn !== '' ? $warn . '. ' : '') . 'Пользователь создан, но отсчёт от первого подключения не включился';
     return ['ok' => true, 'user' => ua_norm($u), 'mw' => ua_mw($short, $un), 'warn' => $warn];
 }
