@@ -56,7 +56,7 @@
                 <label class="switch"><input type="checkbox" name="cv_enabled" <?= clientver_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
             <div class="cv-wrap" style="margin:.9rem 0 .7rem">
-                <table class="cv-tbl">
+                <table class="cv-tbl tcards">
                     <colgroup><col class="cv-c-on"><col class="cv-c-key"><col class="cv-c-name"><col class="cv-c-os"><col class="cv-c-src"><col class="cv-c-ref"><col class="cv-c-how"><col class="cv-c-cmp"><col class="cv-c-cur"><col class="cv-c-del"></colgroup>
                     <thead><tr><th>Вкл</th><th>Ключ UA</th><th>Имя</th><th>Платформа</th><th>Источник</th><th>Адрес</th><th>Способ</th><th>Сравнение</th><th>Актуальная</th><th></th></tr></thead>
                     <tbody id="cvBody">

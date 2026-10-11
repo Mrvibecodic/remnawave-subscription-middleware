@@ -9,7 +9,7 @@
                 <div><label>Значение</label><input type="text" name="match_value" placeholder="shortUuid или HWID"></div>
                 <div><label>Причина</label><select name="reason"><option value="expired">expired</option><option value="blocked">blocked</option></select></div>
                 <div><label>Заметка</label><input type="text" name="note"></div>
-                <div style="flex:0"><button type="submit">➕ Добавить</button></div>
+                <div style="flex:0 0 auto"><button type="submit">➕ Добавить</button></div>
             </div>
         </form>
     </div>
@@ -35,7 +35,7 @@
             return '—';
         };
         ?>
-        <table>
+        <table class="tcards">
             <tr><th>Тип</th><th>Значение</th><th>Причина</th><th>Источник</th><th>Юзер</th><th>Заметка</th><th>Обновлён</th><th title="До какого момента оверрайд влияет на юзера: blocked — бессрочно; expired с будущим expireAt — дата истечения из панели; с прошлым — expireAt + expired_grace_days; или «до продления»">Действует до</th><th></th></tr>
             <?php foreach ($overrides as $o): ?>
             <tr>
