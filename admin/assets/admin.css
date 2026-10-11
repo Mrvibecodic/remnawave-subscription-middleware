@@ -107,8 +107,9 @@
     .repbox-it .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem}
     .repbox-it .t b{font-size:.84rem;font-weight:600;color:var(--text-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .repbox-it small{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .repbox-it small.v{white-space:normal}
     .repbox-it .r{display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;flex:none}
-    .repbox-s{font-size:.68rem;font-weight:600;padding:.08rem .45rem;border-radius:999px;white-space:nowrap}
+    .repbox .repbox-s{border:0;margin:0;font-size:.68rem;font-weight:600;padding:.08rem .45rem;border-radius:999px;white-space:nowrap}
     .repbox-s.ok{background:var(--c-ok-bg);color:var(--c-ok-fg)}
     .repbox-s.warn{background:var(--c-warn-bg);color:var(--c-warn-fg)}
     .repbox-s.bad{background:var(--c-bad-bg);color:var(--c-bad-fg)}
