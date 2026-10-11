@@ -4,15 +4,16 @@
     .cv-tbl th{background:var(--bg2);font-size:.7rem;padding:.55rem .6rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
     .cv-tbl td{padding:.4rem .6rem;box-shadow:inset 0 -1px 0 var(--line)}
     .cv-tbl input[type=text]{width:100%;height:32px;min-height:32px;padding:0 .5rem;font-size:.82rem}
-    .cv-tbl select{width:100%;height:32px;min-height:32px;padding:0 .4rem;font-size:.82rem}
+    .cv-tbl select{width:100%;height:32px;min-height:32px;padding:0 .4rem;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cv-tbl select selectedcontent{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     @supports not (appearance:base-select){.cv-tbl select{background-image:none}}
-    .cv-c-on{width:52px}.cv-c-key{width:15%}.cv-c-name{width:16%}.cv-c-os{width:9%}.cv-c-src{width:10%}.cv-c-ref{width:19%}.cv-c-how{width:12%}.cv-c-cmp{width:11%}.cv-c-cur{width:12%}.cv-c-del{width:44px}
+    .cv-c-on{width:48px}.cv-c-key{width:9%}.cv-c-name{width:14%}.cv-c-os{width:11%}.cv-c-src{width:15%}.cv-c-ref{width:16%}.cv-c-how{width:9%}.cv-c-cmp{width:12%}.cv-c-cur{width:14%}.cv-c-del{width:44px}
     .cv-tbl .cv-del{padding:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--radius);background:transparent;border:1px solid var(--line);color:var(--muted);cursor:pointer}
     .cv-tbl .cv-del:hover{border-color:var(--red);color:var(--red)}
     .cv-cur{display:flex;flex-direction:column;line-height:1.3}
     .cv-cur b{color:var(--text-strong);font-variant-numeric:tabular-nums;font-weight:600}
     .cv-cur span{color:var(--muted);font-size:.74rem}
-    .cv-cur span.bad{color:var(--c-bad-fg)}
+    .cv-cur span.bad{color:var(--c-bad-fg);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .cv-grp{border:1px solid var(--line);border-radius:12px;margin-bottom:.6rem;overflow:hidden}
     .cv-grp>summary{cursor:pointer;padding:.6rem .85rem;font-weight:600;font-size:.86rem;background:var(--bg2);list-style:none;display:flex;align-items:center;gap:.5rem}
     .cv-grp>summary::-webkit-details-marker{display:none}
@@ -78,7 +79,7 @@
                                     <?php $cv_lv = clientver_latest($cv_r); ?>
                                     <span class="cv-cur">
                                         <b><?= $cv_lv !== '' ? h($cv_lv) : '—' ?></b>
-                                        <span class="<?= $cv_err !== '' ? 'bad' : '' ?>"><?= $cv_err !== '' ? h(mb_substr($cv_err, 0, 60)) : ($cv_t ? '<span class="cv-ts" data-ts="' . (int) $cv_t . '">' . h(gmdate('d.m H:i', $cv_t)) . '</span>' : 'не проверялась') ?></span>
+                                        <span class="<?= $cv_err !== '' ? 'bad' : '' ?>"<?= $cv_err !== '' ? ' data-tip="' . h($cv_err) . '"' : '' ?>><?= $cv_err !== '' ? h(mb_substr($cv_err, 0, 60)) : ($cv_t ? '<span class="cv-ts" data-ts="' . (int) $cv_t . '">' . h(gmdate('d.m H:i', $cv_t)) . '</span>' : 'не проверялась') ?></span>
                                     </span>
                                 <?php endif; ?>
                             </td>
