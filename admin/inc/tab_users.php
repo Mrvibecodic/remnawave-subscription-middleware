@@ -21,6 +21,8 @@ $ux_cfg = [
     'ts'    => (object) $ux_ts,
     'hwb'   => $ux_hwb,
     'mirror'=> $mirror !== '',
+    'fc'    => (object) fc_map(),
+    'wh'    => webhook_secret() !== '',
     'qr'    => 'assets/qrcode.js?v=' . substr(md5_file(__DIR__ . '/../assets/qrcode.js'), 0, 10),
 ];
 $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
@@ -179,7 +181,15 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-gb .h{display:flex;gap:.6rem;align-items:center;color:var(--text-strong);font-weight:700;font-size:.92rem}
 .ux-gb .h svg{width:18px;height:18px;color:var(--c-violet-fg);flex:none}
 .ux-gb p{margin:.35rem 0 0;font-size:.84rem;color:var(--text)}
-.ux-gb .acts{display:flex;gap:.5rem;margin-top:.65rem;flex-wrap:wrap}
+.ux-gb .acts{display:flex;gap:.5rem;margin-top:.65rem;flex-wrap:wrap;align-items:center}
+.ux-gb.ux-fcb{border-color:var(--c-info-fg);background:var(--c-info-bg)}
+.ux-gb.ux-fcb .h svg{color:var(--c-info-fg)}
+.ux-gb.ux-fcb.bad{border-color:var(--c-bad-fg);background:var(--c-bad-bg)}
+.ux-gb.ux-fcb.bad .h svg{color:var(--c-bad-fg)}
+.ux-fcw{display:flex;gap:.5rem;align-items:flex-start;margin-top:.85rem;padding-top:.8rem;border-top:1px dashed var(--line)}
+.ux-fcw .ux-opt{flex:1}
+.ux-fcw .qh{margin-left:.4rem}
+.ux-fcw .d b{color:var(--text-strong)}
 .ux-rt{display:grid;grid-template-columns:max-content minmax(0,max-content) max-content minmax(0,1fr);gap:.3rem .6rem;font-size:.82rem;margin-top:.6rem;align-items:center}
 .ux-rt .k{color:var(--muted)}
 .ux-rt .a{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted)}
@@ -464,6 +474,11 @@ function fd(ts){var d=new Date(ts);return d.getFullYear()+'-'+p2(d.getMonth()+1)
 function dlv(ts){var d=new Date(ts);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'T'+p2(d.getHours())+':'+p2(d.getMinutes());}
 function plural(n,a,b,c){n=Math.abs(n)%100;var m=n%10;if(n>10&&n<20)return c;if(m>1&&m<5)return b;if(m===1)return a;return c;}
 function dd(n){return n+' '+plural(n,'день','дня','дней');}
+var FC_MAX=30*86400;
+function durTxt(s){var d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.round(s%3600/60),p=[];if(d)p.push(dd(d));if(h)p.push(h+' ч');if(m)p.push(m+' мин');return p.join(' ')||'0 мин';}
+function fcDur(F){var t0=F.t0||now(),s=Math.round((F.exp-t0)/1000),a=new Date(t0),b=new Date(F.exp),dm=Math.abs(a.getHours()*60+a.getMinutes()-b.getHours()*60-b.getMinutes());if(s>=43200&&(dm<=15||dm>=1425))return Math.round(s/86400)*86400;var h=Math.round(s/3600)*3600;if(Math.abs(s-h)<=120)return Math.max(0,h);return Math.max(0,Math.round(s/60)*60);}
+function fcWait(F){return now()+Math.min(fcDur(F),FC_MAX)*1000;}
+function fcPend(su){var f=C.fc[su];return f&&!f.at&&f.until*1000>now()?f:null;}
 function rel(ts){var df=ts-now(),a=Math.abs(df),s;if(a<3600000)s=Math.max(1,Math.round(a/60000))+' мин';else if(a<DAY)s=Math.round(a/3600000)+' ч';else s=dd(Math.round(a/DAY));return df>=0?'через '+s:s+' назад';}
 function ago(ts){var a=now()-ts;if(a<120000)return 'только что';if(a<3600000)return Math.round(a/60000)+' мин назад';if(a<DAY)return Math.round(a/3600000)+' ч назад';return dd(Math.round(a/DAY))+' назад';}
 function fb(b){b=+b||0;if(b>=1024*GB)return(b/1024/GB).toFixed(b>=10*1024*GB?0:1).replace('.',',')+' ТБ';if(b>=GB)return(b/GB).toFixed(b>=100*GB?0:1).replace('.',',')+' ГБ';if(b>=1048576)return Math.round(b/1048576)+' МБ';return b>0?Math.round(b/1024)+' КБ':'0 Б';}
@@ -489,7 +504,7 @@ function fb2(v){try{var t=document.createElement('textarea');t.value=v;t.style.p
 function post(a,data){var f=new FormData();f.append('csrf',C.csrf);Object.keys(data||{}).forEach(function(k){f.append(k,data[k]);});return fetch('?ajax='+a,{method:'POST',body:f,credentials:'same-origin'}).then(function(r){return r.json();}).catch(function(){return{ok:false,error:'Сетевая ошибка'};});}
 function getj(a,q){return fetch('?ajax='+a+(q||''),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).catch(function(){return{ok:false,error:'Сетевая ошибка'};});}
 function loadMeta(){if(META)return Promise.resolve(META);if(!METAP)METAP=getj('ua_meta').then(function(d){if(d&&d.ok){META={sq:d.sq||[],ex:d.ex||[],nodes:d.nodes||{},hwid:d.hwid||null};META.sq.forEach(function(s){SQN[s.uuid]=s.name;});}else{METAP=null;}return META;});return METAP;}
-function applyMw(su,mw){if(!mw)return;if(mw.grace)C.gr[su]=mw.grace;else delete C.gr[su];if(mw.addsub)C.as[su]=mw.addsub;else delete C.as[su];if(mw.nolog)C.nl[su]=1;else delete C.nl[su];var b=(mw.ov||[]).some(function(o){return o.t==='shortuuid'&&o.r==='blocked';});if(b)C.ovb[su]=1;else delete C.ovb[su];}
+function applyMw(su,mw){if(!mw)return;if(mw.grace)C.gr[su]=mw.grace;else delete C.gr[su];if(mw.addsub)C.as[su]=mw.addsub;else delete C.as[su];if(mw.nolog)C.nl[su]=1;else delete C.nl[su];if(mw.fc)C.fc[su]=mw.fc;else delete C.fc[su];var b=(mw.ov||[]).some(function(o){return o.t==='shortuuid'&&o.r==='blocked';});if(b)C.ovb[su]=1;else delete C.ovb[su];}
 function putUser(nu,mw,oldSu){var i=-1;for(var k=0;k<U.length;k++)if(U[k].su===(oldSu||nu.su)){i=k;break;}if(i>-1)U[i]=nu;else U.unshift(nu);nu.sq.forEach(function(id,j){if(nu.sqn[j])SQN[id]=nu.sqn[j];});applyMw(nu.su,mw);if(CARD&&!CARD.create&&CARD.u.su===(oldSu||nu.su)){CARD.u=nu;if(mw)CARD.mw=mw;}return nu;}
 
 var FLT={
@@ -543,7 +558,7 @@ function rowHtml(u){
  var ot=u.on*1000,live=u.on&&now()-ot<5*60000;
  var sub=u.desc?esc(u.desc):'<span style="font-family:ui-monospace,monospace">'+esc(u.su)+'</span>';
  return '<tr data-su="'+esc(u.su)+'">'+
-  '<td class="c-nm"><div class="u-nm"><span>'+esc(u.un)+'</span>'+(u.tag?'<span class="ux-tag">'+esc(u.tag)+'</span>':'')+(C.ovb[u.su]?'<span class="ux-pill st-bad" data-tip="Заблокирован в оверрайдах" style="font-size:.66rem">блок</span>':'')+'</div><span class="u-sub">'+sub+'</span></td>'+
+  '<td class="c-nm"><div class="u-nm"><span>'+esc(u.un)+'</span>'+(u.tag?'<span class="ux-tag">'+esc(u.tag)+'</span>':'')+(C.ovb[u.su]?'<span class="ux-pill st-bad" data-tip="Заблокирован в оверрайдах" style="font-size:.66rem">блок</span>':'')+(fcPend(u.su)?'<span class="ux-pill st-info" data-tip="'+esc('Срок '+durTxt(fcPend(u.su).dur)+' пойдёт с первого подключения')+'" style="font-size:.66rem">ждёт подключения</span>':'')+'</div><span class="u-sub">'+sub+'</span></td>'+
   '<td class="c-st" data-l="Статус">'+pill(u)+'</td>'+
   '<td class="c-tr" data-l="Трафик"><div class="ux-tr"><div class="t"><b>'+fb(u.used)+'</b><span>'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</span></div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div></td>'+
   '<td class="c-ex" data-l="Истекает"><div class="ux-dt">'+(u.exp?fdt(e)+'<span class="r '+rc+'">'+(isGr(u)?'грейс, ':'')+rel(e)+'</span>':'—')+'</div></td>'+
@@ -611,6 +626,7 @@ function extend(u,days){
  var notes=[];
  if(isGr(u))notes.push(['hour','vio','Грейс завершится','прежний тариф вернётся']);
  if(u.st==='EXPIRED')notes.push(['check','ok','Станет «Активен»','срок — от сегодня']);
+ if(fcPend(u.su))notes.push(['hour','info','Отсчёт от подключения отменится','срок будет таким, как здесь']);
  cfm({ic:'calp',title:'Продлить на '+dd(days),sub:'<b>'+esc(u.un)+'</b>',
   rows:[['cal','Срок',u.exp?fd(expMs(u)):'—',fd(extFields(u,days).expireAt*1000)]],
   notes:notes,hint:'Активным — от текущей даты окончания',ok:'Продлить',onOk:function(){
@@ -700,7 +716,14 @@ function graceRows(u,g){
  return '<div class="ux-rt">'+R.map(function(r){return '<span class="k">'+r[0]+'</span><span class="a">'+esc(r[1])+'</span><span class="ar">→</span><span class="b">'+esc(r[2])+'</span>';}).join('')+'</div>';
 }
 function ovHtml(u){
- var h='',e=expMs(u),mw=CARD.mw,g=isGr(u)?gInfo(u):null;
+ var h='',e=expMs(u),mw=CARD.mw,g=isGr(u)?gInfo(u):null,fc=C.fc[u.su]||null;
+ if(fc&&fc.at){
+  h+='<div class="ux-gb ux-fcb bad"><div class="h">'+ico('alert',18)+'Срок от подключения не записан</div><p>Подключился '+fdt(fc.at*1000)+', срок '+esc(durTxt(fc.dur))+' должен идти до <b>'+fdt((fc.at+fc.dur)*1000)+'</b>, но панель не приняла: '+esc(fc.err||'ошибка')+'</p>'+
+  '<div class="acts"><button type="button" class="wb pri sm" data-a="fcretry" data-w="users:update">'+ico('refresh')+'Записать срок</button><button type="button" class="wb sm" data-a="fccancel">Отменить</button></div></div>';
+ }else if(fcPend(u.su)){
+  h+='<div class="ux-gb ux-fcb"><div class="h">'+ico('hour',18)+'Ждёт первого подключения</div><p>Подписка на <b>'+esc(durTxt(fc.dur))+'</b> — отсчёт пойдёт с первого подключения. Ждём до <b>'+fdt(fc.until*1000)+'</b> · '+rel(fc.until*1000)+'; не подключится — истечёт как обычно.</p>'+
+  '<div class="acts"><button type="button" class="wb sm" data-a="fccancel">Отменить отсчёт</button><button type="button" class="qh" data-help="firstconn" aria-label="Справка: срок с первого подключения">?</button></div></div>';
+ }
  if(g){
   h+='<div class="ux-gb"><div class="h">'+ico('hour',18)+'В грейсе до '+fdt(g.until*1000)+' · '+rel(g.until*1000)+'</div>'+
   '<p>'+(g.oexp?'Подписка истекла '+fdt(g.oexp*1000)+'. ':'')+'При продлении вернётся прежний тариф:</p>'+graceRows(u,g)+
@@ -746,7 +769,7 @@ function devHtml(u){
 function loadHist(){var su=CARD.u.su;CARD.hist=false;getj('ua_hist','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.hist=d.ok?d.ev:[];if(CARD.tab==='hist')drawCard();});}
 var EVN={'user.created':'Создан','user.modified':'Изменён в панели','user.deleted':'Удалён','user.revoked':'Новые ключи или ссылка','user.disabled':'Выключен','user.enabled':'Включён','user.limited':'Лимит трафика','user.expired':'Истёк','user.traffic_reset':'Сброс трафика','user.expiration':'Напоминание о сроке','user.first_connected':'Первое подключение','user.not_connected':'Давно не подключался','user.bandwidth_usage_threshold_reached':'Порог трафика','user_hwid_devices.added':'Новое устройство','user_hwid_devices.deleted':'Устройство удалено'};
 var OPN={patch:'Изменение',reset_traffic:'Сброс трафика',enable:'Включение',disable:'Выключение',revoke:'Новые ключи',create:'Создание',delete:'Удаление'};
-function srcL(s){if(s==='admin')return 'из админки';if(/^grace/.test(s))return 'грейс';return s;}
+function srcL(s){if(s==='admin')return 'из админки';if(s==='first_conn')return 'срок от подключения';if(/^grace/.test(s))return 'грейс';return s;}
 function histHtml(u){
  if(!CARD.hist)return '<div class="ux-load">Загрузка…</div>';
  var ev=CARD.hist;
@@ -763,7 +786,7 @@ function histHtml(u){
 }
 
 function snapF(u){return{upd:u.upd||'',exp:expMs(u),status:u.st==='DISABLED'?'DISABLED':'ACTIVE',tl:u.tl,ts:u.ts,hw:u.hw,sq:u.sq.slice().sort(),ex:u.ex||'',tag:u.tag||'',desc:u.desc||'',tg:u.tg||'',email:u.em||''};}
-function newF(){var d=new Date(now()+30*DAY);d.setSeconds(0,0);return{exp:d.getTime(),status:'ACTIVE',tl:0,ts:'NO_RESET',hw:null,sq:[],ex:'',tag:'',desc:'',tg:'',email:'',username:'',addsub:'',nolog:false,tpl:''};}
+function newF(){var d=new Date(now()+30*DAY);d.setSeconds(0,0);return{exp:d.getTime(),status:'ACTIVE',tl:0,ts:'NO_RESET',hw:null,sq:[],ex:'',tag:'',desc:'',tg:'',email:'',username:'',addsub:'',fc:false,t0:now(),nolog:false,tpl:''};}
 function graceF(g,F){F.sq=g.sq.slice().sort();F.tl=g.tl;F.ts=g.ts;F.hw=g.hw;if(g.ex!==null)F.ex=g.ex||'';}
 var LBL={exp:'Срок',status:'Статус',tl:'Лимит трафика',ts:'Сброс трафика',hw:'Лимит устройств',sq:'Сквады',ex:'Внешний сквад',tag:'Тег',desc:'Описание',tg:'Telegram ID',email:'Email'};
 var FICO={exp:'cal',status:'power',tl:'wave',ts:'refresh',hw:'dev',sq:'net',ex:'link',tag:'tag',desc:'edit',tg:'send',email:'mail'};
@@ -780,6 +803,7 @@ function diffList(){
 function grTouch(d){return d.some(function(k){return ['exp','status','tl','ts','hw','sq','ex'].indexOf(k)>-1;});}
 function errs(){
  var F=CARD.F,E={},cr=CARD.create;
+ if(cr&&F.fc&&F.exp>now()&&fcDur(F)<3600)E.exp='С первого подключения — срок от часа';
  if(F.exp<=now()&&(cr||Math.abs(F.exp-CARD.O.exp)>59000))E.exp='Панель не принимает дату в прошлом';
  if(cr){if(!/^[a-zA-Z0-9_-]{3,36}$/.test(F.username))E.username=F.username?'3–36 символов: латиница, цифры, _ и -':'Обязательное поле';else if(U.some(function(u){return u.un.toLowerCase()===F.username.toLowerCase();}))E.username='Такое имя уже есть в панели';
   if(F.addsub&&!/^https?:\/\//i.test(F.addsub))E.addsub='Адрес начинается с http:// или https://';}
@@ -812,7 +836,8 @@ function formHtml(create){
   '<div class="ux-will" id="fWill"></div></div>'+
   '<div class="ux-f"><label for="fSt">Статус</label><div class="ux-sw" style="border:1px solid var(--line);border-radius:9px;padding:.55rem .7rem;background:var(--bg2)"><div><b style="color:var(--text-strong);font-size:.88rem">'+(create?'Создать включённым':'Подписка включена')+'</b><div class="d">'+(create?'Выключите, чтобы завести заранее':'Выключенный не подключается')+'</div></div><label class="switch" style="margin:0"><input type="checkbox" id="fSt"'+(F.status==='ACTIVE'?' checked':'')+'><span class="sl"></span></label></div>'+
   (!create&&u.st==='EXPIRED'?'<div class="hint2" style="font-size:.76rem;color:var(--muted);margin-top:.3rem">Новая дата в будущем вернёт статус «Активен».</div>':'')+
-  (!create&&u.st==='LIMITED'?'<div class="hint2" style="font-size:.76rem;color:var(--c-warn-fg);margin-top:.3rem">«Лимит» снимется, если поднять или убрать лимит трафика.</div>':'')+'</div></div>');
+  (!create&&u.st==='LIMITED'?'<div class="hint2" style="font-size:.76rem;color:var(--c-warn-fg);margin-top:.3rem">«Лимит» снимется, если поднять или убрать лимит трафика.</div>':'')+'</div></div>'+
+  (create?'<div class="ux-fcw"><label class="ux-opt"><input type="checkbox" class="ux-cbx" id="fFc"'+(F.fc?' checked':'')+(C.wh?'':' disabled')+'><span><b>Срок — с первого подключения</b><button type="button" class="qh" data-help="firstconn" aria-label="Справка: срок с первого подключения">?</button><span class="d" id="fFcT"></span></span></label></div>':''));
  var tb=F.tl&&F.tl>=1024*GB&&F.tl%(1024*GB)===0,tlVal=F.tl?(tb?F.tl/1024/GB:gbv(F.tl)):'';
  h+=fsec('wave','Трафик'+was(),
   '<div class="ux-g2"><div class="ux-f"><label for="fTl">Лимит трафика</label><div class="ux-inl"><input type="number" id="fTl" min="0" step="any" value="'+tlVal+'" placeholder="без лимита"><select id="fTlU" aria-label="Единица"><option value="gb"'+(tb?'':' selected')+'>ГБ</option><option value="tb"'+(tb?' selected':'')+'>ТБ</option></select></div>'+
@@ -853,7 +878,9 @@ function bindForm(create){
   var map={exp:'fExp',username:'fUser',tag:'fTag',tg:'fTg',email:'fEm',addsub:'fAdd'};
   Object.keys(map).forEach(function(k){var el=$(map[k]);if(el)el.classList.toggle('err',!!E[k]);});
   if(!create){var cm={exp:'fExp',tl:'fTl',ts:'fTs',ex:'fEx',tag:'fTag',tg:'fTg',email:'fEm',desc:'fDesc'};Object.keys(cm).forEach(function(k){var el=$(cm[k]);if(el)el.classList.toggle('chg',d.indexOf(k)>-1&&!E[k]);});}
-  var w=$('fWill');if(w)w.innerHTML=F.exp>now()?'До <b>'+fdt(F.exp)+'</b> · '+rel(F.exp):'';
+  var w=$('fWill');if(w)w.innerHTML=F.exp>now()?(create&&F.fc?'Подписка на <b>'+esc(durTxt(fcDur(F)))+'</b>, отсчёт пойдёт с первого подключения':'До <b>'+fdt(F.exp)+'</b> · '+rel(F.exp)):'';
+  var sw=$('fSt');if(sw&&create){if(F.fc){F.status='ACTIVE';sw.checked=true;}sw.disabled=!!F.fc;}
+  var ft=$('fFcT');if(ft)ft.innerHTML=!C.wh?'Нужен вебхук панели — сначала задайте «Секрет вебхука» во вкладке «Подключение».':(F.fc&&F.exp>now()?'Ждём подключения до <b>'+fdt(fcWait(F))+'</b>'+(fcDur(F)>FC_MAX?' (не дольше 30 дней)':'')+'. Не подключится — истечёт как обычно.':'Пользователь сразу активен, а срок начнёт идти, когда он впервые подключится.');
   var c=$('fChg');if(c){if(create)c.textContent=Object.keys(E).length?'Исправьте поля, отмеченные красным':'';else c.innerHTML=d.length?'Изменено: <b>'+d.length+'</b> · '+d.map(function(k){return LBL[k].toLowerCase();}).join(', '):'Нет изменений';}
   var s=$('fSave');if(s){var sc=create?'users:create':'users:update';s.disabled=!canW(sc)||(!create&&(!!Object.keys(allE).length||!d.length));if(!create)s.textContent=isGr(u)&&grTouch(d)&&CARD.restore?'Вернуть тариф и сохранить':'Сохранить';}
  }
@@ -862,8 +889,9 @@ function bindForm(create){
  var touch=function(k){if(CARD)(CARD.touched||(CARD.touched={}))[k]=1;};
  on('fUser','input',function(){F.username=this.value.trim();upd();});
  on('fUser','blur',function(){touch('username');upd();});
- on('fExp','input',function(){var t=new Date(this.value).getTime();if(!isNaN(t))F.exp=t;touch('exp');upd();});
+ on('fExp','input',function(){var t=new Date(this.value).getTime();if(!isNaN(t)){F.exp=t;F.t0=now();}touch('exp');upd();});
  on('fSt','change',function(){F.status=this.checked?'ACTIVE':'DISABLED';upd();});
+ on('fFc','change',function(){F.fc=this.checked;touch('exp');upd();});
  var tlRead=function(){var v=parseFloat($('fTl').value),m=$('fTlU').value==='tb'?1024*GB:GB;F.tl=v>0?Math.round(v*m):0;upd();};
  on('fTl','input',tlRead);on('fTlU','change',tlRead);
  on('fTs','change',function(){F.ts=this.value;upd();});
@@ -882,7 +910,7 @@ function bindForm(create){
  on('fRestore','change',function(){CARD.restore=this.checked;var keep={exp:F.exp,status:F.status,tag:F.tag,desc:F.desc,tg:F.tg,email:F.email};CARD.F=snapF(CARD.u);Object.keys(keep).forEach(function(k){CARD.F[k]=keep[k];});if(CARD.restore)graceF(gInfo(CARD.u),CARD.F);var sc=$('uxForm').scrollTop;drawCard();$('uxForm').scrollTop=sc;});
  on('fResetTr','change',function(){CARD.resetTr=this.checked;});
  on('fRevert','click',function(){CARD.F=null;CARD.touched={};drawCard();});
- root.querySelectorAll('[data-mon]').forEach(function(b){b.addEventListener('click',function(){var m=+b.dataset.mon,base=create||isGr(CARD.u)?now():Math.max(now(),CARD.O.exp);F.exp=addMon(base,m);$('fExp').value=dlv(F.exp);upd();});});
+ root.querySelectorAll('[data-mon]').forEach(function(b){b.addEventListener('click',function(){var m=+b.dataset.mon,base=create||isGr(CARD.u)?now():Math.max(now(),CARD.O.exp);F.exp=addMon(base,m);F.t0=base;$('fExp').value=dlv(F.exp);upd();});});
  root.querySelectorAll('[data-gb]').forEach(function(b){b.addEventListener('click',function(){var x=+b.dataset.gb;F.tl=x*GB;$('fTl').value=x||'';$('fTlU').value='gb';upd();});});
  root.querySelectorAll('#fHwM [data-hm]').forEach(function(b){b.addEventListener('click',function(){var m=b.dataset.hm;root.querySelectorAll('#fHwM button').forEach(function(x){x.classList.toggle('on',x===b);});$('fHwBox').style.display=m==='num'?'':'none';F.hw=m==='def'?null:(m==='off'?0:(parseInt($('fHw').value,10)||3));upd();});});
  root.querySelectorAll('#fSq input').forEach(function(i){i.addEventListener('change',function(){var v=i.value;F.sq=F.sq.filter(function(x){return x!==v;});if(i.checked)F.sq.push(v);F.sq.sort();i.closest('.ux-sqi').classList.toggle('on',i.checked);upd();});});
@@ -894,6 +922,7 @@ function doSave(){
  var notes=[];
  if(gr)notes.push(['hour','vio','Грейс завершится',CARD.restore?'прежний тариф вернётся':'сохранятся значения из формы']);
  if(gr&&CARD.resetTr)notes.push(['reset','info','Трафик обнулится','сейчас '+fb(u.used)]);
+ if(fcPend(u.su)&&d.indexOf('exp')>-1)notes.push(['hour','info','Отсчёт от подключения отменится','срок будет таким, как в форме']);
  if(!gr&&u.st==='EXPIRED'&&d.indexOf('exp')>-1&&F.exp>now()&&F.status==='ACTIVE')notes.push(['check','ok','Статус станет «Активен»','']);
  var fields={};d.forEach(function(k){fields[API[k]]=apiVal(k,F[k]);});
  cfm({ic:'save',tone:gr?'vio':'acc',title:'Сохранить изменения',sub:'<b>'+esc(u.un)+'</b> · '+d.length+' '+plural(d.length,'поле','поля','полей'),
@@ -911,14 +940,14 @@ function doSave(){
 }
 function doCreate(){
  var F=CARD.F;if(Object.keys(errs()).length){CARD.tried=true;CARD.upd();var el=$('uxDr').querySelector('input.err');if(el){el.focus();el.scrollIntoView({block:'center'});}return;}
- var notes=[];if(F.status==='DISABLED')notes.push(['power','warn','Создаётся выключенным','']);if(F.addsub)notes.push(['link','info','Доп-подписка',esc(F.addsub)]);if(F.nolog)notes.push(['eyeoff','info','Запросы не пишутся в лог','']);
+ var notes=[];if(F.status==='DISABLED')notes.push(['power','warn','Создаётся выключенным','']);if(F.addsub)notes.push(['link','info','Доп-подписка',esc(F.addsub)]);if(F.nolog)notes.push(['eyeoff','info','Запросы не пишутся в лог','']);if(F.fc)notes.push(['hour','info','Ждём подключения до '+fdt(fcWait(F)),'не подключится — истечёт как обычно']);
  cfm({ic:'plus',title:'Создать пользователя',sub:'<b>'+esc(F.username)+'</b> · в панели Remnawave',
-  rows:[['cal','Срок',null,fdt(F.exp)],['wave','Трафик',null,esc(fmtF('tl',F.tl)+(F.tl&&F.ts!=='NO_RESET'?' · '+fmtF('ts',F.ts).toLowerCase():''))],['dev','Устройства',null,esc(hwTxt(F.hw))],['net','Сквады',null,chips(F.sq)],['link','Внешний сквад',null,fmtH('ex',F.ex)]],
+  rows:[['cal','Срок',null,F.fc?esc(durTxt(fcDur(F)))+' с первого подключения':fdt(F.exp)],['wave','Трафик',null,esc(fmtF('tl',F.tl)+(F.tl&&F.ts!=='NO_RESET'?' · '+fmtF('ts',F.ts).toLowerCase():''))],['dev','Устройства',null,esc(hwTxt(F.hw))],['net','Сквады',null,chips(F.sq)],['link','Внешний сквад',null,fmtH('ex',F.ex)]],
   notes:notes,hint:'Ссылку и ключи сгенерирует панель',ok:'Создать',onOk:function(){
    var f={username:F.username,expireAt:Math.round(F.exp/1000),status:F.status,trafficLimitBytes:F.tl,trafficLimitStrategy:F.ts,activeInternalSquads:F.sq};
    if(F.hw!==null)f.hwidDeviceLimit=F.hw;if(F.ex)f.externalSquadUuid=F.ex;if(F.tag)f.tag=F.tag;if(F.desc.trim())f.description=F.desc;if(F.tg)f.telegramId=F.tg;if(F.email)f.email=F.email;
    busy(true);
-   post('ua_create',{fields:JSON.stringify(f),addsub:F.addsub,nolog:F.nolog?'1':''}).then(function(r){
+   post('ua_create',{fields:JSON.stringify(f),addsub:F.addsub,nolog:F.nolog?'1':'',fcdur:F.fc?String(fcDur(F)):''}).then(function(r){
     busy(false);
     if(!r.ok){if(window.uiAlert)uiAlert(r.error||'Ошибка','Панель не приняла');return;}
     cfClose();putUser(r.user,r.mw);CARD.done=r.user;render();drawCard();
@@ -930,12 +959,13 @@ function createDone(){
  var u=CARD.done;
  return '<div class="ux-dh"><div class="r1"><div class="ux-av">'+ico('check',20)+'</div><div><div class="nm">'+esc(u.un)+' '+pill(u)+'</div><div class="id">Пользователь создан в панели</div></div><button type="button" class="ux-ib x" data-close aria-label="Закрыть">'+ico('x',18)+'</button></div></div>'+
   '<div class="ux-db"><div class="ux-ok"><div class="ic">'+ico('check',26)+'</div><h3>Готово — ссылку можно отдавать</h3>'+
-  (u.lk?'<p class="muted" style="margin:0;font-size:.86rem">Ссылка уже с адресом зеркала. Действует до '+fdt(expMs(u))+'.</p><div class="lnk" data-copy="'+esc(u.lk)+'" data-tip="Нажмите, чтобы скопировать">'+esc(u.lk)+'</div><div class="ux-qr"><div class="box" id="uxOkQr"></div></div>':'<p class="muted" style="margin:0;font-size:.86rem">Адрес зеркала не задан — ссылку возьмите в панели.</p>')+
+  (u.lk?'<p class="muted" style="margin:0;font-size:.86rem">Ссылка уже с адресом зеркала. '+(fcPend(u.su)?'Срок '+esc(durTxt(fcPend(u.su).dur))+' пойдёт с первого подключения, ждём до '+fdt(fcPend(u.su).until*1000):'Действует до '+fdt(expMs(u)))+'.</p><div class="lnk" data-copy="'+esc(u.lk)+'" data-tip="Нажмите, чтобы скопировать">'+esc(u.lk)+'</div><div class="ux-qr"><div class="box" id="uxOkQr"></div></div>':'<p class="muted" style="margin:0;font-size:.86rem">Адрес зеркала не задан — ссылку возьмите в панели.</p>')+
   '<div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">'+(u.lk?'<button type="button" class="wb pri" data-a="copy">'+ico('copy')+'Скопировать ссылку</button>':'')+'<button type="button" class="wb" data-a="opencard">'+ico('user')+'Открыть карточку</button><button type="button" class="wb" data-a="again" data-w="users:create">'+ico('plus')+'Создать ещё</button></div></div></div>';
 }
 
 document.addEventListener('click',function(e){
  var t=e.target;
+ var hb=t.closest&&t.closest('[data-help]');if(hb){e.preventDefault();help(hb.dataset.help);return;}
  if(!t.closest)return;
  if($('uxMenu').classList.contains('open')&&!t.closest('#uxMenu')&&!t.closest('[data-act="menu"],[data-a="menu"]'))closeMenu();
  var mi=t.closest('#uxMenu [data-m]');if(mi){if(mi.disabled)return;var u0=menuFor;closeMenu();doAction(mi.dataset.m,u0);return;}
@@ -967,6 +997,8 @@ document.addEventListener('click',function(e){
    if(a2==='delall'){var list=CARD.devs.slice();cfm({ic:'trash',tone:'bad',title:'Удалить все устройства',sub:'<b>'+list.length+'</b> · '+esc(cu.un),ok:'Удалить все',danger:true,onOk:function(){cfClose();var i=0;(function next(){if(i>=list.length){toast('Устройства удалены');CARD.devs=null;drawCard();return;}post('del_hwid',{uuid:cu.rv,hwid:list[i++].hwid||''}).then(next);})();}});return;}
    if(a2==='opencard'){openCard(cu,'ov');return;}
    if(a2==='again'){openCreate();return;}
+   if(a2==='fccancel'){cfm({ic:'x',tone:'warn',title:'Отменить отсчёт от подключения',sub:'<b>'+esc(cu.un)+'</b>',notes:[['cal','info','Срок останется как есть','до '+fdt(expMs(cu))]],ok:'Отменить отсчёт',onOk:function(){busy(true);post('ua_act',{su:cu.su,act:'fccancel'}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка');return;}cfClose();delete C.fc[cu.su];if(CARD.mw)CARD.mw.fc=null;toast('Отсчёт от подключения отменён · '+cu.un);render();drawCard();});}});return;}
+   if(a2==='fcretry'){runOne('ua_act',{su:cu.su,act:'fcretry'},'Срок записан · '+cu.un).then(function(d){if(d&&!d.ok&&d.mw){applyMw(cu.su,d.mw);if(CARD)CARD.mw=d.mw;render();if(CARD)drawCard();}});return;}
    doAction(a2,cu);return;}
  }
 });
