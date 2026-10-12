@@ -8,6 +8,7 @@ $rv_tot    = rep_view_totals($rv_f, $rv_since);
 $rv_series = rep_view_series($rv_f, $rv_since, $rv_now);
 $rv_isps   = rep_view_isps($rv_f, $rv_since);
 $rv_panel  = rep_panel_index();
+rep_sub_fill_some();
 $rv_nodes  = rep_view_nodes($rv_f, $rv_since, $rv_panel);
 rep_geo_backfill($rv_since);
 rep_dev_fill();

@@ -484,25 +484,110 @@ function rep_view_devmap() {
     return $out;
 }
 
+function rep_link_node($link) {
+    $link = trim((string) $link);
+    if (!preg_match('~^([a-z0-9]+)://~i', $link, $m)) return null;
+    $scheme = strtolower($m[1]);
+    $type = ['hy2' => 'hysteria2', 'shadowsocks' => 'ss'][$scheme] ?? $scheme;
+    $q = [];
+    if ($type === 'vmess') {
+        $j = json_decode((string) base64_decode(strtr(substr($link, 8), '-_', '+/'), false), true);
+        if (!is_array($j)) return null;
+        $server = (string) ($j['add'] ?? '');
+        $port   = (int) ($j['port'] ?? 0);
+        $name   = (string) ($j['ps'] ?? '');
+        $q      = ['type' => (string) ($j['net'] ?? ''), 'host' => (string) ($j['host'] ?? ''), 'path' => (string) ($j['path'] ?? ''), 'sni' => (string) ($j['sni'] ?? '')];
+        if (($q['type'] === 'grpc')) $q['serviceName'] = $q['path'];
+    } else {
+        $u = parse_url($link);
+        if (!is_array($u)) return null;
+        if ($type === 'ss' && strpos(explode('#', $link)[0], '@') === false) {
+            $body = substr($link, 5);
+            $frag = '';
+            if (($h = strpos($body, '#')) !== false) { $frag = substr($body, $h + 1); $body = substr($body, 0, $h); }
+            $dec = base64_decode(strtr($body, '-_', '+/'), false);
+            if (!is_string($dec) || strpos($dec, '@') === false) return null;
+            $u = parse_url('ss://' . $dec . ($frag !== '' ? '#' . $frag : ''));
+            if (!is_array($u)) return null;
+        }
+        $server = trim((string) ($u['host'] ?? ''), '[]');
+        $port   = (int) ($u['port'] ?? 0);
+        $name   = rawurldecode((string) ($u['fragment'] ?? ''));
+        parse_str((string) ($u['query'] ?? ''), $q);
+    }
+    $server = strtolower($server);
+    if ($server === '' || $port < 1) return null;
+    $g   = static fn($k) => is_string($q[$k] ?? null) ? (string) $q[$k] : '';
+    $net = strtolower($g('type'));
+    $net = ['raw' => '', 'tcp' => '', 'httpupgrade' => 'ws', 'splithttp' => 'xhttp'][$net] ?? $net;
+    $sni = strtolower($g('sni') !== '' ? $g('sni') : $g('peer'));
+    $host = '';
+    $path = '';
+    if (in_array($net, ['ws', 'h2', 'http', 'xhttp'], true)) { $host = strtolower(explode(',', $g('host'))[0]); $path = $g('path'); }
+    elseif ($net === 'grpc') $path = $g('serviceName');
+    elseif ($type === 'ss' && $g('plugin') !== '') {
+        foreach (explode(';', $g('plugin')) as $opt) {
+            if (strncmp($opt, 'host=', 5) === 0) $host = strtolower(substr($opt, 5));
+            if (strncmp($opt, 'path=', 5) === 0) $path = substr($opt, 5);
+        }
+    }
+    $via = $net === '' && $sni === '' && $host === '' && $path === '' ? '' : $net . '|' . $sni . '|' . $host . '|' . $path;
+
+    return ['type' => $type, 'server' => $server, 'port' => $port, 'name' => trim($name), 'nkey' => rep_node_key($type, $server, $port, $via)];
+}
+
+function rep_sub_fill_names($short) {
+    $short = (string) $short;
+    if ($short === '' || !function_exists('remnawave_api_get') || !rep_ensure() || !($p = db())) return 0;
+    $want = rep_view_rows("SELECT sn.nkey, n.type, n.server, n.port FROM rep_sub_node sn JOIN rep_node n ON n.nkey = sn.nkey WHERE sn.short_uuid = ? AND sn.name = ''", [$short]);
+    if (!$want) return 0;
+    [$ok, , $data, ] = remnawave_api_get('/api/subscriptions/by-short-uuid/' . rawurlencode($short));
+    $links = $ok && is_array($data['response']['links'] ?? null) ? $data['response']['links'] : [];
+    $by = [];
+    $addr = [];
+    foreach ($links as $l) {
+        $x = rep_link_node($l);
+        if ($x === null || $x['name'] === '') continue;
+        $by[$x['nkey']][$x['name']] = true;
+        $addr[$x['type'] . '|' . $x['server'] . '|' . $x['port']][$x['nkey']] = $x['name'];
+    }
+    $n = 0;
+    try {
+        $up = $p->prepare("UPDATE rep_sub_node SET name = ? WHERE short_uuid = ? AND nkey = ? AND name = ''");
+        foreach ($want as $w) {
+            $k  = (string) $w['nkey'];
+            $nm = isset($by[$k]) && count($by[$k]) === 1 ? (string) array_key_first($by[$k]) : '';
+            $at = $addr[$w['type'] . '|' . $w['server'] . '|' . (int) $w['port']] ?? [];
+            if ($nm === '' && count($at) === 1 && count(array_filter($want, static fn($o) => $o['type'] === $w['type'] && $o['server'] === $w['server'] && (int) $o['port'] === (int) $w['port'])) === 1) $nm = (string) reset($at);
+            if ($nm === '') continue;
+            $up->execute([rep_str($nm, 191), $short, $k]);
+            $n++;
+        }
+    } catch (Throwable $e) { error_log('submw rep names: ' . $e->getMessage()); }
+
+    return $n;
+}
+
+function rep_sub_fill_some($limit = 20) {
+    if (time() - (int) setting('rep_names_fill_ts', '0') < 600) return;
+    set_setting('rep_names_fill_ts', (string) time());
+    foreach (rep_view_rows("SELECT short_uuid, MAX(last_seen) AS t FROM rep_sub_node WHERE name = '' GROUP BY short_uuid ORDER BY t DESC LIMIT " . (int) $limit, []) as $r) rep_sub_fill_names((string) $r['short_uuid']);
+}
+
 function rep_view_node_names(array $panel = [], $short = null) {
     $out = [];
     $own = [];
     $common = [];
     if ($short !== null) {
         foreach (rep_view_rows("SELECT nkey, name FROM rep_sub_node WHERE short_uuid = ? AND name <> ''", [(string) $short]) as $r) $own[(string) $r['nkey']] = (string) $r['name'];
-    } else {
-        foreach (rep_view_rows("SELECT nkey, name, COUNT(*) AS n, MAX(last_seen) AS ls FROM rep_sub_node WHERE name <> '' GROUP BY nkey, name", []) as $r) {
-            $k = (string) $r['nkey'];
-            if (!isset($common[$k]) || (int) $r['n'] > $common[$k][1] || ((int) $r['n'] === $common[$k][1] && (int) $r['ls'] > $common[$k][2])) $common[$k] = [(string) $r['name'], (int) $r['n'], (int) $r['ls']];
-        }
+    }
+    foreach (rep_view_rows("SELECT nkey, name, COUNT(*) AS n, MAX(last_seen) AS ls FROM rep_sub_node WHERE name <> '' GROUP BY nkey, name", []) as $r) {
+        $k = (string) $r['nkey'];
+        if (!isset($common[$k]) || (int) $r['n'] > $common[$k][1] || ((int) $r['n'] === $common[$k][1] && (int) $r['ls'] > $common[$k][2])) $common[$k] = [(string) $r['name'], (int) $r['n'], (int) $r['ls']];
     }
     foreach (rep_view_rows('SELECT nkey, server, name FROM rep_node', []) as $n) {
         $k = (string) $n['nkey'];
-        $pn = [];
-        foreach ((array) ($panel[strtolower((string) $n['server'])] ?? []) as $x) if (is_array($x) && (string) ($x['name'] ?? '') !== '') $pn[(string) $x['name']] = true;
-        $pn = count($pn) === 1 ? (string) array_key_first($pn) : '';
-        if ($short !== null) $out[$k] = $own[$k] ?? ($pn !== '' ? $pn : (string) $n['server']);
-        else $out[$k] = $pn !== '' ? $pn : ($common[$k][0] ?? ((string) $n['name'] !== '' ? (string) $n['name'] : (string) $n['server']));
+        $out[$k] = $own[$k] ?? $common[$k][0] ?? ((string) $n['name'] !== '' ? (string) $n['name'] : (string) $n['server']);
     }
 
     return $out;
