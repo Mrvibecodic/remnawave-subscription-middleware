@@ -7,8 +7,8 @@ $rv_since  = rep_view_since($rv_f, $rv_now);
 $rv_tot    = rep_view_totals($rv_f, $rv_since);
 $rv_series = rep_view_series($rv_f, $rv_since, $rv_now);
 $rv_isps   = rep_view_isps($rv_f, $rv_since);
-$rv_nodes  = rep_view_nodes($rv_f, $rv_since);
 $rv_panel  = rep_panel_index();
+$rv_nodes  = rep_view_nodes($rv_f, $rv_since, $rv_panel);
 rep_geo_backfill($rv_since);
 rep_dev_fill();
 $rv_mapd   = rep_view_map($rv_f, $rv_since, $rv_panel);
@@ -20,7 +20,7 @@ $rv_node   = null;
 foreach ($rv_nodes as $n) if ($n['nkey'] === $rv_f['node']) $rv_node = $n;
 if ($rv_f['node'] !== '' && $rv_node === null) {
     foreach (rep_view_rows('SELECT nkey, type, server, port, name FROM rep_node WHERE nkey = ?', [$rv_f['node']]) as $n) {
-        $rv_node = ['nkey' => $n['nkey'], 'name' => $n['name'], 'type' => $n['type'], 'server' => $n['server'], 'port' => (int) $n['port']];
+        $rv_node = ['nkey' => $n['nkey'], 'name' => (string) (rep_view_node_names($rv_panel)[$n['nkey']] ?? $n['name']), 'type' => $n['type'], 'server' => $n['server'], 'port' => (int) $n['port']];
     }
 }
 

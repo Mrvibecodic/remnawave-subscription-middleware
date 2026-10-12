@@ -568,7 +568,7 @@ if (isset($_GET['ajax']) && is_auth()) {
         $card = rep_view_client_card((string) ($_GET['q'] ?? ''), rep_view_since($rf));
         if ($card !== null) {
             $card['name'] = (string) (chan_names_map()[$card['short']] ?? '');
-            $card['nodes'] = array_values(rep_view_nodelist(rep_panel_index()));
+            $card['nodes'] = array_values(rep_view_nodelist(rep_panel_index(), $card['short']));
         }
         echo json_encode(['ok' => $card !== null, 'card' => $card], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         exit();
@@ -1440,7 +1440,7 @@ $token = csrf_token();
 $flash = take_flash();
 $pdo   = db();
 $db_ok = $pdo !== null;
-if ($tab === 'reports' && $db_ok) { rep_via_backfill(); rep_mark_seen(); }
+if ($tab === 'reports' && $db_ok) rep_mark_seen();
 
 $overrides = [];
 if ($db_ok && ($tab === 'users' || $tab === 'overrides')) foreach ($pdo->query('SELECT * FROM overrides ORDER BY updated_at DESC LIMIT 500') as $r) $overrides[] = $r;
