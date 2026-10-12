@@ -8,6 +8,12 @@ require __DIR__ . '/../lib.php';
 header('X-Robots-Tag: noindex, nofollow');
 header('X-Frame-Options: DENY');
 
+if (is_installed() && app_only_closed()) {
+    header('X-Robots-Tag: noindex, nofollow');
+    landing_render();
+    exit();
+}
+
 function h($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); }
 
 if (!is_installed()) {
@@ -201,24 +207,7 @@ if (!is_installed()) {
 
 $C = cfg();
 
-session_name('submw_admin');
-$sess_ttl = 86400;
-$sess_dir = dirname(__DIR__) . '/data/sessions';
-if (!is_dir($sess_dir)) { @mkdir($sess_dir, 0700, true); @file_put_contents($sess_dir . '/.htaccess', "Require all denied\nDeny from all\n"); }
-if (is_dir($sess_dir) && is_writable($sess_dir)) {
-    @ini_set('session.save_path', $sess_dir);
-    @ini_set('session.gc_probability', '1');
-    @ini_set('session.gc_divisor', '100');
-}
-@ini_set('session.gc_maxlifetime', (string) $sess_ttl);
-@ini_set('session.cookie_lifetime', (string) $sess_ttl);
-session_set_cookie_params([
-    'lifetime' => $sess_ttl,
-    'path'     => '/',
-    'httponly' => true,
-    'samesite' => 'Lax',
-    'secure'   => ((($_SERVER['HTTPS'] ?? '') === 'on') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')),
-]);
+admin_session_boot();
 session_start();
 
 function csrf_token() {
@@ -373,6 +362,18 @@ if (!is_auth()) {
     </script>
     </body></html>
     <?php
+    exit();
+}
+
+if (isset($_GET['app_apk_dl']) && is_auth()) {
+    session_write_close();
+    $apk_path = app_apk_path();
+    if ($apk_path === '') { http_response_code(404); echo 'APK ещё не скачан'; exit(); }
+    header('Content-Type: application/vnd.android.package-archive');
+    header('Content-Disposition: attachment; filename="' . basename($apk_path) . '"');
+    header('Content-Length: ' . filesize($apk_path));
+    header('Cache-Control: private, no-store');
+    readfile($apk_path);
     exit();
 }
 
@@ -560,6 +561,31 @@ if (isset($_GET['ajax']) && is_auth()) {
 
     if ($a === 'clod_names') {
         echo json_encode(['ok' => true, 'names' => chan_names_refresh(!empty($_GET['force']))], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'app_code' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $ac = app_enabled() ? app_code_create() : null;
+        echo json_encode($ac ? ['ok' => true, 'code' => app_code_fmt($ac['code']), 'raw' => $ac['code'], 'ttl' => max(0, $ac['expires'] - time())] : ['ok' => false, 'error' => app_enabled() ? 'Код не создан, подробности в логе' : 'Сначала включите приложение'], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'app_code_del' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        echo json_encode(['ok' => app_code_drop((string) ($_POST['code'] ?? ''))]);
+        exit();
+    }
+
+    if ($a === 'app_devs') {
+        echo json_encode(['ok' => true, 'n' => count(app_devs()), 'codes' => count(app_codes())]);
+        exit();
+    }
+
+    if ($a === 'app_apk') {
+        @set_time_limit(180);
+        $am = app_apk_refresh(!empty($_GET['force']));
+        echo json_encode(['ok' => true, 'apk' => app_apk_public(), 'err' => (string) ($am['err'] ?? '')], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -871,6 +897,31 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         chan_hard_set((string) ($_POST['short'] ?? ''), ($_POST['on'] ?? '0') === '1');
         flash(($_POST['on'] ?? '0') === '1' ? 'Жёсткий режим включён' : 'Жёсткий режим выключен');
         form_saved('clod');
+    }
+
+    if ($action === 'save_app') {
+        set_setting('app_enabled', isset($_POST['app_enabled']) ? '1' : '0');
+        set_setting('app_ev_wait_max', (string) max(25, min(290, (int) ($_POST['app_ev_wait_max'] ?? 280))));
+        if (!isset($_POST['app_enabled'])) set_setting('app_only', '0');
+        flash(isset($_POST['app_enabled']) ? 'Приложение включено' : 'Приложение выключено');
+        form_saved('app');
+    }
+
+    if ($action === 'save_app_only') {
+        $ao = isset($_POST['app_only']) && app_enabled() && app_dev_count() > 0;
+        set_setting('app_only', $ao ? '1' : '0');
+        flash($ao ? 'Админка открывается только из приложения' : 'Админка снова открывается в браузере');
+        form_saved('app');
+    }
+
+    if ($action === 'app_dev_drop') {
+        flash(app_dev_drop((string) ($_POST['did'] ?? '')) ? 'Телефон отключён' : 'Отключить не удалось');
+        form_saved('app');
+    }
+
+    if ($action === 'app_rotate') {
+        flash(app_rotate() ? 'Ключ сменён, отпечаток: ' . app_fingerprint() : 'Сменить ключ не удалось, подробности в логе');
+        form_saved('app');
     }
 
     if ($action === 'save_hwid') {
@@ -1262,7 +1313,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         $items = [];
         if (!empty($_FILES['conf_files']) && is_array($_FILES['conf_files']['tmp_name'] ?? null)) {
             foreach ($_FILES['conf_files']['tmp_name'] as $i => $tmp) {
-                if (!is_string($tmp) || !is_uploaded_file($tmp)) continue;
+                if (!is_string($tmp) || !submw_upload_ok($tmp)) continue;
                 $raw = (string) file_get_contents($tmp);
                 if (trim($raw) === '') continue;
                 $fn  = (string) ($_FILES['conf_files']['name'][$i] ?? '');
@@ -1703,7 +1754,7 @@ if ($tab === 'pagekeys') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 $bc_now = json_decode((string) setting('brand_cache', '{}'), true);
 if (!is_array($bc_now)) $bc_now = [];
@@ -1853,6 +1904,7 @@ $nav = [
     'wg_pool'   => ['WG / AWG', '<rect x="16" y="16" width="6" height="6" rx="1" /> <rect x="2" y="16" width="6" height="6" rx="1" /> <rect x="9" y="2" width="6" height="6" rx="1" /> <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /> <path d="M12 12V8" />'],
     'addsub'    => ['Слияние подписок', '<path d="M3 7h5l3.5 5h9.5" /> <path d="M3 17h5l3.495 -5" /> <path d="M18 15l3 -3l-3 -3" />'],
     'pagekeys'  => ['Ключи на странице', '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /> <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />'],
+    'app'       => ['Приложение', '<rect x="5" y="2" width="14" height="20" rx="2" ry="2" /> <path d="M12 18h.01" />'],
     'clod'      => ['Защищённый канал', '<circle cx="12" cy="16" r="1" /> <rect x="3" y="10" width="18" height="12" rx="2" /> <path d="M7 10V7a5 5 0 0 1 10 0v3" />'],
     'reports'   => ['Статистика', '<path d="M22 12h-4l-3 9L9 3l-3 9H2" />'],
     'reqlog'    => ['Лог запросов', '<path d="M15 12h-5" /> <path d="M15 8h-5" /> <path d="M19 17V5a2 2 0 0 0-2-2H4" /> <path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" />'],
@@ -1872,7 +1924,7 @@ $wg_mig_note = is_array($wg_mig_note) ? array_values(array_filter($wg_mig_note, 
 $nav_badge = array_filter(['update' => $upd_avail ? 'Доступно обновление' : '', 'wg_pool' => $wg_mig_note ? 'Есть заметки после обновления — откройте вкладку' : '']);
 $nav_sections = [
     ['l' => 'Главное',          'coll' => false, 'k' => 'main',   'items' => ['users', 'chat', 'reqlog']],
-    ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding']],
+    ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding', 'app']],
     ['l' => 'Clod Clash',       'coll' => true,  'k' => 'clod',   'items' => ['clod', 'reports']],
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog'] : ['webhooks', 'whlog']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
@@ -2049,6 +2101,8 @@ navHidSync();
     <?php include __DIR__ . '/inc/tab_pagekeys.php'; ?>
 <?php elseif ($tab === 'clod'): ?>
     <?php include __DIR__ . '/inc/tab_clod.php'; ?>
+<?php elseif ($tab === 'app'): ?>
+    <?php include __DIR__ . '/inc/tab_app.php'; ?>
 <?php elseif ($tab === 'reports'): ?>
     <?php include __DIR__ . '/inc/tab_reports.php'; ?>
 
@@ -2232,6 +2286,9 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
     try{document.cookie='tzoff='+(-new Date().getTimezoneOffset())+';path=/;max-age=31536000;samesite=Lax';}catch(e){}
     ok.addEventListener('click',function(){var f=cb; uiDlgClose(); if(f)f();});
     (function(){var el=document.getElementById('ghStarCount');if(!el)return;try{var c=JSON.parse(localStorage.getItem('gh_stars')||'null');if(c&&Date.now()-c.t<21600000){el.textContent=c.n;return;}}catch(e){}fetch('https://api.github.com/repos/Mrvibecodic/remnawave-subscription-middleware').then(function(r){return r.json();}).then(function(d){if(d&&typeof d.stargazers_count==='number'){el.textContent=d.stargazers_count;try{localStorage.setItem('gh_stars',JSON.stringify({n:d.stargazers_count,t:Date.now()}));}catch(e){}}}).catch(function(){});})();
+<?php if ($tab !== 'app' && $db_ok && app_enabled() && app_apk_stale()): ?>
+    fetch('?ajax=app_apk').catch(function(){});
+<?php endif; ?>
     fetch('?ajax=cv_autocheck').then(function(r){return r.json();}).then(function(d){
         if(!d||!d.ok||!d.checked)return;
         var a=document.getElementById('rlSegReq');
