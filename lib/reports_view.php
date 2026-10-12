@@ -129,13 +129,31 @@ function rep_view_totals(array $f, $since) {
     $out = rep_view_score($rows[0] ?? []);
     $out['nodes'] = (int) ($rows[0]['nodes'] ?? 0);
 
-    [$w, $a] = rep_view_where($f, 's.last_seen', $since, ['kind', 'cc', 'node', 'plat']);
-    $w = str_replace(['kind = ?', 'kind IN (', 'cc = ?', 'nkey = ?', 'plat = ?'], ['s.kind = ?', 's.kind IN (', 's.cc = ?', 's.nkey = ?', 'd.plat = ?'], $w);
-    $join = $f['plat'] !== '' ? ' JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid' : '';
-    $dev = rep_view_rows("SELECT COUNT(DISTINCT s.hwid) AS n FROM rep_state s$join WHERE $w", $a);
+    $dev = rep_view_dev_rows($f, $since);
     $out['devices'] = (int) ($dev[0]['n'] ?? 0);
 
     return $out;
+}
+
+function rep_view_dev_rows(array $f, $since, $group = '') {
+    $byAddr = $f['cc'] !== '' || $f['kind'] !== '' || $group !== '';
+    if ($byAddr) {
+        [$w, $a] = rep_view_where($f, 'i.last_h', $since, ['kind', 'cc']);
+        $w = str_replace(['kind = ?', 'kind IN (', 'cc = ?'], ['i.kind = ?', 'i.kind IN (', 'i.cc = ?'], $w);
+        $join = '';
+        $pre = [];
+        if ($f['node'] !== '') { $join .= ' JOIN rep_state s ON s.short_uuid = i.short_uuid AND s.hwid = i.hwid AND s.net = i.net AND s.nkey = ?'; $pre[] = $f['node']; }
+        if ($f['plat'] !== '') { $join .= ' JOIN rep_dev d ON d.short_uuid = i.short_uuid AND d.hwid = i.hwid AND d.plat = ?'; $pre[] = $f['plat']; }
+        $cols = $group === '' ? '' : 'i.cc, i.asn, ';
+        $grp  = $group === '' ? '' : ' GROUP BY i.cc, i.asn';
+
+        return rep_view_rows("SELECT {$cols}COUNT(DISTINCT i.hwid) AS n FROM rep_net_ip i$join WHERE $w$grp", array_merge($pre, $a));
+    }
+    [$w, $a] = rep_view_where($f, 's.last_seen', $since, ['node', 'plat']);
+    $w = str_replace(['nkey = ?', 'plat = ?'], ['s.nkey = ?', 'd.plat = ?'], $w);
+    $join = $f['plat'] !== '' ? ' JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid' : '';
+
+    return rep_view_rows("SELECT COUNT(DISTINCT s.hwid) AS n FROM rep_state s$join WHERE $w", $a);
 }
 
 // Провайдеры (страна + AS) и их адреса: адрес всегда рядом со своей AS, потому что
@@ -159,9 +177,8 @@ function rep_view_isps(array $f, $since, $limit = 200) {
         }
     }
 
-    [$w, $a] = rep_view_where($f, 'last_seen', $since, ['kind', 'cc', 'node']);
     $devs = [];
-    foreach (rep_view_rows("SELECT cc, asn, COUNT(DISTINCT hwid) AS n FROM rep_state WHERE $w GROUP BY cc, asn", $a) as $r) {
+    foreach (rep_view_dev_rows(['plat' => ''] + $f, $day, 'asn') as $r) {
         $devs[$r['cc'] . '|' . $r['asn']] = (int) $r['n'];
     }
 

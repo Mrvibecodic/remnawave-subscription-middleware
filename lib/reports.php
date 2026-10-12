@@ -498,8 +498,14 @@ function rep_rb_get(PDO $p) {
 function rep_rb_claim(PDO $p, $from, $to) {
     $st = $p->prepare('UPDATE settings SET v = ? WHERE k = ? AND v = ?');
     $st->execute([(string) $to, 'rep_rb', (string) $from]);
+    $ok = $st->rowCount() === 1;
+    if ($ok) set_setting('rep_rb_ts', (string) time());
 
-    return $st->rowCount() === 1;
+    return $ok;
+}
+
+function rep_rebuild_stale($age = 120) {
+    return rep_rebuild_active() && time() - (int) setting('rep_rb_ts', '0') > $age;
 }
 
 function rep_rebuild_active() {
@@ -511,6 +517,7 @@ function rep_rebuild_start() {
     if (!rep_ensure() || !($p = db())) return false;
     try {
         set_setting('rep_rb', '0');
+        set_setting('rep_rb_ts', (string) time());
         foreach (rep_derived_tables() as $t) $p->exec("DELETE FROM $t");
         set_setting('rep_dday_fill', 'done');
     } catch (Throwable $e) {
@@ -651,7 +658,8 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     $nodes = [];
     foreach ((is_array($data['nodes'] ?? null) ? $data['nodes'] : []) as $tok => $n) {
         if (count($nodes) >= REP_MAX_NODES) break;
-        if (!is_string($tok) || !preg_match('~^[A-Za-z0-9_-]{1,16}$~', $tok) || !is_array($n)) continue;
+        $tok = (string) $tok;
+        if (!preg_match('~^[A-Za-z0-9_-]{1,16}$~', $tok) || !is_array($n)) continue;
         $type   = strtolower(rep_str($n['type'] ?? '', 32));
         $server = strtolower(rep_str($n['server'] ?? '', 255));
         $port   = rep_uint($n['port'] ?? 0, 65535);
@@ -692,7 +700,8 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     if (count($nets) > REP_MAX_NETWORKS) $nets = array_slice($nets, 0, REP_MAX_NETWORKS, true);
 
     foreach ($nets as $net => $nd) {
-        if (!is_string($net) || !preg_match('~^[0-9a-f]{16}$~', $net) || !is_array($nd)) continue;
+        $net = (string) $net;
+        if (!preg_match('~^[0-9a-f]{16}$~', $net) || !is_array($nd)) continue;
         $kind = in_array($nd['kind'] ?? '', REP_KINDS, true) ? $nd['kind'] : 'other';
         $list = is_array($nd['hours'] ?? null) ? array_slice(array_values($nd['hours']), 0, REP_MAX_HOURS) : [];
 
@@ -833,6 +842,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
         }
     }
 
+    if (!$used && $devrow === null) return true;
     $sums = rep_sum_cols();
     $nc   = rep_new_cols();
     $olds = $state && $nc ? rep_hist_old($p, $short, $hwid) : [];

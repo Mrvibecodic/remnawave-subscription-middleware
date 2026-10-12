@@ -603,21 +603,26 @@ function db_migrate(array $from, array $to, &$err = '') {
     try {
         $dst->beginTransaction(); $tx = true;
         if ($drv === 'mysql') { try { $dst->exec('SET FOREIGN_KEY_CHECKS=0'); } catch (Throwable $e) {} }
+        $unbuf = $sdrv === 'mysql' && defined('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY');
         foreach ($tables as $t) {
             if (!db_table_exists($dst, $drv, $t)) continue;
-            try { $rows = $src->query("SELECT * FROM $t")->fetchAll(PDO::FETCH_ASSOC); }
-            catch (Throwable $e) { continue; }
-            if (!$rows) continue;
-            $cols = array_keys($rows[0]);
-            if (isset($dst_cols[$t]) && $dst_cols[$t]) {
-                $cols = array_values(array_filter($cols, fn($c) => in_array($c, $dst_cols[$t], true)));
-                if (!$cols) continue;
-                $rows = array_map(fn($r) => array_intersect_key($r, array_flip($cols)), $rows);
+            if ($unbuf) $src->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
+            try { $sel = $src->query("SELECT * FROM $t"); }
+            catch (Throwable $e) { if ($unbuf) $src->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true); continue; }
+            $ins = null;
+            $keep = null;
+            while (($row = $sel->fetch(PDO::FETCH_ASSOC)) !== false) {
+                if ($ins === null) {
+                    $cols = array_keys($row);
+                    if (isset($dst_cols[$t]) && $dst_cols[$t]) $cols = array_values(array_filter($cols, fn($c) => in_array($c, $dst_cols[$t], true)));
+                    if (!$cols) break;
+                    $keep = array_flip($cols);
+                    $ins = $dst->prepare("$verb INTO $t (" . implode(',', $cols) . ') VALUES (' . implode(',', array_fill(0, count($cols), '?')) . ')');
+                }
+                $ins->execute(array_values(array_intersect_key($row, $keep)));
             }
-            $collist = implode(',', $cols);
-            $ph = implode(',', array_fill(0, count($cols), '?'));
-            $ins = $dst->prepare("$verb INTO $t ($collist) VALUES ($ph)");
-            foreach ($rows as $row) $ins->execute(array_values($row));
+            $sel->closeCursor();
+            if ($unbuf) $src->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
         }
         if ($drv === 'mysql') { try { $dst->exec('SET FOREIGN_KEY_CHECKS=1'); } catch (Throwable $e) {} }
         $dst->commit(); $tx = false;
