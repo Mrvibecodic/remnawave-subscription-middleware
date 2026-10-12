@@ -381,7 +381,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-diag.st-ok{border-color:color-mix(in srgb,var(--rq1) 45%,var(--line))}
     .rv-diag .t{font-weight:600;color:var(--text-strong);font-size:.88rem}
     .rv-diag .w{font-size:.8rem;color:var(--muted);margin-top:.15rem;line-height:1.45}
-    .rv-diag .ic.st-bad{color:var(--c-bad-fg)}.rv-diag .ic.st-warn{color:var(--c-warn-fg)}.rv-diag .ic.st-ok{color:var(--c-ok-fg)}
+    .rv-diag .ic.st-bad{color:var(--c-bad-fg)}.rv-diag .ic.st-warn{color:var(--c-warn-fg)}.rv-diag .ic.st-ok{color:var(--c-ok-fg)}.rv-diag .ic.st-mut{color:var(--muted)}
     table.rv-lt{width:100%;border-collapse:collapse;font-size:.82rem}
     table.rv-lt th{font-size:.7rem;color:var(--muted);font-weight:600;text-align:left;padding:.4rem .5rem;border-bottom:1px solid var(--line);white-space:nowrap;background:none;position:static}
     table.rv-lt td{padding:.45rem .5rem;border-bottom:1px solid var(--line);vertical-align:middle}
@@ -1390,42 +1390,19 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var peer = function (asn, k) { return c.peers[asn + '|' + k] || null; };
             var q2 = function (n) { return (n < 10 ? '0' : '') + n; };
             var tfm = function (t) { var x = new Date(t * 1000); return q2(x.getDate()) + '.' + q2(x.getMonth() + 1) + ' ' + q2(x.getHours()) + ':' + q2(x.getMinutes()); };
-            var diag = [];
-            nkeys.forEach(function (k) {
-                var on = nets.filter(function (n) { return n.cells[k] && n.cells[k].pn > 0; }), dd = on.filter(function (n) { return n.cells[k].dead; });
-                if (!dd.length) return;
-                var pn = 0, pd = 0; dd.forEach(function (n) { var p = peer(n.asn, k); if (p) { pn += p.n; pd += p.dead; } });
-                if (dd.length === on.length) {
-                    if (pn >= 2 && pd / pn < .2) diag.push({j: k + '|' + dd[0].net, s: 'bad', ic: 'phone', t: nodeNm(k) + ' не отвечает ни в одной сети устройства', w: 'У других клиентов тех же провайдеров (' + pn + ' ' + plural(pn, 'сеть', 'сети', 'сетей') + ') узел работает — дело в устройстве: обновить подписку, проверить дату и время, переустановить конфиг.'});
-                    else diag.push({j: k + '|' + dd[0].net, s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает ни в одной сети устройства', w: pn ? 'У других клиентов тех же провайдеров тоже: без ответа ' + pd + ' из ' + pn + ' ' + plural(pn, 'сети', 'сетей', 'сетей') + ' — проблема не на устройстве.' : 'Сравнить не с кем — других клиентов этих провайдеров в отчётах нет.'});
-                } else {
-                    dd.forEach(function (n) {
-                        var p = peer(n.asn, k), alt = nkeys.filter(function (x) { var y = n.cells[x]; return y && !y.dead && y.v !== 'frozen' && (y.fail === null || y.fail < .05); }).slice(0, 2).map(nodeNm);
-                        diag.push({j: k + '|' + n.net, s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает в сети «' + label(n) + '»', w: 'В других сетях устройства узел работает — режет сеть, а не узел.' + (p ? ' У других клиентов этого провайдера без ответа ' + p.dead + ' из ' + p.n + '.' : '') + (alt.length ? ' В этой сети работают: ' + esc(alt.join(', ')) + '.' : '')});
-                    });
-                }
-            });
-            nets.forEach(function (n) {
-                var fz = nkeys.filter(function (k) { return n.cells[k] && n.cells[k].v === 'frozen'; });
-                var fa = 0, fb = 0; fz.forEach(function (k) { var t = n.cells[k].va; if (t > 0) { fa = fa ? Math.min(fa, t) : t; fb = Math.max(fb, t); } });
-                if (fz.length) diag.push({j: fz[0] + '|' + n.net, s: 'warn', ic: 'scissors', t: '16–20 режется в сети «' + label(n) + '»: ' + fz.map(nodeNm).join(', '), w: 'Пинг до узлов проходит, а соединение рвётся после первых килобайт — признак DPI. Помогает другой транспорт или порт.' + (fa ? ' Проверка — ' + (fb - fa > 3600 ? tfm(fa) + '–' + (tfm(fa).slice(0, 5) === tfm(fb).slice(0, 5) ? tfm(fb).slice(6) : tfm(fb)) : tfm(fb)) + '; ' + (fa + RCK.frozen > Date.now() / 1000 ? 'клиент повторит её не раньше ' + tfm(fa + RCK.frozen) + ', пока приложение запущено, и новый итог придёт со следующим отчётом.' : 'повтор ожидался с ' + tfm(fa + RCK.frozen) + ' — новый итог придёт со следующим отчётом и заменит этот.') : '')});
-            });
-            var mb = [0, 0, 0, 0, 0, 0], tp = 0, tf = 0;
-            rs.forEach(function (r) { tp += r.pn; tf += r.pf; if (r.med >= 0) mb[r.med] += r.pn - r.pf; });
-            var tot = mb.reduce(function (a, b) { return a + b; }, 0), run = 0, med = -1;
-            for (var i = 0; i < 6 && tot > 0; i++) { run += mb[i]; if (run * 2 >= tot) { med = i; break; } }
-            if (med >= 3) {
-                var cur = nets[0], best = cur ? nkeys.filter(function (k) { return cur.cells[k] && cur.cells[k].med >= 0 && !cur.cells[k].dead; }).sort(function (a, b) { return cur.cells[a].med - cur.cells[b].med; }).slice(0, 2).map(nodeNm) : [];
-                diag.push({s: 'warn', ic: 'clock', t: 'Высокий пинг: медиана ' + MED[med], w: best.length ? 'Ближе всего сейчас: ' + esc(best.join(', ')) + '.' : ''});
-            }
-            if (!diag.length) diag.push({s: 'ok', ic: 'check', t: 'Все узлы отвечают во всех сетях', w: 'Неудачных пингов ' + pct(tp >= 20 ? tf / tp : null) + ', медиана ' + (MED[med] || '—') + '.'});
             var medOf = function (b) { var t = 0, s2 = 0; b.forEach(function (x) { t += x; }); if (!t) return -1; for (var i = 0; i < 6; i++) { s2 += b[i]; if (s2 * 2 >= t) return i; } return 5; };
             var dRows = (c.days || []).filter(function (r) { return r.hw === d.hw; });
             var dayList = []; dRows.forEach(function (r) { if (dayList.indexOf(r.d) < 0) dayList.push(r.d); }); dayList.sort(function (a, b) { return b - a; });
             if (CS.day === undefined || (CS.day && dayList.indexOf(CS.day) < 0)) CS.day = dayList.length ? (dayList.indexOf(c.today) >= 0 ? c.today : dayList[0]) : 0;
             var dName = function (x) { if (x === c.today) return 'Сегодня'; if (x === c.today - 86400) return 'Вчера'; var t = new Date((x + c.tz) * 1000); return q2(t.getUTCDate()) + '.' + q2(t.getUTCMonth() + 1); };
             var dWd = function (x) { return ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][new Date((x + c.tz) * 1000).getUTCDay()]; };
-            var dState = function (x) { var st = 'ok'; dRows.forEach(function (r) { if (r.d !== x || !r.pn) return; if (r.pf >= r.pn || r.fdd > 0) st = 'bad'; else if (st !== 'bad' && (r.ffr > 0 || (r.pn >= 20 && r.pf / r.pn >= .10))) st = 'warn'; }); return st; };
+            var segState = function (hw, day) {
+                var st = '';
+                if (day) (c.days || []).forEach(function (r) { if (r.hw !== hw || r.d !== day || !r.pn) return; if (r.pf >= r.pn || r.fdd > 0) st = 'bad'; else if (st !== 'bad' && (r.ffr > 0 || (r.pn >= 20 && r.pf / r.pn >= .10))) st = 'warn'; else if (!st) st = 'ok'; });
+                else c.rows.forEach(function (r) { if (r.hw !== hw || !r.pn) return; if (r.dead || r.v === 'dead') st = 'bad'; else if (st !== 'bad' && (r.v === 'frozen' || (r.fail !== null && r.fail >= .10))) st = 'warn'; else if (!st) st = 'ok'; });
+                return st;
+            };
+            var dState = function (x) { return segState(d.hw, x) || 'mut'; };
             var buildM = function (day) {
                 if (!day) return {nets: nets, map: nmap, keys: nkeys};
                 var o = {nets: [], map: {}, keys: []};
@@ -1444,6 +1421,44 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var M = buildM(CS.day);
             if (CS.jump && CS.day && CS.cell) { var jp = CS.cell.split('|'); if (!(M.map[jp[1]] && M.map[jp[1]].cells[jp[0]] && M.map[jp[1]].cells[jp[0]].pn)) { CS.day = 0; M = buildM(0); } }
             var mNets = M.nets, mMap = M.map, mKeys = M.keys;
+            var dayM = !!CS.day, cut = function (y) { return dayM ? y.ffr > 0 : y.v === 'frozen'; }, gone = function (y) { return dayM ? y.fdd > 0 : y.v === 'dead'; };
+            var diag = [];
+            mKeys.forEach(function (k) {
+                var on = mNets.filter(function (n) { return n.cells[k] && n.cells[k].pn > 0; }), dd = on.filter(function (n) { return n.cells[k].dead; });
+                if (!dd.length) return;
+                var pn = 0, pd = 0; dd.forEach(function (n) { var p = peer(n.asn, k); if (p) { pn += p.n; pd += p.dead; } });
+                if (dd.length === on.length) {
+                    if (pn >= 2 && pd / pn < .2) diag.push({j: k + '|' + dd[0].net, s: 'bad', ic: 'phone', t: nodeNm(k) + ' не отвечает ни в одной сети устройства', w: 'У других клиентов тех же провайдеров (' + pn + ' ' + plural(pn, 'сеть', 'сети', 'сетей') + ') узел работает — дело в устройстве: обновить подписку, проверить дату и время, переустановить конфиг.'});
+                    else diag.push({j: k + '|' + dd[0].net, s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает ни в одной сети устройства', w: pn ? 'У других клиентов тех же провайдеров тоже: без ответа ' + pd + ' из ' + pn + ' ' + plural(pn, 'сети', 'сетей', 'сетей') + ' — проблема не на устройстве.' : 'Сравнить не с кем — других клиентов этих провайдеров в отчётах нет.'});
+                } else {
+                    dd.forEach(function (n) {
+                        var p = peer(n.asn, k), alt = mKeys.filter(function (x) { var y = n.cells[x]; return y && !y.dead && !cut(y) && !gone(y) && (y.fail === null || y.fail < .05); }).slice(0, 2).map(nodeNm);
+                        diag.push({j: k + '|' + n.net, s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает в сети «' + label(n) + '»', w: 'В других сетях устройства узел работает — режет сеть, а не узел.' + (p ? ' У других клиентов этого провайдера без ответа ' + p.dead + ' из ' + p.n + '.' : '') + (alt.length ? ' В этой сети работают: ' + esc(alt.join(', ')) + '.' : '')});
+                    });
+                }
+            });
+            mNets.forEach(function (n) {
+                var fz = mKeys.filter(function (k) { return n.cells[k] && cut(n.cells[k]); });
+                var fa = 0, fb = 0; fz.forEach(function (k) { var y = n.cells[k], t = dayM && y.vl !== 'frozen' ? 0 : y.va; if (t > 0) { fa = fa ? Math.min(fa, t) : t; fb = Math.max(fb, t); } });
+                if (fz.length) diag.push({j: fz[0] + '|' + n.net, s: 'warn', ic: 'scissors', t: '16–20 режется в сети «' + label(n) + '»: ' + fz.map(nodeNm).join(', '), w: 'Пинг до узлов проходит, а соединение рвётся после первых килобайт — признак DPI. Помогает другой транспорт или порт.' + (fa ? ' Проверка — ' + (fb - fa > 3600 ? tfm(fa) + '–' + (tfm(fa).slice(0, 5) === tfm(fb).slice(0, 5) ? tfm(fb).slice(6) : tfm(fb)) : tfm(fb)) + (dayM && CS.day !== c.today ? '.' : '; ' + (fa + RCK.frozen > Date.now() / 1000 ? 'клиент повторит её не раньше ' + tfm(fa + RCK.frozen) + ', пока приложение запущено, и новый итог придёт со следующим отчётом.' : 'повтор ожидался с ' + tfm(fa + RCK.frozen) + ' — новый итог придёт со следующим отчётом и заменит этот.')) : '')});
+            });
+            mNets.forEach(function (n) {
+                var gd = mKeys.filter(function (k) { var y = n.cells[k]; return y && y.pn > 0 && !y.dead && gone(y); });
+                if (gd.length) diag.push({j: gd[0] + '|' + n.net, s: 'bad', ic: 'xoct', t: '16–20 не отвечает в сети «' + label(n) + '»: ' + gd.map(nodeNm).join(', '), w: 'Пинг до узла проходит, а проверка 16–20 через него не получила ответа.'});
+            });
+            mNets.forEach(function (n) {
+                var lo = mKeys.filter(function (k) { var y = n.cells[k]; return y && y.pn > 0 && !y.dead && y.fail !== null && y.fail >= .10; });
+                if (lo.length) diag.push({j: lo[0] + '|' + n.net, s: 'warn', ic: 'xoct', t: 'Теряются пинги в сети «' + label(n) + '»: ' + lo.map(function (k) { return nodeNm(k) + ' — ' + pct(n.cells[k].fail); }).join(', '), w: 'Узел отвечает с перебоями: часть пингов осталась без ответа.'});
+            });
+            var mb = [0, 0, 0, 0, 0, 0], tp = 0, tf = 0;
+            mNets.forEach(function (n) { mKeys.forEach(function (k) { var y = n.cells[k]; if (!y || !y.pn) return; tp += y.pn; tf += y.pf; if (dayM) y.b.forEach(function (x, i) { mb[i] += x; }); else if (y.med >= 0) mb[y.med] += y.pn - y.pf; }); });
+            var tot = mb.reduce(function (a, b) { return a + b; }, 0), run = 0, med = -1;
+            for (var i = 0; i < 6 && tot > 0; i++) { run += mb[i]; if (run * 2 >= tot) { med = i; break; } }
+            if (med >= 3) {
+                var cur = mNets[0], best = cur ? mKeys.filter(function (k) { return cur.cells[k] && cur.cells[k].med >= 0 && !cur.cells[k].dead; }).sort(function (a, b) { return cur.cells[a].med - cur.cells[b].med; }).slice(0, 2).map(nodeNm) : [];
+                diag.push({s: 'warn', ic: 'clock', t: 'Высокий пинг: медиана ' + MED[med], w: best.length ? 'Ближе всего сейчас: ' + esc(best.join(', ')) + '.' : ''});
+            }
+            if (!diag.length) diag.push(tp ? {s: 'ok', ic: 'check', t: 'Все узлы отвечают во всех сетях', w: 'Неудачных пингов ' + pct(tp >= 20 ? tf / tp : null) + ', медиана ' + (MED[med] || '—') + '.'} : {s: 'mut', ic: 'clock', t: dayM ? 'За этот день пингов нет' : 'Пингов в отчётах нет', w: ''});
             var isBad = function (y) { return !!y && y.pn > 0 && (y.dead || y.ffr > 0 || y.fdd > 0 || y.v === 'frozen' || y.v === 'dead' || (y.fail !== null && y.fail >= .10) || y.med >= 3); };
             var probKeys = mKeys.filter(function (k) { return mNets.some(function (n) { return isBad(n.cells[k]); }); });
             if (!probKeys.length) CS.only = false;
@@ -1462,15 +1477,14 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 if (!r || !r.pn) return '<div class="rv-mc"><span class="a">—</span></div>';
                 var sel = CS.cell === key ? ' sel' : '';
                 if (r.dead) return '<button type="button" class="rv-mc dead' + sel + '" data-cell="' + esc(key) + '"><span class="a">нет ответа</span><span class="b">0 из ' + r.pn + '</span></button>';
-                return '<button type="button" class="rv-mc q' + qFail(r.pf / r.pn) + sel + '" data-cell="' + esc(key) + '"><span class="a">' + fl(r.pf, r.pn) + (r.v === 'frozen' || r.ffr > 0 ? ' <svg class="rvi" style="width:11px;height:11px"><use href="#rvi-scissors"/></svg>' + (r.ffr > 1 ? r.ffr : '') : '') + (r.fdd > 0 ? ' ✕' + (r.fdd > 1 ? r.fdd : '') : '') + '</span><span class="b">' + (MED[r.med] || '—') + '</span></button>';
+                return '<button type="button" class="rv-mc q' + qFail(r.pf / r.pn) + sel + '" data-cell="' + esc(key) + '"><span class="a">' + fl(r.pf, r.pn) + (r.v === 'frozen' || r.ffr > 0 ? ' <svg class="rvi" style="width:11px;height:11px"><use href="#rvi-scissors"/></svg>' + (r.ffr > 1 ? r.ffr : '') : '') + (r.fdd > 0 || r.v === 'dead' ? ' ✕' + (r.fdd > 1 ? r.fdd : '') : '') + '</span><span class="b">' + (MED[r.med] || '—') + '</span></button>';
             };
             var worst = function (hw) {
                 var best = null, bs = 0;
-                c.rows.forEach(function (r) {
-                    if (r.hw !== hw || !r.pn) return;
-                    var sc = r.dead ? 4 : r.v === 'frozen' ? 3 : r.fail !== null && r.fail >= .03 ? 2 + r.fail : r.med >= 3 ? 1 + r.med / 10 : 0;
-                    if (sc > bs) { bs = sc; best = r.n + '|' + r.net; }
-                });
+                var score = function (dead, frz, fail, med) { return dead ? 4 : frz ? 3 : fail !== null && fail >= .03 ? 2 + fail : med >= 3 ? 1 + med / 10 : 0; };
+                var take = function (sc, key) { if (sc > bs) { bs = sc; best = key; } };
+                if (CS.day) (c.days || []).forEach(function (r) { if (r.hw === hw && r.d === CS.day && r.pn) take(score(r.pf >= r.pn || r.fdd > 0, r.ffr > 0, r.pn >= 20 ? r.pf / r.pn : null, medOf(r.b)), r.n + '|' + r.net); });
+                else c.rows.forEach(function (r) { if (r.hw === hw && r.pn) take(score(r.dead || r.v === 'dead', r.v === 'frozen', r.fail, r.med), r.n + '|' + r.net); });
                 return best;
             };
             var ipList = function (hw, n) {
@@ -1481,9 +1495,10 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     + list.map(function (x) { return '<tr><td><code>' + esc(x.ip) + '</code></td><td>' + flag(x.cc) + ' ' + esc(placeNm(x.rg, x.cc)) + '</td><td class="n" data-tip="Часов с замерами с этого адреса и доля от всех часов сети">' + x.h + ' ч' + (tot ? ' · ' + Math.round(x.h * 100 / tot) + ' %' : '') + '</td></tr>'; }).join('')
                     + '</table></details>';
             };
+            var segTip = CS.day ? 'Итог за ' + (CS.day === c.today ? 'сегодня' : CS.day === c.today - 86400 ? 'вчера' : dName(CS.day)) : 'Итог за последние 48 часов';
             var devTabs = c.devs.map(function (x, i) {
-                var xr = c.rows.filter(function (r) { return r.hw === x.hw; }), xp = 0, xf = 0; xr.forEach(function (r) { xp += r.pn; xf += r.pf; }); var bad = xr.some(function (r) { return r.dead; }) || (xp >= 20 && xf / xp >= .1), warn = xr.some(function (r) { return r.v === 'frozen'; }) || (xp >= 20 && xf / xp >= .03);
-                return '<div role="button" tabindex="0" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span>' + (bad || warn ? '<button type="button" class="rv-pill rv-jump st-' + (bad ? 'bad' : 'warn') + '" title="Показать проблемный узел">' + (bad ? 'проблемы' : 'деградация') + '</button>' : '<span class="rv-pill st-ok">в порядке</span>') + '</div>';
+                var xs = segState(x.hw, CS.day), bad = xs === 'bad', warn = xs === 'warn';
+                return '<div role="button" tabindex="0" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span>' + (bad || warn ? '<button type="button" class="rv-pill rv-jump st-' + (bad ? 'bad' : 'warn') + '" data-tip="' + segTip + ' — показать проблемный узел">' + (bad ? 'проблемы' : 'деградация') + '</button>' : '<span class="rv-pill st-' + (xs ? 'ok' : 'mut') + '" data-tip="' + segTip + '">' + (xs ? 'в порядке' : 'нет замеров') + '</span>') + '</div>';
             }).join('');
             var sel = CS.cell ? CS.cell.split('|') : null, sr = sel && mMap[sel[1]] ? mMap[sel[1]].cells[sel[0]] : null, sn = sel ? mMap[sel[1]] : null, sp = sr && sn ? peer(sn.asn, sel[0]) : null;
             var lastSeen = 0; rs.forEach(function (r) { lastSeen = Math.max(lastSeen, r.seen); });
@@ -1516,8 +1531,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 + (d.pl ? '<div><span>Регион устройства</span><b data-tip="' + esc((d.pl.src === 'home' ? 'По домашним сетям (Wi-Fi и кабель)' : 'По всем сетям устройства') + ': ' + d.pl.w + ' из ' + d.pl.tw + ' часов замеров' + (d.pl.n > 1 ? ', адреса числились в ' + d.pl.n + ' местах' : '') + '. Мобильная сеть и динамические адреса регион не переносят; сеть в другой стране показывается отдельно.') + '">' + flag(d.pl.cc) + ' ' + esc(placeNm(d.pl.rg, d.pl.cc)) + '</b></div>' : '') + '</div>'
                 + '<div class="rv-sect">Диагноз</div>' + diag.map(function (x) { return '<div class="rv-diag st-' + x.s + '"' + (x.j ? ' data-jump="' + esc(x.j) + '" role="button" tabindex="0" title="Показать в таблице пингов"' : '') + '><span class="ic st-' + x.s + '">' + ico(x.ic) + '</span><div><div class="t">' + esc(x.t) + '</div>' + (x.w ? '<div class="w">' + x.w + '</div>' : '') + '</div>' + (x.j ? '<span class="go">к узлу ↓</span>' : '') + '</div>'; }).join('')
                 + '<div class="rv-sect">Сети устройства</div><div class="rv-nets">' + nets.map(function (n, i) {
-                    var pn = 0, pf = 0, dd = 0; nkeys.forEach(function (k) { var y = n.cells[k]; if (y) { pn += y.pn; pf += y.pf; if (y.dead) dd++; } });
-                    return '<div class="rv-net"><div class="h">' + ico(KIND[n.k] ? n.k : 'other') + esc(KIND[n.k] || n.k) + (i === 0 ? ' <span class="rv-pill st-info">последняя</span>' : '') + '<span class="sp"></span>' + (dd ? '<span class="rv-pill st-bad">' + dd + ' без ответа</span>' : '<span class="rq q' + qFail(pn ? pf / pn : null) + '">' + fl(pf, pn) + '</span>') + '</div>'
+                    var mn = dayM ? mMap[n.net] : n, pn = 0, pf = 0, dd = 0; if (mn) mKeys.forEach(function (k) { var y = mn.cells[k]; if (y) { pn += y.pn; pf += y.pf; if (y.dead) dd++; } });
+                    return '<div class="rv-net"><div class="h">' + ico(KIND[n.k] ? n.k : 'other') + esc(KIND[n.k] || n.k) + (i === 0 ? ' <span class="rv-pill st-info">последняя</span>' : '') + '<span class="sp"></span>' + (!pn ? '<span class="rv-pill st-mut" data-tip="' + segTip + '">нет замеров</span>' : dd ? '<span class="rv-pill st-bad" data-tip="' + segTip + '">' + dd + ' без ответа</span>' : '<span class="rq q' + qFail(pf / pn) + '" data-tip="' + segTip + '">' + fl(pf, pn) + '</span>') + '</div>'
                         + '<div class="r"><b style="color:var(--text)">' + (n.asn ? 'AS' + n.asn + ' ' : '') + esc(n.org || '—') + '</b><br><code>' + esc(n.ip || '—') + '</code>' + (n.ip6 ? ' · <code>' + esc(n.ip6) + '</code>' : '') + '<br>' + flag(n.cc) + ' ' + esc(placeNm(n.rg, n.cc))
                         + ((n.rgo !== n.rg || n.occ !== n.cc) && (n.rgo || n.occ) ? '<br><span data-tip="Где адрес сети числится в базе адресов. Устройство стоит там, где провело больше всего часов: динамические адреса провайдера заведены на разные регионы.">адрес оператора — ' + esc(placeNm(n.rgo, n.occ)) + '</span>' : '')
                         + '<br>замер ' + ago(n.seen) + '</div>' + ipList(d.hw, n) + '</div>';
