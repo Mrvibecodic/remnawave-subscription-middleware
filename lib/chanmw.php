@@ -885,7 +885,7 @@ function chan_report_answer(array $ctx, ?array $rec) {
         $wire = (string) @file_get_contents('php://input', false, null, 0, CHAN_REP_MAX_WIRE + 1);
         $json = chan_report_open($ctx, trim($wire), $why);
         $data = $json === null ? null : json_decode($json, true);
-        $dev  = rep_device($hwid, $data);
+        $dev  = rep_device($hwid, $data, $ctx['token']);
         if (!is_array($data)) {
             $why = (string) $why !== '' ? (string) $why : 'json';
             $st  = $why === 'size' ? 413 : 400;
@@ -895,10 +895,11 @@ function chan_report_answer(array $ctx, ?array $rec) {
             [$st, $why] = [400, 'dev'];
         } elseif (rep_too_soon($ctx['token'], $dev)) {
             [$st, $why] = [429, 'soon'];
-        } elseif (!rep_ingest($ctx['token'], $dev, $data, $why, null, ['model' => (string) ($ctx['req']['model'] ?? ''), 'os' => (string) ($ctx['req']['os'] ?? ''), 'osv' => (string) ($ctx['req']['osv'] ?? '')])) {
+        } elseif (!rep_ingest($ctx['token'], $dev, $data, $why, null, ['model' => (string) ($ctx['req']['model'] ?? ''), 'os' => (string) ($ctx['req']['os'] ?? ''), 'osv' => (string) ($ctx['req']['osv'] ?? ''), 'inst' => rep_inst($data)])) {
             $st = ['db' => 500, 'soon' => 429, 'size' => 413][$why] ?? 400;
         } else {
             $st = 204;
+            if ($dev[0] !== '~' && ($inst = rep_inst($data)) !== '') rep_dev_adopt($ctx['token'], $dev, $inst);
         }
     }
 
