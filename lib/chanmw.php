@@ -899,6 +899,7 @@ function chan_report_answer(array $ctx, ?array $rec) {
             [$st, $why] = [400, 'dev'];
         } elseif (rep_rebuild_active()) {
             [$st, $why, $held] = [204, 'held', true];
+            if (rep_rebuild_stale()) rep_rebuild_step(2.0);
         } elseif (rep_too_soon($ctx['token'], $dev, $now)) {
             [$st, $why] = [429, 'soon'];
         } else {

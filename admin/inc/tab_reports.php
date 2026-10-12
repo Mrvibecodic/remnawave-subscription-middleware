@@ -988,23 +988,26 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 if (!n.asn) return;
                 n.ms.forEach(function (k) { if (!top(n, k)) return; var dd = n.dead.indexOf(k) >= 0; bump(ak, n.asn + '|' + k, dd); bump(pk, (n.rg || n.cc) + '|' + k, dd); });
             });
-            DEVS.forEach(function (d) {
+            var PHYS = {};
+            DEVS.forEach(function (d) { (PHYS[d.h] = PHYS[d.h] || {h: d.h, subs: [], nets: [], d: d}).subs.push(d.s); PHYS[d.h].nets = PHYS[d.h].nets.concat(d.nets); });
+            Object.keys(PHYS).forEach(function (hk) {
+                var P = PHYS[hk], d = P.d;
                 var dk = {};
-                d.nets.forEach(function (n) { n.dead.forEach(function (k) { dk[k] = 1; }); });
+                P.nets.forEach(function (n) { n.dead.forEach(function (k) { dk[k] = 1; }); });
                 Object.keys(dk).map(Number).forEach(function (k) {
-                    var mine = d.nets.filter(function (n) { return n.ms.indexOf(k) >= 0; });
+                    var mine = P.nets.filter(function (n) { return n.ms.indexOf(k) >= 0 && top(n, k); });
                     if (!mine.length || !mine.every(function (n) { return n.dead.indexOf(k) >= 0; })) return;
                     var own = {}, pm = 0, pd = 0;
                     mine.forEach(function (n) { if (n.asn && top(n, k)) own[n.asn] = (own[n.asn] || 0) + 1; });
                     Object.keys(own).forEach(function (a) { var c = ak[a + '|' + k]; if (c) { pm += c.ms - own[a]; pd += c.dead - own[a]; } });
                     var ok = pm - pd;
-                    if (pm >= 2 && ok / pm >= .8) { devSide[d.i + '|' + k] = 1; out.push({sev: 2.5, tag: 'dev', tagT: 'на устройстве', ic: 'phone', icc: 'info', t: NODES[k].nm + ' не отвечает только у ' + (nameOf(d.s) || d.s) + ' — во всех его сетях', why: esc([d.m, d.o, d.c].filter(Boolean).join(', ')) + (d.m || d.o || d.c ? '. ' : '') + 'У ' + ok + ' из ' + pm + ' других сетей тех же провайдеров узел работает. Вероятно, устаревший конфиг или неверное время на устройстве — пусть обновит подписку.', client: d.s}); }
+                    if (pm >= 2 && ok / pm >= .8) { devSide[d.h + '|' + k] = 1; out.push({sev: 2.5, tag: 'dev', tagT: 'на устройстве', ic: 'phone', icc: 'info', t: NODES[k].nm + ' не отвечает только у ' + P.subs.map(function (s) { return nameOf(s) || s; }).join(', ') + ' — во всех сетях устройства', why: esc([d.m, d.o, d.c].filter(Boolean).join(', ')) + (d.m || d.o || d.c ? '. ' : '') + 'У ' + ok + ' из ' + pm + ' других сетей тех же провайдеров узел работает. Вероятно, устаревший конфиг или неверное время на устройстве — пусть обновит подписку.', client: d.s}); }
                 });
             });
             var nodeAll = {};
             NODES.forEach(function (nd, k) {
                 var ms = 0, dd = 0, asn = {};
-                NETS.forEach(function (n) { if (n.ms.indexOf(k) < 0 || !top(n, k)) return; ms++; if (n.asn) asn[n.asn] = 1; if (n.dead.indexOf(k) >= 0 && !devSide[n.d.i + '|' + k]) dd++; });
+                NETS.forEach(function (n) { if (n.ms.indexOf(k) < 0 || !top(n, k)) return; ms++; if (n.asn) asn[n.asn] = 1; if (n.dead.indexOf(k) >= 0 && !devSide[n.d.h + '|' + k]) dd++; });
                 if (ms >= 3 && dd / ms >= .8) { nodeAll[k] = 1; out.push({sev: 4, tag: 'node', tagT: 'узел недоступен', ic: 'server', icc: 'bad', t: nd.nm + ' не отвечает почти ни у кого', why: 'Без ответа в <b>' + dd + ' из ' + ms + '</b> ' + plural(ms, 'сети', 'сетей', 'сетей') + (cnt(asn) >= 2 ? ' у разных провайдеров — скорее всего, лежит сам узел или его порт.' : ' — все они у одного провайдера, так что это может быть и блок у него.') + ' <code>' + esc(nd.a) + '</code>', node: nd.k}); }
             });
             NETS.forEach(function (n) {
@@ -1013,7 +1016,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 var g = groups[key] = groups[key] || {asn: n.asn, org: n.org, pkey: n.rg || n.cc, place: placeName(n), rg: n.rg, devs: {}, ms: {}, dead: {}, frz: {}, msN: {}, deadN: {}};
                 g.devs[n.d.h] = 1;
                 n.ms.forEach(function (k) { if (!top(n, k)) return; (g.ms[k] = g.ms[k] || {})[n.d.h] = 1; g.msN[k] = (g.msN[k] || 0) + 1; if (n.dead.indexOf(k) >= 0) g.deadN[k] = (g.deadN[k] || 0) + 1; });
-                n.dead.forEach(function (k) { if (top(n, k) && !devSide[n.d.i + '|' + k]) (g.dead[k] = g.dead[k] || {})[n.d.h] = 1; });
+                n.dead.forEach(function (k) { if (top(n, k) && !devSide[n.d.h + '|' + k]) (g.dead[k] = g.dead[k] || {})[n.d.h] = 1; });
                 n.frz.forEach(function (k) { if (top(n, k)) (g.frz[k] = g.frz[k] || {})[n.d.h] = 1; });
             });
             var isp = {}, frz = [];
@@ -1304,7 +1307,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     var rs = (j && j.rows) || [];
                     rs.forEach(function (r) { r.rg = regionOf(r.loc, r.cc, r.sub); if (r.name) NAMES[r.s] = r.name; });
                     mxd.style.opacity = '';
-                    mxd.innerHTML = '<h3>' + esc(nd.nm) + ' × AS' + esc(c.dataset.asn) + ' — ' + rs.length + ' ' + plural(rs.length, 'сеть', 'сети', 'сетей') + '</h3><div class="muted" style="font-size:.8rem;margin-bottom:.5rem">' + esc(nd.t) + ' · <code>' + esc(nd.a) + '</code></div>'
+                    var un = {}; rs.forEach(function (r) { un[r.hw + '|' + r.net] = 1; }); var nn = Object.keys(un).length;
+                    mxd.innerHTML = '<h3>' + esc(nd.nm) + ' × AS' + esc(c.dataset.asn) + ' — ' + nn + ' ' + plural(nn, 'сеть', 'сети', 'сетей') + (rs.length > nn ? ' (' + rs.length + ' ' + plural(rs.length, 'строка', 'строки', 'строк') + ': устройство стоит в нескольких подписках)' : '') + '</h3><div class="muted" style="font-size:.8rem;margin-bottom:.5rem">' + esc(nd.t) + ' · <code>' + esc(nd.a) + '</code></div>'
                         + '<div class="rv-wrap"><table class="rv-lt"><thead><tr><th>Клиент</th><th>Устройство</th><th>Сеть</th><th>Регион</th><th>Адрес</th><th>Неудачи</th><th>Медиана</th><th>16–20</th><th>За 48 ч</th><th>Отчёт</th></tr></thead><tbody>'
                         + rs.map(function (r) {
                             return '<tr class="clk" data-s="' + esc(r.s) + '"><td><b style="color:var(--text-strong)">' + esc(r.name || r.s) + '</b>' + (r.name ? '<div class="muted"><code>' + esc(r.s.slice(0, 10)) + '</code></div>' : '') + '</td>'
