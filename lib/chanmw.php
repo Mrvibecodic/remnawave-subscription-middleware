@@ -886,20 +886,29 @@ function chan_report_answer(array $ctx, ?array $rec) {
         $json = chan_report_open($ctx, trim($wire), $why);
         $data = $json === null ? null : json_decode($json, true);
         $dev  = rep_device($hwid, $data, $ctx['token']);
+        $now  = time();
+        $meta = ['model' => (string) ($ctx['req']['model'] ?? ''), 'os' => (string) ($ctx['req']['os'] ?? ''), 'osv' => (string) ($ctx['req']['osv'] ?? ''), 'inst' => rep_inst($data)];
+        $held = false;
+        $nohw = false;
         if (!is_array($data)) {
             $why = (string) $why !== '' ? (string) $why : 'json';
             $st  = $why === 'size' ? 413 : 400;
+        } elseif ($dev === '' && $meta['inst'] !== '') {
+            [$st, $why, $nohw] = [204, 'nohwid', true];
         } elseif ($dev === '') {
-            // Без устройства отчёт не к чему привязать: паузу, последний принятый час
-            // и счёт устройств ведут по нему.
             [$st, $why] = [400, 'dev'];
-        } elseif (rep_too_soon($ctx['token'], $dev)) {
+        } elseif (rep_rebuild_active()) {
+            [$st, $why, $held] = [204, 'held', true];
+        } elseif (rep_too_soon($ctx['token'], $dev, $now)) {
             [$st, $why] = [429, 'soon'];
-        } elseif (!rep_ingest($ctx['token'], $dev, $data, $why, null, ['model' => (string) ($ctx['req']['model'] ?? ''), 'os' => (string) ($ctx['req']['os'] ?? ''), 'osv' => (string) ($ctx['req']['osv'] ?? ''), 'inst' => rep_inst($data)])) {
-            $st = ['db' => 500, 'soon' => 429, 'size' => 413][$why] ?? 400;
         } else {
-            $st = 204;
-            if ($dev[0] !== '~' && ($inst = rep_inst($data)) !== '') rep_dev_adopt($ctx['token'], $dev, $inst);
+            rep_raw_drain();
+            if ((string) $hwid !== '') rep_raw_take_held($ctx['token'], $dev, $meta['inst']);
+            $st = rep_ingest($ctx['token'], $dev, $data, $why, $now, $meta) ? 204 : (['db' => 500, 'soon' => 429, 'size' => 413][$why] ?? 400);
+        }
+        if ($json !== null && is_array($data)) {
+            rep_raw_put(['ts' => $now, 'short' => $ctx['token'], 'dev' => $dev, 'hwid' => $hwid, 'plat' => is_string($data['platform'] ?? null) ? $data['platform'] : '', 'client' => is_string($data['client'] ?? null) ? $data['client'] : '',
+                         'st' => $held ? 202 : ($nohw ? 409 : $st), 'why' => $held ? '' : $why, 'body' => $json] + $meta);
         }
     }
 

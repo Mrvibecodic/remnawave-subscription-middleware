@@ -568,10 +568,35 @@ if (isset($_GET['ajax']) && is_auth()) {
         $card = rep_view_client_card((string) ($_GET['q'] ?? ''), rep_view_since($rf));
         if ($card !== null) {
             $card['name'] = (string) (chan_names_map()[$card['short']] ?? '');
-            rep_sub_fill_names($card['short']);
             $card['nodes'] = array_values(rep_view_nodelist(rep_panel_index(), $card['short']));
         }
         echo json_encode(['ok' => $card !== null, 'card' => $card], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
+    if ($a === 'rep_raw_list') {
+        $list = rep_raw_list((string) ($_GET['s'] ?? ''), (string) ($_GET['hw'] ?? ''), 60);
+        echo json_encode(['ok' => true, 'items' => $list], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
+    if ($a === 'rep_raw_get') {
+        $r = rep_raw_row((int) ($_GET['id'] ?? 0));
+        $json = $r === null ? null : rep_raw_json($r);
+        if ($json === null) { http_response_code(404); echo json_encode(['ok' => false]); exit(); }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="report-' . (int) $r['id'] . '-' . gmdate('Ymd-His', (int) $r['ts']) . '.json"');
+        header('Cache-Control: no-store');
+        echo $json;
+        exit();
+    }
+
+    if ($a === 'rep_rebuild') {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        ignore_user_abort(true);
+        @set_time_limit(60);
+        if (!empty($_POST['start']) && !rep_rebuild_start()) { echo json_encode(['ok' => false]); exit(); }
+        echo json_encode(['ok' => true] + rep_rebuild_step(5.0) + ['raw' => rep_raw_stats()], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
