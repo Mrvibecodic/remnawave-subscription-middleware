@@ -96,7 +96,7 @@ $rv_per_t = [1 => 'за 24 часа', 7 => 'за 7 дней', 30 => 'за 30 д�
 $rv_win = static function ($w) use ($rv_per_t) {
     $t = [
         'p'  => [$rv_per_t, 'Сумма всех часов с замерами за выбранный период, с учётом фильтров сети и платформы.'],
-        'pd' => [$rv_per_t, 'Считается целыми сутками UTC, поэтому захватывает и начало первых суток периода. Фильтр платформы здесь не применяется.'],
+        'pd' => [$rv_per_t, 'Считается целыми сутками, поэтому захватывает и начало первых суток периода. Фильтр платформы здесь не применяется.'],
         '48' => ['последние 48 ч устройств', 'В каждой сети устройства — 48 часов до её последнего часа с замерами, а не весь период. Период лишь отбирает сети, по которым пришёл отчёт. Проверка 16–20 — последняя, не старше 5 суток.'],
         '6'  => ['по последним отчётам', 'Молчание узла — по последним (до 6) часам с замерами в каждой сети устройства: ни одного ответа за эти часы. «Режется» — по последней проверке 16–20 не старше 5 суток: клиент повторяет её не раньше чем через 3 суток, а новый итог с того же устройства сразу заменяет прежний. Отчёт приходит не чаще раза в 6 часов, при плановом обновлении подписки, так что это не «прямо сейчас».'],
     ][$w];
@@ -525,12 +525,12 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     </div>
 
     <div class="card">
-        <div class="loghead"><h2>Пинги по <?= $rv_series['step'] === 3600 ? 'часам' : 'суткам (UTC)' ?><?= $rv_node ? ' — ' . h($rv_node['name'] !== '' ? $rv_node['name'] : $rv_node['server']) : '' ?></h2><?= $rv_win('p') ?></div>
+        <div class="loghead"><h2>Пинги по <?= $rv_series['step'] === 3600 ? 'часам' : 'суткам' ?><?= $rv_node ? ' — ' . h($rv_node['name'] !== '' ? $rv_node['name'] : $rv_node['server']) : '' ?></h2><?= $rv_win('p') ?></div>
         <?php
         $pts = $rv_series['points'];
         $cnt = max(1, count($pts));
         $W = 1000; $H = 150; $bw = $W / $cnt;
-        $rv_dt = static fn($fmt, $t) => $rv_series['step'] === 3600 ? date($fmt, $t) : gmdate($fmt, $t);
+        $rv_dt = static fn($fmt, $t) => $rv_series['step'] === 3600 ? date($fmt, $t) : gmdate($fmt, $t + $rv_series['tz']);
         ?>
         <svg class="rv-chart" viewBox="0 0 <?= $W ?> <?= $H ?>" preserveAspectRatio="none" data-n="<?= $cnt ?>">
             <line class="gl" x1="0" y1="<?= $H ?>" x2="<?= $W ?>" y2="<?= $H ?>"/>
@@ -582,7 +582,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                         <td><span class="rq <?= $rv_qfail($ip['fail']) ?>"><?= h($rv_pct($ip['fail'])) ?></span></td>
                         <td><span class="rq <?= $rv_qmed($ip['med']) ?>"><?= h($rv_med($ip['med'])) ?></span></td>
                         <td><?= $rv_frz($ip) ?></td>
-                        <td class="muted"><?= h(gmdate('d.m', $ip['last'])) ?></td></tr>
+                        <td class="muted"><?= h(gmdate('d.m', $ip['last'] + rep_tzoff())) ?></td></tr>
                     <?php endforeach; ?>
                     </tbody></table></details></td>
                 <td class="num"><?= $rv_num(count($isp['ips'])) ?></td>
