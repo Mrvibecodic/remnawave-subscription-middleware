@@ -568,6 +568,7 @@ if (isset($_GET['ajax']) && is_auth()) {
         $card = rep_view_client_card((string) ($_GET['q'] ?? ''), rep_view_since($rf));
         if ($card !== null) {
             $card['name'] = (string) (chan_names_map()[$card['short']] ?? '');
+            rep_sub_fill_names($card['short']);
             $card['nodes'] = array_values(rep_view_nodelist(rep_panel_index(), $card['short']));
         }
         echo json_encode(['ok' => $card !== null, 'card' => $card], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
