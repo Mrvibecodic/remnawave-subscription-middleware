@@ -792,9 +792,20 @@ function rep_view_state_row(array $r) {
 function rep_view_client_card($q, $since) {
     $q = trim((string) $q);
     if ($q === '' || !rep_ensure()) return null;
-    $hit = rep_view_rows('SELECT short_uuid FROM rep_dev WHERE short_uuid = ? OR hwid = ? ORDER BY last_report DESC LIMIT 1', [$q, $q]);
-    if (!$hit) $hit = rep_view_rows('SELECT short_uuid FROM rep_state WHERE short_uuid = ? OR hwid = ? ORDER BY last_seen DESC LIMIT 1', [$q, $q]);
-    if (!$hit) return null;
+    $hw   = '';
+    $subs = [];
+    $hit  = rep_view_rows('SELECT short_uuid FROM rep_dev WHERE short_uuid = ? LIMIT 1', [$q]);
+    if (!$hit) $hit = rep_view_rows('SELECT short_uuid FROM rep_state WHERE short_uuid = ? LIMIT 1', [$q]);
+    if (!$hit) {
+        $seen = [];
+        foreach (rep_view_rows('SELECT short_uuid, MAX(last_report) AS t FROM rep_dev WHERE hwid = ? GROUP BY short_uuid', [$q]) as $r) $seen[(string) $r['short_uuid']] = (int) $r['t'];
+        foreach (rep_view_rows('SELECT short_uuid, MAX(last_seen) AS t FROM rep_state WHERE hwid = ? GROUP BY short_uuid', [$q]) as $r) $seen[(string) $r['short_uuid']] = max($seen[(string) $r['short_uuid']] ?? 0, (int) $r['t']);
+        if (!$seen) return null;
+        arsort($seen);
+        $hw = $q;
+        foreach ($seen as $s => $t) $subs[] = ['s' => (string) $s, 't' => $t];
+        $hit = [['short_uuid' => (string) array_key_first($seen)]];
+    }
     $short = (string) $hit[0]['short_uuid'];
     rep_dev_fill($short, 20);
     rep_geo_backfill(0, 500, $short);
@@ -862,7 +873,7 @@ function rep_view_client_card($q, $since) {
         ];
     }
 
-    return ['short' => $short, 'devs' => $devs, 'rows' => $rows, 'peers' => $peers, 'ips' => $ips, 'days' => $days, 'tz' => $tz, 'today' => $today];
+    return ['short' => $short, 'hw' => $hw, 'subs' => $subs, 'devs' => $devs, 'rows' => $rows, 'peers' => $peers, 'ips' => $ips, 'days' => $days, 'tz' => $tz, 'today' => $today];
 }
 
 function rep_view_frz(array $f, $since, $v, $nkey = '', $asn = 0) {
