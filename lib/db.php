@@ -127,6 +127,7 @@ function install_seed_values() {
         'app_enabled'           => '0',
         'app_only'              => '0',
         'app_ev_wait_max'       => '280',
+        'app_ev_slots'          => '2',
         'rep_enabled'           => '0',
         'rep_keep_days'         => '90',
         'geoip_auto'            => '1',

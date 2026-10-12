@@ -902,6 +902,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'save_app') {
         set_setting('app_enabled', isset($_POST['app_enabled']) ? '1' : '0');
         set_setting('app_ev_wait_max', (string) max(25, min(290, (int) ($_POST['app_ev_wait_max'] ?? 280))));
+        set_setting('app_ev_slots', (string) max(1, min(32, (int) ($_POST['app_ev_slots'] ?? 2))));
         if (!isset($_POST['app_enabled'])) set_setting('app_only', '0');
         flash(isset($_POST['app_enabled']) ? 'Приложение включено' : 'Приложение выключено');
         form_saved('app');

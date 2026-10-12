@@ -6,6 +6,7 @@ const APP_CODE_MAX   = 3;
 const APP_PAIR_FAILS = 20;
 const APP_DEV_FAILS  = 10;
 const APP_REPO       = 'Mrvibecodic/submw-android';
+const APP_EV_BUSY    = 60;
 const APP_APK_MAX    = 67108864;
 
 function app_ext_ok() { return extension_loaded('sodium'); }
@@ -13,6 +14,8 @@ function app_ext_ok() { return extension_loaded('sodium'); }
 function app_enabled() { return app_ext_ok() && setting('app_enabled', '0') === '1'; }
 
 function app_ev_wait_max() { return max(25, min(290, (int) (setting('app_ev_wait_max', '280') ?: 280))); }
+
+function app_ev_slots() { return max(1, min(32, (int) (setting('app_ev_slots', '2') ?: 2))); }
 
 function app_only_off() {
     $c = cfg();
@@ -603,18 +606,46 @@ function app_op_ev(array $ctx) {
     $t0 = microtime(true);
     $head = app_ev_head();
     if ($c < 0 || $c > $head) return [['c' => $head, 'e' => (object) [], 'w' => 0], '', 200];
+    [$e, $c] = app_ev_since($c, $want);
+    if ($e || $w <= 0) return [['c' => $c, 'e' => $e ?: (object) [], 'w' => 0], '', 200];
+    // Новый запрос телефона сначала гасит его прежний, потом ждёт место: так смена
+    // сети не выбивает телефон из живых уведомлений.
     $mark = chan_lock_path('appev_' . substr(hash('sha256', (string) ($ctx['dev']['did'] ?? '')), 0, 16));
     $tok  = bin2hex(random_bytes(8));
     @file_put_contents($mark, $tok, LOCK_EX);
-    while (true) {
-        [$e, $last] = app_ev_since($c, $want);
-        $c = $last;
-        $spent = microtime(true) - $t0;
-        if ($e) return [['c' => $c, 'e' => $e, 'w' => (int) round($spent)], '', 200];
-        if ($spent >= $w || @file_get_contents($mark) !== $tok) break;
-        usleep((int) (min(2.0, $w - $spent) * 1000000));
+    $slot = app_ev_slot_take(3.0);
+    if ($slot === null) return [['c' => $c, 'e' => (object) [], 'w' => (int) round(microtime(true) - $t0), 'r' => APP_EV_BUSY], '', 200];
+    try {
+        while (true) {
+            $spent = microtime(true) - $t0;
+            if ($spent >= $w || @file_get_contents($mark) !== $tok) break;
+            usleep((int) (min(2.0, $w - $spent) * 1000000));
+            [$e, $c] = app_ev_since($c, $want);
+            if ($e) return [['c' => $c, 'e' => $e, 'w' => (int) round(microtime(true) - $t0)], '', 200];
+        }
+        return [['c' => $c, 'e' => (object) [], 'w' => (int) round(microtime(true) - $t0)], '', 200];
+    } finally {
+        @flock($slot, LOCK_UN);
+        @fclose($slot);
     }
-    return [['c' => $c, 'e' => (object) [], 'w' => (int) round(microtime(true) - $t0)], '', 200];
+}
+
+// Ожидание ev держит процесс PHP, а их пул общий с подписками (и с каналом c1).
+// Поэтому ждут одновременно не больше app_ev_slots телефонов; место — flock на файле,
+// система снимает его сама, если процесс умер. Остальным — ответ сразу с паузой r.
+function app_ev_slot_take($patience) {
+    $n     = app_ev_slots();
+    $until = microtime(true) + (float) $patience;
+    while (true) {
+        for ($i = 0; $i < $n; $i++) {
+            $fh = @fopen(chan_lock_path('appevslot_' . $i), 'c');
+            if ($fh === false) return null;
+            if (@flock($fh, LOCK_EX | LOCK_NB)) return $fh;
+            @fclose($fh);
+        }
+        if (microtime(true) >= $until) return null;
+        usleep(250000);
+    }
 }
 
 

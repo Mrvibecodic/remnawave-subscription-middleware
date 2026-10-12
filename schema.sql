@@ -42,7 +42,8 @@ INSERT INTO settings (k, v) VALUES
     ('chan_debug_keep',       '50'),
     ('app_enabled',           '0'),
     ('app_only',              '0'),
-    ('app_ev_wait_max',       '280')
+    ('app_ev_wait_max',       '280'),
+    ('app_ev_slots',          '2')
 ON CONFLICT(k) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS overrides (
