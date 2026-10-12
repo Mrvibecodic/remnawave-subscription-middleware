@@ -1,5 +1,6 @@
 <?php
 if (isset($_COOKIE['tzoff']) && (string) setting('rep_tzoff', '') === '') set_setting('rep_tzoff', (string) (max(-720, min(840, (int) $_COOKIE['tzoff'])) * 60));
+if (rep_rebuild_active()) rep_rebuild_step(3.0);
 rep_dday_backfill(2.0);
 $rv_f      = rep_view_filters($_GET);
 $rv_now    = time();
@@ -8,7 +9,6 @@ $rv_tot    = rep_view_totals($rv_f, $rv_since);
 $rv_series = rep_view_series($rv_f, $rv_since, $rv_now);
 $rv_isps   = rep_view_isps($rv_f, $rv_since);
 $rv_panel  = rep_panel_index();
-rep_sub_fill_some();
 $rv_nodes  = rep_view_nodes($rv_f, $rv_since, $rv_panel);
 rep_geo_backfill($rv_since);
 rep_dev_fill();
@@ -16,6 +16,7 @@ $rv_mapd   = rep_view_map($rv_f, $rv_since, $rv_panel);
 $rv_mx     = rep_view_matrix($rv_f, $rv_since);
 $rv_hst    = rep_view_hist_stat($rv_since);
 $rep_st    = rep_stats();
+$rep_raw   = rep_raw_stats();
 $rep_geo   = geoip_status();
 $rv_node   = null;
 foreach ($rv_nodes as $n) if ($n['nkey'] === $rv_f['node']) $rv_node = $n;
@@ -30,7 +31,7 @@ $rv_dead_cl   = [];
 foreach ($rv_mapd['nets'] as $x) {
     if (!$x[10]) continue;
     $rv_dead_cl[$rv_mapd['devs'][$x[0]]['s']] = true;
-    foreach ($x[10] as $ni) $rv_dead_node[$rv_mapd['nodes'][$ni]['k']][$x[0]] = true;
+    foreach ($x[10] as $ni) $rv_dead_node[$rv_mapd['nodes'][$ni]['k']][$rv_mapd['devs'][$x[0]]['h']] = true;
 }
 $rv_names = [];
 $rv_all_names = chan_names_map();
@@ -668,6 +669,10 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             <input type="hidden" name="action" value="clod_geoip_update">
             <button type="submit" class="btn ghost">↻ Скачать базы DB-IP сейчас</button>
         </form>
+        <div class="set-row" style="margin-top:1rem">
+            <div class="set-info"><div class="set-t">Сырые отчёты</div><div class="set-d" id="rvRawInfo"><?php if ($rep_raw['n'] > 0): ?>Хранится <b><?= $rv_num($rep_raw['n']) ?></b> <?= h(['отчёт', 'отчёта', 'отчётов'][($rep_raw['n'] % 10 === 1 && $rep_raw['n'] % 100 !== 11) ? 0 : (($rep_raw['n'] % 10 >= 2 && $rep_raw['n'] % 10 <= 4 && ($rep_raw['n'] % 100 < 10 || $rep_raw['n'] % 100 >= 20)) ? 1 : 2)]) ?> с <span class="ct-time" data-ts="<?= (int) $rep_raw['first'] ?>"><?= h(date('Y-m-d H:i', (int) $rep_raw['first'])) ?></span>, <?= h($rv_bytes($rep_raw['bytes'])) ?> до сжатия.<?php else: ?>Пока нет ни одного.<?php endif; ?> Каждый отчёт клиента хранится как пришёл, вся статистика строится из них. Срок хранения — тот же.</div></div>
+            <button type="button" class="btn ghost" id="rvRebuild" data-csrf="<?= h($token) ?>" data-active="<?= rep_rebuild_active() ? '1' : '' ?>" data-tip="Сводки стираются и заново раскладываются из сохранённых сырых отчётов по порядку. Что пришло до появления сырых отчётов, пересобрать не из чего — это удалится."><?= rep_rebuild_active() ? 'Продолжить пересборку' : 'Пересобрать статистику' ?></button>
+        </div>
     </div>
 </div>
 
@@ -710,6 +715,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         })();
         var NAMES = <?= json_encode((object) $rv_names, $rv_js) ?>;
         var Q0 = <?= json_encode($rv_f['q'], $rv_js) ?>;
+        var PER = <?= json_encode($rv_per_t, $rv_js) ?>;
         var MX = <?= json_encode($rv_mx, $rv_js) ?>, MXK = <?= json_encode($rv_f['kind'], $rv_js) ?>;
         var MXQ = <?= json_encode(http_build_query(array_filter(['p' => $rv_f['p'], 'plat' => $rv_f['plat'], 'cc' => $rv_f['cc'], 'node' => $rv_f['node']], static fn($v) => $v !== '' && $v !== null)), $rv_js) ?>;
         var FQ = <?= json_encode(http_build_query(array_filter(['p' => $rv_f['p'], 'kind' => $rv_f['kind'], 'plat' => $rv_f['plat'], 'cc' => $rv_f['cc']], static fn($v) => $v !== '' && $v !== null)), $rv_js) ?>;
@@ -739,13 +745,17 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         document.querySelectorAll('[data-ccname]').forEach(function (el) { var cc = el.getAttribute('data-ccname'); if (/^[A-Z]{2}$/.test(cc)) el.textContent = ccName(cc); });
 
         var NODES = D.nodes || [];
-        var DEVS = (D.devs || []).map(function (d, i) { return {i: i, s: d.s, p: d.p, m: d.m, o: d.o, c: d.c, lr: d.lr, nets: []}; });
+        var DEVS = (D.devs || []).map(function (d, i) { return {i: i, s: d.s, h: d.h, p: d.p, m: d.m, o: d.o, c: d.c, lr: d.lr, nets: []}; });
         var NETS = (D.nets || []).map(function (x) {
-            var n = {d: DEVS[x[0]], k: x[1], ip: x[2], cc: x[3], asn: x[4], org: x[5], loc: x[6], pn: x[7], pf: x[8], med: x[9], dead: x[10], frz: x[11], vok: x[12], hh: x[13], seen: x[14], ms: (D.ms && D.ms[x[15]]) || [], sub: x[16] || '', rg: null};
+            var n = {d: DEVS[x[0]], k: x[1], ip: x[2], cc: x[3], asn: x[4], org: x[5], loc: x[6], pn: x[7], pf: x[8], med: x[9], dead: x[10], frz: x[11], vok: x[12], hh: x[13], seen: x[14], ms: (D.ms && D.ms[x[15]]) || [], sub: x[16] || '', net: x[17] || '', rg: null};
             n.fail = n.pn >= 20 ? n.pf / n.pn : null;
             n.d.nets.push(n);
             return n;
         });
+        var BEST = {};
+        NETS.forEach(function (n) { n.ms.forEach(function (k) { var key = n.d.h + '|' + n.net + '|' + k, b = BEST[key]; if (!b || n.seen > b.seen) BEST[key] = n; }); });
+        var top = function (n, k) { return BEST[n.d.h + '|' + n.net + '|' + k] === n; };
+        var devN = function (list) { var o = {}; list.forEach(function (e) { o[(e.d || e).h] = 1; }); return Object.keys(o).length; };
 
         var rad = Math.PI / 180;
         var proj = function (la, lo) {
@@ -826,7 +836,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             });
             var tot = mb.reduce(function (a, b) { return a + b; }, 0), run = 0, med = -1;
             for (var i = 0; i < 6 && tot > 0; i++) { run += mb[i]; if (run * 2 >= tot) { med = i; break; } }
-            return {devs: entries, n: entries.length, k: Object.keys(cl).length, pn: pn, fail: pn >= 20 ? pf / pn : null, med: med, fr: fr, vok: vok, st: s};
+            return {devs: entries, n: devN(entries), k: Object.keys(cl).length, pn: pn, fail: pn >= 20 ? pf / pn : null, med: med, fr: fr, vok: vok, st: s};
         };
         var REG = {}, OUT = {}, NOREG = {}, NOGEO = [];
         var putIdx = {};
@@ -952,7 +962,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 
         var side = function () {
             var list = Object.keys(OUT).map(function (cc) { return {cc: cc, b: bag(OUT[cc])}; }).sort(function (a, b) { return b.b.n - a.b.n; });
-            var total = list.reduce(function (s, x) { return s + x.b.n; }, 0);
+            var total = devN([].concat.apply([], list.map(function (x) { return x.b.devs; })));
             var row = function (key, title, sub, b, fl) {
                 var on = st.side === key;
                 return '<button type="button" class="rv-srow' + (on ? ' on' : '') + '" data-k="' + esc(key) + '">' + fl + '<span class="n">' + esc(title) + '<small>' + esc(sub) + '</small></span><span class="rv-sdot st-' + b.st + '"></span><span class="c">' + b.n + '</span></button>'
@@ -976,7 +986,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var bump = function (m, key, dead) { var c = m[key] || (m[key] = {ms: 0, dead: 0}); c.ms++; if (dead) c.dead++; };
             NETS.forEach(function (n) {
                 if (!n.asn) return;
-                n.ms.forEach(function (k) { var dd = n.dead.indexOf(k) >= 0; bump(ak, n.asn + '|' + k, dd); bump(pk, (n.rg || n.cc) + '|' + k, dd); });
+                n.ms.forEach(function (k) { if (!top(n, k)) return; var dd = n.dead.indexOf(k) >= 0; bump(ak, n.asn + '|' + k, dd); bump(pk, (n.rg || n.cc) + '|' + k, dd); });
             });
             DEVS.forEach(function (d) {
                 var dk = {};
@@ -985,7 +995,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     var mine = d.nets.filter(function (n) { return n.ms.indexOf(k) >= 0; });
                     if (!mine.length || !mine.every(function (n) { return n.dead.indexOf(k) >= 0; })) return;
                     var own = {}, pm = 0, pd = 0;
-                    mine.forEach(function (n) { if (n.asn) own[n.asn] = (own[n.asn] || 0) + 1; });
+                    mine.forEach(function (n) { if (n.asn && top(n, k)) own[n.asn] = (own[n.asn] || 0) + 1; });
                     Object.keys(own).forEach(function (a) { var c = ak[a + '|' + k]; if (c) { pm += c.ms - own[a]; pd += c.dead - own[a]; } });
                     var ok = pm - pd;
                     if (pm >= 2 && ok / pm >= .8) { devSide[d.i + '|' + k] = 1; out.push({sev: 2.5, tag: 'dev', tagT: 'на устройстве', ic: 'phone', icc: 'info', t: NODES[k].nm + ' не отвечает только у ' + (nameOf(d.s) || d.s) + ' — во всех его сетях', why: esc([d.m, d.o, d.c].filter(Boolean).join(', ')) + (d.m || d.o || d.c ? '. ' : '') + 'У ' + ok + ' из ' + pm + ' других сетей тех же провайдеров узел работает. Вероятно, устаревший конфиг или неверное время на устройстве — пусть обновит подписку.', client: d.s}); }
@@ -994,17 +1004,17 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var nodeAll = {};
             NODES.forEach(function (nd, k) {
                 var ms = 0, dd = 0, asn = {};
-                NETS.forEach(function (n) { if (n.ms.indexOf(k) < 0) return; ms++; if (n.asn) asn[n.asn] = 1; if (n.dead.indexOf(k) >= 0 && !devSide[n.d.i + '|' + k]) dd++; });
+                NETS.forEach(function (n) { if (n.ms.indexOf(k) < 0 || !top(n, k)) return; ms++; if (n.asn) asn[n.asn] = 1; if (n.dead.indexOf(k) >= 0 && !devSide[n.d.i + '|' + k]) dd++; });
                 if (ms >= 3 && dd / ms >= .8) { nodeAll[k] = 1; out.push({sev: 4, tag: 'node', tagT: 'узел недоступен', ic: 'server', icc: 'bad', t: nd.nm + ' не отвечает почти ни у кого', why: 'Без ответа в <b>' + dd + ' из ' + ms + '</b> ' + plural(ms, 'сети', 'сетей', 'сетей') + (cnt(asn) >= 2 ? ' у разных провайдеров — скорее всего, лежит сам узел или его порт.' : ' — все они у одного провайдера, так что это может быть и блок у него.') + ' <code>' + esc(nd.a) + '</code>', node: nd.k}); }
             });
             NETS.forEach(function (n) {
                 if (!n.asn) return;
                 var key = n.asn + '|' + (n.rg || n.cc);
                 var g = groups[key] = groups[key] || {asn: n.asn, org: n.org, pkey: n.rg || n.cc, place: placeName(n), rg: n.rg, devs: {}, ms: {}, dead: {}, frz: {}, msN: {}, deadN: {}};
-                g.devs[n.d.i] = 1;
-                n.ms.forEach(function (k) { (g.ms[k] = g.ms[k] || {})[n.d.i] = 1; g.msN[k] = (g.msN[k] || 0) + 1; if (n.dead.indexOf(k) >= 0) g.deadN[k] = (g.deadN[k] || 0) + 1; });
-                n.dead.forEach(function (k) { if (!devSide[n.d.i + '|' + k]) (g.dead[k] = g.dead[k] || {})[n.d.i] = 1; });
-                n.frz.forEach(function (k) { (g.frz[k] = g.frz[k] || {})[n.d.i] = 1; });
+                g.devs[n.d.h] = 1;
+                n.ms.forEach(function (k) { if (!top(n, k)) return; (g.ms[k] = g.ms[k] || {})[n.d.h] = 1; g.msN[k] = (g.msN[k] || 0) + 1; if (n.dead.indexOf(k) >= 0) g.deadN[k] = (g.deadN[k] || 0) + 1; });
+                n.dead.forEach(function (k) { if (top(n, k) && !devSide[n.d.i + '|' + k]) (g.dead[k] = g.dead[k] || {})[n.d.h] = 1; });
+                n.frz.forEach(function (k) { if (top(n, k)) (g.frz[k] = g.frz[k] || {})[n.d.h] = 1; });
             });
             var isp = {}, frz = [];
             Object.keys(groups).forEach(function (key) {
@@ -1319,7 +1329,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 var devs = [];
                 DEVS.forEach(function (d) { var dn = d.nets.filter(function (n) { return n.dead.indexOf(k) >= 0; }); if (dn.length) devs.push({d: d, nets: dn}); });
                 var nd = NODES[k] || {nm: btn.dataset.nk, t: '', a: ''};
-                mod.innerHTML = '<div class="rv-ph"><div style="min-width:0"><b>' + esc(nd.nm) + ' не отвечает</b><div class="rv-pst"><span class="rv-pill st-mut">' + devs.length + ' ' + plural(devs.length, 'устройство', 'устройства', 'устройств') + '</span><span class="rv-pill st-mut">' + esc(nd.t) + '</span></div></div><button type="button" class="x" aria-label="Закрыть">' + ico('x') + '</button></div>'
+                mod.innerHTML = '<div class="rv-ph"><div style="min-width:0"><b>' + esc(nd.nm) + ' не отвечает</b><div class="rv-pst"><span class="rv-pill st-mut">' + devN(devs) + ' ' + plural(devN(devs), 'устройство', 'устройства', 'устройств') + '</span><span class="rv-pill st-mut">' + esc(nd.t) + '</span></div></div><button type="button" class="x" aria-label="Закрыть">' + ico('x') + '</button></div>'
                     + '<div class="rv-pl">' + rows(devs, true) + '</div>';
                 mod.classList.add('open'); drwBg.classList.add('open');
                 mod.querySelector('.x').addEventListener('click', closeMod);
@@ -1337,7 +1347,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 fetch('?ajax=rep_frz&' + FQ + '&v=' + v + (btn.dataset.nk ? '&nk=' + encodeURIComponent(btn.dataset.nk) : '') + (btn.dataset.asn ? '&asn=' + encodeURIComponent(btn.dataset.asn) : ''), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
                     if (seq !== frzSeq || !mod.classList.contains('open')) return;
                     var rows = (j && j.rows) || [], dv = {}, st = j && j.src === 'state';
-                    rows.forEach(function (x) { dv[x.s + '|' + x.hw] = 1; });
+                    rows.forEach(function (x) { dv[x.hw] = 1; });
                     var ndn = function (k) { var r = k; NODES.forEach(function (n) { if (n.k === k) r = n.nm; }); return r; };
                     var dd = function (t) { var x = new Date(t * 1000); return (x.getDate() < 10 ? '0' : '') + x.getDate() + '.' + (x.getMonth() < 9 ? '0' : '') + (x.getMonth() + 1); };
                     mod.innerHTML = head('<div class="rv-pst"><span class="rv-pill st-mut">' + Object.keys(dv).length + ' ' + plural(Object.keys(dv).length, 'устройство', 'устройства', 'устройств') + '</span><span class="rv-pill st-mut">' + (st ? 'по последней проверке' : 'по дням периода') + '</span></div>')
@@ -1368,7 +1378,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 c.devs.forEach(function (d) { if (d.pl) d.pl.rg = regionOf(d.pl.loc, d.pl.cc, d.pl.sub); });
                 Object.keys(c.ips || {}).forEach(function (k) { c.ips[k].forEach(function (x) { x.rg = regionOf(x.loc, x.cc, x.sub); }); });
                 if (c.name) NAMES[c.short] = c.name;
-                CS = {c: c, dev: 0, cell: null, only: false};
+                CS = {c: c, dev: 0, cell: null, only: false, raw: ''};
                 if ((!c.subs || !c.subs.length) && opt && opt.subs) { c.subs = opt.subs; c.hw = opt.hw; }
                 var wantHw = (opt && opt.hw) || c.hw;
                 if (wantHw) c.devs.forEach(function (x, i) { if (x.hw === wantHw) CS.dev = i; });
@@ -1492,10 +1502,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             };
             var ipList = function (hw, n) {
                 var list = (c.ips || {})[hw + '|' + n.net] || [];
-                if (list.length < 2) return '';
-                var tot = list.reduce(function (s, x) { return s + x.h; }, 0);
-                return '<details class="rv-ipl" data-net="' + esc(n.net) + '"' + (CS.ipo && CS.ipo[n.net] ? ' open' : '') + '><summary>Адреса сети: ' + list.length + '</summary><table>'
-                    + list.map(function (x) { return '<tr><td><code>' + esc(x.ip) + '</code></td><td>' + flag(x.cc) + ' ' + esc(placeNm(x.rg, x.cc)) + '</td><td class="n" data-tip="Часов с замерами с этого адреса и доля от всех часов сети">' + x.h + ' ч' + (tot ? ' · ' + Math.round(x.h * 100 / tot) + ' %' : '') + '</td></tr>'; }).join('')
+                if (!list.length) return '';
+                return '<details class="rv-ipl" data-net="' + esc(n.net) + '"' + (CS.ipo && CS.ipo[n.net] ? ' open' : '') + '><summary>Адреса сети ' + esc(PER) + ': ' + list.length + '</summary><table>'
+                    + list.map(function (x) { return '<tr><td><code>' + esc(x.ip) + '</code></td><td>' + flag(x.cc) + ' ' + esc(placeNm(x.rg, x.cc)) + '</td><td class="n" data-tip="Последний час с замерами с этого адреса">' + esc(tfm(x.lh)) + '</td></tr>'; }).join('')
                     + '</table></details>';
             };
             var segTip = CS.day ? 'Итог за ' + (CS.day === c.today ? 'сегодня' : CS.day === c.today - 86400 ? 'вчера' : dName(CS.day)) : 'Итог за последние 48 часов';
@@ -1532,6 +1541,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 + '<div class="rv-kv"><div><span>Модель и ОС</span><b>' + esc([d.m, d.o].filter(Boolean).join(' · ') || '—') + '</b></div><div><span>Клиент</span><b>' + esc(d.c ? 'Clod Clash ' + d.c : '—') + (d.p ? ' · ' + (d.p === 'pc' ? 'ПК' : 'Android') : '') + '</b></div><div><span>HWID</span><b><code>' + esc(d.hw) + '</code></b></div><div><span>Отчётов</span><b>' + (d.r || '—') + ' · последний ' + ago(d.lr) + '</b></div>'
                 + (useTop.length ? '<div><span>' + (Math.abs(lastSeen - d.lr) < 600 ? 'Трафик в последнем отчёте' : 'Трафик в отчёте ' + esc(ago(lastSeen))) + '</span><b data-tip="Через какие узлы шёл трафик устройства в отчёте, пришедшем ' + esc(ago(lastSeen)) + ': за часы с предыдущего отчёта. Всего ' + esc(gb(useT)) + '.">' + useTop.map(function (k) { return esc(nodeNm(k)) + ' <em style="font-style:normal;font-weight:500;color:var(--muted);white-space:nowrap">' + pct(use[k] / useT) + ' · ' + esc(gb(use[k])) + '</em>'; }).join('<br>') + '</b></div>' : '')
                 + (d.pl ? '<div><span>Регион устройства</span><b data-tip="' + esc((d.pl.src === 'home' ? 'По домашним сетям (Wi-Fi и кабель)' : 'По всем сетям устройства') + ': ' + d.pl.w + ' из ' + d.pl.tw + ' часов замеров' + (d.pl.n > 1 ? ', адреса числились в ' + d.pl.n + ' местах' : '') + '. Мобильная сеть и динамические адреса регион не переносят; сеть в другой стране показывается отдельно.') + '">' + flag(d.pl.cc) + ' ' + esc(placeNm(d.pl.rg, d.pl.cc)) + '</b></div>' : '') + '</div>'
+                + '<div class="rv-sect">Отчёты устройства<button type="button" class="btn ghost" id="rvRawBtn" style="margin-left:auto;font-size:.76rem;padding:.25rem .6rem;min-height:0;height:auto;text-transform:none;letter-spacing:0">' + (CS.raw ? 'Скрыть' : 'Показать') + '</button></div><div id="rvRaw">' + (CS.raw ? CS.raw : '') + '</div>'
                 + '<div class="rv-sect">Диагноз</div>' + diag.map(function (x) { return '<div class="rv-diag st-' + x.s + '"' + (x.j ? ' data-jump="' + esc(x.j) + '" role="button" tabindex="0" title="Показать в таблице пингов"' : '') + '><span class="ic st-' + x.s + '">' + ico(x.ic) + '</span><div><div class="t">' + esc(x.t) + '</div>' + (x.w ? '<div class="w">' + x.w + '</div>' : '') + '</div>' + (x.j ? '<span class="go">к узлу ↓</span>' : '') + '</div>'; }).join('')
                 + '<div class="rv-sect">Сети устройства</div><div class="rv-nets">' + nets.map(function (n, i) {
                     var mn = dayM ? mMap[n.net] : n, pn = 0, pf = 0, dd = 0; if (mn) mKeys.forEach(function (k) { var y = mn.cells[k]; if (y) { pn += y.pn; pf += y.pf; if (y.dead) dd++; } });
@@ -1555,7 +1565,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var newDb = drw.querySelector('.rv-db'); if (keep && newDb) newDb.scrollTop = oldTop;
             drw.querySelectorAll('.rv-dtab').forEach(function (b) {
                 var pick = function (jump) {
-                    CS.dev = +b.dataset.i; CS.cell = null;
+                    CS.dev = +b.dataset.i; CS.cell = null; CS.raw = '';
                     if (jump) { var w = worst(c.devs[CS.dev].hw); if (w) { CS.cell = w; CS.jump = w; } }
                     drawClient(true);
                 };
@@ -1588,6 +1598,25 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             drw.querySelectorAll('[data-cell]').forEach(function (b) { b.addEventListener('click', function () { CS.cell = b.dataset.cell; drawClient(true); }); });
             drw.querySelectorAll('[data-day]').forEach(function (b) { b.addEventListener('click', function () { CS.day = +b.dataset.day; drawClient(true); }); });
             var only = drw.querySelector('#rvOnly'); if (only) only.addEventListener('change', function () { CS.only = only.checked; drawClient(true); });
+            var rawBtn = drw.querySelector('#rvRawBtn');
+            if (rawBtn) rawBtn.addEventListener('click', function () {
+                if (CS.raw) { CS.raw = ''; drawClient(true); return; }
+                var box = drw.querySelector('#rvRaw'), hw = d.hw, sh = c.short;
+                box.innerHTML = '<div class="muted" style="font-size:.8rem">Загружаю…</div>';
+                fetch('?ajax=rep_raw_list&s=' + encodeURIComponent(sh) + '&hw=' + encodeURIComponent(hw), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+                    if (!CS || CS.c !== c) return;
+                    var items = (j && j.items) || [];
+                    var STT = {204: ['принят', 'ok'], 202: ['ждёт разбора', 'mut'], 203: ['разбирается', 'mut'], 409: ['без HWID — ждёт устройство', 'warn'], 429: ['повтор, не принят', 'mut'], 400: ['не разобран', 'bad'], 413: ['слишком большой', 'bad'], 500: ['ошибка базы', 'bad']};
+                    var insts = {}; items.forEach(function (x) { if (x.inst) insts[x.inst] = 1; });
+                    var ni = Object.keys(insts).length;
+                    CS.raw = items.length ? '<div class="muted" style="font-size:.76rem;margin-bottom:.35rem">Каждый отчёт — ровно то, что прислал клиент. Скачайте, чтобы проверить пинги, узлы и адреса.</div>'
+                        + (ni > 1 ? '<div class="rv-diag st-warn" style="margin-bottom:.5rem"><span class="ic st-warn">' + ico('phone') + '</span><div><div class="t">С этим HWID пишут ' + ni + ' ' + plural(ni, 'установка', 'установки', 'установок') + ' клиента</div><div class="w">Метка установки у отчётов разная — похоже, один HWID у нескольких устройств или клиент переустанавливали. Сети и адреса таких установок видны вместе.</div></div></div>' : '')
+                        + '<div class="rv-wrap"><table class="rv-lt"><thead><tr><th>Пришёл</th><th>Итог</th><th class="n">Размер</th><th>Клиент</th><th>Установка</th><th></th></tr></thead><tbody>'
+                        + items.map(function (x) { var t = STT[x.st] || [String(x.st), 'mut']; return '<tr><td>' + esc(tfm(+x.ts)) + '</td><td><span class="rv-pill st-' + t[1] + '">' + esc(t[0]) + '</span></td><td class="n">' + esc(gb(+x.bytes)) + '</td><td>' + esc(x.client || '—') + '</td><td><code>' + esc((x.inst || '—').slice(0, 8)) + '</code>' + (x.hwid ? '' : ' <span class="muted">без HWID</span>') + '</td><td><a href="?ajax=rep_raw_get&id=' + (+x.id) + '" download>Скачать JSON</a></td></tr>'; }).join('')
+                        + '</tbody></table></div>' : '<div class="muted" style="font-size:.8rem">Сохранённых отчётов этого устройства нет: они появляются с этой версии прослойки.</div>';
+                    drawClient(true);
+                }).catch(function () { box.innerHTML = '<div class="muted" style="font-size:.8rem">Не удалось загрузить.</div>'; });
+            });
             var hrs = drw.querySelector('.rv-hrs'); if (hrs) hrs.addEventListener('toggle', function () { CS.hro = hrs.open; });
             drw.querySelectorAll('.rv-ipl').forEach(function (el) { el.addEventListener('toggle', function () { CS.ipo = CS.ipo || {}; CS.ipo[el.dataset.net] = el.open; }); });
         };
@@ -1632,6 +1661,30 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         side();
         renderIncs();
         if (Q0) openClient(Q0);
+        var rb = document.getElementById('rvRebuild');
+        if (rb) {
+            var rbRun = function (start) {
+                var done = 0;
+                rb.disabled = true;
+                var step = function (first) {
+                    var fd = new FormData();
+                    fd.append('csrf', rb.dataset.csrf);
+                    if (first) fd.append('start', '1');
+                    fetch('?ajax=rep_rebuild', {method: 'POST', body: fd, credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+                        if (!j || !j.ok) { rb.disabled = false; rb.textContent = 'Не удалось — повторить'; rb.dataset.active = '1'; return; }
+                        done += j.done || 0;
+                        if (j.active) { rb.textContent = 'Пересборка: ' + done + (j.left ? ' из ' + (done + j.left) : ''); step(false); return; }
+                        rb.textContent = 'Готово';
+                        location.reload();
+                    }).catch(function () { rb.disabled = false; rb.textContent = 'Не удалось — повторить'; rb.dataset.active = '1'; });
+                };
+                step(start);
+            };
+            rb.addEventListener('click', function () {
+                if (rb.dataset.active === '1') { rbRun(false); return; }
+                uiConfirm('Пересобрать статистику из сырых отчётов? Сводки сотрутся и соберутся заново из сохранённых отчётов. То, что пришло до их сохранения, пересобрать не из чего — оно удалится.', function () { rbRun(true); }, 'Пересобрать', true);
+            });
+        }
         if (DEVS.length) {
             fetch('?ajax=clod_names', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
                 if (!j || !j.names) return;
