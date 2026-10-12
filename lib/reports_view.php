@@ -136,7 +136,7 @@ function rep_view_totals(array $f, $since) {
 }
 
 function rep_view_dev_rows(array $f, $since, $group = '') {
-    $byAddr = $f['cc'] !== '' || $f['kind'] !== '' || $group !== '';
+    $byAddr = $f['cc'] !== '' || $group !== '';
     if ($byAddr) {
         [$w, $a] = rep_view_where($f, 'i.last_h', $since, ['kind', 'cc']);
         $w = str_replace(['kind = ?', 'kind IN (', 'cc = ?'], ['i.kind = ?', 'i.kind IN (', 'i.cc = ?'], $w);
@@ -149,8 +149,8 @@ function rep_view_dev_rows(array $f, $since, $group = '') {
 
         return rep_view_rows("SELECT {$cols}COUNT(DISTINCT i.hwid) AS n FROM rep_net_ip i$join WHERE $w$grp", array_merge($pre, $a));
     }
-    [$w, $a] = rep_view_where($f, 's.last_seen', $since, ['node', 'plat']);
-    $w = str_replace(['nkey = ?', 'plat = ?'], ['s.nkey = ?', 'd.plat = ?'], $w);
+    [$w, $a] = rep_view_where($f, 's.last_seen', $since, ['kind', 'node', 'plat']);
+    $w = str_replace(['kind = ?', 'kind IN (', 'nkey = ?', 'plat = ?'], ['s.kind = ?', 's.kind IN (', 's.nkey = ?', 'd.plat = ?'], $w);
     $join = $f['plat'] !== '' ? ' JOIN rep_dev d ON d.short_uuid = s.short_uuid AND d.hwid = s.hwid' : '';
 
     return rep_view_rows("SELECT COUNT(DISTINCT s.hwid) AS n FROM rep_state s$join WHERE $w", $a);
@@ -159,7 +159,7 @@ function rep_view_dev_rows(array $f, $since, $group = '') {
 // Провайдеры (страна + AS) и их адреса: адрес всегда рядом со своей AS, потому что
 // база может ошибиться с названием провайдера, а номер AS и адрес — нет.
 function rep_view_isps(array $f, $since, $limit = 200) {
-    $day = intdiv($since, 86400) * 86400;
+    $day = rep_day_of($since);
     [$w, $a] = rep_view_where($f, 'd', $day, ['kind', 'cc', 'node']);
     $ips = rep_view_rows('SELECT cc, asn, ip, MAX(org) AS org, MAX(d) AS last, ' . rep_view_sums()
         . " FROM rep_ip_day WHERE $w GROUP BY cc, asn, ip ORDER BY SUM(pn) DESC LIMIT 5000", $a);
@@ -249,13 +249,15 @@ function rep_view_series(array $f, $since, $now = null) {
     $now = $now ?? time();
     [$w, $a] = rep_view_where($f, 'h', $since, ['kind', 'plat', 'cc', 'node']);
     $step = $f['p'] > 7 ? 86400 : 3600;
-    $from = intdiv($since, $step) * $step;
-    $to = intdiv($now, $step) * $step;
+    $tz   = rep_tzoff();
+    $slot = static fn($t) => $step === 86400 ? rep_day_of($t, $tz) : intdiv((int) $t, 3600) * 3600;
+    $from = $slot($since);
+    $to   = $slot($now);
 
     $slots = [];
     for ($t = $from; $t <= $to; $t += $step) $slots[$t] = [];
     foreach (rep_view_rows('SELECT h, ' . rep_view_sums() . " FROM rep_hour WHERE $w GROUP BY h ORDER BY h", $a) as $r) {
-        $t = intdiv((int) $r['h'], $step) * $step;
+        $t = $slot((int) $r['h']);
         if (!isset($slots[$t])) continue;
         foreach ($r as $c => $v) {
             if ($c === 'h') continue;
@@ -266,7 +268,7 @@ function rep_view_series(array $f, $since, $now = null) {
     $out = [];
     foreach ($slots as $t => $s) $out[] = ['t' => $t] + rep_view_score($s);
 
-    return ['step' => $step, 'points' => $out];
+    return ['step' => $step, 'tz' => $tz, 'points' => $out];
 }
 
 // Узлы панели по адресу: адрес узла или хоста (как в подписке) → имя узла и страна.

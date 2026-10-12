@@ -719,7 +719,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             $ip6 = rep_ip($hr['ip6'] ?? '', 6);
             $ip  = $ip4 !== '' ? $ip4 : $ip6;
             $geo = $ip !== '' ? geoip_lookup($ip) : ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => ''];
-            $d   = intdiv($h, 86400) * 86400;
+            $d   = rep_day_of($h, $toff);
             if ($ip !== '') {
                 $ik = "$net|$ip";
                 if (!isset($nips[$ik])) {
