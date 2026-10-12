@@ -1000,7 +1000,9 @@ function chan_flush() {
     header('cache-control: no-store');
     echo $sealed;
 
+    $fresh = function_exists('app_ev_on') && app_ev_on() && chan_state_get($ctx['token']) === null;
     chan_state_hit($ctx['token'], (string) ($ctx['req']['ua'] ?? ''));
+    if ($fresh) app_ev_push('chan_new');
     // Панель сама отдала подписку — она жива: подтверждение для пересчёта меток
     // на новые сутки. Удалённая или отозванная (панель ответила отказом), а
     // также заглушки самой прослойки так не подтверждаются.

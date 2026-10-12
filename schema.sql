@@ -39,7 +39,10 @@ INSERT INTO settings (k, v) VALUES
     ('chan_hard_default',     '0'),
     ('chan_page_404',         '0'),
     ('chan_debug',            '0'),
-    ('chan_debug_keep',       '50')
+    ('chan_debug_keep',       '50'),
+    ('app_enabled',           '0'),
+    ('app_only',              '0'),
+    ('app_ev_wait_max',       '280')
 ON CONFLICT(k) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS overrides (
@@ -226,3 +229,41 @@ CREATE TABLE IF NOT EXISTS chan_debug (
     wire_bytes INTEGER NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chan_debug_ts ON chan_debug(ts);
+
+CREATE TABLE IF NOT EXISTS app_key (
+    spid TEXT NOT NULL PRIMARY KEY,
+    secret TEXT NOT NULL,
+    created INTEGER NOT NULL DEFAULT 0,
+    is_current INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS app_dev (
+    did TEXT NOT NULL PRIMARY KEY,
+    dpub TEXT NOT NULL,
+    name TEXT NULL,
+    os TEXT NULL,
+    osv TEXT NULL,
+    app TEXT NULL,
+    created INTEGER NOT NULL DEFAULT 0,
+    last_seen INTEGER NOT NULL DEFAULT 0,
+    last_ip TEXT NULL
+);
+
+CREATE TABLE IF NOT EXISTS app_code (
+    code TEXT NOT NULL PRIMARY KEY,
+    created INTEGER NOT NULL DEFAULT 0,
+    expires INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS app_nonce (
+    n TEXT NOT NULL PRIMARY KEY,
+    ts INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_app_nonce_ts ON app_nonce(ts);
+
+CREATE TABLE IF NOT EXISTS app_ev (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL DEFAULT 0,
+    k TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_app_ev_ts ON app_ev(ts);

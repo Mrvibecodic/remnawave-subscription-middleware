@@ -238,6 +238,7 @@ function chat_add_message($session_id, $sender, $source, $body) {
         $id = (int) $p->lastInsertId();
         if ($sender === 'visitor') {
             $p->prepare('UPDATE chat_sessions SET last_msg_at = CURRENT_TIMESTAMP, unread_agent = unread_agent + 1, status = \'open\' WHERE id = ?')->execute([(int) $session_id]);
+            if (function_exists('app_ev_push')) app_ev_push('chat');
         } else {
             $p->prepare('UPDATE chat_sessions SET last_msg_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([(int) $session_id]);
         }

@@ -25,6 +25,27 @@ function ensure_login_attempts() {
     } catch (Throwable $e) { error_log('submw login_attempts table: ' . $e->getMessage()); }
 }
 
+function admin_session_boot() {
+    session_name('submw_admin');
+    $ttl = 86400;
+    $dir = dirname(__DIR__) . '/data/sessions';
+    if (!is_dir($dir)) { @mkdir($dir, 0700, true); @file_put_contents($dir . '/.htaccess', "Require all denied\nDeny from all\n"); }
+    if (is_dir($dir) && is_writable($dir)) {
+        @ini_set('session.save_path', $dir);
+        @ini_set('session.gc_probability', '1');
+        @ini_set('session.gc_divisor', '100');
+    }
+    @ini_set('session.gc_maxlifetime', (string) $ttl);
+    @ini_set('session.cookie_lifetime', (string) $ttl);
+    session_set_cookie_params([
+        'lifetime' => $ttl,
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure'   => ((($_SERVER['HTTPS'] ?? '') === 'on') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')),
+    ]);
+}
+
 function login_window() { return 900; }
 
 function login_max_fails() { return 10; }
