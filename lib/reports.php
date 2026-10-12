@@ -1060,6 +1060,7 @@ function rep_bump() {
         $p->exec(db_driver() === 'mysql'
             ? "INSERT INTO settings (k, v) VALUES ('rep_total', '1') ON DUPLICATE KEY UPDATE v = CAST(CAST(v AS UNSIGNED) + 1 AS CHAR)"
             : "INSERT INTO settings (k, v) VALUES ('rep_total', '1') ON CONFLICT(k) DO UPDATE SET v = CAST(CAST(v AS INTEGER) + 1 AS TEXT), updated_at = CURRENT_TIMESTAMP");
+        if (function_exists('app_ev_push')) app_ev_push('rep');
     } catch (Throwable $e) { error_log('submw rep count: ' . $e->getMessage()); }
 }
 

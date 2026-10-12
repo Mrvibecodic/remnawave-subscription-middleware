@@ -58,6 +58,7 @@ if ($ts_raw !== '') {
 
 $event = $payload['event'] ?? '';
 $data  = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+if (is_string($event) && preg_match('~^[a-z0-9_.]{1,77}$~', $event)) app_ev_push('wh:' . $event);
 
 $short_uuid = (string) ($data['shortUuid'] ?? '');
 $username   = isset($data['username']) ? (string) $data['username'] : null;

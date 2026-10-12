@@ -6,6 +6,10 @@ error_reporting(E_ALL);
 require __DIR__ . '/lib.php';
 
 chan_intercept();
+if (app_intercept() === 'web') {
+    require __DIR__ . '/admin/index.php';
+    exit();
+}
 
 $target_domain = target_domain();
 

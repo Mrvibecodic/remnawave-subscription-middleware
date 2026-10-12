@@ -27,6 +27,8 @@ require_once __DIR__ . '/lib/users_admin.php';
 require_once __DIR__ . '/lib/junk.php';
 require_once __DIR__ . '/lib/chan.php';
 require_once __DIR__ . '/lib/chanmw.php';
+require_once __DIR__ . '/lib/appchan.php';
+require_once __DIR__ . '/lib/appmw.php';
 require_once __DIR__ . '/lib/geoip.php';
 require_once __DIR__ . '/lib/reports.php';
 require_once __DIR__ . '/lib/reports_view.php';
