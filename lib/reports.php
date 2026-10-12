@@ -155,6 +155,15 @@ function rep_add_cols(PDO $p) {
         }
     }
     $GLOBALS['submw_rep_cols'] = $ok;
+    if (!db_has_cols($p, 'rep_dev', ['inst'])) {
+        try { $p->exec('ALTER TABLE rep_dev ADD COLUMN inst ' . $a(32)); }
+        catch (Throwable $e) { error_log('submw rep columns rep_dev inst: ' . $e->getMessage()); }
+    }
+    $GLOBALS['submw_rep_inst'] = db_has_cols($p, 'rep_dev', ['inst']);
+}
+
+function rep_inst_col() {
+    return rep_new_cols() && !empty($GLOBALS['submw_rep_inst']);
 }
 
 function rep_new_cols() {
@@ -429,13 +438,189 @@ function rep_median_bucket(array $b) {
 }
 
 // Чьё это устройство: x-hwid из конверта, а если клиент его не шлёт (опознание
-// устройства выключено) — случайная метка установки из самого отчёта.
-function rep_device($hwid, $data) {
-    $hwid = rep_str((string) $hwid, 128);
+// устройства выключено или отчёт ушёл без него) — случайная метка установки из
+// самого отчёта. Метка помнится у устройства с x-hwid: отчёт без x-hwid с той же
+// меткой ложится к нему. Накопленное под одной меткой вливается в x-hwid только
+// после принятого отчёта с x-hwid (rep_dev_adopt), здесь ничего не пишется.
+function rep_device($hwid, $data, $short = '') {
+    $hwid  = rep_str((string) $hwid, 128);
+    $inst  = rep_inst($data);
+    $short = (string) $short;
     if ($hwid !== '') return $hwid;
+    if ($inst === '') return '';
+    $known = $short !== '' ? rep_dev_by_inst($short, $inst) : '';
+
+    return $known !== '' ? $known : '~' . $inst;
+}
+
+function rep_inst($data) {
     $dev = is_array($data) && is_string($data['dev'] ?? null) ? $data['dev'] : '';
 
-    return preg_match('~^[0-9a-f]{16,32}$~', $dev) ? '~' . $dev : '';
+    return preg_match('~^[0-9a-f]{16,32}$~', $dev) ? $dev : '';
+}
+
+function rep_dev_by_inst($short, $inst) {
+    if (!rep_inst_col() || !($p = db())) return '';
+    try {
+        $st = $p->prepare("SELECT hwid FROM rep_dev WHERE short_uuid = ? AND inst = ? AND hwid <> '' AND hwid NOT LIKE '~%' ORDER BY last_report DESC LIMIT 1");
+        $st->execute([(string) $short, (string) $inst]);
+        $v = $st->fetchColumn();
+    } catch (Throwable $e) { return ''; }
+
+    return is_string($v) ? $v : '';
+}
+
+function rep_hc_hours($hc, $hh) {
+    $hh   = (int) $hh;
+    $out  = [];
+    $list = rep_hc_parse($hc);
+    $len  = count($list);
+    if ($hh <= 0 || (string) $hc === '') return $out;
+    foreach ($list as $i => $v) {
+        if ($v === null) continue;
+        $out[$hh - ($len - 1 - $i) * 3600] = ['pn' => $v[0], 'pf' => $v[1], 'b' => array_slice($v, 2, REP_BUCKETS)];
+    }
+
+    return $out;
+}
+
+function rep_hist_hours($hist, $hh) {
+    $hh   = (int) $hh;
+    $hist = preg_replace('~[^0-5x.]~', '.', is_string($hist) ? $hist : '');
+    $len  = strlen($hist);
+    $out  = [];
+    if ($hh <= 0) return $out;
+    for ($i = 0; $i < $len; $i++) if ($hist[$i] !== '.') $out[$hh - ($len - 1 - $i) * 3600] = $hist[$i];
+
+    return $out;
+}
+
+function rep_state_join(array $a, array $b) {
+    [$new, $old] = (int) $b['last_seen'] > (int) $a['last_seen'] ? [$b, $a] : [$a, $b];
+    $out = ['kind' => $new['kind'], 'up' => (int) $new['up'], 'down' => (int) $new['down'], 'last_seen' => max((int) $a['last_seen'], (int) $b['last_seen'])];
+    $geo = $new['ip4'] !== '' || $new['ip6'] !== '' ? $new : $old;
+    foreach (['ip4', 'ip6', 'cc', 'asn', 'org', 'loc', 'sub'] as $c) $out[$c] = $geo[$c];
+    $v = (int) $b['vat'] > (int) $a['vat'] ? $b : $a;
+    foreach (['verdict', 'vstatus', 'vat'] as $c) $out[$c] = $v[$c];
+    [$out['hist'], $out['hist_h']] = rep_hist_merge((string) $old['hist'], (int) $old['hist_h'], rep_hist_hours($new['hist'], $new['hist_h']), (int) $new['hist_h']);
+    [$hc, $pn, $pf, $bk, $out['rpn'], $out['rpf']] = rep_hc_merge((string) $old['hc'], (int) $old['hist_h'], rep_hc_hours($new['hc'], $new['hist_h']), $out['hist_h']);
+    $out['hc'] = $hc;
+    if ($hc !== '') {
+        $out['pn']   = $pn;
+        $out['pf']   = $pf;
+        $out['pmed'] = rep_median_bucket($bk);
+    } else {
+        $out['pn']   = (int) $a['pn'] + (int) $b['pn'];
+        $out['pf']   = min((int) $a['pf'] + (int) $b['pf'], $out['pn']);
+        $out['pmed'] = (int) $new['pmed'];
+    }
+
+    return $out;
+}
+
+function rep_set_row(PDO $p, $table, $id, array $cols) {
+    $p->prepare("UPDATE $table SET " . implode(', ', array_map(static fn($c) => "$c = ?", array_keys($cols))) . ' WHERE id = ?')
+      ->execute(array_merge(array_values($cols), [(int) $id]));
+}
+
+function rep_dev_adopt($short, $hwid, $inst) {
+    $short = (string) $short;
+    $hwid  = (string) $hwid;
+    $from  = '~' . $inst;
+    if ($hwid === '' || $hwid[0] === '~' || $hwid === $from || !rep_inst_col() || !($p = db())) return false;
+    try {
+        $has = $p->prepare('SELECT COUNT(*) FROM rep_dev WHERE short_uuid = ? AND hwid = ?');
+        $has->execute([$short, $from]);
+        $n = (int) $has->fetchColumn();
+        $has->closeCursor();
+        if ($n === 0) return false;
+    } catch (Throwable $e) { return false; }
+
+    try {
+        $p->beginTransaction();
+        $my = db_driver() === 'mysql';
+        if (!$my) $p->prepare('UPDATE rep_dev SET inst = inst WHERE short_uuid = ? AND hwid = ?')->execute([$short, $from]);
+        $get = $p->prepare('SELECT * FROM rep_dev WHERE short_uuid = ? AND hwid = ?' . ($my ? ' FOR UPDATE' : ''));
+        $get->execute([$short, $from]);
+        $src = $get->fetch(PDO::FETCH_ASSOC);
+        $get->closeCursor();
+        $get->execute([$short, $hwid]);
+        $dst = $get->fetch(PDO::FETCH_ASSOC);
+        $get->closeCursor();
+        if (!is_array($src) || (is_array($dst) && (int) $dst['id'] === (int) $src['id'])) {
+            $p->rollBack();
+            return false;
+        }
+        $mov = static function ($t, $id) use ($p, $hwid) { $p->prepare("UPDATE $t SET hwid = ? WHERE id = ?")->execute([$hwid, (int) $id]); };
+        $del = static function ($t, $id) use ($p) { $p->prepare("DELETE FROM $t WHERE id = ?")->execute([(int) $id]); };
+
+        $sel = $p->prepare('SELECT * FROM rep_state WHERE short_uuid = ? AND hwid = ?');
+        $sel->execute([$short, $from]);
+        $one = $p->prepare('SELECT * FROM rep_state WHERE short_uuid = ? AND hwid = ? AND net = ? AND nkey = ?');
+        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $one->execute([$short, $hwid, $r['net'], $r['nkey']]);
+            $t = $one->fetch(PDO::FETCH_ASSOC);
+            $one->closeCursor();
+            if (!is_array($t)) { $mov('rep_state', $r['id']); continue; }
+            rep_set_row($p, 'rep_state', $t['id'], rep_state_join($t, $r));
+            $del('rep_state', $r['id']);
+        }
+
+        $sel = $p->prepare('SELECT * FROM rep_dday WHERE short_uuid = ? AND hwid = ?');
+        $sel->execute([$short, $from]);
+        $one = $p->prepare('SELECT * FROM rep_dday WHERE d = ? AND short_uuid = ? AND hwid = ? AND net = ? AND nkey = ?');
+        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $one->execute([$r['d'], $short, $hwid, $r['net'], $r['nkey']]);
+            $t = $one->fetch(PDO::FETCH_ASSOC);
+            $one->closeCursor();
+            if (!is_array($t)) { $mov('rep_dday', $r['id']); continue; }
+            $set = [];
+            foreach (rep_day_cols() as $c) $set[$c] = (int) $t[$c] + (int) $r[$c];
+            if ((int) $r['va'] > (int) $t['va']) { $set['vl'] = $r['vl']; $set['vs'] = $r['vs']; $set['va'] = $r['va']; }
+            rep_set_row($p, 'rep_dday', $t['id'], $set);
+            $del('rep_dday', $r['id']);
+        }
+
+        $sel = $p->prepare('SELECT * FROM rep_net_ip WHERE short_uuid = ? AND hwid = ?');
+        $sel->execute([$short, $from]);
+        $one = $p->prepare('SELECT * FROM rep_net_ip WHERE short_uuid = ? AND hwid = ? AND net = ? AND ip = ?');
+        $nets = [];
+        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $nets[$r['net']] = true;
+            $one->execute([$short, $hwid, $r['net'], $r['ip']]);
+            $t = $one->fetch(PDO::FETCH_ASSOC);
+            $one->closeCursor();
+            if (!is_array($t)) { $mov('rep_net_ip', $r['id']); continue; }
+            $set = ['hours' => (int) $t['hours'] + (int) $r['hours'], 'first_h' => min((int) $t['first_h'], (int) $r['first_h']), 'last_h' => max((int) $t['last_h'], (int) $r['last_h'])];
+            if ((int) $r['last_h'] > (int) $t['last_h']) foreach (['kind', 'cc', 'asn', 'org', 'loc', 'sub'] as $c) $set[$c] = $r[$c];
+            rep_set_row($p, 'rep_net_ip', $t['id'], $set);
+            $del('rep_net_ip', $r['id']);
+        }
+        $trim = $p->prepare('DELETE FROM rep_net_ip WHERE short_uuid = ? AND hwid = ? AND net = ? AND id NOT IN (SELECT id FROM (SELECT id FROM rep_net_ip WHERE short_uuid = ? AND hwid = ? AND net = ? ORDER BY last_h DESC, id DESC LIMIT ' . REP_NET_IPS_KEEP . ') x)');
+        foreach (array_keys($nets) as $net) $trim->execute([$short, $hwid, $net, $short, $hwid, $net]);
+
+        if (!is_array($dst)) {
+            rep_set_row($p, 'rep_dev', $src['id'], ['hwid' => $hwid, 'inst' => $inst]);
+        } else {
+            $late = (int) $src['last_report'] > (int) $dst['last_report'] ? $src : $dst;
+            $set  = [
+                'plat' => $late['plat'], 'client' => $late['client'], 'skew' => (int) $late['skew'],
+                'first_seen' => min((int) $src['first_seen'], (int) $dst['first_seen']), 'last_report' => max((int) $src['last_report'], (int) $dst['last_report']),
+                'last_h' => max((int) $src['last_h'], (int) $dst['last_h']), 'last_hd' => max((int) $src['last_hd'], (int) $dst['last_hd']),
+                'reports' => (int) $src['reports'] + (int) $dst['reports'], 'inst' => $inst,
+            ];
+            if ((string) $dst['model'] === '' || (string) $dst['model'] === '-') { $set['model'] = $src['model']; $set['os'] = $src['os']; }
+            rep_set_row($p, 'rep_dev', $dst['id'], $set);
+            $del('rep_dev', $src['id']);
+        }
+        $p->commit();
+    } catch (Throwable $e) {
+        if ($p->inTransaction()) $p->rollBack();
+        error_log('submw rep adopt: ' . $e->getMessage());
+        return false;
+    }
+
+    return true;
 }
 
 function rep_forget($short) {
@@ -502,6 +687,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     $model = rep_str($meta['model'] ?? '', 64);
     $osv   = rep_str($meta['osv'] ?? '', 24);
     $os    = rep_str(trim(rep_str($meta['os'] ?? '', 24) . ' ' . $osv), 48);
+    $inst  = rep_inst(['dev' => $meta['inst'] ?? '']);
 
     $nodes = [];
     foreach ((is_array($data['nodes'] ?? null) ? $data['nodes'] : []) as $tok => $n) {
@@ -524,13 +710,15 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     // Часы не новее последнего принятого от этого устройства уже посчитаны.
     $devrow = rep_dev_row($short, $hwid);
     $taken  = (int) ($devrow['last_h'] ?? 0);
+    $alias  = $inst !== '' && $hwid !== '' && $hwid[0] !== '~' && rep_inst_col() ? rep_dev_row($short, '~' . $inst) : null;
+    $floor  = max($taken, (int) ($alias['last_h'] ?? 0));
     $shift  = (int) ($devrow['skew'] ?? 0);
     if (abs($to - $now - $shift) > 2700) $shift = (int) round(($to - $now) / 3600) * 3600;
     // Последний принятый час по часам устройства: повтор тех же часов после смены
     // сдвига не ляжет второй раз. Часы устройства ушли назад, за него (`to`
     // раньше него) — сторож не действует, иначе новые часы ждали бы, пока
     // часы догонят прежние.
-    $last_hd  = (int) ($devrow['last_hd'] ?? 0);
+    $last_hd  = max((int) ($devrow['last_hd'] ?? 0), (int) ($alias['last_hd'] ?? 0));
     $raw_seen = $last_hd > 0 && $to + 600 >= $last_hd + 3600 ? $last_hd : 0;
     $last_hd  = $raw_seen;
     $last_h = $taken;
@@ -557,7 +745,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             if ($h % 3600 !== 0 || $h + 3600 > $to + 600 || $h <= $raw_seen) continue;
             $hd = $h;
             $h -= $shift;
-            if ($h < $now - REP_MAX_AGE || $h <= $taken) continue;
+            if ($h < $now - REP_MAX_AGE || $h <= $floor) continue;
             $last_h  = max($last_h, $h);
             $last_hd = max($last_hd, $hd);
 
@@ -773,10 +961,12 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             rep_upsert($p, 'rep_state', $row, ['short_uuid', 'hwid', 'net', 'nkey'], [], $set);
         }
         $drow = ['short_uuid' => $short, 'hwid' => $hwid, 'plat' => $plat, 'client' => $cli, 'first_seen' => $now, 'last_report' => $now, 'last_h' => $last_h, 'reports' => 1];
-        $dset = ['plat', 'client', 'last_report', 'last_h'];
+        $dset = ['plat', 'client', 'last_report'];
+        if ($last_h > $taken) $dset[] = 'last_h';
         if ($nc) { $drow['skew'] = $shift; $drow['last_hd'] = $last_hd; array_push($dset, 'skew', 'last_hd'); }
         if ($nc && $model !== '') { $drow['model'] = $model; $dset[] = 'model'; }
         if ($nc && $os !== '') { $drow['os'] = $os; $dset[] = 'os'; }
+        if ($inst !== '' && rep_inst_col()) { $drow['inst'] = $inst; $dset[] = 'inst'; }
         rep_upsert($p, 'rep_dev', $drow, ['short_uuid', 'hwid'], ['reports'], $dset);
         $p->commit();
         rep_bump();
