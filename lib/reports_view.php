@@ -177,13 +177,14 @@ function rep_view_isps(array $f, $since, $limit = 200) {
     return array_slice(array_values($isps), 0, $limit);
 }
 
-function rep_view_nodes(array $f, $since) {
+function rep_view_nodes(array $f, $since, array $panel = []) {
     [$w, $a] = rep_view_where($f, 'h', $since, ['kind', 'plat', 'cc', 'node']);
     $rows = rep_view_rows('SELECT nkey, ' . rep_view_sums() . " FROM rep_hour WHERE $w GROUP BY nkey", $a);
     if (!$rows) return [];
 
     $info = [];
     foreach (rep_view_rows('SELECT nkey, type, server, port, name FROM rep_node', []) as $n) $info[$n['nkey']] = $n;
+    $names = rep_view_node_names($panel);
 
     // Где узлу хуже всего: страна + AS с наибольшей долей неудач (при достаточном числе пингов).
     $worst = [];
@@ -207,7 +208,7 @@ function rep_view_nodes(array $f, $since) {
         $n = $info[$r['nkey']] ?? [];
         $out[] = [
             'nkey'   => (string) $r['nkey'],
-            'name'   => (string) ($n['name'] ?? ''),
+            'name'   => (string) ($names[$r['nkey']] ?? ($n['name'] ?? '')),
             'type'   => (string) ($n['type'] ?? ''),
             'server' => (string) ($n['server'] ?? ''),
             'port'   => (int) ($n['port'] ?? 0),
@@ -483,13 +484,38 @@ function rep_view_devmap() {
     return $out;
 }
 
-function rep_view_nodelist(array $panel = []) {
+function rep_view_node_names(array $panel = [], $short = null) {
     $out = [];
+    $own = [];
+    $common = [];
+    if ($short !== null) {
+        foreach (rep_view_rows("SELECT nkey, name FROM rep_sub_node WHERE short_uuid = ? AND name <> ''", [(string) $short]) as $r) $own[(string) $r['nkey']] = (string) $r['name'];
+    } else {
+        foreach (rep_view_rows("SELECT nkey, name, COUNT(*) AS n, MAX(last_seen) AS ls FROM rep_sub_node WHERE name <> '' GROUP BY nkey, name", []) as $r) {
+            $k = (string) $r['nkey'];
+            if (!isset($common[$k]) || (int) $r['n'] > $common[$k][1] || ((int) $r['n'] === $common[$k][1] && (int) $r['ls'] > $common[$k][2])) $common[$k] = [(string) $r['name'], (int) $r['n'], (int) $r['ls']];
+        }
+    }
+    foreach (rep_view_rows('SELECT nkey, server, name FROM rep_node', []) as $n) {
+        $k = (string) $n['nkey'];
+        $pn = [];
+        foreach ((array) ($panel[strtolower((string) $n['server'])] ?? []) as $x) if (is_array($x) && (string) ($x['name'] ?? '') !== '') $pn[(string) $x['name']] = true;
+        $pn = count($pn) === 1 ? (string) array_key_first($pn) : '';
+        if ($short !== null) $out[$k] = $own[$k] ?? ($pn !== '' ? $pn : (string) $n['server']);
+        else $out[$k] = $pn !== '' ? $pn : ($common[$k][0] ?? ((string) $n['name'] !== '' ? (string) $n['name'] : (string) $n['server']));
+    }
+
+    return $out;
+}
+
+function rep_view_nodelist(array $panel = [], $short = null) {
+    $out = [];
+    $names = rep_view_node_names($panel, $short);
     foreach (rep_view_rows('SELECT nkey, type, server, port, name FROM rep_node', []) as $n) {
         $hit = $panel[strtolower((string) $n['server'])] ?? [];
         $out[$n['nkey']] = [
             'k'  => (string) $n['nkey'],
-            'nm' => (string) ($n['name'] !== '' ? $n['name'] : $n['server']),
+            'nm' => (string) ($names[$n['nkey']] ?? $n['server']),
             't'  => rep_proto_label((string) $n['type'], (string) $n['server'], (int) $n['port']),
             'a'  => $n['server'] . ':' . (int) $n['port'],
             'cc' => is_array($hit) && isset($hit[0]['cc']) ? (string) $hit[0]['cc'] : '',

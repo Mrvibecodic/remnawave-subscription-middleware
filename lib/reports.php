@@ -37,6 +37,7 @@ const REP_RECENT_HOURS = 6;
 const REP_NET_IPS_REPORT = 32;
 const REP_NET_IPS_KEEP   = 48;
 const REP_DAY_KEEP       = 31;
+const REP_VIA_SINCE      = ['pc' => '0.1.12-alpha.5', 'android' => '0.1.23-alpha.7'];
 
 function rep_enabled() { return chan_enabled() && setting('rep_enabled', '0') === '1'; }
 
@@ -78,6 +79,7 @@ function rep_ddl($drv) {
         'rep_dev'    => ['idx_rep_dev_last' => 'last_report'],
         'rep_net_ip' => ['idx_rep_net_ip_last' => 'last_h'],
         'rep_dday'   => ['idx_rep_dday_d' => 'd', 'idx_rep_dday_dev' => 'short_uuid, hwid'],
+        'rep_sub_node' => ['idx_rep_sub_node_seen' => 'last_seen'],
     ];
     $keys = static function ($t) use ($my, $idx) {
         if (!$my || empty($idx[$t])) return '';
@@ -107,6 +109,8 @@ function rep_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS rep_dday ($id, d $int, short_uuid {$a(64)}, hwid {$u(128)}, net {$a(16)}, nkey {$a(16)}, kind {$a(8)}, cc {$a(2)},
             asn $int, org {$u(128)}, " . implode(', ', array_map(static fn($c) => "$c $big", rep_day_cols())) . ", vl {$a(8)}, vs $int, va $int,
             UNIQUE (d, short_uuid, hwid, net, nkey){$keys('rep_dday')})$tail",
+        "CREATE TABLE IF NOT EXISTS rep_sub_node ($id, short_uuid {$a(64)}, nkey {$a(16)}, name {$u(191)}, via $int, multi $int,
+            first_seen $int, last_seen $int, UNIQUE (short_uuid, nkey){$keys('rep_sub_node')})$tail",
     ];
     if (!$my) {
         foreach ($idx as $t => $list) {
@@ -128,8 +132,35 @@ function rep_ensure() {
         return $done = false;
     }
     rep_add_cols($p);
+    rep_sub_boot($p);
 
     return $done = true;
+}
+
+function rep_sub_boot(PDO $p) {
+    if ((string) setting('rep_sub_boot', '') === '1') return;
+    try {
+        $last = [];
+        foreach ($p->query('SELECT nkey, name, last_seen FROM rep_node') as $r) $last[(string) $r['nkey']] = [(string) $r['name'], (int) $r['last_seen']];
+        $rows = $p->query('SELECT short_uuid, nkey, MIN(last_seen) AS fs, MAX(last_seen) AS ls FROM rep_state GROUP BY short_uuid, nkey')->fetchAll(PDO::FETCH_ASSOC);
+        $hit = [];
+        foreach ($rows as $r) {
+            $k = (string) $r['nkey'];
+            if (isset($last[$k]) && $last[$k][1] > 0 && (int) $r['ls'] === $last[$k][1]) $hit[$k][] = (string) $r['short_uuid'];
+        }
+        $ins = $p->prepare((db_driver() === 'mysql' ? 'INSERT IGNORE' : 'INSERT OR IGNORE') . ' INTO rep_sub_node (short_uuid, nkey, name, via, multi, first_seen, last_seen) VALUES (?, ?, ?, 1, 0, ?, ?)');
+        $p->beginTransaction();
+        foreach ($rows as $r) {
+            $k  = (string) $r['nkey'];
+            $nm = isset($hit[$k]) && count($hit[$k]) === 1 && $hit[$k][0] === (string) $r['short_uuid'] ? $last[$k][0] : '';
+            $ins->execute([(string) $r['short_uuid'], $k, $nm, (int) $r['fs'], (int) $r['ls']]);
+        }
+        $p->commit();
+        set_setting('rep_sub_boot', '1');
+    } catch (Throwable $e) {
+        if ($p->inTransaction()) $p->rollBack();
+        error_log('submw rep sub boot: ' . $e->getMessage());
+    }
 }
 
 function rep_add_cols(PDO $p) {
@@ -341,87 +372,131 @@ function rep_node_key($type, $server, $port, $via = '') {
     return substr(hash('sha256', $type . '|' . strtolower($server) . '|' . $port . ($via !== '' ? '|' . $via : '')), 0, 12);
 }
 
-function rep_node_groups(PDO $p) {
+function rep_client_via($plat, $cli) {
+    $min = REP_VIA_SINCE[(string) $plat] ?? null;
+    $cli = (string) $cli;
+    if ($min === null || !preg_match('~^\d+(\.\d+)+~', $cli)) return true;
+
+    return version_compare($cli, $min, '>=');
+}
+
+function rep_sub_known(PDO $p, $short) {
+    $out = [];
+    try {
+        $st = $p->prepare('SELECT sn.nkey, sn.name, sn.via, sn.multi, sn.last_seen, n.type, n.server, n.port FROM rep_sub_node sn JOIN rep_node n ON n.nkey = sn.nkey WHERE sn.short_uuid = ?');
+        $st->execute([(string) $short]);
+        while ($r = $st->fetch(PDO::FETCH_ASSOC)) {
+            $out[$r['type'] . '|' . $r['server'] . '|' . (int) $r['port']][(string) $r['nkey']] = ['name' => (string) $r['name'], 'via' => (int) $r['via'], 'multi' => (int) $r['multi'], 'seen' => (int) $r['last_seen']];
+        }
+    } catch (Throwable $e) { return []; }
+
+    return $out;
+}
+
+function rep_sub_groups(array $nodes) {
     $g = [];
-    foreach ($p->query('SELECT nkey, type, server, port FROM rep_node') as $r) $g[$r['type'] . '|' . $r['server'] . '|' . (int) $r['port']][] = (string) $r['nkey'];
+    foreach ($nodes as $tok => $n) $g[$n['type'] . '|' . $n['server'] . '|' . $n['port']][] = $tok;
+
     return $g;
 }
 
-function rep_merge_legacy(PDO $p, $legacy, $target) {
-    $own = !$p->inTransaction();
-    if ($own) $p->beginTransaction();
+function rep_old_map(array &$nodes, array $known, $now) {
+    foreach (rep_sub_groups($nodes) as $gk => $toks) {
+        $cands = array_filter($known[$gk] ?? [], static fn($x) => $x['via'] === 1 && $x['seen'] >= $now - REP_MAX_AGE);
+        if (!$cands) continue;
+        $n0  = $nodes[$toks[0]];
+        $leg = rep_node_key($n0['type'], $n0['server'], $n0['port']);
+        foreach ($toks as $tok) {
+            if ($nodes[$tok]['nkey'] !== $leg) continue;
+            $nm = $nodes[$tok]['name'];
+            $by = $nm === '' ? [] : array_keys(array_filter($cands, static fn($x) => $x['name'] === $nm));
+            if (count($by) === 1) { $nodes[$tok]['nkey'] = (string) $by[0]; continue; }
+            $k = (string) array_key_first($cands);
+            if (count($cands) === 1 && count($toks) === 1 && $k !== $leg && ($nm === '' || $cands[$k]['name'] === '')) $nodes[$tok]['nkey'] = $k;
+        }
+    }
+}
+
+function rep_sub_settle(PDO $p, $short, array $nodes, array $known, array $used, $now) {
+    if (!rep_new_cols()) return 0;
+    $done = 0;
+    foreach (rep_sub_groups(array_intersect_key($nodes, $used)) as $gk => $toks) {
+        $n0  = $nodes[$toks[0]];
+        $leg = rep_node_key($n0['type'], $n0['server'], $n0['port']);
+        $old = $known[$gk][$leg] ?? null;
+        if ($old === null || $old['via'] !== 0 || $old['multi'] !== 0) continue;
+        $names = [];
+        foreach ($known[$gk] ?? [] as $k => $x) if ($x['via'] === 1 && $x['seen'] >= $now - REP_MAX_AGE) $names[(string) $k] = $x['name'];
+        foreach ($toks as $tok) $names[$nodes[$tok]['nkey']] = $nodes[$tok]['name'];
+        if (isset($names[$leg])) continue;
+        $by = $old['name'] === '' ? [] : array_keys(array_filter($names, static fn($v) => $v === $old['name']));
+        $one = (string) array_key_first($names);
+        $to  = count($by) === 1 ? (string) $by[0] : (count($names) === 1 && ($old['name'] === '' || $names[$one] === '') ? $one : '');
+        if ($to !== '' && rep_rekey($p, $short, $leg, $to)) $done++;
+    }
+
+    return $done;
+}
+
+function rep_rekey(PDO $p, $short, $from, $to) {
+    $short = (string) $short;
     try {
-        $sel = $p->prepare('SELECT * FROM rep_hour WHERE nkey = ?');
-        $sel->execute([$legacy]);
-        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) { unset($r['id']); $r['nkey'] = $target; rep_upsert($p, 'rep_hour', $r, ['h', 'nkey', 'cc', 'asn', 'kind', 'plat'], rep_sum_cols()); }
-        $sel = $p->prepare('SELECT * FROM rep_ip_day WHERE nkey = ?');
-        $sel->execute([$legacy]);
-        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) { unset($r['id']); $r['nkey'] = $target; rep_upsert($p, 'rep_ip_day', $r, ['d', 'ip', 'nkey', 'kind'], rep_sum_cols()); }
-        $sel = $p->prepare('SELECT * FROM rep_dday WHERE nkey = ?');
-        $sel->execute([$legacy]);
-        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) { unset($r['id']); $r['nkey'] = $target; rep_upsert($p, 'rep_dday', $r, ['d', 'short_uuid', 'hwid', 'net', 'nkey'], rep_day_cols()); }
-        $sel = $p->prepare('SELECT id, short_uuid, hwid, net FROM rep_state WHERE nkey = ?');
-        $sel->execute([$legacy]);
-        $has = $p->prepare('SELECT COUNT(*) FROM rep_state WHERE short_uuid = ? AND hwid = ? AND net = ? AND nkey = ?');
-        $del = $p->prepare('DELETE FROM rep_state WHERE id = ?');
-        $mov = $p->prepare('UPDATE rep_state SET nkey = ? WHERE id = ?');
+        $p->beginTransaction();
+        $sel = $p->prepare('SELECT * FROM rep_state WHERE short_uuid = ? AND nkey = ?');
+        $sel->execute([$short, $from]);
+        $one = $p->prepare('SELECT * FROM rep_state WHERE short_uuid = ? AND hwid = ? AND net = ? AND nkey = ?');
         foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $has->execute([$r['short_uuid'], $r['hwid'], $r['net'], $target]);
-            if ((int) $has->fetchColumn() > 0) $del->execute([$r['id']]);
-            else $mov->execute([$target, $r['id']]);
+            $one->execute([$short, $r['hwid'], $r['net'], $to]);
+            $t = $one->fetch(PDO::FETCH_ASSOC);
+            $one->closeCursor();
+            if (!is_array($t)) { rep_set_row($p, 'rep_state', $r['id'], ['nkey' => $to]); continue; }
+            rep_set_row($p, 'rep_state', $t['id'], rep_state_join($t, $r));
+            $p->prepare('DELETE FROM rep_state WHERE id = ?')->execute([(int) $r['id']]);
         }
-        foreach (['rep_hour', 'rep_ip_day', 'rep_dday'] as $t) $p->prepare("DELETE FROM $t WHERE nkey = ?")->execute([$legacy]);
-        $st = $p->prepare('SELECT nkey, first_seen FROM rep_node WHERE nkey IN (?, ?)');
-        $st->execute([$legacy, $target]);
-        $nd = [];
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $nd[$r['nkey']] = (int) $r['first_seen'];
-        if (isset($nd[$legacy], $nd[$target])) {
-            $p->prepare('UPDATE rep_node SET first_seen = ? WHERE nkey = ?')->execute([min($nd[$legacy], $nd[$target]), $target]);
-            $p->prepare('DELETE FROM rep_node WHERE nkey = ?')->execute([$legacy]);
-        } elseif (isset($nd[$legacy])) {
-            $p->prepare('UPDATE rep_node SET nkey = ? WHERE nkey = ?')->execute([$target, $legacy]);
+        $sel = $p->prepare('SELECT * FROM rep_dday WHERE short_uuid = ? AND nkey = ?');
+        $sel->execute([$short, $from]);
+        $one = $p->prepare('SELECT * FROM rep_dday WHERE d = ? AND short_uuid = ? AND hwid = ? AND net = ? AND nkey = ?');
+        foreach ($sel->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $one->execute([$r['d'], $short, $r['hwid'], $r['net'], $to]);
+            $t = $one->fetch(PDO::FETCH_ASSOC);
+            $one->closeCursor();
+            if (!is_array($t)) { rep_set_row($p, 'rep_dday', $r['id'], ['nkey' => $to]); continue; }
+            $set = [];
+            foreach (rep_day_cols() as $c) $set[$c] = (int) $t[$c] + (int) $r[$c];
+            if ((int) $r['va'] > (int) $t['va']) { $set['vl'] = $r['vl']; $set['vs'] = $r['vs']; $set['va'] = $r['va']; }
+            rep_set_row($p, 'rep_dday', $t['id'], $set);
+            $p->prepare('DELETE FROM rep_dday WHERE id = ?')->execute([(int) $r['id']]);
         }
-        if ($own) $p->commit();
-        return true;
+        $fs = $p->prepare('SELECT MIN(first_seen) FROM rep_sub_node WHERE short_uuid = ? AND nkey IN (?, ?)');
+        $fs->execute([$short, $from, $to]);
+        $first = (int) $fs->fetchColumn();
+        $fs->closeCursor();
+        $p->prepare('UPDATE rep_sub_node SET first_seen = ? WHERE short_uuid = ? AND nkey = ?')->execute([$first, $short, $to]);
+        $p->prepare('DELETE FROM rep_sub_node WHERE short_uuid = ? AND nkey = ?')->execute([$short, $from]);
+        $p->commit();
     } catch (Throwable $e) {
-        if ($own && $p->inTransaction()) $p->rollBack();
-        error_log('submw rep merge legacy: ' . $e->getMessage());
+        if ($p->inTransaction()) $p->rollBack();
+        error_log('submw rep rekey: ' . $e->getMessage());
         return false;
     }
+
+    return true;
 }
 
-function rep_via_settle(PDO $p, array &$nodes) {
-    if (!$nodes) return;
-    try { $groups = rep_node_groups($p); } catch (Throwable $e) { return; }
-    $rv = [];
-    foreach ($nodes as $n) {
-        $leg = rep_node_key($n['type'], $n['server'], $n['port']);
-        if ($n['nkey'] !== $leg) $rv[$n['type'] . '|' . $n['server'] . '|' . $n['port']][$n['nkey']] = true;
-    }
+function rep_sub_upsert(PDO $p, $short, array $nodes, array $used, $via, $now) {
+    $rows = [];
     foreach ($nodes as $tok => $n) {
-        $gk  = $n['type'] . '|' . $n['server'] . '|' . $n['port'];
-        $leg = rep_node_key($n['type'], $n['server'], $n['port']);
-        $keys = array_values(array_unique(array_merge($groups[$gk] ?? [], array_keys($rv[$gk] ?? []))));
-        $other = array_values(array_diff($keys, [$leg]));
-        if (count($other) !== 1) continue;
-        if ($n['nkey'] === $leg) { $nodes[$tok]['nkey'] = $other[0]; continue; }
-        if (in_array($leg, $groups[$gk] ?? [], true) && rep_merge_legacy($p, $leg, $n['nkey'])) $groups[$gk] = [$n['nkey']];
+        if (!isset($used[$tok])) continue;
+        $k = $n['nkey'];
+        $rows[$k] = $rows[$k] ?? ['name' => '', 'names' => []];
+        if ($n['name'] !== '') { $rows[$k]['name'] = $n['name']; $rows[$k]['names'][$n['name']] = true; }
     }
-}
-
-function rep_via_backfill() {
-    if (!rep_ensure() || !($p = db())) return 0;
-    try { $groups = rep_node_groups($p); } catch (Throwable $e) { return 0; }
-    $n = 0;
-    foreach ($groups as $gk => $keys) {
-        if (count($keys) !== 2) continue;
-        [$type, $server, $port] = explode('|', $gk);
-        $leg = rep_node_key($type, $server, (int) $port);
-        if (!in_array($leg, $keys, true)) continue;
-        $other = array_values(array_diff($keys, [$leg]));
-        if (count($other) === 1 && rep_merge_legacy($p, $leg, $other[0])) $n++;
-    }
-    return $n;
+    if (!$rows) return;
+    $sql = db_driver() === 'mysql'
+        ? 'INSERT INTO rep_sub_node (short_uuid, nkey, name, via, multi, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = IF(VALUES(name) <> \'\', VALUES(name), name), via = GREATEST(via, VALUES(via)), multi = GREATEST(multi, VALUES(multi)), last_seen = VALUES(last_seen)'
+        : 'INSERT INTO rep_sub_node (short_uuid, nkey, name, via, multi, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(short_uuid, nkey) DO UPDATE SET name = CASE WHEN excluded.name <> \'\' THEN excluded.name ELSE rep_sub_node.name END, via = MAX(rep_sub_node.via, excluded.via), multi = MAX(rep_sub_node.multi, excluded.multi), last_seen = excluded.last_seen';
+    $st = $p->prepare($sql);
+    foreach ($rows as $k => $x) $st->execute([(string) $short, (string) $k, $x['name'], $via ? 1 : 0, count($x['names']) > 1 ? 1 : 0, (int) $now, (int) $now]);
 }
 
 // Индекс корзины, в которую попадает середина удачных замеров; -1 — замеров нет.
@@ -626,7 +701,7 @@ function rep_dev_adopt($short, $hwid, $inst) {
 function rep_forget($short) {
     $short = trim((string) $short);
     if ($short === '' || !rep_ensure() || !($p = db())) return;
-    foreach (['rep_state', 'rep_net_ip', 'rep_dev', 'rep_dday'] as $t) {
+    foreach (['rep_state', 'rep_net_ip', 'rep_dev', 'rep_dday', 'rep_sub_node'] as $t) {
         try { $p->prepare("DELETE FROM $t WHERE short_uuid = ?")->execute([$short]); }
         catch (Throwable $e) { error_log('submw rep forget: ' . $e->getMessage()); }
     }
@@ -705,7 +780,9 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             'name'   => rep_str($n['name'] ?? '', 191),
         ];
     }
-    rep_via_settle($p, $nodes);
+    $via   = rep_client_via($plat, $cli);
+    $known = rep_sub_known($p, $short);
+    if (!$via) rep_old_map($nodes, $known, $now);
 
     // Часы не новее последнего принятого от этого устройства уже посчитаны.
     $devrow = rep_dev_row($short, $hwid);
@@ -915,6 +992,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             if (!isset($used[$tok])) continue;
             rep_upsert($p, 'rep_node', $n + ['first_seen' => $now, 'last_seen' => $now], ['nkey'], [], ['type', 'server', 'port', 'name', 'last_seen']);
         }
+        rep_sub_upsert($p, $short, $nodes, $used, $via, $now);
         foreach ($hours as $row) rep_upsert($p, 'rep_hour', $row, ['h', 'nkey', 'cc', 'asn', 'kind', 'plat'], $sums);
         foreach ($days as $row) rep_upsert($p, 'rep_ip_day', $row, ['d', 'ip', 'nkey', 'kind'], $sums, ['cc', 'asn', 'org']);
         foreach ($dday as $row) {
@@ -970,6 +1048,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
         rep_upsert($p, 'rep_dev', $drow, ['short_uuid', 'hwid'], ['reports'], $dset);
         $p->commit();
         rep_bump();
+        if ($via) rep_sub_settle($p, $short, $nodes, $known, $used, $now);
     } catch (Throwable $e) {
         if ($p->inTransaction()) $p->rollBack();
         error_log('submw rep ingest: ' . $e->getMessage());
@@ -1130,7 +1209,7 @@ function rep_mark_seen() {
 function rep_purge($now = null) {
     if (!rep_ensure() || !($p = db())) return;
     $cut = ($now ?? time()) - rep_keep_days() * 86400;
-    $plan = [['rep_hour', 'h'], ['rep_ip_day', 'd'], ['rep_state', 'last_seen'], ['rep_net_ip', 'last_h'], ['rep_node', 'last_seen'], ['rep_dev', 'last_report']];
+    $plan = [['rep_hour', 'h'], ['rep_ip_day', 'd'], ['rep_state', 'last_seen'], ['rep_net_ip', 'last_h'], ['rep_node', 'last_seen'], ['rep_dev', 'last_report'], ['rep_sub_node', 'last_seen']];
     foreach ($plan as [$t, $col]) {
         try { $p->prepare("DELETE FROM $t WHERE $col < ?")->execute([$cut]); }
         catch (Throwable $e) { error_log('submw rep purge ' . $t . ': ' . $e->getMessage()); }
