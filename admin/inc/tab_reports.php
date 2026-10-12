@@ -1368,8 +1368,10 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 Object.keys(c.ips || {}).forEach(function (k) { c.ips[k].forEach(function (x) { x.rg = regionOf(x.loc, x.cc, x.sub); }); });
                 if (c.name) NAMES[c.short] = c.name;
                 CS = {c: c, dev: 0, cell: null, only: false};
+                if ((!c.subs || !c.subs.length) && opt && opt.subs) { c.subs = opt.subs; c.hw = opt.hw; }
+                var wantHw = (opt && opt.hw) || c.hw;
+                if (wantHw) c.devs.forEach(function (x, i) { if (x.hw === wantHw) CS.dev = i; });
                 if (opt) {
-                    c.devs.forEach(function (x, i) { if (x.hw === opt.hw) CS.dev = i; });
                     if (opt.cell) { CS.cell = opt.cell; CS.jump = opt.cell; }
                     if (opt.day !== undefined) CS.day = opt.day;
                 }
@@ -1525,7 +1527,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 + '<span class="rv-pill st-mut">' + c.devs.length + ' ' + plural(c.devs.length, 'устройство', 'устройства', 'устройств') + '</span><span class="sp"></span>'
                 + '<a class="btn ghost" href="?tab=reqlog&rl_q=' + encodeURIComponent(c.short) + '">' + ico('list') + 'Лог запросов</a>'
                 + '<button type="button" class="btn ghost" id="rvDrwX" aria-label="Закрыть">' + ico('x') + '</button></div>'
-                + '<div class="rv-db"><div class="rv-sect" style="margin-top:0">Устройства</div><div class="rv-dtabs">' + devTabs + '</div>'
+                + '<div class="rv-db">' + (c.subs && c.subs.length > 1 ? '<div class="rv-sect" style="margin-top:0">Подписки этого устройства</div><div class="rv-seg" id="rvSubs" style="flex-wrap:wrap">' + c.subs.map(function (x) { return '<button type="button"' + (x.s === c.short ? ' class="on"' : '') + ' data-sub="' + esc(x.s) + '">' + esc(NAMES[x.s] || x.s) + '</button>'; }).join('') + '</div>' : '') + '<div class="rv-sect"' + (c.subs && c.subs.length > 1 ? '' : ' style="margin-top:0"') + '>Устройства</div><div class="rv-dtabs">' + devTabs + '</div>'
                 + '<div class="rv-kv"><div><span>Модель и ОС</span><b>' + esc([d.m, d.o].filter(Boolean).join(' · ') || '—') + '</b></div><div><span>Клиент</span><b>' + esc(d.c ? 'Clod Clash ' + d.c : '—') + (d.p ? ' · ' + (d.p === 'pc' ? 'ПК' : 'Android') : '') + '</b></div><div><span>HWID</span><b><code>' + esc(d.hw) + '</code></b></div><div><span>Отчётов</span><b>' + (d.r || '—') + ' · последний ' + ago(d.lr) + '</b></div>'
                 + (useTop.length ? '<div><span>' + (Math.abs(lastSeen - d.lr) < 600 ? 'Трафик в последнем отчёте' : 'Трафик в отчёте ' + esc(ago(lastSeen))) + '</span><b data-tip="Через какие узлы шёл трафик устройства в отчёте, пришедшем ' + esc(ago(lastSeen)) + ': за часы с предыдущего отчёта. Всего ' + esc(gb(useT)) + '.">' + useTop.map(function (k) { return esc(nodeNm(k)) + ' <em style="font-style:normal;font-weight:500;color:var(--muted);white-space:nowrap">' + pct(use[k] / useT) + ' · ' + esc(gb(use[k])) + '</em>'; }).join('<br>') + '</b></div>' : '')
                 + (d.pl ? '<div><span>Регион устройства</span><b data-tip="' + esc((d.pl.src === 'home' ? 'По домашним сетям (Wi-Fi и кабель)' : 'По всем сетям устройства') + ': ' + d.pl.w + ' из ' + d.pl.tw + ' часов замеров' + (d.pl.n > 1 ? ', адреса числились в ' + d.pl.n + ' местах' : '') + '. Мобильная сеть и динамические адреса регион не переносят; сеть в другой стране показывается отдельно.') + '">' + flag(d.pl.cc) + ' ' + esc(placeNm(d.pl.rg, d.pl.cc)) + '</b></div>' : '') + '</div>'
@@ -1581,6 +1583,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     tr.classList.add('rv-flash'); setTimeout(function () { tr.classList.remove('rv-flash'); }, 2500);
                 }
             }
+            drw.querySelectorAll('#rvSubs [data-sub]').forEach(function (b) { b.addEventListener('click', function () { if (b.dataset.sub !== c.short) openClient(b.dataset.sub, {hw: c.hw, subs: c.subs}); }); });
             drw.querySelectorAll('[data-cell]').forEach(function (b) { b.addEventListener('click', function () { CS.cell = b.dataset.cell; drawClient(true); }); });
             drw.querySelectorAll('[data-day]').forEach(function (b) { b.addEventListener('click', function () { CS.day = +b.dataset.day; drawClient(true); }); });
             var only = drw.querySelector('#rvOnly'); if (only) only.addEventListener('change', function () { CS.only = only.checked; drawClient(true); });
