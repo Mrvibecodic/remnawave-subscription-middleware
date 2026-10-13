@@ -132,6 +132,7 @@
     <script>
     (function(){
         var TS_INIT = <?= json_encode(tokscope_cached(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        var TS_CSRF = <?= json_encode($token, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         var body = document.getElementById('tsBody'), btn = document.getElementById('tsRun');
         if (!body || !btn) return;
         var ST = {ok: ['есть', 'normal'], miss: ['нет', 'blocked'], na: ['нет в этой версии панели', 'expired'], auth: ['токен отклонён', 'blocked'], err: ['нет ответа', 'DISABLED']};
@@ -188,7 +189,8 @@
         if (TS_INIT) render(TS_INIT);
         btn.addEventListener('click', function(){
             btn.disabled = true; var o = btn.textContent; btn.textContent = 'Проверяю…';
-            fetch('?ajax=tokscopes', {credentials: 'same-origin'}).then(function(r){ return r.json(); }).then(function(d){ render(d); })
+            var fd = new FormData(); fd.append('csrf', TS_CSRF);
+            fetch('?ajax=tokscopes', {method: 'POST', body: fd, credentials: 'same-origin'}).then(function(r){ return r.json(); }).then(function(d){ render(d); })
                 .catch(function(){ if (window.uiToast) uiToast('Ошибка сети — проверка не выполнена'); })
                 .then(function(){ btn.disabled = false; btn.textContent = o; });
         });

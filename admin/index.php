@@ -675,6 +675,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     }
 
     if ($a === 'tokscopes') {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $r = tokscope_run();
         echo json_encode($r['rows'] ? (tokscope_cached() ?: $r) : $r, JSON_UNESCAPED_UNICODE);
         exit();
