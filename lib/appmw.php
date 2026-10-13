@@ -228,10 +228,18 @@ function app_dev_seen(array $ctx) {
 
 function app_dev_card($did, array $req) {
     if (!($p = db())) return;
-    try {
-        $p->prepare('UPDATE app_dev SET name = ?, os = ?, osv = ?, app = ? WHERE did = ?')
-          ->execute([app_scrub($req['name'] ?? ''), app_scrub($req['os'] ?? '', 64), app_scrub($req['osv'] ?? '', 64), app_scrub($req['app'] ?? '', 64), (string) $did]);
-    } catch (Throwable $e) {}
+    $set  = [];
+    $args = [];
+    foreach (['name' => APP_FIELD_MAX, 'os' => 64, 'osv' => 64, 'app' => 64] as $f => $max) {
+        $v = app_scrub($req[$f] ?? '', $max);
+        if ($v === '') continue;
+        $set[]  = $f . ' = ?';
+        $args[] = $v;
+    }
+    if (!$set) return;
+    $args[] = (string) $did;
+    try { $p->prepare('UPDATE app_dev SET ' . implode(', ', $set) . ' WHERE did = ?')->execute($args); }
+    catch (Throwable $e) {}
 }
 
 function app_dev_alive($did) {
