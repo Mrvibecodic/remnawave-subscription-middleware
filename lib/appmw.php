@@ -235,6 +235,25 @@ function app_dev_card($did, array $req) {
     } catch (Throwable $e) {}
 }
 
+function app_dev_alive($did) {
+    static $memo = [];
+    $did = (string) $did;
+    if ($did === '') return false;
+    if (array_key_exists($did, $memo)) return $memo[$did];
+    if (!app_ensure() || !($p = db())) return null;
+    try {
+        $st = $p->prepare('SELECT 1 FROM app_dev WHERE did = ?');
+        $st->execute([$did]);
+        return $memo[$did] = $st->fetchColumn() !== false;
+    } catch (Throwable $e) { return null; }
+}
+
+function app_session_ok(array $s) {
+    if (empty($s['auth'])) return false;
+    $did = (string) ($s['app_did'] ?? '');
+    return $did === '' || app_dev_alive($did) === true;
+}
+
 function app_dev_drop($did) {
     if (!app_ensure() || !($p = db())) return false;
     try {
@@ -476,12 +495,13 @@ function app_apk_download($url, $path, &$err = '') {
 }
 
 
-function admin_session_open() {
+function admin_session_open($did = '') {
     admin_session_boot();
     if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
     session_id(session_create_id());
     if (!@session_start()) return '';
     $_SESSION = ['auth' => true];
+    if ((string) $did !== '') $_SESSION['app_did'] = (string) $did;
     $id = session_id();
     session_write_close();
     return (string) $id;
@@ -579,7 +599,7 @@ function app_op_login(array $ctx) {
     if (is_string($u) && is_string($p) && hash_equals((string) ($C['admin_user'] ?? ''), $u) && password_verify($p, (string) ($C['admin_pass_hash'] ?? ''))) {
         login_clear($ip);
         login_clear($dk);
-        $sid = admin_session_open();
+        $sid = admin_session_open((string) ($ctx['dev']['did'] ?? ''));
         return $sid === '' ? [[], '', 500] : [['ck' => session_name() . '=' . $sid], '', 200];
     }
     login_record_fail($ip);
@@ -736,7 +756,7 @@ function app_web_authed() {
     if ($sid === '' || !preg_match('~^[A-Za-z0-9,-]{16,256}$~', $sid)) return false;
     session_id($sid);
     if (!@session_start(['read_and_close' => true])) return false;
-    $ok = !empty($_SESSION['auth']);
+    $ok = app_session_ok(is_array($_SESSION) ? $_SESSION : []);
     $_SESSION = [];
     return $ok;
 }
@@ -853,7 +873,7 @@ function app_web_flush() {
     }
     if (!$has_ct) $hdrs[] = ['content-type', 'text/html; charset=UTF-8'];
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'HEAD') $body = '';
-    $auth = isset($_SESSION) && is_array($_SESSION) && !empty($_SESSION['auth']);
+    $auth = isset($_SESSION) && is_array($_SESSION) && app_session_ok($_SESSION);
 
     app_reply($ctx, ['h' => $hdrs, 'auth' => $auth], $body, $status);
 }
