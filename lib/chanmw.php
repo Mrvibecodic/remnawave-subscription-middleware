@@ -759,9 +759,9 @@ function chan_debug_why($why) {
         'off'    => 'отчёт не принят: приём отчётов выключен',
         'soon'   => 'отчёт не принят: с прошлого отчёта этого устройства прошло меньше 5 часов, либо у подписки уже 50 устройств',
         'dev'    => 'отчёт: нет ни x-hwid, ни метки установки — не к чему привязать',
-        'size'   => 'отчёт: пустое или слишком большое тело, либо больше 100 000 ячеек «час × узел»',
+        'size'   => 'отчёт: пустое или слишком большое тело, больше 25 000 ячеек «час × узел» или не хватает памяти на разбор',
         'frame'  => 'отчёт: битая рамка тела',
-        'gzip'   => 'отчёт: тело не распаковывается или больше 4 МБ',
+        'gzip'   => 'отчёт: тело не распаковывается или больше 1 МБ',
         'version' => 'отчёт: неизвестная версия формата',
         'db'     => 'отчёт: не записался в базу, подробности в логе',
     ];
@@ -884,6 +884,7 @@ function chan_report_answer(array $ctx, ?array $rec) {
     } else {
         $wire = (string) @file_get_contents('php://input', false, null, 0, CHAN_REP_MAX_WIRE + 1);
         $json = chan_report_open($ctx, trim($wire), $why);
+        if ($json !== null && !rep_mem_fits(strlen($json) * REP_MEM_RATIO)) { $json = null; $why = 'size'; }
         $data = $json === null ? null : json_decode($json, true);
         $dev  = rep_device($hwid, $data, $ctx['token']);
         $now  = time();

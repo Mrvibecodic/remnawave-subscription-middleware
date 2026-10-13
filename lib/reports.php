@@ -23,7 +23,9 @@ const REP_MAX_HOURS    = 512;
 // Ячеек «час × узел» в одном отчёте: честный отчёт за двое суток при тысяче
 // узлов — десятки тысяч; больше — собранный нарочно, чтобы завалить базу
 // upsert'ами в одной транзакции.
-const REP_MAX_CELLS    = 100000;
+const REP_MAX_CELLS    = 25000;
+const REP_MEM_RATIO    = 40;
+const REP_MEM_RESERVE  = 24 * 1048576;
 // Больше устройств у одной подписки не бывает: иначе подменой метки установки
 // можно было бы обойти паузу между отчётами и грузить прослойку без конца.
 const REP_MAX_DEVICES  = 50;
@@ -45,6 +47,27 @@ const REP_DAY_KEEP       = 31;
 function rep_enabled() { return chan_enabled() && setting('rep_enabled', '0') === '1'; }
 
 function rep_keep_days() { return max(7, min(365, (int) (setting('rep_keep_days', '90') ?: 90))); }
+
+function rep_mem_limit() {
+    $v = trim((string) ini_get('memory_limit'));
+    if ($v === '' || $v === '-1') return PHP_INT_MAX;
+    $n = (int) $v;
+    switch (strtolower(substr($v, -1))) {
+        case 'g': $n *= 1024;
+        case 'm': $n *= 1024;
+        case 'k': $n *= 1024;
+    }
+
+    return $n > 0 ? $n : PHP_INT_MAX;
+}
+
+function rep_mem_left() {
+    return rep_mem_limit() - memory_get_usage();
+}
+
+function rep_mem_fits($bytes) {
+    return $bytes + REP_MEM_RESERVE <= rep_mem_left();
+}
 
 function rep_sum_cols() {
     return ['devs', 'pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'mins', 'fok', 'ffr', 'fdd'];
@@ -828,7 +851,7 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
 
             foreach ($cells as $tok => $c) if ($cells[$tok]['pf'] > $cells[$tok]['pn']) $cells[$tok]['pf'] = $cells[$tok]['pn'];
             $cells_total += count($cells);
-            if ($cells_total > REP_MAX_CELLS) { $why = 'size'; return false; }
+            if ($cells_total > REP_MAX_CELLS || !rep_mem_fits(0)) { $why = 'size'; return false; }
             foreach ($cells as $tok => $c) {
                 $nk = $nodes[$tok]['nkey'];
                 $used[$tok] = true;

@@ -15,7 +15,7 @@ const CHAN_REQ_PAD_BLOCK = 512;
 
 const CHAN_REP_PAD_BLOCK = 3072;
 const CHAN_REP_MAX_WIRE  = 360448;
-const CHAN_REP_MAX_JSON  = 4194304;
+const CHAN_REP_MAX_JSON  = 1048576;
 
 function chan_b64(string $raw): string
 {
