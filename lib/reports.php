@@ -35,6 +35,10 @@ const REP_HIST         = 48;
 const REP_RECENT_HOURS = 6;
 // Адресов одной сети устройства: новых за отчёт и хранимых всего.
 const REP_NET_IPS_REPORT = 32;
+// Клиенты старее этих версий шлют узлы без via: мост и основной хост на одном
+// адресе и порту у них — один узел, а ключи не совпадают с ключами новых
+// клиентов. Такие узлы не исправить, поэтому их отчёты в статистику не идут.
+const REP_VIA_SINCE = ['pc' => '0.1.12-alpha.5', 'android' => '0.1.23-alpha.7'];
 const REP_NET_IPS_KEEP   = 48;
 const REP_DAY_KEEP       = 31;
 
@@ -377,6 +381,15 @@ function rep_median_bucket(array $b) {
     return count($b) - 1;
 }
 
+// Шлёт ли клиент via. Версию, которую не разобрать, считаем новой.
+function rep_client_via($plat, $cli) {
+    $min = REP_VIA_SINCE[(string) $plat] ?? null;
+    $cli = (string) $cli;
+    if ($min === null || !preg_match('~^\d+(\.\d+)+~', $cli)) return true;
+
+    return version_compare($cli, $min, '>=');
+}
+
 function rep_device($hwid, $data, $short = '') {
     $hwid = rep_str((string) $hwid, 128);
     if ($hwid !== '') return $hwid;
@@ -476,11 +489,11 @@ function rep_raw_list($short, $dev, $limit = 40) {
 }
 
 function rep_raw_stats() {
-    $out = ['n' => 0, 'ok' => 0, 'held' => 0, 'first' => 0, 'bytes' => 0];
+    $out = ['n' => 0, 'ok' => 0, 'held' => 0, 'old' => 0, 'first' => 0, 'bytes' => 0];
     if (!rep_ensure() || !($p = db())) return $out;
     try {
-        $r = $p->query('SELECT COUNT(*) AS n, SUM(CASE WHEN st = 204 THEN 1 ELSE 0 END) AS ok, SUM(CASE WHEN st = 202 THEN 1 ELSE 0 END) AS held, MIN(ts) AS f, SUM(bytes) AS b FROM rep_raw')->fetch(PDO::FETCH_ASSOC);
-        if (is_array($r)) $out = ['n' => (int) $r['n'], 'ok' => (int) $r['ok'], 'held' => (int) $r['held'], 'first' => (int) $r['f'], 'bytes' => (int) $r['b']];
+        $r = $p->query("SELECT COUNT(*) AS n, SUM(CASE WHEN st = 204 THEN 1 ELSE 0 END) AS ok, SUM(CASE WHEN st = 202 THEN 1 ELSE 0 END) AS held, SUM(CASE WHEN st = 204 AND why = 'old' THEN 1 ELSE 0 END) AS old, MIN(ts) AS f, SUM(bytes) AS b FROM rep_raw")->fetch(PDO::FETCH_ASSOC);
+        if (is_array($r)) $out = ['n' => (int) $r['n'], 'ok' => (int) $r['ok'], 'held' => (int) $r['held'], 'old' => (int) $r['old'], 'first' => (int) $r['f'], 'bytes' => (int) $r['b']];
     } catch (Throwable $e) {}
 
     return $out;
@@ -534,7 +547,8 @@ function rep_replay_row(PDO $p, array $r) {
     $why  = '';
     $ok   = is_array($data) && rep_ingest((string) $r['short_uuid'], (string) $r['dev'], $data, $why, (int) $r['ts'],
         ['model' => (string) $r['model'], 'os' => (string) $r['os'], 'osv' => (string) $r['osv'], 'inst' => (string) $r['inst'], 'replay' => 1]);
-    if ((int) $r['st'] === 202) $p->prepare('UPDATE rep_raw SET st = ?, why = ? WHERE id = ?')->execute([$ok ? 204 : 400, $ok ? '' : ($why !== '' ? $why : 'json'), (int) $r['id']]);
+    if ((int) $r['st'] === 202) $p->prepare('UPDATE rep_raw SET st = ?, why = ? WHERE id = ?')->execute([$ok ? 204 : 400, $ok ? $why : ($why !== '' ? $why : 'json'), (int) $r['id']]);
+    elseif ($ok && $why !== (string) $r['why']) $p->prepare('UPDATE rep_raw SET why = ? WHERE id = ?')->execute([$why, (int) $r['id']]);
 
     return $ok;
 }
@@ -654,6 +668,9 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     $osv   = rep_str($meta['osv'] ?? '', 24);
     $os    = rep_str(trim(rep_str($meta['os'] ?? '', 24) . ' ' . $osv), 48);
     $inst  = rep_inst(['dev' => $meta['inst'] ?? '']);
+    // Отчёт старого клиента принимается (клиент не шлёт его снова), лежит в сырых
+    // и в статистику не идёт ни при приёме, ни при пересборке.
+    if (!rep_client_via($plat, $cli)) { $why = 'old'; return true; }
 
     $nodes = [];
     foreach ((is_array($data['nodes'] ?? null) ? $data['nodes'] : []) as $tok => $n) {
