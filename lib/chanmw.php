@@ -262,15 +262,18 @@ function chan_index_rebuild($force = false) {
 
     $now   = time();
     $epoch = chan_epoch($now);
-    if (!$force && !chan_index_due((int) setting('chan_index_ts', '0'), $now)) return false;
+    if (!$force && !chan_index_due((int) setting('chan_index_ts', '0'), $now, chan_index_wait((int) setting('chan_index_wait', '0')))) return false;
 
     $lock = @fopen(chan_lock_path('index'), 'c');
     if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return false; }
     try {
         // Обход был только что — новый не нужен, но метку стоит поискать ещё раз.
-        if (!$force && !chan_index_due(chan_index_mark($p, 'chan_index_ts'), $now)) return true;
+        $wait = chan_index_wait(chan_index_mark($p, 'chan_index_wait'));
+        if (!$force && !chan_index_due(chan_index_mark($p, 'chan_index_ts'), $now, $wait)) return true;
         @set_time_limit(300);
         set_setting('chan_index_ts', (string) $now);
+        // Обход без новых подписок удваивает паузу до следующего: промахи по мусорным меткам не гоняют по панели каждую минуту.
+        $grow = static function () use ($wait) { set_setting('chan_index_wait', (string) chan_index_wait($wait * 2)); };
 
         // Из пользователей нужен только shortUuid: страницы панели не копятся в
         // памяти целиком — на большой панели это сотни мегабайт. Список, который
@@ -287,16 +290,20 @@ function chan_index_rebuild($force = false) {
         if (function_exists('remnawave_all_users')) $take(remnawave_all_users($err, $take));
         if (!$shorts) {
             if ($err !== '') error_log('submw chan index: ' . $err);
+            $grow();
             return false;
         }
 
         $wlock = @fopen(chan_lock_path('write'), 'c');
         if ($wlock) flock($wlock, LOCK_EX);
         try {
+            $known = chan_index_today($p, $epoch);
             $count = chan_index_write($p, $shorts, $now);
             // Сутки отмечаются под тем же замком: пересчёт, ждущий его, иначе
             // повторил бы работу обхода.
             if ($err === '') set_setting('chan_index_epoch', (string) $epoch);
+            if (chan_index_today($p, $epoch) > $known) set_setting('chan_index_wait', '60');
+            else $grow();
         } finally {
             if ($wlock) { flock($wlock, LOCK_UN); fclose($wlock); }
         }
@@ -307,6 +314,7 @@ function chan_index_rebuild($force = false) {
         return true;
     } catch (Throwable $e) {
         error_log('submw chan index: ' . $e->getMessage());
+        if (isset($grow)) { try { $grow(); } catch (Throwable $e2) {} }
         return false;
     } finally {
         if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
@@ -315,8 +323,20 @@ function chan_index_rebuild($force = false) {
 
 // Пора ли обходить панель по промаху: не чаще раза в минуту. Отметка из будущего
 // (часы сервера ушли назад) обход не держит.
-function chan_index_due($ts, $now) {
-    return $ts > $now || $now - $ts >= 60;
+function chan_index_due($ts, $now, $wait = 60) {
+    return $ts > $now || $now - $ts >= $wait;
+}
+
+function chan_index_wait($v) {
+    return max(60, min(900, (int) $v ?: 60));
+}
+
+function chan_index_today($p, $epoch) {
+    $st = $p->prepare('SELECT COUNT(DISTINCT short_uuid) FROM chan_kid WHERE epoch = ?');
+    $st->execute([(int) $epoch]);
+    $n = (int) $st->fetchColumn();
+    $st->closeCursor();
+    return $n;
 }
 
 function chan_index_mark($p, $key) {
