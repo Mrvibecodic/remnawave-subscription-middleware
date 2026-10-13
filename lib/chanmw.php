@@ -932,8 +932,6 @@ function chan_report_answer(array $ctx, ?array $rec) {
             rep_raw_put(['ts' => $now, 'short' => $ctx['token'], 'dev' => $dev, 'hwid' => $hwid, 'plat' => is_string($data['platform'] ?? null) ? $data['platform'] : '', 'client' => is_string($data['client'] ?? null) ? $data['client'] : '',
                          'st' => $held ? 202 : ($nohw ? 409 : $st), 'why' => $held ? '' : $why, 'body' => $json] + $meta);
         }
-        // Отчёт показал точку входа с несколькими хостами — накопленное разбирается заново.
-        if (rep_split_new()) rep_rebuild_start();
     }
 
     $meta   = ['date' => [gmdate('D, d M Y H:i:s') . ' GMT']];

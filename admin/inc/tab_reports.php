@@ -444,6 +444,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 <?php endif; ?>
 <?php if (rep_rebuild_active()): ?>
     <div class="warn" id="rvRbNote">Статистика пересобирается из сохранённых отчётов клиентов — цифры ниже пока неполные. <span id="rvRbProg"></span></div>
+<?php elseif (rep_rebuild_need()): ?>
+    <div class="warn" id="rvRbNote">После обновления узлы считаются по точке входа, а не по имени хоста: до пересборки один узел может числиться под несколькими именами. Сохранённые отчёты целы — пересборка ничего не потеряет. <button type="button" class="btn ghost" id="rvRbGo" style="margin-left:.4rem">Пересобрать статистику</button> <span id="rvRbProg"></span></div>
 <?php endif; ?>
 
     <div class="card">
@@ -1693,6 +1695,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             });
             // Пересборка уже идёт (начата вручную или прослойкой) — продолжается сама, пока вкладка открыта.
             if (rb.dataset.active === '1') rbRun(false);
+            var rbGo = document.getElementById('rvRbGo');
+            if (rbGo) rbGo.addEventListener('click', function () { rb.click(); });
         }
         if (DEVS.length) {
             fetch('?ajax=clod_names', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
