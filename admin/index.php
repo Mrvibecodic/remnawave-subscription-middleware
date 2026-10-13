@@ -853,6 +853,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'save_clod_rep') {
         set_setting('rep_enabled', isset($_POST['rep_enabled']) ? '1' : '0');
         set_setting('rep_keep_days', (string) max(7, min(365, (int) ($_POST['rep_keep_days'] ?? 90))));
+        @set_time_limit(120);
+        rep_purge();
         set_setting('geoip_auto', isset($_POST['geoip_auto']) ? '1' : '0');
         set_setting('geoip_city', isset($_POST['geoip_city']) ? '1' : '0');
         if (!isset($_POST['geoip_city'])) geoip_city_drop();
