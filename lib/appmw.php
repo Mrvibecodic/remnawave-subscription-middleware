@@ -412,21 +412,80 @@ function app_apk_stale($m = null) {
     return $now - (int) ($m['ts'] ?? 0) >= 86400 && $now - (int) ($m['try'] ?? 0) >= 3600;
 }
 
+function app_gh_url_ok($url) {
+    $u = parse_url((string) $url);
+    if (!is_array($u) || strtolower((string) ($u['scheme'] ?? '')) !== 'https' || isset($u['user']) || isset($u['pass'])) return false;
+    if (isset($u['port']) && (int) $u['port'] !== 443) return false;
+    return in_array(strtolower((string) ($u['host'] ?? '')), ['github.com', 'api.github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com'], true);
+}
+
+function app_gh_get($url, &$err = '', $fh = null, $max = 1048576) {
+    $err = '';
+    if (!function_exists('curl_init')) { $err = 'curl недоступен'; return null; }
+    $url = (string) $url;
+    for ($hop = 0; $hop <= 5; $hop++) {
+        if (!app_gh_url_ok($url)) { $err = ($hop ? 'перенаправление' : 'адрес') . ' не на https-адрес GitHub: ' . (string) (parse_url($url, PHP_URL_HOST) ?: $url); return null; }
+        $buf = '';
+        $loc = '';
+        $got = 0;
+        $ch  = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_TIMEOUT        => $fh ? 120 : 15,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_USERAGENT      => 'submw-app',
+            CURLOPT_HTTPHEADER     => ['Accept: ' . ($fh ? 'application/octet-stream' : 'application/vnd.github+json')],
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_HEADERFUNCTION => function ($c, $line) use (&$loc) {
+                if (stripos($line, 'location:') === 0) $loc = trim(substr($line, 9));
+                return strlen($line);
+            },
+            CURLOPT_WRITEFUNCTION  => function ($c, $chunk) use (&$buf, &$got, $fh, $max) {
+                $code = (int) curl_getinfo($c, CURLINFO_RESPONSE_CODE);
+                if ($code < 200 || $code >= 300) return strlen($chunk);
+                $got += strlen($chunk);
+                if ($got > $max) return 0;
+                if ($fh) return fwrite($fh, $chunk) === strlen($chunk) ? strlen($chunk) : 0;
+                $buf .= $chunk;
+                return strlen($chunk);
+            },
+        ]);
+        $ok   = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $cerr = curl_error($ch);
+        curl_close($ch);
+        if ($ok === false) { $err = $got > $max ? 'файл больше ' . (int) ($max / 1048576) . ' МБ' : 'сеть: ' . $cerr; return null; }
+        if ($code >= 300 && $code < 400 && $loc !== '') {
+            if ($loc[0] === '/') $loc = 'https://' . (string) parse_url($url, PHP_URL_HOST) . $loc;
+            $url = $loc;
+            continue;
+        }
+        if ($code === 403 || $code === 429) { $err = 'лимит запросов GitHub (' . $code . '), попробуйте позже'; return null; }
+        if ($code === 404) { $err = 'не найдено (404)'; return null; }
+        if ($code < 200 || $code >= 300) { $err = 'HTTP ' . $code; return null; }
+        return $fh ? true : $buf;
+    }
+    $err = 'слишком много перенаправлений';
+    return null;
+}
+
 function app_apk_refresh($force = false) {
     $m = app_apk_meta();
     if (!$force && !app_apk_stale($m)) return $m;
     $m['try'] = time();
     set_setting('app_apk', json_encode($m, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    $err = '';
-    $rel = function_exists('clientver_json')
-        ? clientver_json('https://api.github.com/repos/' . APP_REPO . '/releases/latest', $err, 'application/vnd.github+json')
-        : null;
+    $err  = '';
+    $body = app_gh_get('https://api.github.com/repos/' . APP_REPO . '/releases/latest', $err);
+    $rel  = $body === null ? null : json_decode($body, true);
+    if ($body !== null && !is_array($rel)) $err = 'некорректный ответ GitHub';
     $asset = null;
     if (is_array($rel)) {
         foreach ((array) ($rel['assets'] ?? []) as $a) {
             if (is_array($a) && preg_match('~\.apk$~i', (string) ($a['name'] ?? '')) && (string) ($a['browser_download_url'] ?? '') !== '') { $asset = $a; break; }
         }
         if ($asset === null) $err = 'в последнем релизе нет APK';
+        elseif (!app_gh_url_ok((string) $asset['browser_download_url'])) { $err = 'адрес APK не на https-адресе GitHub, файл не скачан'; $asset = null; }
     } elseif ($err === '' || strpos($err, '404') !== false) {
         $err = 'релизов пока нет';
     }
@@ -465,32 +524,9 @@ function app_apk_download($url, $path, &$err = '') {
     $err = '';
     $fh = @fopen($path, 'wb');
     if (!$fh) { $err = 'нет записи в data/app'; return false; }
-    $got = 0;
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS      => 5,
-        CURLOPT_TIMEOUT        => 120,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_USERAGENT      => 'submw-app',
-        CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
-        CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
-        CURLOPT_WRITEFUNCTION  => function ($c, $chunk) use ($fh, &$got) {
-            $got += strlen($chunk);
-            if ($got > APP_APK_MAX) return 0;
-            return fwrite($fh, $chunk);
-        },
-    ]);
-    $ok   = curl_exec($ch);
-    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $cerr = curl_error($ch);
-    curl_close($ch);
+    $ok = app_gh_get($url, $err, $fh, APP_APK_MAX);
     fclose($fh);
-    if ($ok === false || $code < 200 || $code >= 300) {
-        $err = $ok === false ? ('сеть: ' . $cerr) : ('HTTP ' . $code);
-        @unlink($path);
-        return false;
-    }
+    if ($ok !== true) { @unlink($path); return false; }
     return true;
 }
 
