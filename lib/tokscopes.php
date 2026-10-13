@@ -14,7 +14,7 @@ function tokscope_catalog() {
         ['s' => 'users:list', 'm' => 'GET', 'p' => '/api/users?size=1&start=0', 'w' => 'Список «Пользователи», имена в «Оверрайдах» и «Логе запросов»', 'need' => true],
         ['s' => 'users:by-short-uuid', 'm' => 'GET', 'p' => '/api/users/by-short-uuid/' . $rnd, 'w' => 'Пользователь по ссылке: грейс, доп. конфиги, слияние, имена в логе вебхуков, карточка в «Пользователях»', 'need' => true],
         ['s' => 'users:by-username', 'm' => 'GET', 'p' => '/api/users/by-username/' . $rnd, 'w' => 'Поиск по имени: слияние подписок, WG / AWG', 'need' => addsub_enabled() || $pool],
-        ['s' => 'users:update', 'm' => 'PATCH', 'p' => '/api/users', 'b' => '[]', 'w' => 'Грейс-сквад и правка пользователей (запись)', 'need' => $grace],
+        ['s' => 'users:update', 'm' => 'PATCH', 'p' => '/api/users', 'b' => '[]', 'w' => 'Грейс-сквад, правка пользователей и срок с первого подключения (запись)', 'need' => $grace],
         ['s' => 'users:reset-traffic', 'm' => 'POST', 'p' => '/api/users/submw-probe/actions/reset-traffic', 'b' => '[]', 'w' => 'Грейс-сквад и кнопка «Сбросить трафик» (запись)', 'need' => $grace && (grace_traffic_bytes() > 0 || grace_reset_traffic_on_exit())],
         ['s' => 'users:create', 'm' => 'POST', 'p' => '/api/users', 'b' => '[]', 'w' => 'Создание пользователя во вкладке «Пользователи» (запись)', 'need' => false],
         ['s' => 'users:enable', 'm' => 'POST', 'p' => '/api/users/submw-probe/actions/enable', 'b' => '[]', 'w' => 'Кнопка «Включить» у пользователя (запись)', 'need' => false],
