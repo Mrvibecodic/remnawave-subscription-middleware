@@ -390,6 +390,8 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 <div class="ux" id="ux">
     <?php if ($users_err): ?>
     <div class="warn">API недоступен: <?= h($users_err) ?>. Проверьте URL панели и токен во вкладке «Подключение».</div>
+    <?php elseif (!$__tc && remnawave_url() !== '' && remnawave_token() !== ''): ?>
+    <div class="info">Права API-токена ещё не проверены — кнопки записи могут не сработать. Нажмите «Проверить» в разделе «Права API-токена» на вкладке <a href="?tab=connection">«Подключение»</a>.</div>
     <?php endif; ?>
     <div class="card">
         <div class="ux-kpis" id="uxKpis"></div>
