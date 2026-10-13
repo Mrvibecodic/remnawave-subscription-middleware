@@ -968,8 +968,8 @@ function chan_report_answer(array $ctx, ?array $rec) {
         if (function_exists('fastcgi_finish_request')) {
             @fastcgi_finish_request();
             geoip_maybe_update();
+            if (random_int(1, 20) === 1) rep_purge();
         }
-        if (random_int(1, 20) === 1) rep_purge();
     }
 }
 

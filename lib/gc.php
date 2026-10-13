@@ -13,6 +13,10 @@ function gc_tables() {
         'rep_state'      => ['title' => 'Отчёты: состояние устройств', 'pk' => 'id', 'col' => 'last_seen', 'kind' => 'epoch'],
         'rep_net_ip'     => ['title' => 'Отчёты: адреса устройств',  'pk' => 'id', 'col' => 'last_h',    'kind' => 'epoch'],
         'rep_dday'       => ['title' => 'Отчёты: устройства по дням', 'pk' => 'id', 'col' => 'd',         'kind' => 'epoch'],
+        'rep_dev'        => ['title' => 'Отчёты: устройства',        'pk' => 'id', 'col' => 'last_report', 'kind' => 'epoch'],
+        'rep_node'       => ['title' => 'Отчёты: узлы',              'pk' => 'id', 'col' => 'last_seen', 'kind' => 'epoch'],
+        'rep_sub_node'   => ['title' => 'Отчёты: узлы подписок',     'pk' => 'id', 'col' => 'last_seen', 'kind' => 'epoch'],
+        'rep_raw'        => ['title' => 'Отчёты: сырые отчёты клиентов', 'pk' => 'id', 'col' => 'ts',    'kind' => 'epoch'],
     ];
 }
 
