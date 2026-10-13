@@ -6,7 +6,7 @@ $app_devs  = app_devs();
 $app_codes = app_codes();
 $app_apk   = app_apk_meta();
 $app_has   = app_apk_path($app_apk) !== '';
-$app_upd   = app_apk_stale($app_apk);
+$app_upd   = $app_on && app_apk_stale($app_apk);
 $app_only  = setting('app_only', '0') === '1';
 $app_off   = app_only_off();
 $app_rel   = 'https://github.com/' . APP_REPO . '/releases/latest';
@@ -78,7 +78,7 @@ $app_size  = function ($b) { return $b >= 1048576 ? number_format($b / 1048576, 
             <div class="ap-qr" data-tip="Наведите камеру телефона — откроется страница релиза"><img id="apQr" alt="QR-код страницы релиза"></div>
             <div class="tx">
                 <span class="nm">Сервис для Android<?= $app_has ? ' · ' . h((string) $app_apk['v']) : '' ?></span>
-                <span class="ds" id="apApkDs"><?= $app_has ? h($app_size((int) $app_apk['size'])) . ' · SHA-256 ' . h(substr((string) $app_apk['sha256'], 0, 16)) . '…' : (trim((string) ($app_apk['err'] ?? '')) !== '' ? 'Не скачан: ' . h((string) $app_apk['err']) : 'Прослойка скачает APK из релизов сама') ?></span>
+                <span class="ds" id="apApkDs"><?= $app_has ? h($app_size((int) $app_apk['size'])) . ' · SHA-256 ' . h(substr((string) $app_apk['sha256'], 0, 16)) . '…' : (!$app_on ? 'Прослойка скачает APK из релизов после включения' : (trim((string) ($app_apk['err'] ?? '')) !== '' ? 'Не скачан: ' . h((string) $app_apk['err']) : 'Прослойка скачает APK из релизов сама')) ?></span>
                 <span class="ds">Ставится вручную из APK. Обновления приложение берёт у прослойки, мимо магазинов.</span>
             </div>
             <div class="act">

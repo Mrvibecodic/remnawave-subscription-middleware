@@ -590,6 +590,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     }
 
     if ($a === 'app_apk') {
+        if (!app_enabled()) { echo json_encode(['ok' => false, 'apk' => app_apk_public(), 'err' => 'Сначала включите приложение'], JSON_UNESCAPED_UNICODE); exit(); }
         @set_time_limit(180);
         $am = app_apk_refresh(!empty($_GET['force']));
         echo json_encode(['ok' => true, 'apk' => app_apk_public(), 'err' => (string) ($am['err'] ?? '')], JSON_UNESCAPED_UNICODE);
