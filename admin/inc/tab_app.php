@@ -69,7 +69,7 @@ $app_size  = function ($b) { return $b >= 1048576 ? number_format($b / 1048576, 
                     <input type="number" name="app_ev_wait_max" min="25" max="290" value="<?= (int) app_ev_wait_max() ?>">
                 </div>
                 <div class="set-row">
-                    <div class="set-info"><div class="set-t">Сколько телефонов ждут уведомлений одновременно</div><div class="set-d">Каждое открытое соединение занимает процесс PHP, а их пул общий с подписками. Остальные телефоны проверяют события раз в минуту. Поднимайте, только если процессов PHP с запасом.</div></div>
+                    <div class="set-info"><div class="set-t">Сколько телефонов ждут уведомлений одновременно</div><div class="set-d">Каждое открытое соединение занимает процесс PHP, а их пул общий с подписками. Остальные телефоны проверяют события примерно раз в минуту, не занимая процесс. Поднимайте, только если процессов PHP с запасом.</div></div>
                     <input type="number" name="app_ev_slots" min="1" max="32" value="<?= (int) app_ev_slots() ?>">
                 </div>
             </div>

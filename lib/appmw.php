@@ -6,7 +6,6 @@ const APP_CODE_MAX   = 3;
 const APP_PAIR_FAILS = 20;
 const APP_DEV_FAILS  = 10;
 const APP_REPO       = 'Mrvibecodic/submw-android';
-const APP_EV_BUSY    = 60;
 const APP_APK_MAX    = 67108864;
 
 function app_ext_ok() { return extension_loaded('sodium'); }
@@ -664,18 +663,25 @@ function app_op_ev(array $ctx) {
     if ($c < 0 || $c > $head) return [['c' => $head, 'e' => (object) [], 'w' => 0], '', 200];
     [$e, $c] = app_ev_since($c, $want);
     if ($e || $w <= 0) return [['c' => $c, 'e' => $e ?: (object) [], 'w' => 0], '', 200];
-    // Новый запрос телефона сначала гасит его прежний, потом ждёт место: так смена
-    // сети не выбивает телефон из живых уведомлений.
+    // Новый запрос телефона гасит его прежний и ждёт место только если тот ещё ждал: так смена
+    // сети не выбивает телефон из живых уведомлений, а лишние телефоны не держат процессы PHP.
     $mark = chan_lock_path('appev_' . substr(hash('sha256', (string) ($ctx['dev']['did'] ?? '')), 0, 16));
     $tok  = bin2hex(random_bytes(8));
-    @file_put_contents($mark, $tok, LOCK_EX);
-    $slot = app_ev_slot_take(3.0);
-    if ($slot === null) return [['c' => $c, 'e' => (object) [], 'w' => (int) round(microtime(true) - $t0), 'r' => APP_EV_BUSY], '', 200];
+    $prev = app_ev_mark_set($mark, $tok);
+    $slot = app_ev_slot_take($prev !== '' ? 3.0 : 0.0);
+    if ($slot === null) {
+        app_ev_mark_clear($mark, $tok);
+        return [['c' => $c, 'e' => (object) [], 'w' => (int) round(microtime(true) - $t0), 'r' => random_int(45, 75)], '', 200];
+    }
     try {
         while (true) {
             $spent = microtime(true) - $t0;
-            if ($spent >= $w || @file_get_contents($mark) !== $tok) break;
-            usleep((int) (min(2.0, $w - $spent) * 1000000));
+            if ($spent >= $w) break;
+            $next = min((float) $w, $spent + 2.0);
+            while (($spent = microtime(true) - $t0) < $next) {
+                usleep((int) (min(0.5, $next - $spent) * 1000000));
+                if (@file_get_contents($mark) !== $tok) break 2;
+            }
             [$e, $c] = app_ev_since($c, $want);
             if ($e) return [['c' => $c, 'e' => $e, 'w' => (int) round(microtime(true) - $t0)], '', 200];
         }
@@ -683,7 +689,31 @@ function app_op_ev(array $ctx) {
     } finally {
         @flock($slot, LOCK_UN);
         @fclose($slot);
+        app_ev_mark_clear($mark, $tok);
     }
+}
+
+function app_ev_mark_set($mark, $tok) {
+    $fh = @fopen($mark, 'c+');
+    if ($fh === false) return '';
+    @flock($fh, LOCK_EX);
+    $prev = trim((string) stream_get_contents($fh));
+    ftruncate($fh, 0);
+    rewind($fh);
+    fwrite($fh, $tok);
+    fflush($fh);
+    @flock($fh, LOCK_UN);
+    fclose($fh);
+    return $prev;
+}
+
+function app_ev_mark_clear($mark, $tok) {
+    $fh = @fopen($mark, 'c+');
+    if ($fh === false) return;
+    @flock($fh, LOCK_EX);
+    if (trim((string) stream_get_contents($fh)) === $tok) ftruncate($fh, 0);
+    @flock($fh, LOCK_UN);
+    fclose($fh);
 }
 
 // Ожидание ev держит процесс PHP, а их пул общий с подписками (и с каналом c1).
@@ -694,8 +724,9 @@ function app_ev_slot_take($patience) {
     $until = microtime(true) + (float) $patience;
     while (true) {
         for ($i = 0; $i < $n; $i++) {
-            $fh = @fopen(chan_lock_path('appevslot_' . $i), 'c');
-            if ($fh === false) return null;
+            $path = chan_lock_path('appevslot_' . $i);
+            $fh = @fopen($path, 'c');
+            if ($fh === false) { error_log('submw app ev: нет записи в ' . $path . ', ожидание уведомлений недоступно'); return null; }
             if (@flock($fh, LOCK_EX | LOCK_NB)) return $fh;
             @fclose($fh);
         }
