@@ -510,12 +510,22 @@ function rep_view_node_names(array $panel = [], $short = null) {
     if ($short !== null) {
         foreach (rep_view_rows("SELECT nkey, name FROM rep_sub_node WHERE short_uuid = ? AND name <> ''", [(string) $short]) as $r) $own[(string) $r['nkey']] = (string) $r['name'];
     }
-    foreach (rep_view_rows("SELECT nkey, name, COUNT(*) AS n FROM rep_sub_node WHERE name <> '' GROUP BY nkey, name ORDER BY n DESC, name", []) as $r) $all[(string) $r['nkey']][] = (string) $r['name'];
+    // Имена узла по подпискам: первым — основное (в большем числе подписок, при
+    // равенстве — короче). Мост и основной хост на одной точке входа клиент
+    // присылает одним узлом под тем именем, что запомнил последним; тогда
+    // основное имя остаётся у точки входа, а имя моста — в скобках.
+    $cnt = [];
+    foreach (rep_view_rows("SELECT nkey, name, COUNT(*) AS n FROM rep_sub_node WHERE name <> '' GROUP BY nkey, name", []) as $r) $cnt[(string) $r['nkey']][(string) $r['name']] = (int) $r['n'];
+    foreach ($cnt as $k => $list) {
+        uksort($list, static fn($a, $b) => ($list[$b] <=> $list[$a]) ?: ((mb_strlen($a) <=> mb_strlen($b)) ?: strcmp($a, $b)));
+        $all[$k] = array_keys($list);
+    }
     foreach (rep_view_rows('SELECT nkey, server, name FROM rep_node', []) as $n) {
         $k = (string) $n['nkey'];
         $nm = $all[$k] ?? [];
-        $joined = !$nm ? '' : (count($nm) <= 2 ? implode(' / ', $nm) : $nm[0] . ' / ' . $nm[1] . ' / ещё ' . (count($nm) - 2));
-        if ($short !== null) $out[$k] = $own[$k] ?? (string) $n['server'];
+        $rest = array_slice($nm, 1);
+        $joined = !$nm ? '' : $nm[0] . ($rest ? ' (' . (count($rest) <= 2 ? implode(' / ', $rest) : $rest[0] . ' / ' . $rest[1] . ' / ещё ' . (count($rest) - 2)) . ')' : '');
+        if ($short !== null) $out[$k] = isset($own[$k]) ? ($nm && $own[$k] !== $nm[0] ? $nm[0] . ' (' . $own[$k] . ')' : $own[$k]) : (string) $n['server'];
         else $out[$k] = $joined !== '' ? $joined : ((string) $n['name'] !== '' ? (string) $n['name'] : (string) $n['server']);
     }
 
