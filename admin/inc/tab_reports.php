@@ -442,6 +442,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 <?php if (!rep_enabled()): ?>
     <div class="warn">Приём отчётов выключен — новые данные не приходят. Включается ниже, в блоке <a href="#repSettings">«Приём отчётов»</a><?= chan_enabled() ? '' : ', и нужен включённый <a href="?tab=clod">защищённый канал</a>' ?>.</div>
 <?php endif; ?>
+<?php if (rep_rebuild_active()): ?>
+    <div class="warn" id="rvRbNote">Статистика пересобирается из сохранённых отчётов клиентов — цифры ниже пока неполные. <span id="rvRbProg"></span></div>
+<?php endif; ?>
 
     <div class="card">
         <div class="rv-flt">
@@ -1677,7 +1680,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     fetch('?ajax=rep_rebuild', {method: 'POST', body: fd, credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
                         if (!j || !j.ok) { rb.disabled = false; rb.textContent = 'Не удалось — повторить'; rb.dataset.active = '1'; return; }
                         done += j.done || 0;
-                        if (j.active) { rb.textContent = 'Пересборка: ' + done + (j.left ? ' из ' + (done + j.left) : ''); step(false); return; }
+                        if (j.active) { rb.textContent = 'Пересборка: ' + done + (j.left ? ' из ' + (done + j.left) : ''); var pg = document.getElementById('rvRbProg'); if (pg) pg.textContent = rb.textContent + '.'; step(false); return; }
                         rb.textContent = 'Готово';
                         location.reload();
                     }).catch(function () { rb.disabled = false; rb.textContent = 'Не удалось — повторить'; rb.dataset.active = '1'; });
@@ -1688,6 +1691,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 if (rb.dataset.active === '1') { rbRun(false); return; }
                 uiConfirm('Пересобрать статистику из сырых отчётов? Сводки сотрутся и соберутся заново из сохранённых отчётов. То, что пришло до их сохранения, пересобрать не из чего — оно удалится.', function () { rbRun(true); }, 'Пересобрать', true);
             });
+            // Пересборка уже идёт (начата вручную или прослойкой) — продолжается сама, пока вкладка открыта.
+            if (rb.dataset.active === '1') rbRun(false);
         }
         if (DEVS.length) {
             fetch('?ajax=clod_names', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {

@@ -115,6 +115,7 @@ function rep_ddl($drv) {
             UNIQUE (d, short_uuid, hwid, net, nkey){$keys('rep_dday')})$tail",
         "CREATE TABLE IF NOT EXISTS rep_sub_node ($id, short_uuid {$a(64)}, nkey {$a(16)}, name {$u(191)}, via $int, multi $int,
             first_seen $int, last_seen $int, UNIQUE (short_uuid, nkey){$keys('rep_sub_node')})$tail",
+        "CREATE TABLE IF NOT EXISTS rep_split (bkey {$a(16)} PRIMARY KEY, first_seen $int)$tail",
         "CREATE TABLE IF NOT EXISTS rep_raw ($id, ts $int, short_uuid {$a(64)}, dev {$u(128)}, hwid {$u(128)}, inst {$a(32)}, plat {$a(16)},
             client {$a(32)}, model {$u(64)}, os {$u(24)}, osv {$u(24)}, st $int, why {$a(16)}, bytes $int, gz $int,
             body " . ($my ? 'LONGBLOB NOT NULL' : 'BLOB NOT NULL') . "{$keys('rep_raw')})$tail",
@@ -352,6 +353,42 @@ function rep_node_key($type, $server, $port, $via = '') {
     return substr(hash('sha256', $type . '|' . strtolower($server) . '|' . $port . ($via !== '' ? '|' . $via : '')), 0, 12);
 }
 
+// Точка входа, под которой в одном отчёте пришли хосты с разными именами (мост
+// на vlessRoute отличается от основного хоста только UUID): её узлы различаются
+// по имени хоста. Список точек хранится отдельно от сводок и не чистится
+// пересборкой — по нему одинаково разбираются все отчёты, старые и новые.
+function rep_node_key_named($bkey, $name) {
+    return substr(hash('sha256', $bkey . "\n" . $name), 0, 12);
+}
+
+function rep_split_set(PDO $p, array $add = []) {
+    static $set = null;
+    if ($set === null) {
+        $set = [];
+        try { foreach ($p->query('SELECT bkey FROM rep_split') as $r) $set[(string) $r['bkey']] = true; } catch (Throwable $e) {}
+    }
+    $new = array_diff_key(array_fill_keys($add, true), $set);
+    if ($new) {
+        $sql = db_driver() === 'mysql' ? 'INSERT IGNORE INTO rep_split (bkey, first_seen) VALUES (?, ?)' : 'INSERT OR IGNORE INTO rep_split (bkey, first_seen) VALUES (?, ?)';
+        $st  = $p->prepare($sql);
+        foreach ($new as $k => $_) $st->execute([(string) $k, time()]);
+        $set += $new;
+        rep_split_new(true);
+    }
+
+    return $set;
+}
+
+// Появилась новая такая точка: всё, что уже разобрано по общему ключу, надо разобрать заново.
+function rep_split_new($set = null) {
+    static $flag = false;
+    if ($set === true) { $flag = true; return true; }
+    $was  = $flag;
+    $flag = false;
+
+    return $was;
+}
+
 function rep_sub_upsert(PDO $p, $short, array $nodes, array $used, $now) {
     $rows = [];
     foreach ($nodes as $tok => $n) {
@@ -573,6 +610,8 @@ function rep_rebuild_step($budget = 4.0) {
                 $cur = (string) $r['id'];
                 rep_replay_row($p, $r);
                 $out['done']++;
+                // Новая точка с несколькими хостами — уже разобранное начинается заново.
+                if (rep_split_new()) { rep_rebuild_start(); $cur = '0'; continue 2; }
             }
         } while (microtime(true) - $t0 < $budget);
         $cur = rep_rb_get($p);
@@ -689,6 +728,12 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             'name'   => rep_str($n['name'] ?? '', 191),
         ];
     }
+
+    $names = [];
+    foreach ($nodes as $n) if ($n['name'] !== '') $names[$n['nkey']][$n['name']] = true;
+    $split = rep_split_set($p, array_keys(array_filter($names, static fn($x) => count($x) > 1)));
+    foreach ($nodes as &$n) if (isset($split[$n['nkey']])) $n['nkey'] = rep_node_key_named($n['nkey'], $n['name']);
+    unset($n);
 
     // Часы не новее последнего принятого от этого устройства уже посчитаны.
     $devrow = rep_dev_row($short, $hwid);
