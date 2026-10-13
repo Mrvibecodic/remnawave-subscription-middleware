@@ -440,6 +440,10 @@ function whlog_field_label($k) {
         'rev'  => 'Подписка отозвана',
         'used' => 'Израсходовано',
         'upd'  => 'Изменён в панели',
+        'st'   => 'Статус',
+        'desc' => 'Описание',
+        'tg'   => 'Telegram ID',
+        'em'   => 'Email',
     ];
     return $m[$k] ?? $k;
 }
@@ -528,6 +532,10 @@ function panel_write_field_map() {
         'hwidDeviceLimit'      => 'hw',
         'externalSquadUuid'    => 'ex',
         'tag'                  => 'tag',
+        'status'               => 'st',
+        'description'          => 'desc',
+        'telegramId'           => 'tg',
+        'email'                => 'em',
     ];
 }
 
