@@ -377,7 +377,7 @@ function ua_save($short, array $raw, $expect_upd = '', $reset = false) {
     $g = grace_find($short);
     $gk = ['expireAt', 'status', 'trafficLimitBytes', 'trafficLimitStrategy', 'hwidDeviceLimit', 'activeInternalSquads', 'externalSquadUuid'];
     $claimed = false;
-    if ($g && !grace_ended($g) && ($u['status'] ?? '') === 'ACTIVE' && array_intersect(array_keys($fields), $gk)) {
+    if ($g && !grace_ended($g) && array_intersect(array_keys($fields), $gk)) {
         $c = grace_claim_end($short);
         if ($c === null) return ['ok' => false, 'error' => 'База данных недоступна'];
         $claimed = $c;
@@ -405,6 +405,7 @@ function ua_save($short, array $raw, $expect_upd = '', $reset = false) {
     }
     $nu = ua_resp_user($resp, $short) ?: $u;
     if ($claimed && $reset && $warn === '') { $e3 = ''; $nu = remnawave_get_user_by_short($short, $e3) ?: $nu; }
+    if ($claimed && in_array((string) ($nu['status'] ?? ''), ['LIMITED', 'DISABLED', 'EXPIRED'], true)) upsert_override('shortuuid', $short, 'expired', 'webhook', $nu['username'] ?? null, 'auto: grace end');
     ua_after_write($short, $nu);
     return ['ok' => true, 'user' => ua_norm($nu), 'mw' => ua_mw($short, (string) ($nu['username'] ?? '')), 'grace_closed' => $claimed, 'warn' => $warn];
 }
