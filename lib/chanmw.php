@@ -272,7 +272,6 @@ function chan_index_rebuild($force = false) {
         if (!$force && !chan_index_due(chan_index_mark($p, 'chan_index_ts'), $now, $wait)) return true;
         @set_time_limit(300);
         set_setting('chan_index_ts', (string) $now);
-        // Обход без новых подписок удваивает паузу до следующего: промахи по мусорным меткам не гоняют по панели каждую минуту.
         $grow = static function () use ($wait) { set_setting('chan_index_wait', (string) chan_index_wait($wait * 2)); };
 
         // Из пользователей нужен только shortUuid: страницы панели не копятся в
@@ -912,8 +911,9 @@ function chan_report_answer(array $ctx, ?array $rec) {
     } else {
         $wire = (string) @file_get_contents('php://input', false, null, 0, CHAN_REP_MAX_WIRE + 1);
         $json = chan_report_open($ctx, trim($wire), $why);
-        if ($json !== null && !rep_mem_fits(strlen($json) * REP_MEM_RATIO)) { $json = null; $why = 'size'; }
-        $data = $json === null ? null : json_decode($json, true);
+        $big  = $json !== null && !rep_mem_fits(strlen($json) * REP_MEM_RATIO);
+        if ($big) $why = 'size';
+        $data = ($json === null || $big) ? null : json_decode($json, true);
         $dev  = rep_device($hwid, $data, $ctx['token']);
         $now  = time();
         $meta = ['model' => (string) ($ctx['req']['model'] ?? ''), 'os' => (string) ($ctx['req']['os'] ?? ''), 'osv' => (string) ($ctx['req']['osv'] ?? ''), 'inst' => rep_inst($data)];
@@ -936,8 +936,8 @@ function chan_report_answer(array $ctx, ?array $rec) {
             if ((string) $hwid !== '') rep_raw_take_held($ctx['token'], $dev, $meta['inst']);
             $st = rep_ingest($ctx['token'], $dev, $data, $why, $now, $meta) ? 204 : (['db' => 500, 'soon' => 429, 'size' => 413][$why] ?? 400);
         }
-        if ($json !== null && is_array($data)) {
-            rep_raw_put(['ts' => $now, 'short' => $ctx['token'], 'dev' => $dev, 'hwid' => $hwid, 'plat' => is_string($data['platform'] ?? null) ? $data['platform'] : '', 'client' => is_string($data['client'] ?? null) ? $data['client'] : '',
+        if ($json !== null) {
+            rep_raw_put(['ts' => $now, 'short' => $ctx['token'], 'dev' => $dev, 'hwid' => $hwid, 'plat' => is_array($data) && is_string($data['platform'] ?? null) ? $data['platform'] : '', 'client' => is_array($data) && is_string($data['client'] ?? null) ? $data['client'] : '',
                          'st' => $held ? 202 : ($nohw ? 409 : $st), 'why' => $held ? '' : $why, 'body' => $json] + $meta);
         }
     }
@@ -952,6 +952,7 @@ function chan_report_answer(array $ctx, ?array $rec) {
     http_response_code(200);
     header('content-type: application/octet-stream');
     header('cache-control: no-store');
+    header('content-length: ' . strlen($sealed));
     echo $sealed;
 
     if ($rec !== null) {
@@ -972,11 +973,15 @@ function chan_report_answer(array $ctx, ?array $rec) {
         // Скачивание баз GeoIP — только когда ответ клиенту уже отдан: под mod_php
         // он ушёл бы после скачивания, клиент бы не дождался и прислал отчёт снова.
         // Без php-fpm базы обновляет заход в админку.
+        @ignore_user_abort(true);
         if (function_exists('fastcgi_finish_request')) {
             @fastcgi_finish_request();
             geoip_maybe_update();
-            if (random_int(1, 20) === 1) rep_purge();
+        } else {
+            while (ob_get_level() > 0) @ob_end_flush();
+            @flush();
         }
+        rep_purge_maybe();
     }
 }
 

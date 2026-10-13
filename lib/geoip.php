@@ -476,6 +476,7 @@ function geoip_update_after_response() {
         @flush();
     }
     geoip_maybe_update();
+    if (function_exists('rep_purge_maybe')) rep_purge_maybe();
 }
 
 function geoip_maybe_update() {
