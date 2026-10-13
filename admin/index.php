@@ -1224,6 +1224,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     }
 
     if ($action === 'migrate_db') {
+        @set_time_limit(0);
+        ignore_user_abort(true);
         $to  = $_POST['to'] ?? '';
         $cur = db_driver();
         $e = '';
