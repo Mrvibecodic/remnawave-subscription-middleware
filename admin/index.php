@@ -977,12 +977,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     }
 
     if ($action === 'save_connection') {
+        $cn_old = [remnawave_url(), remnawave_token()];
         set_setting('target_domain', trim($_POST['target_domain'] ?? ''));
         set_setting('mirror_domain', trim($_POST['mirror_domain'] ?? ''));
         set_setting('remnawave_url', rtrim(trim($_POST['remnawave_url'] ?? ''), '/'));
         set_setting('remnawave_cookie', trim($_POST['remnawave_cookie'] ?? ''));
         set_setting('remnawave_xapikey', trim($_POST['remnawave_xapikey'] ?? ''));
         if (($_POST['remnawave_api_key'] ?? '') !== '') set_setting('remnawave_api_key', trim($_POST['remnawave_api_key']));
+        if ([remnawave_url(), remnawave_token()] !== $cn_old) set_setting('tokscopes_json', '');
         if (($_POST['webhook_secret'] ?? '') !== '')   set_setting('webhook_secret', trim($_POST['webhook_secret']));
         set_setting('trust_header_expire', isset($_POST['trust_header_expire']) ? '1' : '0');
         set_setting('tls_verify', isset($_POST['tls_verify']) ? '1' : '0');
