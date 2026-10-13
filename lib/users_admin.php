@@ -475,6 +475,7 @@ function ua_create(array $raw, array $extra) {
     $fcd = (int) ($extra['fcdur'] ?? 0);
     $win = 0;
     if ($fcd !== 0) {
+        if (webhook_secret() === '') return ['ok' => false, 'error' => 'Срок с первого подключения работает только с вебхуком панели — задайте «Секрет вебхука» во вкладке «Подключение»'];
         if ($fcd < 3600 || $fcd > 100 * 366 * 86400) return ['ok' => false, 'error' => 'Срок от первого подключения — от часа'];
         if (!fc_ensure()) return ['ok' => false, 'error' => 'База данных недоступна'];
         $win = min($fcd, FC_MAX_WAIT);
