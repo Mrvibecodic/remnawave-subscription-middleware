@@ -814,11 +814,19 @@ function chan_stub_body($format = 'base64') {
 function chan_intercept() {
     $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
     if (strpos($uri, '/c1/') === false) return null;
-    if (!chan_ext_ok()) return null;
 
     $route = chan_route($uri);
     if ($route === null) return null;
-    if (!chan_enabled()) return null;
+    // Не GET/HEAD (так ходит только отчёт) без открывшегося конверта в конвейер не идёт: там он держал бы воркер
+    // до таймаута панели. Отказ по любой причине — один и тот же 404, как у мусорного пути.
+    $deny = static function () {
+        if (in_array(strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')), ['GET', 'HEAD'], true)) return null;
+        header_remove('X-Powered-By');
+        http_response_code(404);
+        exit();
+    };
+    if (!chan_ext_ok()) return $deny();
+    if (!chan_enabled()) return $deny();
 
     [$prefix, $kid, $spid, $blob] = $route;
 
@@ -835,7 +843,7 @@ function chan_intercept() {
                                'short_uuid' => (string) $found, 'req_path' => $uri, 'req_head' => $head]);
         }
 
-        return null;
+        return $deny();
     }
     if (!chan_nonce_take($ctx['nonce'])) {
         if ($dbg) {
@@ -844,7 +852,7 @@ function chan_intercept() {
                                'req_head' => $head, 'req_json' => $ctx['plain']]);
         }
 
-        return null;
+        return $deny();
     }
 
     if ((string) ($ctx['req']['op'] ?? '') !== '') {
