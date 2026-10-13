@@ -245,7 +245,7 @@ function app_dev_card($did, array $req) {
 function app_dev_alive($did) {
     static $memo = [];
     $did = (string) $did;
-    if ($did === '') return false;
+    if ($did === '' || !app_enabled()) return false;
     if (array_key_exists($did, $memo)) return $memo[$did];
     if (!app_ensure() || !($p = db())) return null;
     try {
@@ -706,6 +706,8 @@ function app_ev_mark_set($mark, $tok) {
     if ($fh === false) return '';
     @flock($fh, LOCK_EX);
     $prev = trim((string) stream_get_contents($fh));
+    $age  = time() - (int) @filemtime($mark);
+    if ($prev !== '' && $age > app_ev_wait_max() + 60) $prev = '';
     ftruncate($fh, 0);
     rewind($fh);
     fwrite($fh, $tok);
