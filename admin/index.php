@@ -216,7 +216,14 @@ function csrf_token() {
 }
 function csrf_ok() { return isset($_POST['csrf'], $_SESSION['csrf']) && is_string($_POST['csrf']) && hash_equals((string) $_SESSION['csrf'], $_POST['csrf']); }
 function csrf_ok_get() { return isset($_GET['csrf'], $_SESSION['csrf']) && is_string($_GET['csrf']) && hash_equals((string) $_SESSION['csrf'], $_GET['csrf']); }
-function is_auth() { return !empty($_SESSION['auth']); }
+function is_auth() {
+    if (empty($_SESSION['auth'])) return false;
+    $did = (string) ($_SESSION['app_did'] ?? '');
+    if ($did === '') return true;
+    $alive = app_dev_alive($did);
+    if ($alive === false) unset($_SESSION['auth'], $_SESSION['app_did']);
+    return $alive === true;
+}
 function flash($m) { $_SESSION['flash'] = $m; }
 function take_flash() { $m = $_SESSION['flash'] ?? null; unset($_SESSION['flash']); return $m; }
 function nav_hidden_get() {
