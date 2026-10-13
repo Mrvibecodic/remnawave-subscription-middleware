@@ -483,6 +483,20 @@ function migrate_extra_ddl($drv) {
                 downgrades BIGINT UNSIGNED NOT NULL DEFAULT 0, hard TINYINT(1) NOT NULL DEFAULT 0,
                 ua VARCHAR(255) NULL, PRIMARY KEY (short_uuid)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS chan_debug (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, ts INT UNSIGNED NOT NULL DEFAULT 0,
+                ok TINYINT(1) NOT NULL DEFAULT 0, why VARCHAR(32) NULL, short_uuid VARCHAR(64) NULL,
+                kid VARCHAR(16) NULL, spid VARCHAR(16) NULL, req_path TEXT NULL, req_head TEXT NULL,
+                req_json TEXT NULL, req_fwd TEXT NULL, res_st INT NULL, res_meta TEXT NULL,
+                res_body MEDIUMTEXT NULL, res_wire MEDIUMTEXT NULL, res_outer TEXT NULL,
+                body_bytes INT UNSIGNED NULL, wire_bytes INT UNSIGNED NULL,
+                PRIMARY KEY (id), KEY idx_chan_debug_ts (ts)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS chan_seen (
+                short_uuid VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+                ts INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (short_uuid), KEY idx_chan_seen_ts (ts)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "ALTER TABLE grace_users ADD COLUMN orig_external_squad VARCHAR(191) NULL",
             "ALTER TABLE grace_users ADD COLUMN grace_patch MEDIUMTEXT NULL",
             "ALTER TABLE grace_users ADD COLUMN ended_ts INT NOT NULL DEFAULT 0",
@@ -528,6 +542,17 @@ function migrate_extra_ddl($drv) {
         "CREATE INDEX IF NOT EXISTS idx_chan_nonce_ts ON chan_nonce(ts)",
         "CREATE TABLE IF NOT EXISTS chan_key (spid TEXT NOT NULL PRIMARY KEY, secret TEXT NOT NULL, created INTEGER NOT NULL DEFAULT 0, is_current INTEGER NOT NULL DEFAULT 0)",
         "CREATE TABLE IF NOT EXISTS chan_state (short_uuid TEXT NOT NULL PRIMARY KEY, first_seen INTEGER NOT NULL DEFAULT 0, last_seen INTEGER NOT NULL DEFAULT 0, hits INTEGER NOT NULL DEFAULT 0, downgrades INTEGER NOT NULL DEFAULT 0, hard INTEGER NOT NULL DEFAULT 0, ua TEXT NULL)",
+        "CREATE TABLE IF NOT EXISTS chan_debug (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL DEFAULT 0,
+            ok INTEGER NOT NULL DEFAULT 0, why TEXT NULL, short_uuid TEXT NULL,
+            kid TEXT NULL, spid TEXT NULL, req_path TEXT NULL, req_head TEXT NULL,
+            req_json TEXT NULL, req_fwd TEXT NULL, res_st INTEGER NULL, res_meta TEXT NULL,
+            res_body TEXT NULL, res_wire TEXT NULL, res_outer TEXT NULL,
+            body_bytes INTEGER NULL, wire_bytes INTEGER NULL
+        )",
+        "CREATE INDEX IF NOT EXISTS idx_chan_debug_ts ON chan_debug(ts)",
+        "CREATE TABLE IF NOT EXISTS chan_seen (short_uuid TEXT NOT NULL PRIMARY KEY, ts INTEGER NOT NULL DEFAULT 0)",
+        "CREATE INDEX IF NOT EXISTS idx_chan_seen_ts ON chan_seen(ts)",
         "ALTER TABLE grace_users ADD COLUMN orig_external_squad TEXT NULL",
         "ALTER TABLE grace_users ADD COLUMN grace_patch TEXT NULL",
         "ALTER TABLE grace_users ADD COLUMN ended_ts INTEGER NOT NULL DEFAULT 0",
@@ -577,9 +602,10 @@ function db_migrate(array $from, array $to, &$err = '') {
 
     $tables = db_list_tables($src, $sdrv);
     if (!$tables) {
-        $tables = ['settings', 'overrides', 'request_log', 'webhook_log', 'forward_log', 'grace_users',
-                   'chat_sessions', 'chat_messages', 'metrics_minute', 'metrics_peak', 'squad_configs',
-                   'squad_cache', 'wg_lease', 'hwid_devices', 'wg_user_cache', 'addsub_map', 'addsub_cache', 'login_attempts', 'junk_hits'];
+        $ddl = array_merge(install_statements($sdrv), [ddl_metrics_minute($sdrv), ddl_metrics_peak($sdrv)], migrate_extra_ddl($sdrv), rep_ddl($sdrv),
+            function_exists('app_ddl') ? app_ddl($sdrv) : [], function_exists('fc_ddl') ? [fc_ddl($sdrv)] : [], function_exists('addsub_swap_ddl') ? [addsub_swap_ddl($sdrv)] : []);
+        foreach ($ddl as $sql) if (preg_match('~CREATE TABLE IF NOT EXISTS\s+(\w+)~i', $sql, $m)) $tables[] = $m[1];
+        $tables = array_values(array_unique($tables));
     }
     if (in_array('addsub_swap', $tables, true) && function_exists('addsub_swap_ddl')) {
         try { $dst->exec(addsub_swap_ddl($drv)); } catch (Throwable $e) {}
