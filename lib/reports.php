@@ -93,6 +93,7 @@ function rep_ddl($drv) {
     $my   = $drv === 'mysql';
     $id   = $my ? 'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY' : 'id INTEGER PRIMARY KEY AUTOINCREMENT';
     $int  = $my ? 'INT NOT NULL DEFAULT 0' : 'INTEGER NOT NULL DEFAULT 0';
+    $uint = $my ? 'INT UNSIGNED NOT NULL DEFAULT 0' : 'INTEGER NOT NULL DEFAULT 0';
     $big  = $my ? 'BIGINT UNSIGNED NOT NULL DEFAULT 0' : 'INTEGER NOT NULL DEFAULT 0';
     $a    = static fn($n) => $my ? "VARCHAR($n) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT ''" : "TEXT NOT NULL DEFAULT ''";
     $u    = static fn($n) => $my ? "VARCHAR($n) NOT NULL DEFAULT ''" : "TEXT NOT NULL DEFAULT ''";
@@ -121,20 +122,20 @@ function rep_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS rep_dev ($id, short_uuid {$a(64)}, hwid {$u(128)}, plat {$a(16)}, client {$a(32)},
             first_seen $int, last_report $int, last_h $int, reports $int, model {$u(64)}, os {$u(48)},
             UNIQUE (short_uuid, hwid){$keys('rep_dev')})$tail",
-        "CREATE TABLE IF NOT EXISTS rep_hour ($id, h $int, nkey {$a(16)}, cc {$a(2)}, asn $int, kind {$a(8)},
+        "CREATE TABLE IF NOT EXISTS rep_hour ($id, h $int, nkey {$a(16)}, cc {$a(2)}, asn $uint, kind {$a(8)},
             plat {$a(16)}, $sums, UNIQUE (h, nkey, cc, asn, kind, plat){$keys('rep_hour')})$tail",
         "CREATE TABLE IF NOT EXISTS rep_ip_day ($id, d $int, ip {$a(45)}, nkey {$a(16)}, kind {$a(8)}, cc {$a(2)},
-            asn $int, org {$u(128)}, $sums, UNIQUE (d, ip, nkey, kind){$keys('rep_ip_day')})$tail",
+            asn $uint, org {$u(128)}, $sums, UNIQUE (d, ip, nkey, kind){$keys('rep_ip_day')})$tail",
         "CREATE TABLE IF NOT EXISTS rep_state ($id, short_uuid {$a(64)}, hwid {$u(128)}, net {$a(16)}, nkey {$a(16)},
-            kind {$a(8)}, ip4 {$a(45)}, ip6 {$a(45)}, cc {$a(2)}, asn $int, org {$u(128)}, verdict {$a(8)},
+            kind {$a(8)}, ip4 {$a(45)}, ip6 {$a(45)}, cc {$a(2)}, asn $uint, org {$u(128)}, verdict {$a(8)},
             vstatus $int, vat $int, pn $big, pf $big, pmed $int, up $big, down $big, last_seen $int,
             loc {$a(24)}, hist {$a(48)}, hist_h $int, sub {$u(64)},
             UNIQUE (short_uuid, hwid, net, nkey){$keys('rep_state')})$tail",
         "CREATE TABLE IF NOT EXISTS rep_net_ip ($id, short_uuid {$a(64)}, hwid {$u(128)}, net {$a(16)}, ip {$a(45)},
-            kind {$a(8)}, cc {$a(2)}, asn $int, org {$u(128)}, loc {$a(24)}, sub {$u(64)}, hours $int, first_h $int, last_h $int,
+            kind {$a(8)}, cc {$a(2)}, asn $uint, org {$u(128)}, loc {$a(24)}, sub {$u(64)}, hours $int, first_h $int, last_h $int,
             UNIQUE (short_uuid, hwid, net, ip){$keys('rep_net_ip')})$tail",
         "CREATE TABLE IF NOT EXISTS rep_dday ($id, d $int, short_uuid {$a(64)}, hwid {$u(128)}, net {$a(16)}, nkey {$a(16)}, kind {$a(8)}, cc {$a(2)},
-            asn $int, org {$u(128)}, " . implode(', ', array_map(static fn($c) => "$c $big", rep_day_cols())) . ", vl {$a(8)}, vs $int, va $int,
+            asn $uint, org {$u(128)}, " . implode(', ', array_map(static fn($c) => "$c $big", rep_day_cols())) . ", vl {$a(8)}, vs $int, va $int,
             UNIQUE (d, short_uuid, hwid, net, nkey){$keys('rep_dday')})$tail",
         "CREATE TABLE IF NOT EXISTS rep_sub_node ($id, short_uuid {$a(64)}, nkey {$a(16)}, name {$u(191)}, via $int, multi $int,
             first_seen $int, last_seen $int, UNIQUE (short_uuid, nkey){$keys('rep_sub_node')})$tail",
@@ -162,9 +163,26 @@ function rep_ensure() {
         return $done = false;
     }
     rep_add_cols($p);
+    rep_asn_unsigned($p);
     rep_split_retire($p);
 
     return $done = true;
+}
+
+function rep_asn_unsigned(PDO $p) {
+    if (db_driver() !== 'mysql' || setting('rep_asn_u', '0') === '1') return;
+    $ok = true;
+    foreach (['rep_hour', 'rep_ip_day', 'rep_state', 'rep_net_ip', 'rep_dday'] as $t) {
+        try {
+            $st  = $p->query("SHOW COLUMNS FROM $t WHERE Field = 'asn'");
+            $col = $st->fetch(PDO::FETCH_ASSOC);
+            $st->closeCursor();
+            if (!is_array($col)) { $ok = false; continue; }
+            if (stripos((string) $col['Type'], 'unsigned') !== false) continue;
+            $p->exec("ALTER TABLE $t MODIFY asn INT UNSIGNED NOT NULL DEFAULT 0");
+        } catch (Throwable $e) { $ok = false; error_log('submw rep asn ' . $t . ': ' . $e->getMessage()); }
+    }
+    if ($ok) set_setting('rep_asn_u', '1');
 }
 
 function rep_split_retire(PDO $p) {
