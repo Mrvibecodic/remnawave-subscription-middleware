@@ -509,7 +509,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 | «Пользователи» — кнопка «удалить устройство» | `hwid-user-devices:delete` **(запись)** |
 | «Пользователи» — карточка: сквады и ноды по именам | `internal-squads:list`, `external-squads:list`, `nodes:list` |
 | «Пользователи» — общий лимит устройств в карточке | `subscription-settings:get` (без него вместо числа — «как в панели») |
-| «Пользователи» — правка, продление, возврат из грейса | `users:by-short-uuid`, `users:update` **(запись)** |
+| «Пользователи» — правка, продление, возврат из грейса, срок с первого подключения | `users:by-short-uuid`, `users:update` **(запись)** |
 | «Пользователи» — сброс трафика | `users:reset-traffic` **(запись)** |
 | «Пользователи» — включить / выключить | `users:enable`, `users:disable` **(запись)** |
 | «Пользователи» — новые ключи | `users:revoke-subscription` **(запись)** |
@@ -533,7 +533,7 @@ External Squads, System, Nodes и т. д.). У каждого ресурса д�
 | `/api/users` | GET | `users:list` | read | список пользователей (постранично) |
 | `/api/users/by-short-uuid/{shortUuid}` | GET | `users:by-short-uuid` | read | пользователь по ссылке подписки |
 | `/api/users/by-username/{username}` | GET | `users:by-username` | read | поиск по имени |
-| `/api/users` | PATCH | `users:update` | **write** | грейс-сквад; правка пользователя в админке |
+| `/api/users` | PATCH | `users:update` | **write** | грейс-сквад; правка пользователя в админке; дата по первому подключению |
 | `/api/users/{userId}/actions/reset-traffic` | POST | `users:reset-traffic` | **write** | грейс-сквад; кнопка «Сбросить трафик» |
 | `/api/users` | POST | `users:create` | **write** | создание пользователя в админке |
 | `/api/users/{userId}/actions/enable` | POST | `users:enable` | **write** | кнопка «Включить» |
