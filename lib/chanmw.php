@@ -944,6 +944,7 @@ function chan_report_answer(array $ctx, ?array $rec) {
 
     $meta   = ['date' => [gmdate('D, d M Y H:i:s') . ' GMT']];
     $sealed = chan_seal($ctx, $meta, '', chan_public_key(), chan_pad_on(), $st);
+    header_remove();
     if ($sealed === null) {
         http_response_code(404);
         return;
