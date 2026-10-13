@@ -138,7 +138,6 @@ function rep_ddl($drv) {
             UNIQUE (d, short_uuid, hwid, net, nkey){$keys('rep_dday')})$tail",
         "CREATE TABLE IF NOT EXISTS rep_sub_node ($id, short_uuid {$a(64)}, nkey {$a(16)}, name {$u(191)}, via $int, multi $int,
             first_seen $int, last_seen $int, UNIQUE (short_uuid, nkey){$keys('rep_sub_node')})$tail",
-        "CREATE TABLE IF NOT EXISTS rep_split (bkey {$a(16)} PRIMARY KEY, first_seen $int)$tail",
         "CREATE TABLE IF NOT EXISTS rep_raw ($id, ts $int, short_uuid {$a(64)}, dev {$u(128)}, hwid {$u(128)}, inst {$a(32)}, plat {$a(16)},
             client {$a(32)}, model {$u(64)}, os {$u(24)}, osv {$u(24)}, st $int, why {$a(16)}, bytes $int, gz $int,
             body " . ($my ? 'LONGBLOB NOT NULL' : 'BLOB NOT NULL') . "{$keys('rep_raw')})$tail",
@@ -163,8 +162,20 @@ function rep_ensure() {
         return $done = false;
     }
     rep_add_cols($p);
+    rep_split_retire($p);
 
     return $done = true;
+}
+
+function rep_split_retire(PDO $p) {
+    if (setting('rep_split_gone', '0') === '1') return;
+    try {
+        if (db_table_exists($p, db_driver(), 'rep_split')) {
+            if ((int) $p->query('SELECT COUNT(*) FROM rep_split')->fetchColumn() > 0) set_setting('rep_rb_need', '1');
+            $p->exec('DROP TABLE rep_split');
+        }
+        set_setting('rep_split_gone', '1');
+    } catch (Throwable $e) { error_log('submw rep split: ' . $e->getMessage()); }
 }
 
 function rep_add_cols(PDO $p) {
@@ -376,49 +387,14 @@ function rep_node_key($type, $server, $port, $via = '') {
     return substr(hash('sha256', $type . '|' . strtolower($server) . '|' . $port . ($via !== '' ? '|' . $via : '')), 0, 12);
 }
 
-// Точка входа, под которой в одном отчёте пришли хосты с разными именами (мост
-// на vlessRoute отличается от основного хоста только UUID): её узлы различаются
-// по имени хоста. Список точек хранится отдельно от сводок и не чистится
-// пересборкой — по нему одинаково разбираются все отчёты, старые и новые.
-function rep_node_key_named($bkey, $name) {
-    return substr(hash('sha256', $bkey . "\n" . $name), 0, 12);
-}
-
-function rep_split_set(PDO $p, array $add = []) {
-    static $set = null;
-    if ($set === null) {
-        $set = [];
-        try { foreach ($p->query('SELECT bkey FROM rep_split') as $r) $set[(string) $r['bkey']] = true; } catch (Throwable $e) {}
-    }
-    $new = array_diff_key(array_fill_keys($add, true), $set);
-    if ($new) {
-        $sql = db_driver() === 'mysql' ? 'INSERT IGNORE INTO rep_split (bkey, first_seen) VALUES (?, ?)' : 'INSERT OR IGNORE INTO rep_split (bkey, first_seen) VALUES (?, ?)';
-        $st  = $p->prepare($sql);
-        foreach ($new as $k => $_) $st->execute([(string) $k, time()]);
-        $set += $new;
-        rep_split_new(true);
-    }
-
-    return $set;
-}
-
-// Появилась новая такая точка: всё, что уже разобрано по общему ключу, надо разобрать заново.
-function rep_split_new($set = null) {
-    static $flag = false;
-    if ($set === true) { $flag = true; return true; }
-    $was  = $flag;
-    $flag = false;
-
-    return $was;
-}
-
 function rep_sub_upsert(PDO $p, $short, array $nodes, array $used, $now) {
     $rows = [];
     foreach ($nodes as $tok => $n) {
         if (!isset($used[$tok])) continue;
         $k = $n['nkey'];
         $rows[$k] = $rows[$k] ?? ['name' => '', 'names' => []];
-        if ($n['name'] !== '') { $rows[$k]['name'] = $n['name']; $rows[$k]['names'][$n['name']] = true; }
+        if ($n['name'] !== '' && ($rows[$k]['name'] === '' || mb_strlen($n['name']) < mb_strlen($rows[$k]['name']))) $rows[$k]['name'] = $n['name'];
+        if ($n['name'] !== '') $rows[$k]['names'][$n['name']] = true;
     }
     if (!$rows) return;
     $sql = db_driver() === 'mysql'
@@ -586,11 +562,16 @@ function rep_rebuild_active() {
     try { return rep_rb_get($p) !== ''; } catch (Throwable $e) { return false; }
 }
 
+function rep_rebuild_need() {
+    return setting('rep_rb_need', '0') === '1' && !rep_rebuild_active();
+}
+
 function rep_rebuild_start() {
     if (!rep_ensure() || !($p = db())) return false;
     try {
         set_setting('rep_rb', '0');
         set_setting('rep_rb_ts', (string) time());
+        set_setting('rep_rb_need', '0');
         foreach (rep_derived_tables() as $t) $p->exec("DELETE FROM $t");
         set_setting('rep_dday_fill', 'done');
     } catch (Throwable $e) {
@@ -633,8 +614,6 @@ function rep_rebuild_step($budget = 4.0) {
                 $cur = (string) $r['id'];
                 rep_replay_row($p, $r);
                 $out['done']++;
-                // Новая точка с несколькими хостами — уже разобранное начинается заново.
-                if (rep_split_new()) { rep_rebuild_start(); $cur = '0'; continue 2; }
             }
         } while (microtime(true) - $t0 < $budget);
         $cur = rep_rb_get($p);
@@ -751,12 +730,6 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             'name'   => rep_str($n['name'] ?? '', 191),
         ];
     }
-
-    $names = [];
-    foreach ($nodes as $n) if ($n['name'] !== '') $names[$n['nkey']][$n['name']] = true;
-    $split = rep_split_set($p, array_keys(array_filter($names, static fn($x) => count($x) > 1)));
-    foreach ($nodes as &$n) if (isset($split[$n['nkey']])) $n['nkey'] = rep_node_key_named($n['nkey'], $n['name']);
-    unset($n);
 
     // Часы не новее последнего принятого от этого устройства уже посчитаны.
     $devrow = rep_dev_row($short, $hwid);

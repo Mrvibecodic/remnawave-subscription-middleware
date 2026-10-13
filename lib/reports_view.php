@@ -517,8 +517,8 @@ function rep_view_node_names(array $panel = [], $short = null) {
     $cnt = [];
     foreach (rep_view_rows("SELECT nkey, name, COUNT(*) AS n FROM rep_sub_node WHERE name <> '' GROUP BY nkey, name", []) as $r) $cnt[(string) $r['nkey']][(string) $r['name']] = (int) $r['n'];
     foreach ($cnt as $k => $list) {
-        uksort($list, static fn($a, $b) => ($list[$b] <=> $list[$a]) ?: ((mb_strlen($a) <=> mb_strlen($b)) ?: strcmp($a, $b)));
-        $all[$k] = array_keys($list);
+        uksort($list, static fn($a, $b) => ($list[$b] <=> $list[$a]) ?: ((mb_strlen((string) $a) <=> mb_strlen((string) $b)) ?: strcmp((string) $a, (string) $b)));
+        $all[$k] = array_map('strval', array_keys($list));
     }
     foreach (rep_view_rows('SELECT nkey, server, name FROM rep_node', []) as $n) {
         $k = (string) $n['nkey'];
