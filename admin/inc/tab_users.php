@@ -532,13 +532,13 @@ function fb(b){b=+b||0;if(b>=1024*GB)return(b/1024/GB).toFixed(b>=10*1024*GB?0:1
 function gbv(b){return Math.round(b/GB*100)/100;}
 function expMs(u){return u.exp*1000;}
 function gInfo(u){return C.gr[u.su]||null;}
-function isGr(u){return !!gInfo(u)&&u.st==='ACTIVE';}
+function isGr(u){return !!gInfo(u);}
 function sqName(id){if(META)for(var i=0;i<META.sq.length;i++)if(META.sq[i].uuid===id)return META.sq[i].name;return SQN[id]||(id?id.slice(0,8):'');}
 function exName(id){if(!id)return '';if(META)for(var i=0;i<META.ex.length;i++)if(META.ex[i].uuid===id)return META.ex[i].name;return id.slice(0,8);}
 function nodeName(id){return META&&META.nodes&&META.nodes[id]||'';}
 function soon(u){var e=expMs(u);return u.st==='ACTIVE'&&!isGr(u)&&e>now()&&e-now()<=7*DAY;}
-function stInfo(u){if(isGr(u))return{c:'st-vio',t:'Грейс'};return({ACTIVE:{c:'st-ok',t:'Активен'},EXPIRED:{c:'st-bad',t:'Истёк'},DISABLED:{c:'st-mut',t:'Выключен'},LIMITED:{c:'st-warn',t:'Лимит'}})[u.st]||{c:'st-mut',t:u.st||'—'};}
-function pill(u){var s=stInfo(u);return '<span class="ux-pill '+s.c+'"'+(u.st==='LIMITED'&&!isGr(u)?' data-tip="Трафик закончился"':'')+'><i></i>'+s.t+'</span>';}
+function stInfo(u){if(isGr(u)&&u.st==='ACTIVE')return{c:'st-vio',t:'Грейс'};return({ACTIVE:{c:'st-ok',t:'Активен'},EXPIRED:{c:'st-bad',t:'Истёк'},DISABLED:{c:'st-mut',t:'Выключен'},LIMITED:{c:'st-warn',t:'Лимит'}})[u.st]||{c:'st-mut',t:u.st||'—'};}
+function pill(u){var s=stInfo(u);return '<span class="ux-pill '+s.c+'"'+(u.st==='LIMITED'?' data-tip="Трафик закончился"':'')+'><i></i>'+s.t+'</span>';}
 function hwTxt(v){return v===null||v===undefined?'как в панели':(v===0?'без лимита':String(v));}
 function hwSrc(u){if(!META||!META.hwid)return null;var s=META.hwid,from='panel';if(u.ex)for(var i=0;i<META.ex.length;i++)if(META.ex[i].uuid===u.ex&&META.ex[i].hwid){s=META.ex[i].hwid;from='ex';}return{s:s,from:from};}
 function hwEff(u){var h=hwSrc(u);if(u.hw===0)return{lim:null,txt:'без лимита',d:'без лимита'};if(!h){return u.hw?{lim:u.hw,txt:String(u.hw),d:'свой'}:{lim:null,txt:'как в панели',d:'как в панели'};}if(!h.s.enabled)return{lim:null,txt:'выключен в панели',d:'выключен в панели'};if(u.hw)return{lim:u.hw,txt:String(u.hw),d:'свой'};var w=h.from==='ex'?'из внешнего сквада':'общий из панели';return{lim:h.s.limit,txt:h.s.limit+' — '+w,d:w};}
@@ -672,12 +672,13 @@ function extFields(u,days){var b=isGr(u)?now():Math.max(now(),expMs(u));var f=is
 function extend(u,days){
  var notes=[];
  if(isGr(u))notes.push(['hour','vio','Грейс завершится','прежний тариф вернётся']);
+ if(isGr(u)&&u.st==='DISABLED')notes.push(['power','warn','Останется выключенным','включите отдельно']);
  if(u.st==='EXPIRED')notes.push(['check','ok','Станет «Активен»','срок — от сегодня']);
  if(fcPend(u.su))notes.push(['hour','info','Отсчёт от подключения отменится','срок будет таким, как здесь']);
  cfm({ic:'calp',title:'Продлить на '+dd(days),sub:'<b>'+esc(u.un)+'</b>',
   rows:[['cal','Срок',u.exp?fd(expMs(u)):'—',fd(extFields(u,days).expireAt*1000)]],
   notes:notes,hint:'Активным — от текущей даты окончания',ok:'Продлить',onOk:function(){
-   runOne('ua_save',{su:u.su,fields:JSON.stringify(extFields(u,days)),upd:u.upd,reset:isGr(u)&&C.reset?'1':''},'Продлено · '+u.un);
+   runOne('ua_save',{su:u.su,fields:JSON.stringify(extFields(u,days)),upd:u.upd,reset:isGr(u)&&(C.reset||u.st==='LIMITED')?'1':''},'Продлено · '+u.un);
   }});
 }
 function act(u,a){
@@ -808,7 +809,7 @@ function ovHtml(u){
  var tile=function(ic,t,v,a){return '<div><span class="ic">'+ico(ic)+'</span><div class="tx"><div class="tt">'+t+'</div><div class="tv">'+v+'</div>'+(a?'<div class="ta">'+a+'</div>':'')+'</div></div>';};
  var lo='<span class="muted" style="font-weight:400">загрузка…</span>';
  var blk=mw?(mw.ov||[]).some(function(o){return o.r==='blocked';}):!!C.ovb[u.su];
- var served=blk?'<span style="color:var(--c-bad-fg)">Заглушка — блок в оверрайдах</span>':(g?'Конфиги грейс-сквада':(u.st==='ACTIVE'?'Конфиг панели':'Ответ панели — подписка не активна'));
+ var served=blk?'<span style="color:var(--c-bad-fg)">Заглушка — блок в оверрайдах</span>':(g&&u.st==='ACTIVE'?'Конфиги грейс-сквада':(u.st==='ACTIVE'?'Конфиг панели':'Ответ панели — подписка не активна'));
  var lr=mw&&mw.last,decL={blocked:'блок',expired:'истёк',grace:'грейс',error:'ошибка'};
  var as=mw?mw.addsub:(C.as[u.su]||''),nl=mw?mw.nolog:!!C.nl[u.su];
  var wg=mw?(mw.wg.m?'Ручная привязка'+(mw.wg.a?' и из пула: '+mw.wg.a:''):(mw.wg.a?'Из пула: '+mw.wg.a:'<span class="muted" style="font-weight:400">не выдаётся</span>')):lo;
@@ -888,10 +889,10 @@ function formHtml(create){
   h+='<div class="ux-fs"><div class="ux-g2"><div class="ux-f"><label for="fUser">Имя пользователя</label><input type="text" id="fUser" class="mono" value="'+esc(F.username)+'" placeholder="ivan_petrov" autocomplete="off" spellcheck="false"><div class="ux-err" data-e="username"></div><div class="hint2" style="font-size:.76rem;color:var(--muted)">Латиница, цифры, _ и -, 3–36 символов. Изменить потом нельзя.</div></div>'+
   '<div class="ux-f"><label for="fTpl">Заполнить как у пользователя</label><select id="fTpl"><option value="">— не заполнять —</option>'+U.slice().sort(function(a,b){return a.un.localeCompare(b.un);}).map(function(x){return '<option value="'+esc(x.su)+'"'+(F.tpl===x.su?' selected':'')+'>'+esc(x.un)+'</option>';}).join('')+'</select><div class="hint2" style="font-size:.76rem;color:var(--muted)">Возьмёт сквады, трафик, устройства и тег.</div></div></div></div>';
  }
- if(gr){var g=gInfo(u);
+ if(gr){var g=gInfo(u),fr=CARD.restore&&u.st==='LIMITED';
   h+='<div class="ux-gb"><label class="ux-opt"><input type="checkbox" class="ux-cbx" id="fRestore"'+(CARD.restore?' checked':'')+'><span><b>Вернуть прежний тариф</b><span class="d">Поставьте новую дату — остальное вернётся как до грейса.</span></span></label>'+
   (CARD.restore?graceRows(u,g):'<p style="font-size:.82rem">Грейс завершится, сохранятся значения из формы.</p>')+
-  '<label class="ux-opt" style="margin-top:.7rem"><input type="checkbox" class="ux-cbx" id="fResetTr"'+(CARD.resetTr?' checked':'')+'><span><b>Сбросить использованный трафик</b><span class="d">Как при обычном выходе из грейса.</span></span></label></div>';
+  '<label class="ux-opt" style="margin-top:.7rem"><input type="checkbox" class="ux-cbx" id="fResetTr"'+(CARD.resetTr||fr?' checked':'')+(fr?' disabled':'')+'><span><b>Сбросить использованный трафик</b><span class="d">'+(fr?'«Лимит» снимается только сбросом трафика.':'Как при обычном выходе из грейса.')+'</span></span></label></div>';
  }
  h+=fsec('cal','Срок и статус',
   '<div class="ux-g2"><div class="ux-f"><label for="fExp">Дата окончания'+(gr&&CARD.restore?' <span class="ux-was">новая</span>':'')+'</label><input type="datetime-local" id="fExp" value="'+dlv(F.exp)+'"><div class="ux-err" data-e="exp"></div>'+
@@ -981,17 +982,18 @@ function bindForm(create){
  upd();
 }
 function doSave(){
- var u=CARD.u,F=CARD.F,O=CARD.O,d=diffList(),gr=isGr(u)&&grTouch(d);if(!d.length)return;
+ var u=CARD.u,F=CARD.F,O=CARD.O,d=diffList(),gr=isGr(u)&&grTouch(d),rs=gr&&(CARD.resetTr||(CARD.restore&&u.st==='LIMITED'));if(!d.length)return;
  var notes=[];
  if(gr)notes.push(['hour','vio','Грейс завершится',CARD.restore?'прежний тариф вернётся':'сохранятся значения из формы']);
- if(gr&&CARD.resetTr)notes.push(['reset','info','Трафик обнулится','сейчас '+fb(u.used)]);
+ if(rs)notes.push(['reset','info','Трафик обнулится','сейчас '+fb(u.used)]);
+ if(gr&&u.st==='DISABLED'&&F.status!=='ACTIVE')notes.push(['power','warn','Останется выключенным','статус в форме не менялся']);
  if(fcPend(u.su)&&d.indexOf('exp')>-1)notes.push(['hour','info','Отсчёт от подключения отменится','срок будет таким, как в форме']);
  if(!gr&&u.st==='EXPIRED'&&d.indexOf('exp')>-1&&F.exp>now()&&F.status==='ACTIVE')notes.push(['check','ok','Статус станет «Активен»','']);
  var fields={};d.forEach(function(k){fields[API[k]]=apiVal(k,F[k]);});
  cfm({ic:'save',tone:gr?'vio':'acc',title:'Сохранить изменения',sub:'<b>'+esc(u.un)+'</b> · '+d.length+' '+plural(d.length,'поле','поля','полей'),
   rows:d.map(function(k){return [FICO[k],LBL[k],k==='hw'?esc(hwEff({hw:O[k],ex:F.ex}).txt):fmtH(k,O[k]),k==='hw'?esc(hwEff({hw:F[k],ex:F.ex}).txt):fmtH(k,F[k]),k==='sq'];}),notes:notes,hint:'В панель уйдут только эти поля',ok:'Сохранить',onOk:function(){
    busy(true);
-   post('ua_save',{su:u.su,fields:JSON.stringify(fields),upd:CARD.O.upd,reset:gr&&CARD.resetTr?'1':''}).then(function(r){
+   post('ua_save',{su:u.su,fields:JSON.stringify(fields),upd:CARD.O.upd,reset:rs?'1':''}).then(function(r){
     busy(false);
     if(r.conflict){cfClose();putUser(r.user,r.mw);cfm({ic:'alert',tone:'warn',title:'Пользователя изменили',sub:'пока форма была открыта — например, бот или панель',notes:[['refresh','info','Форма покажет свежие данные','ваши правки нужно будет повторить']],ok:'Обновить форму',onOk:function(){cfClose();CARD.F=null;CARD.touched={};drawCard();}});render();return;}
     if(!r.ok){if(window.uiAlert)uiAlert(r.error||'Ошибка','Панель не приняла');return;}
