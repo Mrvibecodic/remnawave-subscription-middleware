@@ -189,10 +189,12 @@ function rep_asn_unsigned(PDO $p) {
 function rep_split_retire(PDO $p) {
     if (setting('rep_split_gone', '0') === '1') return;
     try {
+        $n = 0;
         if (db_table_exists($p, db_driver(), 'rep_split')) {
-            if ((int) $p->query('SELECT COUNT(*) FROM rep_split')->fetchColumn() > 0) set_setting('rep_rb_need', '1');
+            $n = (int) $p->query('SELECT COUNT(*) FROM rep_split')->fetchColumn();
             $p->exec('DROP TABLE rep_split');
         }
+        if ($n > 0) set_setting('rep_rb_need', '1');
         set_setting('rep_split_gone', '1');
     } catch (Throwable $e) { error_log('submw rep split: ' . $e->getMessage()); }
 }
@@ -603,11 +605,14 @@ function rep_rebuild_start() {
 
 function rep_replay_row(PDO $p, array $r) {
     $json = rep_raw_json($r);
-    $data = $json === null ? null : json_decode($json, true);
     $why  = '';
+    $big  = $json !== null && !rep_mem_fits(strlen($json) * REP_MEM_RATIO);
+    if ($big) $why = 'size';
+    $data = ($json === null || $big) ? null : json_decode($json, true);
     $ok   = is_array($data) && rep_ingest((string) $r['short_uuid'], (string) $r['dev'], $data, $why, (int) $r['ts'],
         ['model' => (string) $r['model'], 'os' => (string) $r['os'], 'osv' => (string) $r['osv'], 'inst' => (string) $r['inst'], 'replay' => 1]);
-    if ((int) $r['st'] === 202) $p->prepare('UPDATE rep_raw SET st = ?, why = ? WHERE id = ?')->execute([$ok ? 204 : 400, $ok ? $why : ($why !== '' ? $why : 'json'), (int) $r['id']]);
+    if ((int) $r['st'] === 202) $p->prepare('UPDATE rep_raw SET st = ?, why = ? WHERE id = ?')->execute([$ok ? 204 : ($why === 'size' ? 413 : 400), $ok ? $why : ($why !== '' ? $why : 'json'), (int) $r['id']]);
+    elseif (!$ok && $why === 'size') $p->prepare('UPDATE rep_raw SET st = 413, why = ? WHERE id = ?')->execute([$why, (int) $r['id']]);
     elseif ($ok && $why !== (string) $r['why']) $p->prepare('UPDATE rep_raw SET why = ? WHERE id = ?')->execute([$why, (int) $r['id']]);
 
     return $ok;
@@ -1171,6 +1176,16 @@ function rep_mark_seen() {
     if ((string) setting('rep_seen', '0') === $t && (string) setting('rep_seen_at', '') !== '') return;
     set_setting('rep_seen', $t);
     set_setting('rep_seen_at', (string) time());
+}
+
+function rep_purge_maybe($now = null) {
+    $now = $now ?? time();
+    if ($now - (int) setting('rep_purge_ts', '0') < 86400) return false;
+    set_setting('rep_purge_ts', (string) $now);
+    @set_time_limit(120);
+    rep_purge($now);
+
+    return true;
 }
 
 function rep_purge($now = null) {
