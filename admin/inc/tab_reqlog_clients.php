@@ -25,6 +25,22 @@
     .cv-item .btn{height:30px;min-height:30px;padding:0 .7rem;font-size:.79rem;flex:0 0 auto}
     .cv-hl{box-shadow:inset 0 0 0 2px var(--accent)!important}
     @media(max-width:900px){.cv-item{flex-wrap:wrap}.cv-item .i-n{flex:1 1 100%}}
+    .cv-tg{display:none}
+    @media(max-width:900px){
+        table.cv-tbl>tbody>tr:not(.cv-open){display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:.65rem}
+        table.cv-tbl>tbody>tr:not(.cv-open)>td{display:none}
+        table.cv-tbl>tbody>tr:not(.cv-open)>td:nth-child(1){display:block;grid-column:1;grid-row:1}
+        table.cv-tbl>tbody>tr:not(.cv-open)>td:nth-child(3){display:block;grid-column:2;grid-row:1}
+        table.cv-tbl>tbody>tr:not(.cv-open)>td:nth-child(3)>input[type=text]{width:100%;max-width:none}
+        table.cv-tbl>tbody>tr:not(.cv-open)>td:nth-child(9){display:flow-root;grid-column:1/-1;grid-row:2}
+        table.cv-tbl>tbody>tr>td:nth-child(10){display:flex;justify-content:flex-end;gap:.4rem}
+        table.cv-tbl>tbody>tr:not(.cv-open)>td:nth-child(10){grid-column:3;grid-row:1}
+        table.cv-tbl>tbody>tr:not(.cv-open)>td:nth-child(1)::before,table.cv-tbl>tbody>tr:not(.cv-open)>td:nth-child(3)::before,table.cv-tbl>tbody>tr>td:nth-child(10)::before{content:none}
+        .cv-tbl .cv-tg{display:inline-flex;padding:0;width:32px;height:32px;align-items:center;justify-content:center;border-radius:var(--radius);background:transparent;border:1px solid var(--line);color:var(--muted)}
+        .cv-tbl .cv-tg:hover,.cv-tbl .cv-tg:active{background:transparent;filter:none;transform:none;border-color:var(--accent);color:var(--accent-text)}
+        .cv-tbl tr.cv-open .cv-tg svg{transform:rotate(180deg)}
+        .cv-tbl .cv-del{width:32px;height:32px}
+    }
     </style>
     <div class="seg">
         <a href="?tab=reqlog">Запросы<?= $rl_outdated ? ' (' . (int) $rl_outdated . ' устаревших)' : '' ?></a>
@@ -171,6 +187,14 @@
                 out += '<option value="'+esc(k)+'"'+(String(cur) === k ? ' selected' : '')+'>'+esc(map[k])+'</option>'; }
             return out;
         }
+        var TG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+        function tg(tr, open){
+            var d = tr.querySelector('.cv-del'), b = tr.querySelector('.cv-tg');
+            if(!b && d){ b = document.createElement('button'); b.type = 'button'; b.className = 'cv-tg'; b.setAttribute('aria-label', 'Все поля строки'); b.innerHTML = TG; d.parentNode.insertBefore(b, d); }
+            if(open) tr.classList.add('cv-open');
+            if(b) b.setAttribute('aria-expanded', tr.classList.contains('cv-open') ? 'true' : 'false');
+        }
+        [].forEach.call(body.rows, function(tr){ tg(tr, false); });
         function addRow(r){
             r = r || {};
             var i = seq++;
@@ -187,6 +211,7 @@
                 '<td><input type="text" name="cv_man['+i+']" value="'+esc(r.man)+'" spellcheck="false" placeholder="вписать вручную"></td>'+
                 '<td><button type="button" class="cv-del" data-tip="Удалить строку" aria-label="Удалить строку">✕</button></td>';
             body.insertBefore(tr, body.firstChild);
+            tg(tr, true);
             tr.classList.add('cv-hl');
             setTimeout(function(){ tr.classList.remove('cv-hl'); }, 1200);
             var f = tr.querySelector('input[name^="cv_k"]');
@@ -203,6 +228,12 @@
                 if(window.uiToast) uiToast('Строка добавлена наверх — проверьте и нажмите «Сохранить каталог»');
                 var w = document.querySelector('.cv-wrap');
                 if(w) w.scrollIntoView({behavior:'smooth', block:'center'});
+                return;
+            }
+            var o = e.target.closest('.cv-tg');
+            if(o){
+                var ot = o.closest('tr');
+                if(ot){ ot.classList.toggle('cv-open'); tg(ot, false); }
                 return;
             }
             var d = e.target.closest('.cv-del');
@@ -222,7 +253,7 @@
         });
         if(location.hash && location.hash.length > 1){
             var t = document.getElementById(location.hash.slice(1));
-            if(t){ t.classList.add('cv-hl'); t.scrollIntoView({block:'center'}); }
+            if(t){ if(t.parentNode === body) tg(t, true); t.classList.add('cv-hl'); t.scrollIntoView({block:'center'}); }
         }
     })();
     </script>

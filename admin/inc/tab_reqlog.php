@@ -102,7 +102,8 @@
         .cl .c1,.cl .c2{overflow-wrap:anywhere}
         .rl-tbl tr.rowb td:nth-child(5) .u-cell{align-items:flex-start;text-align:left}
         .cnt{flex:1 1 auto;min-width:0;max-width:60%}
-        .row-x.show{display:block}
+        .rl-tbl tr.row-x{display:none}
+        .rl-tbl tr.row-x.show{display:block}
         .row-x>td{border:1px solid var(--accent);border-top:0;border-radius:0 0 12px 12px;margin-bottom:.55rem}
         .row-x .xr>.v,.row-x .xr{white-space:normal}
         .xin{padding:.8rem .8rem .9rem}
