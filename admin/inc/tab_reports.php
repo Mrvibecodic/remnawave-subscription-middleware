@@ -61,21 +61,19 @@ $rv_qfail = static function ($x) {
 };
 $rv_qmed = static fn($m) => $m < 0 ? 'q0' : 'q' . min(5, $m + 1);
 $rv_frz = static function ($s) {
-    if ($s['fok'] + $s['ffr'] + $s['fdd'] === 0) return '<span class="muted">—</span>';
+    if ($s['fok'] + $s['ffr'] === 0) return '<span class="muted">—</span>';
     $out = [];
     if ($s['ffr'] > 0) $out[] = '<span class="rq q4" title="Режется">✂ ' . (int) $s['ffr'] . '</span>';
-    if ($s['fdd'] > 0) $out[] = '<span class="rq q5" title="Не отвечает">✕ ' . (int) $s['fdd'] . '</span>';
     if ($s['fok'] > 0) $out[] = '<span class="rq q1" title="Работает">✓ ' . (int) $s['fok'] . '</span>';
 
     return implode(' ', $out);
 };
 $rv_frzb = static function ($s, $nk = '', $asn = 0) use ($rv_frz) {
-    if ($s['fok'] + $s['ffr'] + $s['fdd'] === 0) return $rv_frz($s);
+    if ($s['fok'] + $s['ffr'] === 0) return $rv_frz($s);
     $at = ($nk !== '' ? ' data-nk="' . h($nk) . '"' : '') . ((int) $asn > 0 ? ' data-asn="' . (int) $asn . '"' : '');
     $b  = static fn($v, $q, $ic, $n, $t) => '<button type="button" class="rq ' . $q . ' rv-frzbtn" data-v="' . $v . '"' . $at . ' data-tip="' . h($t . ': ' . $n . ' — показать устройства') . '">' . $ic . ' ' . (int) $n . '</button>';
     $out = [];
     if ($s['ffr'] > 0) $out[] = $b('fr', 'q4', '✂', $s['ffr'], 'Режется');
-    if ($s['fdd'] > 0) $out[] = $b('dd', 'q5', '✕', $s['fdd'], 'Не отвечает');
     if ($s['fok'] > 0) $out[] = $b('ok', 'q1', '✓', $s['fok'], 'Работает');
 
     return implode(' ', $out);
@@ -482,7 +480,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             <div class="rv-kpi"><span class="k">Не отвечает узел</span><span class="v<?= $rv_dead_cl ? ' bad' : '' ?>"><?= $rv_num(count($rv_dead_cl)) ?></span><span class="d" data-tip="По последним (до 6) часам с замерами в каждой сети устройства, приславшего отчёт за период: узел не ответил ни на один пинг. Сеть, в которой устройство давно не было, тоже учитывается, пока её последний отчёт попадает в период.">клиентов, у кого узел молчит — <b>по последним часам с замерами</b></span></div>
             <div class="rv-kpi"><span class="k">Пинги</span><span class="v"><?= $rv_num($rv_tot['pn']) ?></span><span class="d">неудачных <span class="rq <?= $rv_qfail($rv_tot['fail']) ?>"><?= h($rv_pct($rv_tot['fail'])) ?></span></span></div>
             <div class="rv-kpi"><span class="k">Медианный пинг</span><span class="v" style="font-size:1.15rem"><?= h($rv_med($rv_tot['med'])) ?></span><span class="d">по <?= $rv_num($rv_tot['nodes']) ?> узлам</span></div>
-            <div class="rv-kpi"><span class="k">Проверка 16–20</span><span class="v" style="font-size:1.05rem"><?= $rv_frzb($rv_tot) ?></span><span class="d" data-tip="Сколько проверок за период закончились так. Это число проверок, а не устройств. Нажмите на число — у каких устройств, в какой сети и до какого узла.">проверок за период: режется · не отвечает · работает</span></div>
+            <div class="rv-kpi"><span class="k">Проверка 16–20</span><span class="v" style="font-size:1.05rem"><?= $rv_frzb($rv_tot) ?></span><span class="d" data-tip="Сколько проверок за период закончились так. Это число проверок, а не устройств. Нажмите на число — у каких устройств, в какой сети и до какого узла.">проверок за период: режется · работает</span></div>
             <div class="rv-kpi"><span class="k">Трафик через узлы</span><span class="v"><?= h($rv_bytes($rv_tot['bytes'])) ?></span><span class="d">у клиентов с отчётами</span></div>
         </div>
         <?php if ((int) $rep_st['last'] > 0): ?><p class="muted rv-fresh"><svg class="rvi"><use href="#rvi-clock"/></svg><span>Последний отчёт пришёл <b class="ct-ago" data-ts="<?= (int) $rep_st['last'] ?>"><?= h(date('d.m H:i', (int) $rep_st['last'])) ?></b>. Устройство присылает отчёт не чаще раза в 6 часов, при плановом обновлении подписки, и только за закрытые часы, поэтому данные отстают от реального времени минимум на час, обычно на несколько часов.</span></p><?php endif; ?>
@@ -1320,7 +1318,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                                 + '<td>' + ico(r.p === 'pc' ? 'pc' : 'android') + ' ' + esc(r.m || (r.p === 'pc' ? 'ПК' : r.p === 'android' ? 'Android' : '—')) + (r.o ? '<div class="muted" style="font-size:.74rem">' + esc(r.o) + '</div>' : '') + '</td>'
                                 + '<td>' + ico(KIND[r.k] ? r.k : 'other') + ' ' + esc(KIND[r.k] || r.k) + '</td><td>' + flag(r.cc) + ' ' + esc(r.rg ? M.r[r.rg].n : ccName(r.cc) || '—') + '</td><td><code>' + esc(r.ip || '—') + '</code></td>'
                                 + '<td>' + (r.dead ? '<span class="rq q5">нет ответа</span>' : '<span class="rq q' + qFail(r.pn ? r.pf / r.pn : null) + '">' + fl(r.pf, r.pn) + '</span>') + '</td><td>' + (r.med >= 0 ? '<span class="rq q' + qMed(r.med) + '">' + MED[r.med] + '</span>' : '—') + '</td>'
-                                + '<td>' + (r.v === 'frozen' ? '<span class="rv-pill st-warn">режется</span>' : r.v === 'ok' ? '<span class="rv-pill st-ok">проходит</span>' : r.v === 'dead' ? '<span class="rv-pill st-bad">не отвечает</span>' : '<span class="muted">—</span>') + '</td>'
+                                + '<td>' + (r.v === 'frozen' ? '<span class="rv-pill st-warn">режется</span>' : r.v === 'ok' ? '<span class="rv-pill st-ok">проходит</span>' : '<span class="muted">—</span>') + '</td>'
                                 + '<td><div class="rv-hist sm"' + (r.hist ? '' : ' title="' + esc(histWhy(r.seen)) + '"') + '>' + histCells(r.hist, r.hh) + '</div></td><td class="muted" style="white-space:nowrap">' + ago(r.seen) + '</td></tr>';
                         }).join('') + '</tbody></table></div>';
                     mxd.style.minHeight = '';
@@ -1348,7 +1346,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         var frzSeq = 0;
         document.querySelectorAll('.rv-frzbtn').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                var v = btn.dataset.v, VN = {fr: 'режется', dd: 'не отвечает', ok: 'работает'}, seq = ++frzSeq;
+                var v = btn.dataset.v, VN = {fr: 'режется', ok: 'работает'}, seq = ++frzSeq;
                 var head = function (extra) { return '<div class="rv-ph"><div style="min-width:0"><b>Проверка 16–20: ' + VN[v] + '</b>' + (extra || '') + '</div><button type="button" class="x" aria-label="Закрыть">' + ico('x') + '</button></div>'; };
                 mod.innerHTML = head() + '<div class="rv-pl"><div class="muted" style="padding:1rem">Загружаю…</div></div>';
                 mod.classList.add('open'); drwBg.classList.add('open');
@@ -1363,7 +1361,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                         + '<div class="rv-pl">' + (rows.length ? rows.map(function (x) {
                             var nm = x.nm || NAMES[x.s] || x.s, de = [x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : ''), x.cl ? 'Clod Clash ' + x.cl : ''].filter(Boolean).join(' · ');
                             return '<button type="button" class="rv-crow" data-s="' + esc(x.s) + '" data-hw="' + esc(x.hw) + '" data-k="' + esc(x.n + '|' + x.net) + '" data-d="' + (st ? 0 : x.ld) + '"><span class="av">' + esc(nm.slice(0, 2).toUpperCase()) + '</span><span class="bd"><span class="nm">' + esc(nm) + '</span><span class="sub">' + esc(de || x.hw.slice(0, 16)) + '</span><span class="sub">' + esc(ndn(x.n)) + ' · ' + esc((KIND[x.k] || x.k) + (x.org ? ' · ' + x.org : (x.asn ? ' · AS' + x.asn : ''))) + '</span>'
-                                + '<span class="st"><span class="rq ' + (v === 'ok' ? 'q1' : v === 'fr' ? 'q4' : 'q5') + '">' + (st ? VN[v] : x.c + ' из ' + x.t + ' ' + plural(x.t, 'проверки', 'проверок', 'проверок')) + '</span> <span class="muted" style="font-size:.74rem">' + (st ? 'последняя ' + dd(x.ld) : (x.days > 1 ? 'дней: ' + x.days + ', последний ' : '') + dd(x.ld)) + '</span></span></span></button>';
+                                + '<span class="st"><span class="rq ' + (v === 'ok' ? 'q1' : 'q4') + '">' + (st ? VN[v] : x.c + ' из ' + x.t + ' ' + plural(x.t, 'проверки', 'проверок', 'проверок')) + '</span> <span class="muted" style="font-size:.74rem">' + (st ? 'последняя ' + dd(x.ld) : (x.days > 1 ? 'дней: ' + x.days + ', последний ' : '') + dd(x.ld)) + '</span></span></span></button>';
                         }).join('') : '<div class="muted" style="padding:1rem">Устройств с таким итогом за период нет.</div>') + '</div>';
                     mod.querySelector('.x').addEventListener('click', closeMod);
                     mod.querySelectorAll('.rv-crow').forEach(function (b) { b.addEventListener('click', function () { closeMod(); openClient(b.dataset.s, {hw: b.dataset.hw, cell: b.dataset.k, day: +b.dataset.d}); }); });
@@ -1420,8 +1418,8 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var dWd = function (x) { return ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][new Date((x + c.tz) * 1000).getUTCDay()]; };
             var segState = function (hw, day) {
                 var st = '';
-                if (day) (c.days || []).forEach(function (r) { if (r.hw !== hw || r.d !== day || !r.pn) return; if (r.pf >= r.pn || r.fdd > 0) st = 'bad'; else if (st !== 'bad' && (r.ffr > 0 || (r.pn >= 20 && r.pf / r.pn >= .10))) st = 'warn'; else if (!st) st = 'ok'; });
-                else c.rows.forEach(function (r) { if (r.hw !== hw || !r.pn) return; if (r.dead || r.v === 'dead') st = 'bad'; else if (st !== 'bad' && (r.v === 'frozen' || (r.fail !== null && r.fail >= .10))) st = 'warn'; else if (!st) st = 'ok'; });
+                if (day) (c.days || []).forEach(function (r) { if (r.hw !== hw || r.d !== day || !r.pn) return; if (r.pf >= r.pn) st = 'bad'; else if (st !== 'bad' && (r.ffr > 0 || (r.pn >= 20 && r.pf / r.pn >= .10))) st = 'warn'; else if (!st) st = 'ok'; });
+                else c.rows.forEach(function (r) { if (r.hw !== hw || !r.pn) return; if (r.dead) st = 'bad'; else if (st !== 'bad' && (r.v === 'frozen' || (r.fail !== null && r.fail >= .10))) st = 'warn'; else if (!st) st = 'ok'; });
                 return st;
             };
             var dState = function (x) { return segState(d.hw, x) || 'mut'; };
@@ -1433,7 +1431,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     var n = o.map[r.net];
                     if (!n) { var s = nmap[r.net]; n = o.map[r.net] = {net: r.net, k: s ? s.k : r.k, ip: s ? s.ip : '', ip6: '', cc: s ? s.cc : '', asn: s ? s.asn : r.asn, org: s ? s.org : r.org, hh: s ? s.hh : 0, seen: s ? s.seen : 0, cells: {}}; o.nets.push(n); }
                     var pf = Math.min(r.pf, r.pn);
-                    n.cells[r.n] = {pn: r.pn, pf: pf, b: r.b, med: medOf(r.b), fail: r.pn >= 20 ? pf / r.pn : null, dead: r.pn > 0 && pf >= r.pn, fok: r.fok, ffr: r.ffr, fdd: r.fdd, vl: r.vl, vs: r.vs, va: r.va, hrs: r.hrs, tb: r.tb};
+                    n.cells[r.n] = {pn: r.pn, pf: pf, b: r.b, med: medOf(r.b), fail: r.pn >= 20 ? pf / r.pn : null, dead: r.pn > 0 && pf >= r.pn, fok: r.fok, ffr: r.ffr, vl: r.vl, vs: r.vs, va: r.va, hrs: r.hrs, tb: r.tb};
                     if (r.pn > 0 && o.keys.indexOf(r.n) < 0) o.keys.push(r.n);
                 });
                 o.nets.sort(function (a, b) { return (b.hh - a.hh) || (b.seen - a.seen); });
@@ -1443,7 +1441,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var M = buildM(CS.day);
             if (CS.jump && CS.day && CS.cell) { var jp = CS.cell.split('|'); if (!(M.map[jp[1]] && M.map[jp[1]].cells[jp[0]] && M.map[jp[1]].cells[jp[0]].pn)) { CS.day = 0; M = buildM(0); } }
             var mNets = M.nets, mMap = M.map, mKeys = M.keys;
-            var dayM = !!CS.day, cut = function (y) { return dayM ? y.ffr > 0 : y.v === 'frozen'; }, gone = function (y) { return dayM ? y.fdd > 0 : y.v === 'dead'; };
+            var dayM = !!CS.day, cut = function (y) { return dayM ? y.ffr > 0 : y.v === 'frozen'; };
             var diag = [];
             mKeys.forEach(function (k) {
                 var on = mNets.filter(function (n) { return n.cells[k] && n.cells[k].pn > 0; }), dd = on.filter(function (n) { return n.cells[k].dead; });
@@ -1454,7 +1452,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     else diag.push({j: k + '|' + dd[0].net, s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает ни в одной сети устройства', w: pn ? 'У других клиентов тех же провайдеров тоже: без ответа ' + pd + ' из ' + pn + ' ' + plural(pn, 'сети', 'сетей', 'сетей') + ' — проблема не на устройстве.' : 'Сравнить не с кем — других клиентов этих провайдеров в отчётах нет.'});
                 } else {
                     dd.forEach(function (n) {
-                        var p = peer(n.asn, k), alt = mKeys.filter(function (x) { var y = n.cells[x]; return y && !y.dead && !cut(y) && !gone(y) && (y.fail === null || y.fail < .05); }).slice(0, 2).map(nodeNm);
+                        var p = peer(n.asn, k), alt = mKeys.filter(function (x) { var y = n.cells[x]; return y && !y.dead && !cut(y) && (y.fail === null || y.fail < .05); }).slice(0, 2).map(nodeNm);
                         diag.push({j: k + '|' + n.net, s: 'bad', ic: 'xoct', t: nodeNm(k) + ' не отвечает в сети «' + label(n) + '»', w: 'В других сетях устройства узел работает — режет сеть, а не узел.' + (p ? ' У других клиентов этого провайдера без ответа ' + p.dead + ' из ' + p.n + '.' : '') + (alt.length ? ' В этой сети работают: ' + esc(alt.join(', ')) + '.' : '')});
                     });
                 }
@@ -1463,10 +1461,6 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 var fz = mKeys.filter(function (k) { return n.cells[k] && cut(n.cells[k]); });
                 var fa = 0, fb = 0; fz.forEach(function (k) { var y = n.cells[k], t = dayM && y.vl !== 'frozen' ? 0 : y.va; if (t > 0) { fa = fa ? Math.min(fa, t) : t; fb = Math.max(fb, t); } });
                 if (fz.length) diag.push({j: fz[0] + '|' + n.net, s: 'warn', ic: 'scissors', t: '16–20 режется в сети «' + label(n) + '»: ' + fz.map(nodeNm).join(', '), w: 'Пинг до узлов проходит, а соединение рвётся после первых килобайт — признак DPI. Помогает другой транспорт или порт.' + (fa ? ' Проверка — ' + (fb - fa > 3600 ? tfm(fa) + '–' + (tfm(fa).slice(0, 5) === tfm(fb).slice(0, 5) ? tfm(fb).slice(6) : tfm(fb)) : tfm(fb)) + (dayM && CS.day !== c.today ? '.' : '; ' + (fa + RCK.frozen > Date.now() / 1000 ? 'клиент повторит её не раньше ' + tfm(fa + RCK.frozen) + ', пока приложение запущено, и новый итог придёт со следующим отчётом.' : 'повтор ожидался с ' + tfm(fa + RCK.frozen) + ' — новый итог придёт со следующим отчётом и заменит этот.')) : '')});
-            });
-            mNets.forEach(function (n) {
-                var gd = mKeys.filter(function (k) { var y = n.cells[k]; return y && y.pn > 0 && !y.dead && gone(y); });
-                if (gd.length) diag.push({j: gd[0] + '|' + n.net, s: 'bad', ic: 'xoct', t: '16–20 не отвечает в сети «' + label(n) + '»: ' + gd.map(nodeNm).join(', '), w: 'Пинг до узла проходит, а проверка 16–20 через него не получила ответа.'});
             });
             mNets.forEach(function (n) {
                 var lo = mKeys.filter(function (k) { var y = n.cells[k]; return y && y.pn > 0 && !y.dead && y.fail !== null && y.fail >= .10; });
@@ -1481,7 +1475,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 diag.push({s: 'warn', ic: 'clock', t: 'Высокий пинг: медиана ' + MED[med], w: best.length ? 'Ближе всего сейчас: ' + esc(best.join(', ')) + '.' : ''});
             }
             if (!diag.length) diag.push(tp ? {s: 'ok', ic: 'check', t: 'Все узлы отвечают во всех сетях', w: 'Неудачных пингов ' + pct(tp >= 20 ? tf / tp : null) + ', медиана ' + (MED[med] || '—') + '.'} : {s: 'mut', ic: 'clock', t: dayM ? 'За этот день пингов нет' : 'Пингов в отчётах нет', w: ''});
-            var isBad = function (y) { return !!y && y.pn > 0 && (y.dead || y.ffr > 0 || y.fdd > 0 || y.v === 'frozen' || y.v === 'dead' || (y.fail !== null && y.fail >= .10) || y.med >= 3); };
+            var isBad = function (y) { return !!y && y.pn > 0 && (y.dead || y.ffr > 0 || y.v === 'frozen' || (y.fail !== null && y.fail >= .10) || y.med >= 3); };
             var probKeys = mKeys.filter(function (k) { return mNets.some(function (n) { return isBad(n.cells[k]); }); });
             if (!probKeys.length) CS.only = false;
             var show = CS.only ? probKeys : mKeys;
@@ -1499,14 +1493,14 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 if (!r || !r.pn) return '<div class="rv-mc"><span class="a">—</span></div>';
                 var sel = CS.cell === key ? ' sel' : '';
                 if (r.dead) return '<button type="button" class="rv-mc dead' + sel + '" data-cell="' + esc(key) + '"><span class="a">нет ответа</span><span class="b">0 из ' + r.pn + '</span></button>';
-                return '<button type="button" class="rv-mc q' + qFail(r.pf / r.pn) + sel + '" data-cell="' + esc(key) + '"><span class="a">' + fl(r.pf, r.pn) + (r.v === 'frozen' || r.ffr > 0 ? ' <svg class="rvi" style="width:11px;height:11px"><use href="#rvi-scissors"/></svg>' + (r.ffr > 1 ? r.ffr : '') : '') + (r.fdd > 0 || r.v === 'dead' ? ' ✕' + (r.fdd > 1 ? r.fdd : '') : '') + '</span><span class="b">' + (MED[r.med] || '—') + '</span></button>';
+                return '<button type="button" class="rv-mc q' + qFail(r.pf / r.pn) + sel + '" data-cell="' + esc(key) + '"><span class="a">' + fl(r.pf, r.pn) + (r.v === 'frozen' || r.ffr > 0 ? ' <svg class="rvi" style="width:11px;height:11px"><use href="#rvi-scissors"/></svg>' + (r.ffr > 1 ? r.ffr : '') : '') + '</span><span class="b">' + (MED[r.med] || '—') + '</span></button>';
             };
             var worst = function (hw) {
                 var best = null, bs = 0;
                 var score = function (dead, frz, fail, med) { return dead ? 4 : frz ? 3 : fail !== null && fail >= .03 ? 2 + fail : med >= 3 ? 1 + med / 10 : 0; };
                 var take = function (sc, key) { if (sc > bs) { bs = sc; best = key; } };
-                if (CS.day) (c.days || []).forEach(function (r) { if (r.hw === hw && r.d === CS.day && r.pn) take(score(r.pf >= r.pn || r.fdd > 0, r.ffr > 0, r.pn >= 20 ? r.pf / r.pn : null, medOf(r.b)), r.n + '|' + r.net); });
-                else c.rows.forEach(function (r) { if (r.hw === hw && r.pn) take(score(r.dead || r.v === 'dead', r.v === 'frozen', r.fail, r.med), r.n + '|' + r.net); });
+                if (CS.day) (c.days || []).forEach(function (r) { if (r.hw === hw && r.d === CS.day && r.pn) take(score(r.pf >= r.pn, r.ffr > 0, r.pn >= 20 ? r.pf / r.pn : null, medOf(r.b)), r.n + '|' + r.net); });
+                else c.rows.forEach(function (r) { if (r.hw === hw && r.pn) take(score(r.dead, r.v === 'frozen', r.fail, r.med), r.n + '|' + r.net); });
                 return best;
             };
             var ipList = function (hw, n) {
@@ -1528,15 +1522,15 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var p90b = function (b) { var t = 0, s2 = 0; b.forEach(function (x) { t += x; }); if (t < 20) return ''; for (var i = 0; i < 6; i++) { s2 += b[i]; if (s2 >= t * .9) return i < 5 ? ' · 90 % ответов — быстрее ' + ['100 мс', '200 мс', '400 мс', '800 мс', '1,5 с'][i] : ' · больше 10 % ответов — дольше 1,5 с'; } return ''; };
             var p90 = function (hc) { var b = [0, 0, 0, 0, 0, 0]; String(hc || '').split(',').forEach(function (c) { if (!c) return; c.split('.').slice(2, 8).forEach(function (x, i) { b[i] += parseInt(x, 36) || 0; }); }); return p90b(b); };
             var useTop = Object.keys(use).sort(function (a, b) { return use[b] - use[a]; }).slice(0, 3);
-            var VTX = {ok: 'работает', frozen: 'режется', dead: 'не отвечает'};
+            var VTX = {ok: 'работает', frozen: 'режется'};
             var dayDetail = function (r, n, s) {
-                var k = s[0], dnm = CS.day === c.today ? 'сегодня' : CS.day === c.today - 86400 ? 'вчера' : dName(CS.day), fz = r.fok + r.ffr + r.fdd;
+                var k = s[0], dnm = CS.day === c.today ? 'сегодня' : CS.day === c.today - 86400 ? 'вчера' : dName(CS.day), fz = r.fok + r.ffr;
                 var hist = dRows.filter(function (x) { return x.n === k && x.net === n.net; }).sort(function (a, b) { return b.d - a.d; });
-                var vcell = function (x) { if (!(x.fok + x.ffr + x.fdd)) return '<span class="muted">—</span>'; return '<span class="rv-vb">' + (x.ffr ? '<span class="rq q4">✂ ' + x.ffr + '</span>' : '') + (x.fdd ? '<span class="rq q5">✕ ' + x.fdd + '</span>' : '') + (x.fok ? '<span class="rq q1">✓ ' + x.fok + '</span>' : '') + '</span>'; };
+                var vcell = function (x) { if (!(x.fok + x.ffr)) return '<span class="muted">—</span>'; return '<span class="rv-vb">' + (x.ffr ? '<span class="rq q4">✂ ' + x.ffr + '</span>' : '') + (x.fok ? '<span class="rq q1">✓ ' + x.fok + '</span>' : '') + '</span>'; };
                 var s48 = nmap[n.net] && nmap[n.net].cells[k];
                 return '<div class="rv-mxd"><h3>' + esc(nodeNm(k)) + ' в сети «' + esc(label(n)) + '» — ' + esc(dnm) + '</h3>'
                     + '<div class="muted" style="font-size:.8rem">Пингов ' + r.pn + ', неудачных ' + r.pf + (r.pn >= 20 ? ' (' + pct(r.pf / r.pn) + ')' : '') + ' · медиана ' + (MED[r.med] || '—') + p90b(r.b) + ' · часов с замерами ' + r.hrs
-                    + (fz ? ' · 16–20: ' + [r.ffr ? 'режется ' + r.ffr : '', r.fdd ? 'не отвечает ' + r.fdd : '', r.fok ? 'работает ' + r.fok : ''].filter(Boolean).join(', ') + (r.vl && VTX[r.vl] ? '; последняя — ' + VTX[r.vl] + (r.vs ? ', код ' + r.vs : '') + (r.va ? ', ' + tfm(r.va) : '') : '') : ' · 16–20 в этот день не проверялась') + '</div>'
+                    + (fz ? ' · 16–20: ' + [r.ffr ? 'режется ' + r.ffr : '', r.fok ? 'работает ' + r.fok : ''].filter(Boolean).join(', ') + (r.vl && VTX[r.vl] ? '; последняя — ' + VTX[r.vl] + (r.vs ? ', код ' + r.vs : '') + (r.va ? ', ' + tfm(r.va) : '') : '') : ' · 16–20 в этот день не проверялась') + '</div>'
                     + (hist.length > 1 ? '<div class="rv-wrap" style="margin-top:.6rem"><table class="rv-lt"><thead><tr><th>День</th><th class="n">Пингов</th><th class="n">Неудачных</th><th>Медиана</th><th>16–20</th></tr></thead><tbody>'
                         + hist.map(function (x) { var m = medOf(x.b), pf = Math.min(x.pf, x.pn); return '<tr class="clk' + (x.d === CS.day ? ' cur' : '') + '" data-day="' + x.d + '" title="Показать этот день"><td>' + esc(dName(x.d)) + (x.d < c.today - 86400 ? ' <span class="muted">' + dWd(x.d) + '</span>' : '') + '</td><td class="n">' + x.pn + '</td><td class="n">' + (pf ? '<span class="rq q' + (pf >= x.pn ? 5 : qFail(pf / x.pn)) + '">' + (x.pn >= 20 ? pct(pf / x.pn) : pf + ' из ' + x.pn) + '</span>' : '0') + '</td><td>' + (m >= 0 ? '<span class="rq q' + Math.min(5, m + 1) + '">' + MED[m] + '</span>' : '<span class="muted">—</span>') + '</td><td>' + vcell(x) + '</td></tr>'; }).join('')
                         + '</tbody></table></div>' : '')
@@ -1559,7 +1553,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                         + ((n.rgo !== n.rg || n.occ !== n.cc) && (n.rgo || n.occ) ? '<br><span data-tip="Где адрес сети числится в базе адресов. Устройство стоит там, где провело больше всего часов: динамические адреса провайдера заведены на разные регионы.">адрес оператора — ' + esc(placeNm(n.rgo, n.occ)) + '</span>' : '')
                         + '<br>замер ' + ago(n.seen) + '</div>' + ipList(d.hw, n) + '</div>';
                 }).join('') + '</div>'
-                + '<div class="rv-sect">Пинги до узлов по сетям<label' + (probKeys.length ? '' : ' class="off"') + ' data-tip="Проблемный узел — не отвечает, режется или не проходит 16–20, неудачных пингов от 10 % или медиана от 400 мс хотя бы в одной сети."><input type="checkbox" id="rvOnly"' + (CS.only ? ' checked' : '') + (probKeys.length ? '' : ' disabled') + '> только проблемные (' + probKeys.length + ' из ' + mKeys.length + ')</label></div>'
+                + '<div class="rv-sect">Пинги до узлов по сетям<label' + (probKeys.length ? '' : ' class="off"') + ' data-tip="Проблемный узел — не отвечает на пинг или режется по проверке 16–20, неудачных пингов от 10 % или медиана от 400 мс хотя бы в одной сети."><input type="checkbox" id="rvOnly"' + (CS.only ? ' checked' : '') + (probKeys.length ? '' : ' disabled') + '> только проблемные (' + probKeys.length + ' из ' + mKeys.length + ')</label></div>'
                 + (dayList.length ? '<div class="rv-days">' + dayList.slice(0, 14).map(function (x) { return '<button type="button" class="rv-day' + (CS.day === x ? ' on' : '') + '" data-day="' + x + '"><i class="st-' + dState(x) + '"></i>' + dName(x) + (x < c.today - 86400 ? ' <small>' + dWd(x) + '</small>' : '') + '</button>'; }).join('') + '<button type="button" class="rv-day' + (!CS.day ? ' on' : '') + '" data-day="0" data-tip="Сумма последних 48 часов с замерами в каждой сети, без деления по дням."><i class="st-mut"></i>48 ч сводно</button></div>' : '<div class="muted" style="font-size:.78rem;margin:.1rem 0 .6rem">По дням данные копятся с обновления прослойки — пока показано за последние 48 часов.</div>')
                 + (mKeys.length ? '<div class="rv-wrap"><table class="rv-mx"><thead><tr><th class="rh">Узел</th>' + mNets.map(function (n) { return '<th style="min-width:140px">' + ico(KIND[n.k] ? n.k : 'other') + '<div style="color:var(--text);margin-top:.15rem">' + esc(label(n)) + '</div><div style="font-weight:400"><code>' + esc(n.ip || '—') + '</code></div></th>'; }).join('') + '</tr></thead><tbody>'
                     + show.map(function (k) { var nd = c.nk[k] || {}; return '<tr data-k="' + esc(k) + '"' + (sel && sel[0] === k ? ' class="cur"' : '') + '><td class="rh">' + flagFor(nd.cc, nodeNm(k)) + '<b>' + esc(nodeNm(k)) + '</b><small>' + esc(nd.t || '') + '</small></td>' + mNets.map(function (n) { return '<td>' + cell(n.cells[k], k + '|' + n.net) + '</td>'; }).join('') + '</tr>'; }).join('')

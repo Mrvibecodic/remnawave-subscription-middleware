@@ -12,7 +12,7 @@ const REP_VIEW_KIND_SET_NAMES = ['home' => 'Домашний (Wi-Fi и кабе�
 // Ниже стольких пингов доля неудач — шум, а не оценка.
 const REP_VIEW_MIN_PINGS = 20;
 const REP_VIEW_VERDICT_TTL = 432000;
-const REP_VIEW_RECHECK = ['ok' => 259200, 'frozen' => 259200, 'dead' => 21600];
+const REP_VIEW_RECHECK = ['ok' => 259200, 'frozen' => 259200];
 
 function rep_view_filters(array $q) {
     $p = (int) ($q['p'] ?? 7);
@@ -71,7 +71,7 @@ function rep_view_where(array $f, $time, $since, array $cols) {
 
 function rep_view_sums($prefix = '') {
     $out = [];
-    foreach (['pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'fok', 'ffr', 'fdd'] as $c) {
+    foreach (['pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'fok', 'ffr'] as $c) {
         $out[] = "SUM($prefix$c) AS $c";
     }
 
@@ -107,7 +107,6 @@ function rep_view_score(array $r) {
         'b'     => $b,
         'fok'   => (int) ($r['fok'] ?? 0),
         'ffr'   => (int) ($r['ffr'] ?? 0),
-        'fdd'   => (int) ($r['fdd'] ?? 0),
         'bytes' => (int) ($r['up'] ?? 0) + (int) ($r['down'] ?? 0),
     ];
 }
@@ -172,7 +171,7 @@ function rep_view_isps(array $f, $since, $limit = 200) {
         }
         if ($isps[$k]['org'] === '' && (string) $r['org'] !== '') $isps[$k]['org'] = (string) $r['org'];
         $isps[$k]['ips'][] = ['ip' => (string) $r['ip'], 'org' => (string) $r['org'], 'last' => (int) $r['last']] + rep_view_score($r);
-        foreach (['pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'fok', 'ffr', 'fdd'] as $c) {
+        foreach (['pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'fok', 'ffr'] as $c) {
             $isps[$k]['sum'][$c] = ($isps[$k]['sum'][$c] ?? 0) + (int) $r[$c];
         }
     }
@@ -931,7 +930,7 @@ function rep_view_client_card($q, $since) {
         for ($i = 0; $i < REP_BUCKETS; $i++) $b[] = (int) $r['b' . $i];
         $days[] = [
             'hw' => (string) $r['hwid'], 'net' => (string) $r['net'], 'n' => (string) $r['nkey'], 'd' => (int) $r['d'], 'k' => (string) $r['kind'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'],
-            'pn' => (int) $r['pn'], 'pf' => min((int) $r['pf'], (int) $r['pn']), 'b' => $b, 'fok' => (int) $r['fok'], 'ffr' => (int) $r['ffr'], 'fdd' => (int) $r['fdd'],
+            'pn' => (int) $r['pn'], 'pf' => min((int) $r['pf'], (int) $r['pn']), 'b' => $b, 'fok' => (int) $r['fok'], 'ffr' => (int) $r['ffr'],
             'tb' => (int) $r['up'] + (int) $r['down'], 'hrs' => (int) $r['hrs'], 'vl' => (string) $r['vl'], 'vs' => (int) $r['vs'], 'va' => (int) $r['va'],
         ];
     }
@@ -940,7 +939,7 @@ function rep_view_client_card($q, $since) {
 }
 
 function rep_view_frz(array $f, $since, $v, $nkey = '', $asn = 0) {
-    $col = ['ok' => 'fok', 'fr' => 'ffr', 'dd' => 'fdd'][$v] ?? null;
+    $col = ['ok' => 'fok', 'fr' => 'ffr'][$v] ?? null;
     $out = ['rows' => [], 'src' => 'day'];
     if ($col === null || !rep_ensure()) return $out;
     $from = rep_day_of($since);
@@ -957,11 +956,11 @@ function rep_view_frz(array $f, $since, $v, $nkey = '', $asn = 0) {
     if ((int) $asn > 0) { $w[] = 'x.asn = ?'; $a[] = (int) $asn; }
     $join = '';
     if ($f['plat'] !== '') { $join = ' JOIN rep_dev dv ON dv.short_uuid = x.short_uuid AND dv.hwid = x.hwid AND dv.plat = ?'; array_unshift($a, $f['plat']); }
-    $rows = rep_view_rows("SELECT x.short_uuid, x.hwid, x.net, x.nkey, MAX(x.kind) AS kind, MAX(x.asn) AS asn, MAX(x.org) AS org, SUM(x.$col) AS n, SUM(x.fok + x.ffr + x.fdd) AS t, MAX(x.d) AS ld, COUNT(*) AS days"
+    $rows = rep_view_rows("SELECT x.short_uuid, x.hwid, x.net, x.nkey, MAX(x.kind) AS kind, MAX(x.asn) AS asn, MAX(x.org) AS org, SUM(x.$col) AS n, SUM(x.fok + x.ffr) AS t, MAX(x.d) AS ld, COUNT(*) AS days"
         . " FROM rep_dday x$join WHERE " . implode(' AND ', $w) . ' GROUP BY x.short_uuid, x.hwid, x.net, x.nkey ORDER BY n DESC, ld DESC LIMIT 300', $a);
     if (!$rows && !rep_view_rows('SELECT 1 AS x FROM rep_dday WHERE d >= ? LIMIT 1', [$from])) {
         $out['src'] = 'state';
-        $vn = ['fok' => 'ok', 'ffr' => 'frozen', 'fdd' => 'dead'][$col];
+        $vn = ['fok' => 'ok', 'ffr' => 'frozen'][$col];
         $w = ['s.verdict = ?', 's.vat >= ?'];
         $a = [$vn, (int) $since];
         if ($nkey !== '') { $w[] = 's.nkey = ?'; $a[] = $nkey; }

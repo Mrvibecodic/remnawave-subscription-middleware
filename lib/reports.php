@@ -31,7 +31,9 @@ const REP_MEM_RESERVE  = 24 * 1048576;
 const REP_MAX_DEVICES  = 50;
 const REP_BUCKETS      = 6;
 const REP_KINDS        = ['wifi', 'mobile', 'wired', 'other'];
-const REP_VERDICTS     = ['ok' => 'fok', 'frozen' => 'ffr', 'dead' => 'fdd'];
+// Итоги проверки 16–20, которые принимаются: она ищет замедление, а «не
+// отвечает» (ни байта и нет пинга) — про доступность, её видно по пингам.
+const REP_VERDICTS     = ['ok' => 'fok', 'frozen' => 'ffr'];
 const REP_HIST         = 48;
 // Последние столько часов с замерами решают, «не отвечает» ли узел.
 const REP_RECENT_HOURS = 6;
@@ -70,11 +72,11 @@ function rep_mem_fits($bytes) {
 }
 
 function rep_sum_cols() {
-    return ['devs', 'pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'mins', 'fok', 'ffr', 'fdd'];
+    return ['devs', 'pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'mins', 'fok', 'ffr'];
 }
 
 function rep_day_cols() {
-    return ['pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'mins', 'fok', 'ffr', 'fdd', 'hrs'];
+    return ['pn', 'pf', 'b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'up', 'down', 'mins', 'fok', 'ffr', 'hrs'];
 }
 
 function rep_tzoff() {
@@ -197,6 +199,55 @@ function rep_split_retire(PDO $p) {
         if ($n > 0) set_setting('rep_rb_need', '1');
         set_setting('rep_split_gone', '1');
     } catch (Throwable $e) { error_log('submw rep split: ' . $e->getMessage()); }
+}
+
+// Итог 16–20 «не отвечает» больше не хранится: прежние записи стираются один раз,
+// колонки со счётчиком уходят. Идёт с ежесуточной чисткой (у клиентов — после
+// ответа) и при сохранении настроек отчётов. До неё прежнее не мешает: в эти
+// колонки больше не пишут, и ни они, ни прежние итоги «не отвечает» не
+// показываются. Колонку убирает каждая чистка, пока она есть: не вышло (MySQL не
+// дождался блокировки за 5 секунд, сбой) или перенос базы вернул её — следующая
+// попробует снова. MySQL убирает её только без перестройки таблицы (8.0.29+,
+// MariaDB 10.4+): перестройка больших таблиц держала бы запрос, в том числе
+// сохранение настроек, а лишняя колонка безвредна — её никто не пишет и не
+// читает. SQLite старее 3.35 колонку убрать не умеет — её один раз обнуляет.
+function rep_dead_retire(PDO $p) {
+    $tables = ['rep_hour', 'rep_ip_day', 'rep_dday'];
+    $my     = db_driver() === 'mysql';
+    $old    = !$my && version_compare((string) $p->query('SELECT sqlite_version()')->fetchColumn(), '3.35.0', '<');
+    if (setting('rep_fdd_gone', '0') !== '1') {
+        try {
+            $p->exec("UPDATE rep_state SET verdict = '', vstatus = 0, vat = 0 WHERE verdict = 'dead'");
+            $p->exec("UPDATE rep_dday SET vl = '', vs = 0, va = 0 WHERE vl = 'dead'");
+            if ($old) {
+                foreach ($tables as $t) {
+                    if (db_has_cols($p, $t, ['fdd'])) $p->exec("UPDATE $t SET fdd = 0 WHERE fdd <> 0");
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('submw rep dead: ' . $e->getMessage());
+            return;
+        }
+        set_setting('rep_fdd_gone', '1');
+    }
+    if ($old) return;
+    $left = array_values(array_filter($tables, static fn($t) => db_has_cols($p, $t, ['fdd'])));
+    if (!$left) return;
+    $wait = false;
+    if ($my) {
+        try {
+            $wait = $p->query('SELECT @@SESSION.lock_wait_timeout')->fetchColumn();
+            $p->exec('SET SESSION lock_wait_timeout = 5');
+        } catch (Throwable $e) { error_log('submw rep dead lock wait: ' . $e->getMessage()); }
+    }
+    foreach ($left as $t) {
+        try { $p->exec("ALTER TABLE $t DROP COLUMN fdd" . ($my ? ', ALGORITHM=INSTANT' : '')); }
+        catch (Throwable $e) { error_log('submw rep dead ' . $t . ': ' . $e->getMessage()); }
+    }
+    if ($my && $wait !== false) {
+        try { $p->exec('SET SESSION lock_wait_timeout = ' . (int) $wait); }
+        catch (Throwable $e) { error_log('submw rep dead lock wait: ' . $e->getMessage()); }
+    }
 }
 
 function rep_add_cols(PDO $p) {
@@ -1190,6 +1241,7 @@ function rep_purge_maybe($now = null) {
 
 function rep_purge($now = null) {
     if (!rep_ensure() || !($p = db())) return;
+    rep_dead_retire($p);
     $cut = ($now ?? time()) - rep_keep_days() * 86400;
     $plan = [['rep_hour', 'h'], ['rep_ip_day', 'd'], ['rep_state', 'last_seen'], ['rep_net_ip', 'last_h'], ['rep_node', 'last_seen'], ['rep_dev', 'last_report'], ['rep_sub_node', 'last_seen'], ['rep_raw', 'ts']];
     foreach ($plan as [$t, $col]) {
