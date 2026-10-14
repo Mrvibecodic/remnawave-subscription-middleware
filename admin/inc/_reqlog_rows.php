@@ -162,7 +162,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $dec  = (string) ($r['decision'] ?? 'normal');
         $meta = reqlog_meta($r);
         $as   = is_array($meta['as'] ?? null) ? $meta['as'] : [];
-        $cl   = reqlog_client((string) ($r['user_agent'] ?? ''));
+        $cl   = reqlog_client((string) ($r['user_agent'] ?? ''), $meta['dv'] ?? null);
         $cos  = (string) ($cl['os'] ?? '');
         if ($cos === '') $cos = reqlog_os_norm((string) ($meta['dv']['o'] ?? ''));
         $cv   = clientver_status($cl['key'] ?? '', $cl['ver'] ?? '', $cos);

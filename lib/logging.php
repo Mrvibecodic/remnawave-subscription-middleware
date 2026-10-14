@@ -139,10 +139,17 @@ function reqlog_device($ua_vals = []) {
     $m = $pick('x-device-model', 40);
     $o = $pick('x-device-os', 24);
     $v = $pick('x-ver-os', 16);
+    $a = reqlog_appver($pick('x-app-version', 32));
     if ($m !== '') $out['m'] = $m;
     if ($o !== '') $out['o'] = $o;
     if ($v !== '') $out['v'] = $v;
+    if ($a !== '') $out['av'] = $a;
     return $out;
+}
+
+function reqlog_appver($s) {
+    $s = trim((string) $s);
+    return preg_match('~^v?[0-9][0-9A-Za-z._+-]{0,23}$~', $s) ? $s : '';
 }
 
 function reqlog_device_label($dv) {
@@ -164,7 +171,7 @@ function reqlog_os_norm($s) {
     return '';
 }
 
-function reqlog_client($ua) {
+function reqlog_client($ua, $dv = null) {
     $ua = trim((string) $ua);
     $out = ['app' => '', 'dev' => '', 'key' => '', 'ver' => '', 'os' => ''];
     if ($ua === '') return $out;
@@ -208,6 +215,7 @@ function reqlog_client($ua) {
     } elseif (preg_match('~^([A-Za-z0-9._-]+)~', $ua, $m)) {
         $name = $m[1]; $key = strtolower($m[1]);
     }
+    if ($ver === '' && $name !== '' && is_array($dv)) $ver = reqlog_appver($dv['av'] ?? '');
     if ($os === '' && preg_match('~\bplatform/([A-Za-z]{2,15})~i', $ua, $m)) $os = reqlog_os_norm($m[1]);
     $parts = [];
     if (preg_match('~\(([^)]{2,160})\)~', $ua, $m)) {

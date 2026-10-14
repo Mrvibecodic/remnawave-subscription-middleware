@@ -271,10 +271,10 @@ function ua_mw($short, $username = '') {
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $out['wg'][(int) $r['manual'] ? 'm' : 'a'] = (int) $r['n'];
     } catch (Throwable $e) {}
     try {
-        $st = $p->prepare('SELECT ' . sql_epoch('ts') . ' AS e, user_agent, decision FROM request_log WHERE short_uuid = ? ORDER BY id DESC LIMIT 1');
+        $st = $p->prepare('SELECT *, ' . sql_epoch('ts') . ' AS e FROM request_log WHERE short_uuid = ? ORDER BY id DESC LIMIT 1');
         $st->execute([$short]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
-        if ($r) { $c = reqlog_client($r['user_agent'] ?? ''); $out['last'] = ['t' => (int) $r['e'], 'app' => $c['app'], 'os' => $c['os'], 'dec' => (string) $r['decision']]; }
+        if ($r) { $c = reqlog_client($r['user_agent'] ?? '', reqlog_meta($r)['dv'] ?? null); $out['last'] = ['t' => (int) $r['e'], 'app' => $c['app'], 'os' => $c['os'], 'dec' => (string) $r['decision']]; }
     } catch (Throwable $e) {}
     return $out;
 }
@@ -285,9 +285,9 @@ function ua_history($short) {
     $p = db();
     if (!$p || $short === '') return $ev;
     try {
-        $st = $p->prepare('SELECT ' . sql_epoch('ts') . ' AS e, user_agent, decision FROM request_log WHERE short_uuid = ? ORDER BY id DESC LIMIT 12');
+        $st = $p->prepare('SELECT *, ' . sql_epoch('ts') . ' AS e FROM request_log WHERE short_uuid = ? ORDER BY id DESC LIMIT 12');
         $st->execute([$short]);
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $c = reqlog_client($r['user_agent'] ?? ''); $ev[] = ['t' => (int) $r['e'], 'k' => 'rq', 'app' => $c['app'], 'os' => $c['os'], 'dec' => (string) $r['decision']]; }
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $c = reqlog_client($r['user_agent'] ?? '', reqlog_meta($r)['dv'] ?? null); $ev[] = ['t' => (int) $r['e'], 'k' => 'rq', 'app' => $c['app'], 'os' => $c['os'], 'dec' => (string) $r['decision']]; }
     } catch (Throwable $e) {}
     try {
         whlog_ensure_meta();
