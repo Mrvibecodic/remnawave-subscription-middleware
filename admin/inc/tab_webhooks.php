@@ -1,9 +1,9 @@
-    <section class="<?= coll_cls('wh_env') ?>" data-coll="wh_env">
+    <?php $wh_panel_on = panel_webhook_enabled(); ?>
+    <section class="<?= coll_cls('wh_env', $wh_panel_on === true) ?>" data-coll="wh_env">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Как включить вебхук в Remnawave</span>
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
-            <?php $wh_panel_on = panel_webhook_enabled(); ?>
             <?php if ($wh_panel_on === false): ?>
             <div class="warn">В панели вебхуки сейчас <b>выключены</b> (<code>WEBHOOK_ENABLED=false</code>) — прослойка не получит ни одного события, поэтому блокировки и грейс будут срабатывать только по факту запроса подписки. Включите их в <code>.env</code> панели и перезапустите её.</div>
             <?php elseif ($wh_panel_on === true): ?>
