@@ -1412,8 +1412,15 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var tfm = function (t) { var x = new Date(t * 1000); return q2(x.getDate()) + '.' + q2(x.getMonth() + 1) + ' ' + q2(x.getHours()) + ':' + q2(x.getMinutes()); };
             var medOf = function (b) { var t = 0, s2 = 0; b.forEach(function (x) { t += x; }); if (!t) return -1; for (var i = 0; i < 6; i++) { s2 += b[i]; if (s2 * 2 >= t) return i; } return 5; };
             var dRows = (c.days || []).filter(function (r) { return r.hw === d.hw; });
-            var dayList = []; dRows.forEach(function (r) { if (dayList.indexOf(r.d) < 0) dayList.push(r.d); }); dayList.sort(function (a, b) { return b - a; });
-            if (CS.day === undefined || (CS.day && dayList.indexOf(CS.day) < 0)) CS.day = dayList.length ? (dayList.indexOf(c.today) >= 0 ? c.today : dayList[0]) : 0;
+            // День — общий для всей карточки: по нему же считаются плашки всех устройств,
+            // и выбор другого устройства его не меняет
+            var dayList = []; (c.days || []).forEach(function (r) { if (dayList.indexOf(r.d) < 0) dayList.push(r.d); }); dayList.sort(function (a, b) { return b - a; });
+            // Первый выбор — по открытому устройству: «сегодня», если у него есть, иначе
+            // его последний день, без дней — «48 ч сводно»
+            if (CS.day === undefined || (CS.day && dayList.indexOf(CS.day) < 0)) {
+                var own = []; dRows.forEach(function (r) { if (own.indexOf(r.d) < 0) own.push(r.d); }); own.sort(function (a, b) { return b - a; });
+                CS.day = own.length ? (own.indexOf(c.today) >= 0 ? c.today : own[0]) : 0;
+            }
             var dName = function (x) { if (x === c.today) return 'Сегодня'; if (x === c.today - 86400) return 'Вчера'; var t = new Date((x + c.tz) * 1000); return q2(t.getUTCDate()) + '.' + q2(t.getUTCMonth() + 1); };
             var dWd = function (x) { return ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][new Date((x + c.tz) * 1000).getUTCDay()]; };
             var segState = function (hw, day) {
@@ -1513,7 +1520,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             var segTip = CS.day ? 'Итог за ' + (CS.day === c.today ? 'сегодня' : CS.day === c.today - 86400 ? 'вчера' : dName(CS.day)) : 'Итог за последние 48 часов';
             var devTabs = c.devs.map(function (x, i) {
                 var xs = segState(x.hw, CS.day), bad = xs === 'bad', warn = xs === 'warn';
-                return '<div role="button" tabindex="0" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span>' + (bad || warn ? '<button type="button" class="rv-pill rv-jump st-' + (bad ? 'bad' : 'warn') + '" data-tip="' + segTip + ' — показать проблемный узел">' + (bad ? 'проблемы' : 'деградация') + '</button>' : '<span class="rv-pill st-' + (xs ? 'ok' : 'mut') + '" data-tip="' + segTip + '">' + (xs ? 'в порядке' : 'нет замеров') + '</span>') + '</div>';
+                return '<div role="button" tabindex="0" class="rv-dtab' + (i === CS.dev ? ' on' : '') + '" data-i="' + i + '">' + ico(x.p === 'pc' ? 'pc' : 'android') + '<span><span class="t">' + esc(x.m || (x.p === 'pc' ? 'ПК' : x.p === 'android' ? 'Android' : 'Устройство')) + '</span><span class="s">' + esc([x.o, x.c ? 'Clod Clash ' + x.c : ''].filter(Boolean).join(' · ') || x.hw.slice(0, 16)) + '</span></span><span style="flex:1"></span>' + (bad || warn ? '<button type="button" class="rv-pill rv-jump st-' + (bad ? 'bad' : 'warn') + '" data-tip="' + segTip + ' — показать проблемный узел">' + (bad ? 'проблемы' : 'деградация') + '</button>' : '<span class="rv-pill st-' + (xs ? 'ok' : 'mut') + '" data-tip="' + segTip + '">' + (xs ? 'в порядке' : 'нет замеров' + (CS.day ? ' за ' + (CS.day === c.today ? 'сегодня' : CS.day === c.today - 86400 ? 'вчера' : dName(CS.day)) : '')) + '</span>') + '</div>';
             }).join('');
             var sel = CS.cell ? CS.cell.split('|') : null, sr = sel && mMap[sel[1]] ? mMap[sel[1]].cells[sel[0]] : null, sn = sel ? mMap[sel[1]] : null, sp = sr && sn ? peer(sn.asn, sel[0]) : null;
             var lastSeen = 0; rs.forEach(function (r) { lastSeen = Math.max(lastSeen, r.seen); });
