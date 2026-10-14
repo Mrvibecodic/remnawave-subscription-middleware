@@ -18,7 +18,7 @@
         .sq-tplst .sub{display:block;color:var(--muted);margin-top:.2rem}
         @media(max-width:560px){.set-row>input.sq-tpl{width:100%}}
     </style>
-    <section class="<?= coll_cls('sqcfg_about') ?>" data-coll="sqcfg_about">
+    <section class="<?= coll_cls('sqcfg_about', true) ?>" data-coll="sqcfg_about">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Что это и как настраивать</span>
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>

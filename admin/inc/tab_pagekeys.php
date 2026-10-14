@@ -1,5 +1,5 @@
     <style>.pk-sel[hidden]{display:none}.pk-users{width:100%;min-height:110px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem}</style>
-    <section class="<?= coll_cls('pagekeys_intro') ?>" data-coll="pagekeys_intro">
+    <section class="<?= coll_cls('pagekeys_intro', true) ?>" data-coll="pagekeys_intro">
         <button type="button" class="coll-head" onclick="collToggle(this)"><span>Ключи на странице подписки</span>
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
