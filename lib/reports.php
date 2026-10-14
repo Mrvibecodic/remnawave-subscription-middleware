@@ -789,6 +789,8 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
     if (!rep_client_via($plat, $cli)) { $why = 'old'; return true; }
 
     $nodes = [];
+    $grp = [];
+    $no_via = [];
     foreach ((is_array($data['nodes'] ?? null) ? $data['nodes'] : []) as $tok => $n) {
         if (count($nodes) >= REP_MAX_NODES) break;
         $tok = (string) $tok;
@@ -804,6 +806,29 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             'port'   => $port,
             'name'   => rep_str($n['name'] ?? '', 191),
         ];
+        $grp[$tok] = "$type|$server|$port|" . $nodes[$tok]['name'];
+        if (rep_str($n['via'] ?? '', 512) === '') $no_via[$tok] = true;
+    }
+    // Узел без via рядом с тем же узлом (адрес, порт, имя) с via и только в часах до
+    // первого часа того — часы, накопленные клиентом до обновления на версию с via.
+    if ($no_via && count($no_via) < count($nodes)) {
+        $span = [];
+        foreach ((is_array($data['networks'] ?? null) ? array_slice($data['networks'], 0, REP_MAX_NETWORKS, true) : []) as $nd) {
+            foreach ((is_array($nd['hours'] ?? null) ? array_slice(array_values($nd['hours']), 0, REP_MAX_HOURS) : []) as $hr) {
+                if (!is_array($hr)) continue;
+                $h = rep_uint($hr['h'] ?? 0, PHP_INT_MAX);
+                foreach (['ping', 'use', 'freeze'] as $f) foreach ((is_array($hr[$f] ?? null) ? $hr[$f] : []) as $tok => $v) {
+                    if (!isset($nodes[$tok])) continue;
+                    $span[$tok] = [min($span[$tok][0] ?? $h, $h), max($span[$tok][1] ?? $h, $h)];
+                }
+            }
+        }
+        $first = [];
+        foreach ($span as $tok => $sp) if (!isset($no_via[$tok])) $first[$grp[$tok]] = min($first[$grp[$tok]] ?? PHP_INT_MAX, $sp[0]);
+        foreach ($no_via as $tok => $_) {
+            $f = $first[$grp[$tok]] ?? null;
+            if ($f !== null && isset($span[$tok]) && $span[$tok][1] <= $f && $span[$tok][0] < $f) unset($nodes[$tok]);
+        }
     }
 
     // Часы не новее последнего принятого от этого устройства уже посчитаны.
