@@ -11,6 +11,7 @@ $gc_free = gc_free_bytes();
 .gctbl input[type=checkbox]{margin:0;vertical-align:middle}
 .gctbl tr.off td:not(:first-child){opacity:.45}
 .gcfoot{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin-top:1rem}
+@media(max-width:900px){table.logtbl.gctbl>tbody>tr{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:.75rem}table.logtbl.gctbl>tbody>tr>td{grid-column:2}table.logtbl.gctbl>tbody>tr>td:first-child{grid-column:1;grid-row:1/span 3;width:auto;padding-top:.35rem;display:block}table.logtbl.gctbl>tbody>tr>td:nth-child(2){text-align:left;font-weight:600;color:var(--text-strong)}table.logtbl.gctbl>tbody>tr>td:nth-child(2)::before{content:none}}
 </style>
 <div class="card">
     <h2 style="margin-top:0;font-size:1rem">Очистка данных</h2>
