@@ -809,8 +809,8 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
         $grp[$tok] = "$type|$server|$port|" . $nodes[$tok]['name'];
         if (rep_str($n['via'] ?? '', 512) === '') $no_via[$tok] = true;
     }
-    // Узел без via рядом с тем же узлом (адрес, порт, имя) с via и только в часах до
-    // первого часа того — часы, накопленные клиентом до обновления на версию с via.
+    // Узел без via рядом с тем же узлом (адрес, порт, имя) с via, замеры которого кончаются
+    // там, где начинаются замеры того, — часы клиента до обновления на версию с via.
     if ($no_via && count($no_via) < count($nodes)) {
         $span = [];
         foreach ((is_array($data['networks'] ?? null) ? array_slice($data['networks'], 0, REP_MAX_NETWORKS, true) : []) as $nd) {
@@ -824,10 +824,14 @@ function rep_ingest($short, $hwid, $data, &$why = '', $now = null, array $meta =
             }
         }
         $first = [];
-        foreach ($span as $tok => $sp) if (!isset($no_via[$tok])) $first[$grp[$tok]] = min($first[$grp[$tok]] ?? PHP_INT_MAX, $sp[0]);
+        $last = [];
+        foreach ($span as $tok => $sp) if (!isset($no_via[$tok])) {
+            $first[$grp[$tok]] = min($first[$grp[$tok]] ?? PHP_INT_MAX, $sp[0]);
+            $last[$grp[$tok]] = max($last[$grp[$tok]] ?? 0, $sp[1]);
+        }
         foreach ($no_via as $tok => $_) {
-            $f = $first[$grp[$tok]] ?? null;
-            if ($f !== null && isset($span[$tok]) && $span[$tok][1] <= $f && $span[$tok][0] < $f) unset($nodes[$tok]);
+            $g = $grp[$tok];
+            if (isset($first[$g], $span[$tok]) && $span[$tok][1] <= $first[$g] && ($span[$tok][0] < $first[$g] || $last[$g] > $span[$tok][1])) unset($nodes[$tok]);
         }
     }
 
