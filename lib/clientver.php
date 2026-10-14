@@ -29,7 +29,7 @@ function clientver_builtin() {
         ['k' => 'koala-clash',          'n' => 'Koala Clash (Android)',   'os' => 'android', 'src' => 'man', 'ref' => '',                          'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'clodclash',            'n' => 'Clod Clash (десктоп)',    'os' => '',        'src' => 'gh',  'ref' => 'Mrvibecodic/clod-clash',    'how' => 'json:updater/latest.json',  'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'clodclash',            'n' => 'Clod Clash (Android)',    'os' => 'android', 'src' => 'gh',  'ref' => 'Mrvibecodic/clod-clash-android', 'how' => 'json:updater/latest.json', 'cmp' => 'auto', 'man' => '', 'on' => 1],
-        ['k' => 'clash-meta/rabbithole', 'n' => 'RabbitHole',             'os' => '',        'src' => 'as',  'ref' => '6683309629',                'how' => 'latest',                    'cmp' => 'build', 'man' => '', 'on' => 1],
+        ['k' => 'clash-meta/rabbithole', 'n' => 'RabbitHole',             'os' => '',        'src' => 'as',  'ref' => '6683309629',                'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 1],
         ['k' => 'v2rayng',              'n' => 'v2rayNG',                 'os' => '',        'src' => 'gh',  'ref' => '2dust/v2rayNG',             'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 0],
         ['k' => 'v2rayn',               'n' => 'v2rayN',                  'os' => '',        'src' => 'gh',  'ref' => '2dust/v2rayN',              'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 0],
         ['k' => 'sfa',                  'n' => 'sing-box (Android)',      'os' => '',        'src' => 'gh',  'ref' => 'SagerNet/sing-box',         'how' => 'latest',                    'cmp' => 'auto',  'man' => '', 'on' => 0],
@@ -120,13 +120,21 @@ function clientver_catalog() {
     if (!is_array($arr)) { $GLOBALS['submw_cv_cat'] = $def; return $def; }
     $out = [];
     $seen = [];
+    $mig = setting('clientver_rh_av', '') !== '1';
+    $fix = false;
     foreach ($arr as $r) {
         $c = clientver_clean_row($r);
         if ($c === null) continue;
         $id = clientver_row_id($c);
         if (isset($seen[$id])) continue;
         $seen[$id] = 1;
+        if ($mig && $c['k'] === 'clash-meta/rabbithole' && $c['cmp'] === 'build') { $c['cmp'] = 'auto'; $fix = true; }
         $out[] = $c;
+    }
+    if ($mig) {
+        // версия RabbitHole теперь приходит в x-app-version — снять разовый «не определяется» из сохранённого каталога
+        if ($fix) set_setting('clientver_catalog', json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        set_setting('clientver_rh_av', '1');
     }
     $GLOBALS['submw_cv_cat'] = $out;
     return $out;
@@ -144,6 +152,7 @@ function clientver_save_catalog(array $rows) {
         $out[] = $c;
     }
     set_setting('clientver_catalog', json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    set_setting('clientver_rh_av', '1');
     $GLOBALS['submw_cv_cat'] = $out;
     $st = clientver_state();
     if (is_array($st['rows'] ?? null) && $st['rows']) {
@@ -464,7 +473,7 @@ function clientver_seen($hours = 168, $limit = 300) {
     $out = [];
     if (!($p = db())) return $out;
     try {
-        $st = $p->prepare("SELECT user_agent, MAX(meta) m, COUNT(*) c, MAX(" . sql_epoch('ts') . ") last FROM request_log WHERE user_agent IS NOT NULL AND user_agent <> '' AND decision <> 'browser' AND " . sql_epoch('ts') . " >= ? GROUP BY user_agent ORDER BY c DESC");
+        $st = $p->prepare("SELECT user_agent, MAX(meta) m, COUNT(*) c, MAX(" . sql_epoch('ts') . ") last, GROUP_CONCAT(DISTINCT SUBSTR(meta, NULLIF(INSTR(meta, '\"av\":\"'), 0) + 6, 24)) av FROM request_log WHERE user_agent IS NOT NULL AND user_agent <> '' AND decision <> 'browser' AND " . sql_epoch('ts') . " >= ? GROUP BY user_agent ORDER BY c DESC");
         $st->execute([time() - max(1, (int) $hours) * 3600]);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) { return $out; }
@@ -489,7 +498,17 @@ function clientver_seen($hours = 168, $limit = 300) {
         $out[$id]['n'] += (int) $row['c'];
         $out[$id]['last'] = max($out[$id]['last'], (int) $row['last']);
         $v = (string) ($cl['ver'] ?? '');
-        if ($v !== '' && !in_array($v, $out[$id]['vers'], true) && count($out[$id]['vers']) < 6) $out[$id]['vers'][] = $v;
+        $vs = [$v];
+        if ($v === '') {
+            $vs = [];
+            foreach (explode(',', (string) ($row['av'] ?? '')) as $a) {
+                $a = reqlog_appver(strstr($a . '"', '"', true));
+                if ($a !== '') $vs[] = $a;
+            }
+        }
+        foreach ($vs as $v) {
+            if ($v !== '' && !in_array($v, $out[$id]['vers'], true) && count($out[$id]['vers']) < 6) $out[$id]['vers'][] = $v;
+        }
     }
     return $out;
 }
