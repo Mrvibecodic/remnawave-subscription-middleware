@@ -1475,6 +1475,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('addsub_stub_on_traffic', isset($_POST['addsub_stub_on_traffic']) ? '1' : '0');
         $sl = trim((string) ($_POST['addsub_stub_label'] ?? ''));
         set_setting('addsub_stub_label', $sl);
+        set_setting('addsub_traffic_from_b', isset($_POST['addsub_traffic_from_b']) ? '1' : '0');
         set_setting('addsub_merge_xray', isset($_POST['addsub_merge_xray']) ? '1' : '0');
         set_setting('addsub_xray_swap', isset($_POST['addsub_xray_swap']) ? '1' : '0');
         set_setting('addsub_parallel_fetch', isset($_POST['addsub_parallel_fetch']) ? '1' : '0');
