@@ -263,6 +263,37 @@ function update_rmrf($dir) {
     @rmdir($dir);
 }
 
+// .php подменяется через rename: запрос посреди обновления видит целиком старый или новый файл,
+// а недописанный PHP уронил бы сайт. rename создаёт новый файл, и ACL и атрибуты старого теряются;
+// .php читает только сам PHP, а статику (её читает веб-сервер), симлинк, .php с другим владельцем
+// или группой и каталог без права записи пишем поверх, как прежде.
+function update_place($from, $dst) {
+    $dir = dirname($dst);
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true)) return false;
+    if (substr($dst, -4) !== '.php' || is_link($dst)) return @copy($from, $dst);
+    $part = $dir . '/.' . basename($dst) . '.submw-new';
+    if (@copy($from, $part)) {
+        $same = true;
+        if (is_file($dst)) {
+            $mode = @fileperms($dst);
+            if ($mode !== false) @chmod($part, $mode & 0777);
+            $gid = @filegroup($dst);
+            if ($gid !== false && @filegroup($part) !== $gid) @chgrp($part, $gid);
+            clearstatcache(true, $part);
+            $same = @fileowner($part) === @fileowner($dst) && @filegroup($part) === $gid;
+        }
+        if ($same && @rename($part, $dst)) return true;
+    }
+    @unlink($part);
+    return @copy($from, $dst);
+}
+
+// lib.php и точки входа — последними: новые модули уже на месте, когда их начнут подключать.
+function update_order(array $rels) {
+    $last = ['lib.php', 'index.php', 'webhook.php', 'chat.php', 'admin/index.php'];
+    return array_merge(array_values(array_diff($rels, $last)), array_values(array_intersect($last, $rels)));
+}
+
 function update_raw_url($sha, $rel) {
     $parts = array_map('rawurlencode', explode('/', $rel));
     return 'https://raw.githubusercontent.com/' . update_repo() . '/' . rawurlencode($sha) . '/' . implode('/', $parts);
@@ -363,9 +394,9 @@ function update_apply(&$log, &$err = null) {
     @file_put_contents($backup . '/.manifest.json', json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     set_setting('update_last_backup', basename($backup));
 
-    foreach ($writes as $rel) {
+    foreach (update_order($writes) as $rel) {
         $dst = $root . '/' . $rel;
-        if ((!is_dir(dirname($dst)) && !@mkdir(dirname($dst), 0775, true)) || !@copy($tmp . '/' . $rel, $dst)) {
+        if (!update_place($tmp . '/' . $rel, $dst)) {
             $rb = []; update_rollback($rb, $e3);
             update_rmrf($tmp);
             $err = 'Сбой записи ' . $rel . ' — изменения откачены из бэкапа.';
@@ -401,13 +432,11 @@ function update_rollback(&$log, &$err = null) {
     $manifest = json_decode((string) @file_get_contents($bdir . '/.manifest.json'), true);
     if (!is_array($manifest)) $manifest = [];
 
-    foreach ((array) ($manifest['restored'] ?? []) as $rel) {
+    foreach (update_order(array_map('strval', (array) ($manifest['restored'] ?? []))) as $rel) {
         if (!update_path_ok($rel)) continue;
         $bp = $bdir . '/' . $rel;
         if (!is_file($bp)) continue;
-        $dst = $root . '/' . $rel;
-        if (!is_dir(dirname($dst))) @mkdir(dirname($dst), 0775, true);
-        if (@copy($bp, $dst)) $log[] = 'восстановлен: ' . $rel;
+        if (update_place($bp, $root . '/' . $rel)) $log[] = 'восстановлен: ' . $rel;
     }
     foreach ((array) ($manifest['added'] ?? []) as $rel) {
         if (!update_path_ok($rel)) continue;
