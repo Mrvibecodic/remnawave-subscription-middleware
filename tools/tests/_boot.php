@@ -70,9 +70,9 @@ function t_port(): int
 }
 
 // Встроенный сервер PHP в фоне; гасится при выходе теста, его ошибки PHP валят тест.
-function t_serve(string $docroot, string $router, array $env = [], array $ini = []): string
+function t_serve(string $docroot, string $router, array $env = [], array $ini = [], int $port = 0): string
 {
-    $port = t_port();
+    $port = $port ?: t_port();
     $e = getenv();
     foreach ($env as $k => $v) $e[$k] = (string) $v;
     $log  = dirname(__DIR__, 2) . '/data/serve-' . $port . '.log';
