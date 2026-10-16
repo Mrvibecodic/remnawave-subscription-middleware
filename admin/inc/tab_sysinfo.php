@@ -70,6 +70,10 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
         @media(max-width:460px){#siSeg{display:grid;grid-template-columns:1fr 1fr;width:100%}#siSeg button{text-align:center}}
     </style>
 
+    <?php if (!$sys_info['opcache']): ?>
+    <div class="warn"><b>OPcache выключен.</b> Подписка отдаётся примерно в 8 раз медленнее. Включите OPcache (<code>zend_extension=opcache</code>, <code>opcache.enable=1</code>) в настройках PHP <?= h(PHP_VERSION) ?> · <?= h(PHP_SAPI) ?> — именно той сборки, что отвечает сайту.</div>
+    <?php endif; ?>
+
     <div class="si-kpi">
         <div class="si-card"><div class="n" id="k_rpm"><?= h(number_format((float) ($sys_load['rpm_60'] ?? 0), 1)) ?></div><div class="l">запр/мин (час)</div></div>
         <div class="si-card"><div class="n" id="k_online"><?= $si_pf($si_po['now'] ?? null) ?></div><div class="l">онлайн сейчас</div></div>
