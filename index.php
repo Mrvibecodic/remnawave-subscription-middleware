@@ -5,6 +5,8 @@ error_reporting(E_ALL);
 
 require __DIR__ . '/lib.php';
 
+// function_exists: прежний апдейтер пишет index.php раньше lib/cron.php.
+if (function_exists('cron_intercept') && cron_intercept()) exit();
 chan_intercept();
 if (app_intercept() === 'web') {
     require __DIR__ . '/admin/index.php';
@@ -60,7 +62,7 @@ register_shutdown_function(function () {
     if (!empty($GLOBALS['submw_grace_touch'])) {
         try { grace_touch($GLOBALS['submw_grace_touch'][0], $GLOBALS['submw_grace_touch'][1]); } catch (Throwable $e) { error_log('submw grace touch: ' . $e->getMessage()); }
     }
-    grace_retry_pending();
+    if (!function_exists('cron_owns_grace') || !cron_owns_grace()) grace_retry_pending();
 });
 
 $skip_log =

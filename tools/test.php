@@ -5,6 +5,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
 // Тесты идут на копии кода во временном каталоге: config.php и база установки не трогаются.
 // php tools/test.php [часть имени теста] [--keep] [-v]
+// На MySQL/MariaDB: SUBMW_TEST_MYSQL='host=127.0.0.1;port=3306;name=submw_test;user=…;pass=…' — база очищается.
 
 $src    = dirname(__DIR__);
 $keep   = in_array('--keep', $argv, true);
@@ -45,7 +46,12 @@ function tt_rm(string $dir): void
 
 tt_copy($src, $box, $skip);
 mkdir($box . '/data', 0700, true);
-file_put_contents($box . '/config.php', "<?php\nreturn ['installed' => true, 'db' => ['driver' => 'sqlite', 'path' => __DIR__ . '/data/submw.sqlite'], 'admin_user' => 'admin', 'admin_pass_hash' => password_hash('test', PASSWORD_DEFAULT)];\n");
+$db = "['driver' => 'sqlite', 'path' => __DIR__ . '/data/submw.sqlite']";
+if ((string) getenv('SUBMW_TEST_MYSQL') !== '') {
+    parse_str(str_replace(';', '&', (string) getenv('SUBMW_TEST_MYSQL')), $my);
+    $db = var_export(['driver' => 'mysql', 'host' => (string) ($my['host'] ?? '127.0.0.1'), 'port' => (int) ($my['port'] ?? 3306), 'name' => (string) ($my['name'] ?? ''), 'user' => (string) ($my['user'] ?? ''), 'pass' => (string) ($my['pass'] ?? '')], true);
+}
+file_put_contents($box . '/config.php', "<?php\nreturn ['installed' => true, 'db' => {$db}, 'admin_user' => 'admin', 'admin_pass_hash' => password_hash('test', PASSWORD_DEFAULT)];\n");
 
 $tests = [];
 foreach (glob($src . '/tools/tests/t_*.php') ?: [] as $f) $tests[] = 'tools/tests/' . basename($f);
@@ -56,7 +62,7 @@ if (extension_loaded('sodium')) {
 sort($tests);
 if ($filter !== '') $tests = array_values(array_filter($tests, static fn($t) => strpos($t, $filter) !== false));
 
-echo 'PHP ' . PHP_VERSION . ', каталог ' . $box . "\n";
+echo 'PHP ' . PHP_VERSION . ((string) getenv('SUBMW_TEST_MYSQL') !== '' ? ', MySQL' : ', SQLite') . ', каталог ' . $box . "\n";
 $bad = [];
 $t0  = microtime(true);
 foreach ($tests as $t) {

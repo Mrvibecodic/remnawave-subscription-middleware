@@ -151,6 +151,16 @@ function brand_download_logo($url) {
     return 'assets/brand_logo.' . $ext;
 }
 
+// Условие одно на админку и планировщик: кэш бренда неполный или пропал файл логотипа.
+function brand_refresh_if_stale() {
+    if (remnawave_url() === '' || remnawave_token() === '') return;
+    $bc = json_decode((string) setting('brand_cache', '{}'), true);
+    if (!is_array($bc)) $bc = [];
+    $manual = trim((string) setting('service_name', '')) !== '' && trim((string) setting('service_logo_url', '')) !== '';
+    $stale = !$manual && ((int) ($bc['v'] ?? 0) < 5 || ((($bc['name'] ?? '') === '' || ($bc['logo_file'] ?? '') === '') && time() - (int) ($bc['ts'] ?? 0) > 600));
+    if ($stale || (($bc['logo_url'] ?? '') !== '' && brand_logo_missing($bc))) brand_refresh();
+}
+
 function brand_refresh(&$error = '') {
     $error = '';
     $manual_name = trim((string) setting('service_name', ''));
