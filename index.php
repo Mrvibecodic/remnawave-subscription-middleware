@@ -190,6 +190,7 @@ if ($addsub_pre !== null && $addsub_pre['ch'] !== null) {
     while (($mi = curl_multi_info_read($mh)) !== false) {
         if ($mi['handle'] === $ch) $ch_res = $mi['result'];
     }
+    $curl_errno = $ch_res;
     $response  = curl_multi_getcontent($ch);
     if ($response === null) $response = false;
     $curl_err  = curl_error($ch);
@@ -207,6 +208,7 @@ if ($addsub_pre !== null && $addsub_pre['ch'] !== null) {
 } else {
     $response  = curl_exec($ch);
     $curl_err  = curl_error($ch);
+    $curl_errno = curl_errno($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 }
@@ -219,7 +221,20 @@ $format = ((int) $http_code >= 200 && (int) $http_code < 300 && is_string($respo
 $short_ov = find_override_in('shortuuid', $segs);
 
 if ($curl_err) {
-    http_response_code(502);
+    // nginx с `return 444` закрывает соединение без ответа и на несуществующий адрес, и на сбой
+    // панели. Адрес подписки — токен с префиксом и типом клиента, не больше трёх частей (ведущий
+    // api/sub/ не считается): ему по-прежнему 502. Путь из четырёх частей и длиннее, в том числе
+    // неоткрывшийся запрос канала (/c1/…), на обрыв без единого байта (52, а у старого libcurl с
+    // OpenSSL 3 — 56) получает 404, как несуществующий адрес: иначе приложение сочтёт сервер
+    // упавшим и не загрузит подписку обычным путём. Таймаут и отказ соединения — 502, как раньше.
+    $hung_up = in_array($curl_errno, [CURLE_GOT_NOTHING, CURLE_RECV_ERROR], true) && (int) $http_code === 0;
+    $long    = count(path_segments(preg_replace('~^api/sub/~i', '', $path))) >= 4;
+    if ($hung_up && $long && !chan_active()) {
+        header_remove('X-Powered-By');
+        http_response_code(404);
+    } else {
+        http_response_code(502);
+    }
     if (!$skip_log && $short_ov) log_request($ip, $short_ov['match_value'], $path, $ua, 'error');
     die();
 }
