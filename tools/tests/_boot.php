@@ -20,6 +20,11 @@ require $tt_root . '/lib.php';
 
 $tt_pdo = db();
 if (!$tt_pdo) { fwrite(STDERR, "нет базы\n"); exit(2); }
+if (db_driver() === 'mysql') {
+    $tt_pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+    foreach ($tt_pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN) as $t) $tt_pdo->exec('DROP TABLE `' . str_replace('`', '', (string) $t) . '`');
+    $tt_pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+}
 foreach (install_statements() as $s) $tt_pdo->exec($s);
 foreach (install_seed_values() as $k => $v) set_setting($k, $v);
 

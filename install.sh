@@ -103,6 +103,7 @@ echo "-> Установка зависимостей (если ещё нет)...
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 PKGS="php-fpm php-cli php-sqlite3 php-mysql php-curl php-mbstring php-xml git openssl curl gnupg2 ca-certificates lsb-release certbot"
+command -v cron >/dev/null 2>&1 || PKGS="$PKGS cron"
 [ "$DB_MODE" = "2" ] && PKGS="$PKGS mariadb-server"
 [ "$CERT_MODE" = "2" ] && PKGS="$PKGS python3-certbot-dns-cloudflare"
 apt-get install -y $PKGS >/dev/null
@@ -199,6 +200,12 @@ chown -R www-data:www-data "$DEST"
 find "$DEST" -type d -exec chmod 755 {} \;
 find "$DEST" -type f -exec chmod 644 {} \;
 chmod 775 "$DEST/data"
+
+echo "-> Планировщик фоновых задач (cron раз в минуту)..."
+PHP_CLI="/usr/bin/php${PHP_VER}"; [ -x "$PHP_CLI" ] || PHP_CLI="$(command -v php)"
+printf '* * * * * www-data %s %s/tools/cron.php >/dev/null 2>&1\n' "$PHP_CLI" "$DEST" > /etc/cron.d/submw
+chmod 644 /etc/cron.d/submw
+systemctl enable --now cron >/dev/null 2>&1 || true
 
 DB_JSON=""
 if [ "$DB_MODE" = "2" ]; then

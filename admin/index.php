@@ -914,6 +914,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         form_saved('clod');
     }
 
+    if ($action === 'cron_secret_rotate' && function_exists('cron_secret_rotate')) {
+        cron_secret_rotate();
+        flash('Секрет планировщика сменён — замените строку cron');
+        form_saved('sysinfo');
+    }
+
     if ($action === 'clod_reindex') {
         $ok = chan_index_rebuild(true);
         $ci = chan_index_info();
@@ -1796,15 +1802,8 @@ $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/w
 
 $tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
-$bc_now = json_decode((string) setting('brand_cache', '{}'), true);
-if (!is_array($bc_now)) $bc_now = [];
-$manual_brand = trim((string) setting('service_name', '')) !== '' && trim((string) setting('service_logo_url', '')) !== '';
-$brand_stale = !$manual_brand && (
-    (int) ($bc_now['v'] ?? 0) < 5
-    || ((($bc_now['name'] ?? '') === '' || ($bc_now['logo_file'] ?? '') === '') && (time() - (int) ($bc_now['ts'] ?? 0) > 600))
-);
-$logo_gone = $db_ok && ($bc_now['logo_url'] ?? '') !== '' && brand_logo_missing($bc_now);
-if ($db_ok && ($brand_stale || $logo_gone) && remnawave_url() !== '' && remnawave_token() !== '') { brand_refresh(); }
+// function_exists: прежний апдейтер пишет admin/index.php раньше lib/branding.php.
+if ($db_ok && function_exists('brand_refresh_if_stale')) brand_refresh_if_stale();
 $brand      = service_brand();
 $brand_icon = $brand['logo_file'] !== '' ? $brand['logo_file'] : '';
 $brand_emoji = (string) ($brand['emoji'] ?? '');
@@ -2276,6 +2275,7 @@ if(window.matchMedia){matchMedia('(prefers-color-scheme: dark)').addEventListene
         title=document.getElementById('uiDlgTitle'), ok=document.getElementById('uiDlgOk'),
         cancel=document.getElementById('uiDlgCancel'), cb=null;
     window.uiDlgClose=function(){dlg.classList.remove('open');cb=null;};
+    window.uiCopy=function(text,btn){var done=function(){if(!btn)return;var o=btn.textContent;btn.textContent='Скопировано';setTimeout(function(){btn.textContent=o;},1500);};var fb=function(){var t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(t);done();};if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(text).then(done,fb);else fb();};
     window.uiConfirm=function(message,onOk,okLabel,danger){
         cb=onOk; title.textContent='Подтверждение'; msg.textContent=message;
         cancel.style.display=''; ok.textContent=okLabel||'OK';

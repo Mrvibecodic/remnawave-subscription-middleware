@@ -20,12 +20,28 @@ $si_cf_on = panel_supports_config();
 $si_cf_has = $si_cf_on && !empty($si_cf['ts']);
 $si_cb = function ($v) { return $v === null ? '—' : ($v ? 'да' : 'нет'); };
 $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v === null ? '—' : 'выкл'); };
+$cr_on = function_exists('cron_view');
+if ($cr_on) {
+    cron_note_web_user();
+    $cr_v     = cron_view();
+    $cr_alive = $cr_v['status'] === 'alive';
+    $cr_lines = [];
+    if (!submw_in_docker()) {
+        $cr_user  = cron_user_name(cron_site_uid());
+        $cr_lines = [
+            ['По адресу — тем же PHP, что отвечает сайту', '* * * * * curl -fsSL --max-time 120 -o /dev/null ' . cron_cron_arg('https://' . mirror_domain() . '/' . cron_secret_ensure()) . ' >/dev/null 2>&1'],
+            ['Из консоли — PHP ' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . ' с теми же расширениями, что у сайта, в crontab пользователя ' . $cr_user . ' (crontab -u ' . $cr_user . ' -e)', '* * * * * ' . cron_cron_arg(cron_php_bin()) . ' ' . cron_cron_arg(dirname(__DIR__, 2) . '/tools/cron.php') . ' >/dev/null 2>&1'],
+        ];
+    }
+}
 ?>
     <style>
         .si-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-bottom:1rem}
         .si-kv{display:flex;justify-content:space-between;gap:1rem;padding:.42rem 0;border-bottom:1px dashed var(--line);font-size:.9rem}
         .si-kv:last-child{border-bottom:0}
         .si-kv .k{color:var(--muted)}
+        .cr-line{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:.25rem 0 .9rem}
+        .cr-line code{flex:1 1 320px;min-width:0;white-space:normal;word-break:break-all;padding:.45rem .6rem}
         .si-kv .v{font-weight:600;color:var(--text-strong);text-align:right;word-break:break-word}
         .si-stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.7rem;margin:.2rem 0 1rem}
         .si-card{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:.7rem .85rem}
@@ -156,6 +172,45 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
                 </table>
             </div>
         </section>
+
+        <?php if ($cr_on): ?>
+        <section class="<?= coll_cls('sysinfo_cron', $cr_alive) ?>" data-coll="sysinfo_cron">
+            <button type="button" class="coll-head" onclick="collToggle(this)"><span>Планировщик <?php if ($cr_alive): ?><span class="tag normal">работает</span><?php elseif ($cr_v['status'] === 'stopped'): ?><span class="tag blocked">остановился</span><?php else: ?><span class="tag expired">не настроен</span><?php endif; ?></span>
+                <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </button>
+            <div class="coll-body">
+                <?php if ($cr_v['beat'] > 0): ?>
+                <p class="muted" style="margin-top:0">Последний запуск <span class="cr-ts" data-ts="<?= $cr_v['beat'] ?>"><?= h(date('Y-m-d H:i', $cr_v['beat'])) ?></span><?= $cr_v['src'] !== '' ? ' · ' . h($cr_v['src']) : '' ?>.<?= $cr_alive ? '' : ' Пока он не запускается, фоновые задачи снова идут попутно с запросами, как без планировщика.' ?></p>
+                <?php else: ?>
+                <p class="muted" style="margin-top:0">Фоновые задачи идут попутно с запросами: чистки, проверки грейса, геобазы. Без трафика они не выполняются. Планировщик запускает их сам раз в минуту.</p>
+                <?php endif; ?>
+                <?php if ($cr_v['error']): ?>
+                <div class="warn">Запуск не удался<?= ($cr_v['error']['ts'] ?? 0) ? ' <span class="cr-ts" data-ts="' . (int) $cr_v['error']['ts'] . '">' . h(date('Y-m-d H:i', (int) $cr_v['error']['ts'])) . '</span>' : '' ?>: <?= h((string) ($cr_v['error']['err'] ?? '')) ?></div>
+                <?php endif; ?>
+                <?php foreach ($cr_v['rows'] as $cr_r): ?>
+                <div class="si-kv"><span class="k"><?= h($cr_r['title']) ?></span><span class="v"><?php if ($cr_r['state'] === 'never'): ?>—<?php elseif ($cr_r['state'] === 'admin'): ?><span class="muted" data-tip="Без php-fpm запуск по адресу делает только быстрые задачи">при заходе в админку</span><?php else: ?><?php if ($cr_r['state'] === 'run'): ?><span class="tag expired">идёт</span> <?php elseif ($cr_r['state'] === 'err'): ?><span class="tag blocked" data-tip="<?= h($cr_r['err']) ?>">ошибка</span> <?php endif; ?><span class="cr-ts" data-ts="<?= (int) $cr_r['ts'] ?>"><?= h(date('Y-m-d H:i', (int) $cr_r['ts'])) ?></span><?php endif; ?></span></div>
+                <?php endforeach; ?>
+                <?php if (submw_in_docker()): ?>
+                <p class="muted" style="margin-bottom:0">В Docker планировщик запускается сам, раз в минуту.<?= $cr_alive ? '' : ' Если он не работает — обновите образ и пересоздайте контейнер.' ?></p>
+                <?php else: ?>
+                <h3 style="margin:1.1rem 0 .3rem;font-size:.95rem">Строка для cron — любая из двух</h3>
+                <?php foreach ($cr_lines as [$cr_lt, $cr_lv]): ?>
+                <div class="set-d"><?= h($cr_lt) ?></div>
+                <div class="cr-line"><code><?= h($cr_lv) ?></code><button type="button" class="btn ghost" data-cr-copy="<?= h($cr_lv) ?>">Копировать</button></div>
+                <?php endforeach; ?>
+                <form method="post" onsubmit="return uiConfirmForm(this, 'Сменить секрет? Строка cron со старым адресом перестанет работать.', 'Сменить')">
+                    <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                    <input type="hidden" name="action" value="cron_secret_rotate">
+                    <button type="submit" class="btn ghost">Сменить секрет</button>
+                    <span class="hint">Адрес с секретом запускает задачи. Если он попал в чужие руки — смените.</span>
+                </form>
+                <?php endif; ?>
+            </div>
+        </section>
+        <?php endif; ?>
+        <script>
+        document.querySelectorAll('[data-cr-copy]').forEach(function(b){ b.addEventListener('click', function(){ uiCopy(b.getAttribute('data-cr-copy'), b); }); });
+        </script>
     </div>
 
     <div class="si-seg-panel" data-panel="panel"<?= $si_seg === 'panel' ? '' : ' hidden' ?>>
@@ -410,7 +465,7 @@ $si_cl = function ($v) { return (is_array($v) && $v) ? implode(', ', $v) : ($v =
         if(bd) bd.addEventListener('click',function(e){if(e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();siSeg('custom');var p=document.querySelector('.si-seg-panel[data-panel="custom"]');if(p)p.scrollIntoView({block:'start',behavior:'smooth'});});
     })();
     siChart(<?= json_encode($sys_series) ?>);
-    document.querySelectorAll('.si-pk-ts[data-ts]').forEach(function(td){var v=siLocal(td.getAttribute('data-ts'),true);if(v)td.textContent=v;});
+    document.querySelectorAll('.si-pk-ts[data-ts],.cr-ts[data-ts]').forEach(function(td){var v=siLocal(td.getAttribute('data-ts'),true);if(v)td.textContent=v;});
     siPanelFetch(false);
     setInterval(function(){ if(document.hidden) return; siRefresh(); var on=document.querySelector('#siSeg button.on'); if(on&&on.getAttribute('data-seg')==='panel') siPanelFetch(false); }, 15000);
     document.addEventListener('visibilitychange',function(){ if(!document.hidden) siRefresh(); });

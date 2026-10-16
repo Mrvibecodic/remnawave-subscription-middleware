@@ -467,10 +467,12 @@ function grace_refresh_refs($limit = 200) {
     return $out;
 }
 
+// Возвращает, сколько грейсов проверено и сколько из них не дождались ответа панели.
 function grace_retry_pending($limit = 2) {
-    if (remnawave_url() === '' || remnawave_token() === '') return;
+    $none = ['n' => 0, 'err' => 0];
+    if (remnawave_url() === '' || remnawave_token() === '') return $none;
     ensure_grace_table();
-    if (!($p = db())) return;
+    if (!($p = db())) return $none;
     $now = time();
     try {
         if (random_int(1, 200) === 1) $p->prepare('DELETE FROM grace_users WHERE ended_ts > 0 AND ended_ts < ?')->execute([$now - 30 * 86400]);
@@ -481,9 +483,11 @@ function grace_retry_pending($limit = 2) {
             $in = implode(',', array_fill(0, count($rows), '?'));
             $p->prepare("UPDATE grace_users SET retry_ts = ? WHERE short_uuid IN ($in)")->execute(array_merge([$now], $rows));
         }
-    } catch (Throwable $e) { return; }
+    } catch (Throwable $e) { return $none; }
     grace_memo();
-    foreach ($rows as $short) grace_check((string) $short);
+    $err = 0;
+    foreach ($rows as $short) if (grace_check((string) $short) === 'grace_err') $err++;
+    return ['n' => count($rows), 'err' => $err];
 }
 
 function grace_is_active($short) {
