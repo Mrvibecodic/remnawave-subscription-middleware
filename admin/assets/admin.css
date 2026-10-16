@@ -377,7 +377,6 @@ html.lp .pgr-bot{min-height:36px}
     .set-d.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .set-more{display:inline-flex;align-items:center;background:none;border:0;padding:0;min-height:32px;font-family:inherit;color:var(--accent-text);font-size:.8rem;font-weight:600;cursor:pointer}
     .set-more:hover,.set-more:active{background:none;filter:none;transform:none}
-    .set-row.as-exp .set-more{grid-column:1/-1}
     .info.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;padding-bottom:0;border-bottom:.85rem solid var(--bg2);box-shadow:0 1px 0 var(--line)}
     .info+.set-more{margin:-.6rem 0 .6rem}
     .mh-x{display:none!important}
