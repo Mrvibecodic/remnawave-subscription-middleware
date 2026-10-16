@@ -428,7 +428,7 @@ function addsub_label_uri($line, $label) {
     return substr($line, 0, $hash) . '#' . rawurlencode($label . ' ' . $rem);
 }
 
-function addsub_merge($a, $b, $format, $short = '') {
+function addsub_merge($a, $b, $format, $short = '', $swap = true) {
     if (!is_string($a) || $a === '' || !is_string($b) || $b === '') return $a;
     try {
         if ($format === 'clash') return addsub_merge_clash($a, $b);
@@ -436,7 +436,7 @@ function addsub_merge($a, $b, $format, $short = '') {
         if ($t === '' || ($t[0] !== '[' && $t[0] !== '{')) return addsub_merge_base64($a, $b);
         $ob = json_decode($b, true);
         if (squadconf_is_singbox($ob)) return addsub_merge_singbox($a, $b);
-        if (addsub_xray_enabled()) return addsub_swap_enabled() ? addsub_swap_merge($a, $b, $short) : addsub_merge_xray($a, $b);
+        if (addsub_xray_enabled()) return ($swap && addsub_swap_enabled()) ? addsub_swap_merge($a, $b, $short) : addsub_merge_xray($a, $b);
         return $a;
     } catch (Throwable $e) { error_log('submw addsub merge: ' . $e->getMessage()); return $a; }
 }

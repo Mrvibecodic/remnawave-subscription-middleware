@@ -29,7 +29,7 @@
             <label style="margin-top:1rem">Текст заглушки трафика</label>
             <input type="text" name="addsub_stub_label" value="<?= h(addsub_stub_label()) ?>" placeholder="Трафик доп-сервера истёк" style="max-width:480px">
             <div class="set-row" style="margin-top:1.25rem">
-                <div class="set-info"><div class="set-t">Трафик из второй подписки</div><div class="set-d">Приложения покажут использовано / лимит второй подписки; срок — от основной. Шаблоны трафика в именах серверов панель считает по основной.</div></div>
+                <div class="set-info"><div class="set-t">Трафик из второй подписки</div><div class="set-d">Приложения покажут использовано / лимит второй подписки; срок — от основной. Шаблоны трафика в именах серверов панель считает по основной. Если серверы второй в подписку не попали (например, xray-json при выключенном слиянии для xray-json) — трафик основной.</div></div>
                 <label class="switch"><input type="checkbox" name="addsub_traffic_from_b" <?= addsub_traffic_from_b() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
             <div class="set-row" style="margin-top:1.25rem">
