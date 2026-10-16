@@ -278,6 +278,14 @@ function metrics_db_info() {
     return $out;
 }
 
+function metrics_opcache_on() {
+    $st = function_exists('opcache_get_status') ? @opcache_get_status(false) : false;
+    // При file_cache_only opcache_enabled = false, но скрипты берутся из файлового кэша без компиляции.
+    if (is_array($st)) return !empty($st['opcache_enabled']) || !empty($st['file_cache_only']);
+    // opcache_get_status() молчит и при opcache.restrict_api — тогда судим по настройке.
+    return trim((string) ini_get('opcache.restrict_api')) !== '' && filter_var(ini_get('opcache.enable'), FILTER_VALIDATE_BOOLEAN);
+}
+
 function metrics_system_info() {
     $load = function_exists('sys_getloadavg') ? @sys_getloadavg() : null;
     $cores = 0;
@@ -297,7 +305,7 @@ function metrics_system_info() {
         'cores'       => $cores ?: null,
         'mem_limit'   => ini_get('memory_limit'),
         'mem_peak'    => memory_get_peak_usage(true),
-        'opcache'     => (function_exists('opcache_get_status') && @opcache_get_status(false)) ? true : false,
+        'opcache'     => metrics_opcache_on(),
         'curl'        => function_exists('curl_version'),
     ];
 }
