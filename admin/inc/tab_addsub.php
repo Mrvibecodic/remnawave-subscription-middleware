@@ -29,6 +29,10 @@
             <label style="margin-top:1rem">Текст заглушки трафика</label>
             <input type="text" name="addsub_stub_label" value="<?= h(addsub_stub_label()) ?>" placeholder="Трафик доп-сервера истёк" style="max-width:480px">
             <div class="set-row" style="margin-top:1.25rem">
+                <div class="set-info"><div class="set-t">Трафик из второй подписки</div><div class="set-d">Приложения покажут использовано / лимит второй подписки; срок — от основной. Шаблоны трафика в именах серверов панель считает по основной.</div></div>
+                <label class="switch"><input type="checkbox" name="addsub_traffic_from_b" <?= addsub_traffic_from_b() ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
+            <div class="set-row" style="margin-top:1.25rem">
                 <div class="set-info"><div class="set-t">Слияние для xray-json</div><div class="set-d">Влить outbounds второй подписки в xray-json. По умолчанию выкл (как у доп-конфигов). base64 / Clash / sing-box работают всегда при включённом слиянии.</div></div>
                 <label class="switch"><input type="checkbox" name="addsub_merge_xray" <?= addsub_xray_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>

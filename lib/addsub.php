@@ -24,6 +24,8 @@ function addsub_parallel_enabled() { return setting('addsub_parallel_fetch', '0'
 
 function addsub_swap_enabled() { return addsub_xray_enabled() && setting('addsub_xray_swap', '0') === '1'; }
 
+function addsub_traffic_from_b() { return setting('addsub_traffic_from_b', '0') === '1'; }
+
 function addsub_ensure() {
     static $done = false;
     if ($done) return;
@@ -276,7 +278,38 @@ function addsub_parse_userinfo($v) {
         elseif ($k === 'download') $out['down'] = $n;
         elseif ($k === 'total') $out['total'] = $n;
     }
+    $out['raw'] = (string) $v;
     return $out;
+}
+
+function addsub_userinfo_kv($v) {
+    $out = [];
+    foreach (explode(';', (string) $v) as $part) {
+        $kv = explode('=', trim($part), 2);
+        if (count($kv) !== 2) continue;
+        $k = strtolower(trim($kv[0]));
+        if ($k === '' || isset($out[$k])) continue;
+        $out[$k] = trim($kv[1]);
+    }
+    return $out;
+}
+
+function addsub_userinfo_from_b(array $headers, $info) {
+    if (!is_array($info) || !isset($headers['subscription-userinfo'])) return $headers;
+    $b = addsub_userinfo_kv($info['raw'] ?? '');
+    if (!isset($b['upload']) && !isset($b['download'])) return $headers;
+    $a = addsub_userinfo_kv($headers['subscription-userinfo']);
+    foreach (['upload', 'download', 'total'] as $k) {
+        $n = (float) ($b[$k] ?? 0);
+        $a[$k] = sprintf('%.0f', (is_finite($n) && $n > 0) ? floor($n) : 0);
+    }
+    $parts = [];
+    foreach ($a as $k => $v) $parts[] = $k . '=' . $v;
+    $headers['subscription-userinfo'] = implode('; ', $parts);
+    $refill = (string) ($info['refill'] ?? '');
+    if ($refill !== '') $headers['subscription-refill-date'] = $refill;
+    else unset($headers['subscription-refill-date']);
+    return $headers;
 }
 
 function addsub_traffic_exhausted($info) {
@@ -337,6 +370,7 @@ function addsub_fetch_prepare($url, $client_override = null) {
 
     $st = new stdClass();
     $st->info = null;
+    $st->refill = null;
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL            => $url,
@@ -353,10 +387,12 @@ function addsub_fetch_prepare($url, $client_override = null) {
         CURLOPT_HEADER         => false,
         CURLOPT_HEADERFUNCTION => function ($curl, $h) use ($st) {
             $t = trim($h);
-            if (strpos($t, 'HTTP/') === 0) { $st->info = null; return strlen($h); }
+            if (strpos($t, 'HTTP/') === 0) { $st->info = null; $st->refill = null; return strlen($h); }
             $parts = explode(':', $t, 2);
             if (count($parts) === 2 && strtolower(trim($parts[0])) === 'subscription-userinfo') {
                 $st->info = addsub_parse_userinfo(trim($parts[1]));
+            } elseif (count($parts) === 2 && strtolower(trim($parts[0])) === 'subscription-refill-date') {
+                $st->refill = trim($parts[1]);
             }
             return strlen($h);
         },
@@ -368,7 +404,9 @@ function addsub_fetch_collect($ch, $st, $body) {
     $err  = curl_error($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     if ($err || $code < 200 || $code >= 300 || !is_string($body)) return [null, null];
-    return [$body, ($st instanceof stdClass) ? $st->info : null];
+    $info = ($st instanceof stdClass) ? $st->info : null;
+    if (is_array($info)) $info['refill'] = $st->refill;
+    return [$body, $info];
 }
 
 function addsub_fetch_body($url, $client_override = null) {
