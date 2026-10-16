@@ -428,13 +428,17 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
                 'c'  => $as_cached ? 1 : 0,
             ];
         }
+        $as_in = false;
         if ($addsub_src && $addsub_body !== null && $addsub_body !== '') {
             if (addsub_traffic_exhausted($addsub_info)) {
                 $log_as['s'] = 'stub';
+                if (addsub_traffic_from_b()) $as_in = addsub_merge($response, $addsub_body, $format, '', false) !== $response;
                 if (addsub_swap_enabled()) $response = addsub_swap_apply($response, $addsub_body, $short_uuid)[0];
                 if (addsub_stub_on_traffic()) $response = addsub_inject_stub($response, $format, addsub_stub_label());
             } else {
+                $as_pre = $response;
                 $response = addsub_merge($response, $addsub_body, $format, $short_uuid);
+                $as_in = $response !== $as_pre;
                 $log_as['s'] = 'on';
                 $log_as['n'] = reqlog_addsub_count($addsub_body, $format);
                 $log_as['b'] = strlen($addsub_body);
@@ -442,7 +446,7 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
         } elseif (addsub_swap_enabled()) {
             $response = addsub_swap_apply($response, null, $short_uuid)[0];
         }
-        if ($addsub_src && !$is_page && addsub_traffic_from_b()) {
+        if ($addsub_src && !$is_page && addsub_traffic_from_b() && ($as_in || !empty($GLOBALS['addsub_swap_stat']))) {
             $grabbed_headers = addsub_userinfo_from_b($grabbed_headers, $addsub_info);
         }
         if (!empty($GLOBALS['addsub_swap_stat']) && addsub_swap_enabled()) {
