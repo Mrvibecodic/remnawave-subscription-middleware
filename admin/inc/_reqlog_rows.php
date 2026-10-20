@@ -1,9 +1,46 @@
 <?php
 
-function reqlog_prepare() {
-    static $cache = null;
-    if ($cache !== null) return $cache;
-    $f = reqlog_filters();
+function reqlog_users_ttl() { return 20; }
+
+// Отдельная таблица, не settings: settings целиком читаются на каждом запросе подписки.
+function reqlog_users_ensure($p) {
+    static $done = false;
+    if ($done) return true;
+    try {
+        if (db_driver() === 'mysql') {
+            $p->exec("CREATE TABLE IF NOT EXISTS admin_cache (
+                k VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                v LONGTEXT NOT NULL,
+                ts INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (k)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        } else {
+            $p->exec("CREATE TABLE IF NOT EXISTS admin_cache (k TEXT NOT NULL PRIMARY KEY, v TEXT NOT NULL, ts INTEGER NOT NULL DEFAULT 0)");
+        }
+        return $done = true;
+    } catch (Throwable $e) { error_log('submw admin_cache ensure: ' . $e->getMessage()); return false; }
+}
+
+function reqlog_users() {
+    $now = time();
+    $src = md5(remnawave_url() . "\n" . remnawave_token());
+    $p = db();
+    $use = $p && remnawave_url() !== '' && remnawave_token() !== '' && reqlog_users_ensure($p);
+    if ($use) {
+        try {
+            $st = $p->prepare('SELECT v, ts FROM admin_cache WHERE k = ?');
+            $st->execute(['reqlog_users']);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            $st->closeCursor();
+            $age = $row ? $now - (int) $row['ts'] : -1;
+            if ($row && $age >= 0 && $age < reqlog_users_ttl()) {
+                $d = json_decode((string) $row['v'], true);
+                if (is_array($d) && ($d['src'] ?? '') === $src && is_array($d['names'] ?? null) && is_array($d['users'] ?? null)) {
+                    return [$d['names'], $d['users'], (int) ($d['total'] ?? 0)];
+                }
+            }
+        } catch (Throwable $e) {}
+    }
     $names = []; $users = []; $total_users = 0;
     $err = '';
     foreach (remnawave_all_users($err) as $u) {
@@ -16,6 +53,27 @@ function reqlog_prepare() {
             'lim'    => (isset($u['hwidDeviceLimit']) && $u['hwidDeviceLimit'] !== '') ? (int) $u['hwidDeviceLimit'] : '',
         ];
     }
+    if ($use && $err === '') {
+        $v = json_encode(['src' => $src, 'names' => $names, 'users' => $users, 'total' => $total_users], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($v !== false) {
+            try {
+                if (db_driver() === 'mysql') {
+                    $st = $p->prepare('INSERT INTO admin_cache (k, v, ts) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v), ts = VALUES(ts)');
+                } else {
+                    $st = $p->prepare('INSERT INTO admin_cache (k, v, ts) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, ts = excluded.ts');
+                }
+                $st->execute(['reqlog_users', $v, $now]);
+            } catch (Throwable $e) { error_log('submw admin_cache put: ' . $e->getMessage()); }
+        }
+    }
+    return [$names, $users, $total_users];
+}
+
+function reqlog_prepare() {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $f = reqlog_filters();
+    [$names, $users, $total_users] = reqlog_users();
     $name2short = [];
     foreach ($names as $su => $nm) $name2short[$nm] = $su;
     $rows = reqlog_fetch($f, $name2short, 300);
