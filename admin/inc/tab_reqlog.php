@@ -21,6 +21,9 @@
     .rl-search{position:relative;flex:1 1 250px;max-width:360px}
     .rl-search input{width:100%;padding-left:2.1rem}
     .rl-search svg{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+    .rl-auto{display:inline-flex;align-items:center;gap:.45rem;margin:0;font-size:.78rem;color:var(--muted);white-space:nowrap}
+    .rl-auto select{width:auto;height:36px;min-height:36px;padding-top:0;padding-bottom:0;font-size:.82rem;font-weight:500;border-radius:var(--radius)}
+    .rl-auto select:hover{border-color:var(--accent)}
     .rl-wrap{border:1px solid var(--line);border-radius:12px;overflow-x:auto;overflow-y:hidden}
     .rl-tbl{min-width:58rem;border-collapse:separate;font-size:.88rem;table-layout:fixed}
     .rl-tbl th{background:var(--bg2);font-size:.71rem;padding:.6rem .75rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
@@ -125,7 +128,6 @@
     <div class="card">
         <div class="loghead">
             <h2>Активность по часам <span class="muted" style="font-weight:400;font-size:.78rem">последние 24 часа</span></h2>
-            <div class="loghead-r"><button type="button" class="btn ghost" onclick="rlRefresh(true)">Обновить</button></div>
         </div>
         <?php $rl_hn = intdiv(time(), 3600); ?>
         <div class="spark" id="rlSpark"><?= rl_spark_html($rl_over, $rl_hn) ?></div>
@@ -136,8 +138,19 @@
         <div class="loghead">
             <h2>Запросы <span class="muted" style="font-weight:400;font-size:.78rem">в выборке: <span id="rlCount"><?= count($reqlog) ?></span><?= count($reqlog) >= 300 ? ' (показаны последние 300)' : '' ?></span></h2>
             <div class="loghead-r">
-                <div id="rl_pgrTop" class="pgr"></div>
                 <span id="rlAuto" class="muted" style="font-size:.78rem"></span>
+                <form method="post" data-autosave class="rl-auto">
+                    <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                    <input type="hidden" name="action" value="save_reqlog_refresh">
+                    <label for="rlRefreshSel">Автообновление</label>
+                    <select name="reqlog_refresh" id="rlRefreshSel" data-tip="Новые запросы читаются из базы прослойки. Список пользователей панели запрашивается при открытии страницы и по кнопке «Обновить», между ними — из кэша до 5 минут">
+                        <?php foreach (reqlog_refresh_options() as $rl_o): ?>
+                        <option value="<?= (int) $rl_o ?>"<?= $rl_o === reqlog_refresh_secs() ? ' selected' : '' ?>><?= $rl_o === 0 ? 'при открытии' : ($rl_o >= 120 ? 'каждые ' . (int) ($rl_o / 60) . ' мин' : 'каждые ' . (int) $rl_o . ' с') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+                <button type="button" class="btn ghost" onclick="rlRefresh(true)">Обновить</button>
+                <div id="rl_pgrTop" class="pgr"></div>
                 <form method="post" onsubmit="return uiConfirmForm(this,'Очистить весь лог запросов?')">
                     <input type="hidden" name="csrf" value="<?= h($token) ?>">
                     <input type="hidden" name="action" value="clear_reqlog">
@@ -179,8 +192,11 @@
         <p class="muted" style="margin-bottom:0">Строка раскрывается по клику. «Устройство» берётся из того, что клиент прислал в User-Agent. Имя пользователя подтягивается из панели по shortUuid.</p>
     </div>
 
-    <div class="card">
-        <h2>Мусорные запросы <span class="muted" style="font-weight:400;font-size:.76rem">(сканеры/боты — панель не опрашивается)</span></h2>
+    <section class="<?= coll_cls('reqlog_junk', true) ?>" data-coll="reqlog_junk">
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Мусорные запросы <span class="muted" style="font-weight:400;font-size:.78rem">сканеры/боты — панель не опрашивается<?= !empty($junk_top) ? ' · ' . count($junk_top) : '' ?></span></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="coll-body">
         <p class="muted">Запросы на несуществующие адреса (файлы, <code>/wp-login.php</code>, <code>/.env</code> и т.п.). Для них прослойка не обращается к API панели, чтобы не нагружать её. Обычная подписка (shortUuid) сюда не попадает. Если в списке оказался нужный адрес — нажмите «Исключить», и он снова будет обрабатываться как подписка.</p>
         <?php $jl_len = panel_short_uuid_len(); ?>
         <form method="post" data-autosave style="margin:.9rem 0 0">
@@ -204,17 +220,6 @@
                     <div class="set-d">Когда пользователь открывает ссылку в браузере, панель отдаёт HTML-страницу. По умолчанию такие запросы в лог не пишутся, чтобы он не забивался. Включите, если хотите видеть их с типом «страница подписки».</div>
                 </div>
                 <label class="switch"><input type="checkbox" name="reqlog_log_pages" <?= reqlog_pages_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
-            </div>
-            <div class="set-row">
-                <div class="set-info">
-                    <div class="set-t">Автообновление списка запросов</div>
-                    <div class="set-d">Как часто подтягивать новые запросы, пока вкладка открыта. Сами запросы читаются из базы прослойки; список пользователей панели (имена, статусы, лимиты устройств) запрашивается заново при открытии страницы и по кнопке «Обновить», а между ними берётся из кэша не старше 5 минут. «При открытии» — без таймера, только вручную.</div>
-                </div>
-                <select name="reqlog_refresh" id="rlRefreshSel">
-                    <?php foreach (reqlog_refresh_options() as $rl_o): ?>
-                    <option value="<?= (int) $rl_o ?>"<?= $rl_o === reqlog_refresh_secs() ? ' selected' : '' ?>><?= $rl_o === 0 ? 'при открытии' : ($rl_o >= 120 ? 'каждые ' . (int) ($rl_o / 60) . ' мин' : 'каждые ' . (int) $rl_o . ' с') ?></option>
-                    <?php endforeach; ?>
-                </select>
             </div>
         </form>
         <?php if (!empty($junk_wl)): ?>
@@ -254,7 +259,8 @@
         <?php else: ?>
         <p class="muted">Пока пусто — мусорных запросов не зафиксировано.</p>
         <?php endif; ?>
-    </div>
+        </div>
+    </section>
     <script>
     (function(){
         var body = document.getElementById('rlBody');

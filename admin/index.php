@@ -1166,8 +1166,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'save_junk_cfg') {
         set_setting('junk_short_len', empty($_POST['junk_short_len']) ? '0' : '1');
         set_setting('reqlog_log_pages', empty($_POST['reqlog_log_pages']) ? '0' : '1');
-        if (isset($_POST['reqlog_refresh']) && in_array((int) $_POST['reqlog_refresh'], reqlog_refresh_options(), true)) set_setting('reqlog_refresh', (string) (int) $_POST['reqlog_refresh']);
         flash('Настройки лога сохранены');
+        form_saved('reqlog');
+    }
+
+    if ($action === 'save_reqlog_refresh') {
+        if (isset($_POST['reqlog_refresh']) && in_array((int) $_POST['reqlog_refresh'], reqlog_refresh_options(), true)) set_setting('reqlog_refresh', (string) (int) $_POST['reqlog_refresh']);
+        flash('Автообновление: ' . ((int) setting('reqlog_refresh', '60') === 0 ? 'при открытии' : 'каждые ' . reqlog_refresh_secs() . ' с'));
         form_saved('reqlog');
     }
 
