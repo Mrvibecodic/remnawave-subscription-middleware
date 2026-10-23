@@ -420,6 +420,15 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'users_sort' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $s = ua_sort_parse($_POST['sort'] ?? '');
+        if ($s === null) { echo json_encode(['ok' => false, 'error' => 'bad sort']); exit(); }
+        set_setting('users_sort', $s['k'] . ':' . ($s['d'] > 0 ? 'asc' : 'desc'));
+        echo json_encode(['ok' => true, 'sort' => $s]);
+        exit();
+    }
+
     if ($a === 'toggle_nolog' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $su = trim($_POST['short_uuid'] ?? '');

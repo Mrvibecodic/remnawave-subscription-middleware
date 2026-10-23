@@ -6,6 +6,15 @@ function ua_ts($v) {
     return $t === false ? 0 : $t;
 }
 
+// Сортировка списка пользователей: ключ и направление, хранится в настройках как «ключ:asc|desc».
+function ua_sort_keys() { return ['id', 'name', 'st', 'tr', 'exp', 'on']; }
+function ua_sort_parse($v) {
+    $p = explode(':', (string) $v, 2);
+    if (!in_array($p[0], ua_sort_keys(), true)) return null;
+    return ['k' => $p[0], 'd' => (($p[1] ?? '') === 'asc') ? 1 : -1];
+}
+function ua_sort() { return ua_sort_parse(setting('users_sort', '')) ?? ['k' => 'id', 'd' => -1]; }
+
 function ua_link($short) {
     $m = mirror_domain();
     if ($m === '' || (string) $short === '') return '';

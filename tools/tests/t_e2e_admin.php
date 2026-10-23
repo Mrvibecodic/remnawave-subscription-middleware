@@ -48,6 +48,17 @@ $save = static function (string $v) use ($mw, $jar, $m): string {
 t_eq('лог запросов: «при открытии» сохраняется', $save('0'), '0');
 t_eq('лог запросов: чужое значение интервала не принимается', $save('7'), '0');
 
+[, , $page] = t_http('GET', $mw . '/admin/index.php?tab=users', [], null, $jar);
+t_ok('пользователи: по умолчанию сортировка по ID, новые сверху', strpos($page, '"sort":{"k":"id","d":-1}') !== false);
+preg_match('~"csrf":"([0-9a-f]+)"~', $page, $m);
+$usort = static function (string $v) use ($mw, $jar, $m): string {
+    [, , $r] = t_http('POST', $mw . '/admin/index.php?ajax=users_sort', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $m[1], 'sort' => $v]), $jar);
+    [, , $p] = t_http('GET', $mw . '/admin/index.php?tab=users', [], null, $jar);
+    return preg_match('~"sort":(\{[^}]*\})~', $p, $mm) ? $mm[1] : '';
+};
+t_eq('пользователи: сортировка сохраняется в настройках', $usort('name:asc'), '{"k":"name","d":1}');
+t_eq('пользователи: чужой ключ сортировки не принимается', $usort('hack:asc'), '{"k":"name","d":1}');
+
 [, , $page] = t_http('GET', $mw . '/admin/index.php?tab=sysinfo', [], null, $jar);
 t_ok('OPcache выключен — предупреждение на «О системе»', strpos($page, '<b>OPcache выключен.</b>') !== false);
 
