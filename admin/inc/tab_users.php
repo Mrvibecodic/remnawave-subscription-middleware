@@ -23,6 +23,7 @@ $ux_cfg = [
     'mirror'=> $mirror !== '',
     'fc'    => (object) fc_map(),
     'wh'    => webhook_secret() !== '',
+    'sort'  => ua_sort(),
     'qr'    => 'assets/qrcode.js?v=' . substr(md5_file(__DIR__ . '/../assets/qrcode.js'), 0, 10),
 ];
 $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
@@ -410,6 +411,12 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <input type="text" id="uxQ" role="searchbox" placeholder="Имя, shortUuid, описание, Telegram, email" autocomplete="off" spellcheck="false">
             <select id="uxSq" aria-label="Сквад"><option value="">Все сквады</option></select>
             <select id="uxTag" aria-label="Тег" hidden><option value="">Все теги</option></select>
+            <select id="uxSort" aria-label="Сортировка" data-tip="Сортировка списка — запоминается в настройках">
+                <?php foreach (['id' => 'ID — как в панели', 'name' => 'По имени', 'st' => 'По статусу', 'tr' => 'По трафику', 'exp' => 'По сроку', 'on' => 'По онлайну'] as $ux_k => $ux_l): ?>
+                <option value="<?= h($ux_k) ?>"><?= h($ux_l) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <div class="ux-seg" data-tip="Направление сортировки"><button type="button" id="uxDir" aria-label="Направление сортировки"></button></div>
             <span id="uxChips"></span>
             <span class="sp"></span>
             <div class="ux-seg" data-tip="Плотность строк">
@@ -471,7 +478,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 document.documentElement.classList.remove('lp');
 var C=window.UX_CFG,U=window.UX_USERS||[];
 var GSQ=C.gsq||'',DAY=86400000,GB=1073741824;
-var S={f:'all',q:'',sq:'',tag:'',sort:'exp',dir:1,page:1,size:50,dens:0};
+var S={f:'all',q:'',sq:'',tag:'',sort:(C.sort&&C.sort.k)||'id',dir:(C.sort&&C.sort.d<0)?-1:1,page:1,size:50,dens:0};
 try{var v0=parseInt(localStorage.getItem('utbl_size'),10);if([10,25,50,0].indexOf(v0)>-1)S.size=v0;}catch(e){}
 try{if(localStorage.getItem('utbl_dens')==='1')S.dens=1;}catch(e){}
 var STRAT=[['NO_RESET','Без сброса'],['DAY','Каждый день'],['WEEK','Каждую неделю'],['MONTH','Каждый месяц'],['MONTH_ROLLING','Ежемесячно от даты создания']];
@@ -592,7 +599,10 @@ function matches(u){
  return true;
 }
 var STO={ACTIVE:1,LIMITED:2,DISABLED:3,EXPIRED:4};
+var DIR_ICO={1:'<path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="M11 12h4"/><path d="M11 16h7"/><path d="M11 20h10"/>',"-1":'<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="M11 4h10"/><path d="M11 8h7"/><path d="M11 12h4"/>'};
+function setSort(k,d){S.sort=k;S.dir=d;S.page=1;render();post('users_sort',{sort:k+':'+(d>0?'asc':'desc')}).then(function(r){if(!r.ok)toast('Сортировка не сохранилась');});}
 function skey(u){switch(S.sort){
+ case 'id':return parseInt(u.id,10)||0;
  case 'name':return u.un.toLowerCase();
  case 'st':return isGr(u)?0:(STO[u.st]||5);
  case 'tr':return u.tl?u.used/u.tl:-1+u.used/1e15;
@@ -627,6 +637,9 @@ function render(){
  $('uxTbl').classList.toggle('compact',S.dens===1);
  document.querySelectorAll('.ux-flt [data-dens]').forEach(function(b){b.classList.toggle('on',+b.dataset.dens===S.dens);});
  document.querySelectorAll('#uxTbl th.srt').forEach(function(th){th.querySelector('.sar').textContent=th.dataset.s===S.sort?(S.dir>0?'▲':'▼'):'';});
+ $('uxSort').value=S.sort;
+ $('uxDir').innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+DIR_ICO[S.dir>0?1:-1]+'</svg>';
+ $('uxDir').setAttribute('data-tip',S.dir>0?'По возрастанию — нажмите для убывания':'По убыванию — нажмите для возрастания');
  var chips=[];if(S.sq)chips.push(['sq','Сквад: '+sqName(S.sq)]);if(S.tag)chips.push(['tag',S.tag==='-'?'Без тега':'Тег: '+S.tag]);
  $('uxChips').innerHTML=chips.map(function(c){return '<span class="ux-chip">'+esc(c[1])+'<button type="button" data-unchip="'+c[0]+'" aria-label="Сбросить фильтр">×</button></span>';}).join(' ');
  $('uxPgr').innerHTML='<span>'+(list.length?(st+1)+'–'+Math.min(st+per,list.length)+' из '+list.length:'0')+'</span><div class="nav">'+(pages>1?'<button type="button" class="wb sm" data-pg="-1"'+(S.page<=1?' disabled':'')+' aria-label="Предыдущая страница">◀</button><span>стр. '+S.page+' / '+pages+'</span><button type="button" class="wb sm" data-pg="1"'+(S.page>=pages?' disabled':'')+' aria-label="Следующая страница">▶</button>':'')+'<label style="margin:0;display:flex;align-items:center;font-size:.82rem">На странице<select id="uxSize"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="0">Все</option></select></label></div>';
@@ -1043,7 +1056,8 @@ document.addEventListener('click',function(e){
  if(t.closest('[data-close="pick"]')||t.id==='uxPickOv'){closePick();return;}
  if(t.id==='uxOv'){closeCard();return;}
  var k=t.closest('.ux-kpi');if(k){S.f=S.f===k.dataset.f&&k.dataset.f!=='all'?'all':k.dataset.f;S.page=1;render();return;}
- var th=t.closest('#uxTbl th.srt');if(th){var s=th.dataset.s;if(S.sort===s)S.dir=-S.dir;else{S.sort=s;S.dir=(s==='tr')?-1:1;}render();return;}
+ var th=t.closest('#uxTbl th.srt');if(th){var s=th.dataset.s;setSort(s,S.sort===s?-S.dir:((s==='tr'||s==='on')?-1:1));return;}
+ if(t.closest('#uxDir')){setSort(S.sort,-S.dir);return;}
  var dn=t.closest('.ux-flt [data-dens]');if(dn){S.dens=+dn.dataset.dens;try{localStorage.setItem('utbl_dens',String(S.dens));}catch(_){}render();return;}
  var uc=t.closest('[data-unchip]');if(uc){S[uc.dataset.unchip]='';fillSelects();S.page=1;render();return;}
  var pg=t.closest('[data-pg]');if(pg){S.page+=+pg.dataset.pg;render();return;}
@@ -1073,7 +1087,7 @@ $('uxCreate').addEventListener('click',function(){if(!this.disabled)openCreate()
 $('uxQ').addEventListener('input',function(){S.q=this.value.trim().toLowerCase();S.page=1;render();});
 $('uxSq').addEventListener('change',function(){S.sq=this.value;S.page=1;render();});
 $('uxTag').addEventListener('change',function(){S.tag=this.value;S.page=1;render();});
-document.addEventListener('change',function(e){var t=e.target;if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
+document.addEventListener('change',function(e){var t=e.target;if(t.id==='uxSort'){var k=t.value;setSort(k,(k==='id'||k==='tr'||k==='on')?-1:1);return;}if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
 document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
 window.addEventListener('resize',closeMenu);
 document.addEventListener('scroll',function(e){if(e.target&&e.target.closest&&e.target.closest('#uxMenu'))return;closeMenu();},true);
