@@ -1,6 +1,7 @@
 <?php
 
-function reqlog_users_ttl() { return 20; }
+// Свежий список — при открытии страницы и по кнопке; тики автообновления живут кэшем до 5 минут.
+function reqlog_users_ttl($fresh = true) { return $fresh ? 20 : 300; }
 
 // Отдельная таблица, не settings: settings целиком читаются на каждом запросе подписки.
 function reqlog_users_ensure($p) {
@@ -21,7 +22,7 @@ function reqlog_users_ensure($p) {
     } catch (Throwable $e) { error_log('submw admin_cache ensure: ' . $e->getMessage()); return false; }
 }
 
-function reqlog_users() {
+function reqlog_users($fresh = true) {
     $now = time();
     $src = md5(remnawave_url() . "\n" . remnawave_token());
     $p = db();
@@ -33,7 +34,7 @@ function reqlog_users() {
             $row = $st->fetch(PDO::FETCH_ASSOC);
             $st->closeCursor();
             $age = $row ? $now - (int) $row['ts'] : -1;
-            if ($row && $age >= 0 && $age < reqlog_users_ttl()) {
+            if ($row && $age >= 0 && $age < reqlog_users_ttl($fresh)) {
                 $d = json_decode((string) $row['v'], true);
                 if (is_array($d) && ($d['src'] ?? '') === $src && is_array($d['names'] ?? null) && is_array($d['users'] ?? null)) {
                     return [$d['names'], $d['users'], (int) ($d['total'] ?? 0)];
@@ -69,11 +70,11 @@ function reqlog_users() {
     return [$names, $users, $total_users];
 }
 
-function reqlog_prepare() {
+function reqlog_prepare($fresh = true) {
     static $cache = null;
     if ($cache !== null) return $cache;
     $f = reqlog_filters();
-    [$names, $users, $total_users] = reqlog_users();
+    [$names, $users, $total_users] = reqlog_users($fresh);
     $name2short = [];
     foreach ($names as $su => $nm) $name2short[$nm] = $su;
     $rows = reqlog_fetch($f, $name2short, 300);
