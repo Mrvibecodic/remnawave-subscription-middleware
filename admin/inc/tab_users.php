@@ -142,7 +142,7 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-menu label.ux-colr{display:flex;align-items:center;gap:.6rem;padding:.48rem .65rem;border-radius:7px;font-size:.85rem;font-weight:500;color:var(--text);cursor:pointer;margin:0}
 .ux-menu label.ux-colr:hover{background:var(--hover);color:var(--text-strong)}
 .ux-menu label.ux-colr input{width:auto;margin:0;accent-color:var(--accent)}
-.ux-tbl.hide-id .c-id,.ux-tbl.hide-st .c-st,.ux-tbl.hide-tr .c-tr,.ux-tbl.hide-ex .c-ex,.ux-tbl.hide-sq .c-sq,.ux-tbl.hide-on .c-on{display:none}
+@media(min-width:1101px){.ux-tbl.hide-id .c-id,.ux-tbl.hide-st .c-st,.ux-tbl.hide-tr .c-tr,.ux-tbl.hide-ex .c-ex,.ux-tbl.hide-sq .c-sq,.ux-tbl.hide-on .c-on{display:none}}
 .ux-ov{position:fixed;inset:0;z-index:95;background:rgba(2,6,23,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .16s}
 .ux-ov.open{opacity:1;pointer-events:auto}
 .ux-dr{position:absolute;top:0;right:0;bottom:0;width:min(760px,100vw);background:var(--card);border-left:1px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;transform:translateX(24px);transition:transform .18s ease-out;border-radius:var(--radius) 0 0 var(--radius)}
@@ -283,6 +283,7 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-tbl td{display:block;padding:0;height:auto;box-shadow:none}
 .ux-tbl td.c-nm{grid-row:1;grid-column:1}
 .ux-tbl td.c-id{display:none}
+#uxColsSeg{display:none}
 .ux-tbl td.acts{grid-row:1;grid-column:2}
 .ux-tbl td.c-st,.ux-tbl td.c-tr,.ux-tbl td.c-ex,.ux-tbl td.c-dv,.ux-tbl td.c-on,.ux-tbl td.c-sq{grid-column:1/3;display:flex;justify-content:space-between;align-items:center;gap:1rem}
 .ux-tbl td.c-on,.ux-tbl td.c-sq{display:flex}
@@ -397,6 +398,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-dr[data-view=edit] .ux-dh{padding-bottom:.55rem}
 .ux-menu{left:0!important;right:0;top:auto!important;bottom:0;min-width:0;width:100%;max-height:80vh;max-height:80dvh;overflow-y:auto;border-radius:16px 16px 0 0;border-bottom:0;padding:.5rem .5rem calc(.5rem + env(safe-area-inset-bottom));box-shadow:0 0 0 100vmax rgba(2,6,23,.45);animation:sheetIn .18s ease-out;overscroll-behavior:contain}
 .ux-menu button{min-height:46px;padding:.55rem .8rem;font-size:.95rem;gap:.8rem}
+.ux-menu label.ux-colr{min-height:46px;padding:.55rem .8rem;font-size:.95rem;gap:.8rem}
 .ux-menu button svg{width:18px;height:18px}
 .ux-cbx{width:20px;height:20px}
 .ux-cbx:checked::after{left:6px;top:2px;width:5px;height:10px}
@@ -427,7 +429,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <select id="uxTag" aria-label="Тег" hidden><option value="">Все теги</option></select>
             <span id="uxChips"></span>
             <span class="sp"></span>
-            <div class="ux-seg" data-tip="Колонки таблицы"><button type="button" id="uxColsBtn" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>Колонки</button></div>
+            <div class="ux-seg" id="uxColsSeg"><button type="button" id="uxColsBtn" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>Колонки</button></div>
             <div class="ux-seg" data-tip="Плотность строк">
                 <button type="button" class="on" data-dens="0" aria-label="Обычная плотность"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
                 <button type="button" data-dens="1" aria-label="Компактная плотность"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 5h16M4 9.7h16M4 14.3h16M4 19h16"/></svg></button>

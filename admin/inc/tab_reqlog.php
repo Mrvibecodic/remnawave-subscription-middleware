@@ -23,8 +23,10 @@
     .rl-search svg{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
     .rl-auto{display:inline-flex;align-items:center;gap:.4rem;margin:0;font-size:.82rem;color:var(--muted);white-space:nowrap}
     .rl-auto label{margin:0;font-size:inherit;color:inherit;line-height:1}
+    #rlAuto:empty{display:none}
     .rl-auto select{width:auto;height:36px;min-height:36px;padding-top:0;padding-bottom:0;font-size:.82rem;font-weight:500;border-radius:var(--radius)}
     .rl-auto select:hover{border-color:var(--accent)}
+    @media(max-width:560px){.loghead-r .rl-auto{width:auto;flex:1 1 10rem;min-width:0}.rl-auto label{display:none}.rl-auto select{flex:1 1 auto;min-width:0;width:100%}}
     .rl-wrap{border:1px solid var(--line);border-radius:12px;overflow-x:auto;overflow-y:hidden}
     .rl-tbl{min-width:58rem;border-collapse:separate;font-size:.88rem;table-layout:fixed}
     .rl-tbl th{background:var(--bg2);font-size:.71rem;padding:.6rem .75rem;box-shadow:inset 0 -1px 0 var(--line);white-space:nowrap}
@@ -144,7 +146,7 @@
                     <input type="hidden" name="csrf" value="<?= h($token) ?>">
                     <input type="hidden" name="action" value="save_reqlog_refresh">
                     <label for="rlRefreshSel">Автообновление</label>
-                    <select name="reqlog_refresh" id="rlRefreshSel" data-tip="Новые запросы читаются из базы прослойки. Список пользователей панели запрашивается при открытии страницы и по кнопке «Обновить», между ними — из кэша до 5 минут">
+                    <select name="reqlog_refresh" id="rlRefreshSel" aria-label="Автообновление" data-tip="Новые запросы читаются из базы прослойки. Список пользователей панели запрашивается при открытии страницы и по кнопке «Обновить», между ними — из кэша до 5 минут">
                         <?php foreach (reqlog_refresh_options() as $rl_o): ?>
                         <option value="<?= (int) $rl_o ?>"<?= $rl_o === reqlog_refresh_secs() ? ' selected' : '' ?>><?= $rl_o === 0 ? 'при открытии' : ($rl_o >= 120 ? 'каждые ' . (int) ($rl_o / 60) . ' мин' : 'каждые ' . (int) $rl_o . ' с') ?></option>
                         <?php endforeach; ?>
