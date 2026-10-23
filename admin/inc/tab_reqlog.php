@@ -21,7 +21,8 @@
     .rl-search{position:relative;flex:1 1 250px;max-width:360px}
     .rl-search input{width:100%;padding-left:2.1rem}
     .rl-search svg{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
-    .rl-auto{display:inline-flex;align-items:center;gap:.45rem;margin:0;font-size:.78rem;color:var(--muted);white-space:nowrap}
+    .rl-auto{display:inline-flex;align-items:center;gap:.4rem;margin:0;font-size:.82rem;color:var(--muted);white-space:nowrap}
+    .rl-auto label{margin:0;font-size:inherit;color:inherit;line-height:1}
     .rl-auto select{width:auto;height:36px;min-height:36px;padding-top:0;padding-bottom:0;font-size:.82rem;font-weight:500;border-radius:var(--radius)}
     .rl-auto select:hover{border-color:var(--accent)}
     .rl-wrap{border:1px solid var(--line);border-radius:12px;overflow-x:auto;overflow-y:hidden}
