@@ -41,7 +41,7 @@ t_ok('лог запросов: кнопка «Обновить» тянет св
 t_ok('лог запросов: по умолчанию обновление раз в 60 с', strpos($page, 'value="60" selected') !== false);
 preg_match('~name="csrf" value="([0-9a-f]+)"~', $page, $m);
 $save = static function (string $v) use ($mw, $jar, $m): string {
-    t_http('POST', $mw . '/admin/index.php', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $m[1], 'action' => 'save_junk_cfg', 'reqlog_refresh' => $v, 'xhr' => '1']), $jar);
+    t_http('POST', $mw . '/admin/index.php', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $m[1], 'action' => 'save_reqlog_refresh', 'reqlog_refresh' => $v, 'xhr' => '1']), $jar);
     [, , $p] = t_http('GET', $mw . '/admin/index.php?tab=reqlog', [], null, $jar);
     return preg_match('~<select name="reqlog_refresh".*?<option value="(\d+)" selected>~s', $p, $mm) ? $mm[1] : '';
 };
