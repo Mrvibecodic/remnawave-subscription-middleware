@@ -58,6 +58,15 @@ $usort = static function (string $v) use ($mw, $jar, $m): string {
 };
 t_eq('пользователи: сортировка сохраняется в настройках', $usort('name:asc'), '{"k":"name","d":1}');
 t_eq('пользователи: чужой ключ сортировки не принимается', $usort('hack:asc'), '{"k":"name","d":1}');
+$ucols = static function (string $v) use ($mw, $jar, $m): string {
+    t_http('POST', $mw . '/admin/index.php?ajax=users_cols', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $m[1], 'hide' => $v]), $jar);
+    [, , $p] = t_http('GET', $mw . '/admin/index.php?tab=users', [], null, $jar);
+    return preg_match('~"hide":(\[[^\]]*\])~', $p, $mm) ? $mm[1] : '';
+};
+t_ok('пользователи: по умолчанию все колонки видны', strpos($page, '"hide":[]') !== false);
+t_eq('пользователи: скрытые колонки сохраняются', $ucols('sq,on'), '["sq","on"]');
+t_eq('пользователи: чужие колонки отбрасываются, имя скрыть нельзя', $ucols('nm,hack,id'), '["id"]');
+t_eq('пользователи: пустой список — все видны', $ucols(''), '[]');
 
 [, , $page] = t_http('GET', $mw . '/admin/index.php?tab=sysinfo', [], null, $jar);
 t_ok('OPcache выключен — предупреждение на «О системе»', strpos($page, '<b>OPcache выключен.</b>') !== false);

@@ -15,6 +15,15 @@ function ua_sort_parse($v) {
 }
 function ua_sort() { return ua_sort_parse(setting('users_sort', '')) ?? ['k' => 'id', 'd' => -1]; }
 
+// Скрытые колонки списка пользователей («Пользователь» и действия скрыть нельзя).
+function ua_cols_keys() { return ['id', 'st', 'tr', 'ex', 'sq', 'on']; }
+function ua_cols_parse($v) {
+    $out = [];
+    foreach (explode(',', (string) $v) as $k) { $k = trim($k); if ($k !== '' && in_array($k, ua_cols_keys(), true) && !in_array($k, $out, true)) $out[] = $k; }
+    return $out;
+}
+function ua_cols_hidden() { return ua_cols_parse(setting('users_cols_hide', '')); }
+
 function ua_link($short) {
     $m = mirror_domain();
     if ($m === '' || (string) $short === '') return '';

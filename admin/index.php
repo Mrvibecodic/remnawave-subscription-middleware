@@ -429,6 +429,14 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'users_cols' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $hide = ua_cols_parse($_POST['hide'] ?? '');
+        set_setting('users_cols_hide', implode(',', $hide));
+        echo json_encode(['ok' => true, 'hide' => $hide]);
+        exit();
+    }
+
     if ($a === 'toggle_nolog' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $su = trim($_POST['short_uuid'] ?? '');

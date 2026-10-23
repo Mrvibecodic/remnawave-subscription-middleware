@@ -24,6 +24,7 @@ $ux_cfg = [
     'fc'    => (object) fc_map(),
     'wh'    => webhook_secret() !== '',
     'sort'  => ua_sort(),
+    'hide'  => ua_cols_hidden(),
     'qr'    => 'assets/qrcode.js?v=' . substr(md5_file(__DIR__ . '/../assets/qrcode.js'), 0, 10),
 ];
 $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
@@ -137,6 +138,11 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-menu button.bad,.ux-menu button.bad svg{color:var(--c-bad-fg)}
 .ux-menu button .kb{margin-left:auto;font-size:.72rem;color:var(--muted)}
 .ux-menu hr{border:0;border-top:1px solid var(--line);margin:.3rem .2rem}
+.ux-menu .ux-mt{padding:.4rem .65rem .25rem;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.ux-menu label.ux-colr{display:flex;align-items:center;gap:.6rem;padding:.48rem .65rem;border-radius:7px;font-size:.85rem;font-weight:500;color:var(--text);cursor:pointer;margin:0}
+.ux-menu label.ux-colr:hover{background:var(--hover);color:var(--text-strong)}
+.ux-menu label.ux-colr input{width:auto;margin:0;accent-color:var(--accent)}
+.ux-tbl.hide-id .c-id,.ux-tbl.hide-st .c-st,.ux-tbl.hide-tr .c-tr,.ux-tbl.hide-ex .c-ex,.ux-tbl.hide-sq .c-sq,.ux-tbl.hide-on .c-on{display:none}
 .ux-ov{position:fixed;inset:0;z-index:95;background:rgba(2,6,23,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .16s}
 .ux-ov.open{opacity:1;pointer-events:auto}
 .ux-dr{position:absolute;top:0;right:0;bottom:0;width:min(760px,100vw);background:var(--card);border-left:1px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;transform:translateX(24px);transition:transform .18s ease-out;border-radius:var(--radius) 0 0 var(--radius)}
@@ -421,6 +427,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <select id="uxTag" aria-label="Тег" hidden><option value="">Все теги</option></select>
             <span id="uxChips"></span>
             <span class="sp"></span>
+            <div class="ux-seg" data-tip="Колонки таблицы"><button type="button" id="uxColsBtn" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>Колонки</button></div>
             <div class="ux-seg" data-tip="Плотность строк">
                 <button type="button" class="on" data-dens="0" aria-label="Обычная плотность"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
                 <button type="button" data-dens="1" aria-label="Компактная плотность"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 5h16M4 9.7h16M4 14.3h16M4 19h16"/></svg></button>
@@ -431,9 +438,9 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
                 <thead><tr>
                     <th class="srt" data-s="name">Пользователь<span class="sar"></span></th>
                     <th class="srt c-id" data-s="id" data-tip="Сортировка запоминается">ID<span class="sar"></span></th>
-                    <th class="srt" data-s="st">Статус<span class="sar"></span></th>
-                    <th class="srt" data-s="tr">Трафик<span class="sar"></span></th>
-                    <th class="srt" data-s="exp">Истекает<span class="sar"></span></th>
+                    <th class="srt c-st" data-s="st">Статус<span class="sar"></span></th>
+                    <th class="srt c-tr" data-s="tr">Трафик<span class="sar"></span></th>
+                    <th class="srt c-ex" data-s="exp">Истекает<span class="sar"></span></th>
                     <th class="c-sq">Сквады</th>
                     <th class="srt c-on" data-s="on">Онлайн<span class="sar"></span></th>
                     <th class="acts"></th>
@@ -445,6 +452,12 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
     </div>
 
     <div class="ux-menu" id="uxMenu" role="menu"></div>
+    <div class="ux-menu" id="uxCols" aria-label="Колонки таблицы">
+        <div class="ux-mt">Колонки</div>
+        <?php foreach (['id' => 'ID', 'st' => 'Статус', 'tr' => 'Трафик', 'ex' => 'Истекает', 'sq' => 'Сквады', 'on' => 'Онлайн'] as $ux_k => $ux_l): ?>
+        <label class="ux-colr"><input type="checkbox" data-col="<?= h($ux_k) ?>" checked><?= h($ux_l) ?></label>
+        <?php endforeach; ?>
+    </div>
 
     <div class="ux-ov" id="uxOv">
         <aside class="ux-dr" id="uxDr" role="dialog" aria-modal="true" aria-label="Пользователь"></aside>
@@ -512,6 +525,8 @@ link:'<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 
 net:'<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-2h14v2"/>',
 log:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
 send:'<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
+ sendh:'<path d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"/><path d="M6 12h16"/>',
+ pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
 hour:'<path d="M5 22h14M5 2h14M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2"/>',
 back:'<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/>',
 check:'<path d="M20 6 9 17l-5-5"/>',
@@ -603,6 +618,11 @@ function matches(u){
  return true;
 }
 var STO={ACTIVE:1,LIMITED:2,DISABLED:3,EXPIRED:4};
+S.hide=(C.hide||[]).slice();
+var COLS=['id','st','tr','ex','sq','on'];
+function applyCols(){var t=$('uxTbl');COLS.forEach(function(k){t.classList.toggle('hide-'+k,S.hide.indexOf(k)>-1);});document.querySelectorAll('#uxCols [data-col]').forEach(function(i){i.checked=S.hide.indexOf(i.dataset.col)<0;});}
+function openCols(btn){var m=$('uxCols');applyCols();m.classList.add('open');btn.setAttribute('aria-expanded','true');var r=btn.getBoundingClientRect(),mw=m.offsetWidth,mh=m.offsetHeight;var left=Math.max(8,Math.min(r.right-mw,innerWidth-mw-8)),top=r.bottom+4;if(top+mh>innerHeight-8)top=Math.max(8,r.top-mh-4);m.style.left=left+'px';m.style.top=top+'px';}
+function closeCols(){$('uxCols').classList.remove('open');$('uxColsBtn').setAttribute('aria-expanded','false');}
 function setSort(k,d){S.sort=k;S.dir=d;S.page=1;render();post('users_sort',{sort:k+':'+(d>0?'asc':'desc')}).then(function(r){if(!r.ok)toast('Сортировка не сохранилась');});}
 function skey(u){switch(S.sort){
  case 'id':return parseInt(u.id,10)||0;
@@ -639,6 +659,7 @@ function render(){
  $('uxBody').innerHTML=pg.length?pg.map(rowHtml).join(''):'<tr><td colspan="8"><div class="ux-empty">'+(U.length?'Под фильтр никто не подходит.':'Пользователей пока нет.')+'</div></td></tr>';
  $('uxCnt').textContent=list.length===U.length?'· '+U.length:'· '+list.length+' из '+U.length;
  $('uxTbl').classList.toggle('compact',S.dens===1);
+ COLS.forEach(function(k){$('uxTbl').classList.toggle('hide-'+k,S.hide.indexOf(k)>-1);});
  document.querySelectorAll('.ux-flt [data-dens]').forEach(function(b){b.classList.toggle('on',+b.dataset.dens===S.dens);});
  document.querySelectorAll('#uxTbl th.srt').forEach(function(th){th.querySelector('.sar').textContent=th.dataset.s===S.sort?(S.dir>0?'▲':'▼'):'';});
  var chips=[];if(S.sq)chips.push(['sq','Сквад: '+sqName(S.sq)]);if(S.tag)chips.push(['tag',S.tag==='-'?'Без тега':'Тег: '+S.tag]);
@@ -758,6 +779,7 @@ window.addEventListener('popstate',function(){
  if(dlg&&dlg.classList.contains('open')){}
  else if($('uxCfOv').classList.contains('open'))cfClose();
  else if($('uxMenu').classList.contains('open'))closeMenu();
+ else if($('uxCols').classList.contains('open'))closeCols();
  else if($('uxPickOv').classList.contains('open'))closePick();
  else if($('uxQrOv').classList.contains('open'))$('uxQrOv').classList.remove('open');
  else closeCard();
@@ -858,8 +880,8 @@ function histHtml(u){
  var dv=function(x){return typeof x==='number'?fdt(x*1000):esc(x);};
  return '<div class="ux-tl">'+ev.map(function(e){
   var ic,tn,t,s;
-  if(e.k==='rq'){ic='send';tn='st-info';t='Запрос подписки';s=esc([e.app||'клиент не распознан',e.os].filter(Boolean).join(' · '))+(e.dec&&e.dec!=='normal'?' <span class="ux-pill '+(e.dec==='blocked'||e.dec==='error'?'st-bad':(e.dec==='grace'?'st-vio':'st-warn'))+'" style="font-size:.66rem">'+esc(({blocked:'блок',expired:'истёк',grace:'грейс',error:'ошибка'})[e.dec]||e.dec)+'</span>':'');}
-  else if(e.k==='wh'){ic='edit';tn='st-mut';t=EVN[e.ev]||e.ev;s=(e.d||[]).map(function(x){return esc(x.l)+': '+dv(x.a)+' → '+dv(x.b);}).join('<br>')+(e.mw===1?' <span class="ux-pill st-ok" style="font-size:.66rem">прослойка</span>':(e.mw===0?' <span class="ux-pill st-mut" style="font-size:.66rem">извне</span>':''));}
+  if(e.k==='rq'){ic='sendh';tn='st-info';t='Запрос подписки';s=esc([e.app||'клиент не распознан',e.os].filter(Boolean).join(' · '))+(e.dec&&e.dec!=='normal'?' <span class="ux-pill '+(e.dec==='blocked'||e.dec==='error'?'st-bad':(e.dec==='grace'?'st-vio':'st-warn'))+'" style="font-size:.66rem">'+esc(({blocked:'блок',expired:'истёк',grace:'грейс',error:'ошибка'})[e.dec]||e.dec)+'</span>':'');}
+  else if(e.k==='wh'){ic='pencil';tn='st-mut';t=EVN[e.ev]||e.ev;s=(e.d||[]).map(function(x){return esc(x.l)+': '+dv(x.a)+' → '+dv(x.b);}).join('<br>')+(e.mw===1?' <span class="ux-pill st-ok" style="font-size:.66rem">прослойка</span>':(e.mw===0?' <span class="ux-pill st-mut" style="font-size:.66rem">извне</span>':''));}
   else{ic='shield';tn=e.ok?'st-ok':'st-bad';t='Прослойка: '+(OPN[e.op]||e.op).toLowerCase();s=esc(srcL(e.src))+(e.f&&e.f.length?' · '+esc(e.f.join(', ')):'')+(e.ok?'':' · <span style="color:var(--c-bad-fg)">'+esc(e.err||'ошибка')+'</span>');}
   return '<div><span class="tm">'+fdt(e.t*1000).replace(' в ',' ')+'</span><span class="ic '+tn+'">'+ico(ic,13)+'</span><span class="tx"><b>'+esc(t)+'</b><span class="s">'+s+'</span></span></div>';
  }).join('')+'</div>'+foot;
@@ -1049,6 +1071,8 @@ document.addEventListener('click',function(e){
  var hb=t.closest&&t.closest('[data-help]');if(hb){e.preventDefault();help(hb.dataset.help);return;}
  if(!t.closest)return;
  if($('uxMenu').classList.contains('open')&&!t.closest('#uxMenu')&&!t.closest('[data-act="menu"],[data-a="menu"]'))closeMenu();
+ if($('uxCols').classList.contains('open')&&!t.closest('#uxCols')&&!t.closest('#uxColsBtn'))closeCols();
+ if(t.closest('#uxColsBtn')){if($('uxCols').classList.contains('open'))closeCols();else openCols(t.closest('#uxColsBtn'));return;}
  var mi=t.closest('#uxMenu [data-m]');if(mi){if(mi.disabled)return;var u0=menuFor;closeMenu();doAction(mi.dataset.m,u0);return;}
  if(!t.closest('#ux'))return;
  if(t.id==='uxCfOk'){if(CF&&CF.onOk&&!t.disabled)CF.onOk();return;}
@@ -1087,9 +1111,9 @@ $('uxCreate').addEventListener('click',function(){if(!this.disabled)openCreate()
 $('uxQ').addEventListener('input',function(){S.q=this.value.trim().toLowerCase();S.page=1;render();});
 $('uxSq').addEventListener('change',function(){S.sq=this.value;S.page=1;render();});
 $('uxTag').addEventListener('change',function(){S.tag=this.value;S.page=1;render();});
-document.addEventListener('change',function(e){var t=e.target;if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
+document.addEventListener('change',function(e){var t=e.target;if(t.matches&&t.matches('#uxCols [data-col]')){var k=t.dataset.col;S.hide=S.hide.filter(function(x){return x!==k;});if(!t.checked)S.hide.push(k);applyCols();post('users_cols',{hide:S.hide.join(',')}).then(function(r){if(!r.ok)toast('Колонки не сохранились');});return;}if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
 document.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.ux-dk>.go')){e.preventDefault();e.target.closest('.ux-dk>.go').click();return;}});
-document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
+document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxCols').classList.contains('open')){closeCols();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
 window.addEventListener('resize',closeMenu);
 document.addEventListener('scroll',function(e){if(e.target&&e.target.closest&&e.target.closest('#uxMenu'))return;closeMenu();},true);
 document.addEventListener('click',function(e){if(!$('uxMenu').classList.contains('open')||!matchMedia('(max-width:600px)').matches||(e.target.closest&&e.target.closest('#uxMenu')))return;e.preventDefault();e.stopPropagation();closeMenu();},true);
