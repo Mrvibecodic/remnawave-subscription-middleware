@@ -77,6 +77,8 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-tbl thead th.srt:hover{color:var(--accent-text)}
 .ux-tbl thead th .sar{font-size:.65rem;margin-left:.25rem}
 .ux-tbl thead th.num,.ux-tbl td.num{text-align:right}
+.ux-tbl th.c-id,.ux-tbl td.c-id{width:1%;white-space:nowrap}
+.ux-tbl td.c-id{color:var(--muted);font-variant-numeric:tabular-nums}
 .ux-tbl td{padding:.55rem .7rem;height:46px;box-shadow:inset 0 -1px 0 var(--line);border:0;vertical-align:middle;background:transparent}
 .ux-tbl tbody tr:last-child td{box-shadow:none}
 .ux-tbl tbody tr{cursor:pointer}
@@ -161,6 +163,11 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-dk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem}
 .ux-dk>div{border:1px solid var(--line);background:var(--bg2);border-radius:12px;padding:.65rem .8rem;min-width:0}
 .ux-dk .k{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ux-dk>.go{cursor:pointer;transition:border-color .15s,background .15s}
+.ux-dk>.go .k{display:flex;align-items:center;justify-content:space-between;gap:.4rem}
+.ux-dk>.go .k svg{color:var(--muted);transition:color .15s,transform .15s}
+.ux-dk>.go:hover,.ux-dk>.go:focus-visible{border-color:var(--accent);background:var(--hover);outline:0}
+.ux-dk>.go:hover .k svg,.ux-dk>.go:focus-visible .k svg{color:var(--accent-text);transform:translateX(2px)}
 .ux-dk .v{font-size:1.08rem;font-weight:700;color:var(--text-strong);font-variant-numeric:tabular-nums;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ux-dk .d{font-size:.74rem;color:var(--muted);margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ux-sect{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin:1.2rem 0 .55rem;display:flex;align-items:center;gap:.6rem}
@@ -269,6 +276,7 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-tbl tbody tr:hover td{background:transparent}
 .ux-tbl td{display:block;padding:0;height:auto;box-shadow:none}
 .ux-tbl td.c-nm{grid-row:1;grid-column:1}
+.ux-tbl td.c-id{display:none}
 .ux-tbl td.acts{grid-row:1;grid-column:2}
 .ux-tbl td.c-st,.ux-tbl td.c-tr,.ux-tbl td.c-ex,.ux-tbl td.c-dv,.ux-tbl td.c-on,.ux-tbl td.c-sq{grid-column:1/3;display:flex;justify-content:space-between;align-items:center;gap:1rem}
 .ux-tbl td.c-on,.ux-tbl td.c-sq{display:flex}
@@ -411,12 +419,6 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <input type="text" id="uxQ" role="searchbox" placeholder="Имя, shortUuid, описание, Telegram, email" autocomplete="off" spellcheck="false">
             <select id="uxSq" aria-label="Сквад"><option value="">Все сквады</option></select>
             <select id="uxTag" aria-label="Тег" hidden><option value="">Все теги</option></select>
-            <select id="uxSort" aria-label="Сортировка" data-tip="Сортировка списка — запоминается в настройках">
-                <?php foreach (['id' => 'ID — как в панели', 'name' => 'По имени', 'st' => 'По статусу', 'tr' => 'По трафику', 'exp' => 'По сроку', 'on' => 'По онлайну'] as $ux_k => $ux_l): ?>
-                <option value="<?= h($ux_k) ?>"><?= h($ux_l) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <div class="ux-seg" data-tip="Направление сортировки"><button type="button" id="uxDir" aria-label="Направление сортировки"></button></div>
             <span id="uxChips"></span>
             <span class="sp"></span>
             <div class="ux-seg" data-tip="Плотность строк">
@@ -428,6 +430,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <table class="ux-tbl" id="uxTbl">
                 <thead><tr>
                     <th class="srt" data-s="name">Пользователь<span class="sar"></span></th>
+                    <th class="srt c-id" data-s="id" data-tip="Сортировка запоминается">ID<span class="sar"></span></th>
                     <th class="srt" data-s="st">Статус<span class="sar"></span></th>
                     <th class="srt" data-s="tr">Трафик<span class="sar"></span></th>
                     <th class="srt" data-s="exp">Истекает<span class="sar"></span></th>
@@ -516,6 +519,7 @@ ban:'<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
 refresh:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
 wave:'<path d="M2 12h3l3-8 4 16 3-8h7"/>',
 arr:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+ chev:'<path d="m9 18 6-6-6-6"/>',
 mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
 info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
 alert:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
@@ -599,7 +603,6 @@ function matches(u){
  return true;
 }
 var STO={ACTIVE:1,LIMITED:2,DISABLED:3,EXPIRED:4};
-var DIR_ICO={1:'<path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="M11 12h4"/><path d="M11 16h7"/><path d="M11 20h10"/>',"-1":'<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="M11 4h10"/><path d="M11 8h7"/><path d="M11 12h4"/>'};
 function setSort(k,d){S.sort=k;S.dir=d;S.page=1;render();post('users_sort',{sort:k+':'+(d>0?'asc':'desc')}).then(function(r){if(!r.ok)toast('Сортировка не сохранилась');});}
 function skey(u){switch(S.sort){
  case 'id':return parseInt(u.id,10)||0;
@@ -618,6 +621,7 @@ function rowHtml(u){
  var sub=u.desc?esc(u.desc):'<span style="font-family:ui-monospace,monospace">'+esc(u.su)+'</span>';
  return '<tr data-su="'+esc(u.su)+'">'+
   '<td class="c-nm"><div class="u-nm"><span>'+esc(u.un)+'</span>'+(u.tag?'<span class="ux-tag">'+esc(u.tag)+'</span>':'')+(C.ovb[u.su]?'<span class="ux-pill st-bad" data-tip="Заблокирован в оверрайдах" style="font-size:.66rem">блок</span>':'')+(fcPend(u.su)?'<span class="ux-pill st-info" data-tip="'+esc('Срок '+durTxt(fcPend(u.su).dur)+' пойдёт с первого подключения')+'" style="font-size:.66rem">ждёт подключения</span>':'')+'</div><span class="u-sub">'+sub+'</span></td>'+
+  '<td class="c-id">'+(u.id?esc(u.id):'<span class="muted">—</span>')+'</td>'+
   '<td class="c-st" data-l="Статус">'+pill(u)+'</td>'+
   '<td class="c-tr" data-l="Трафик"><div class="ux-tr"><div class="t"><b>'+fb(u.used)+'</b><span>'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</span></div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div></td>'+
   '<td class="c-ex" data-l="Истекает"><div class="ux-dt">'+(u.exp?fdt(e)+'<span class="r '+rc+'">'+(isGr(u)?'грейс, ':'')+rel(e)+'</span>':'—')+'</div></td>'+
@@ -632,14 +636,11 @@ function render(){
  var per=S.size||list.length||1,pages=Math.max(1,Math.ceil(list.length/per));
  if(S.page>pages)S.page=pages;
  var st=(S.page-1)*per,pg=list.slice(st,st+per);
- $('uxBody').innerHTML=pg.length?pg.map(rowHtml).join(''):'<tr><td colspan="7"><div class="ux-empty">'+(U.length?'Под фильтр никто не подходит.':'Пользователей пока нет.')+'</div></td></tr>';
+ $('uxBody').innerHTML=pg.length?pg.map(rowHtml).join(''):'<tr><td colspan="8"><div class="ux-empty">'+(U.length?'Под фильтр никто не подходит.':'Пользователей пока нет.')+'</div></td></tr>';
  $('uxCnt').textContent=list.length===U.length?'· '+U.length:'· '+list.length+' из '+U.length;
  $('uxTbl').classList.toggle('compact',S.dens===1);
  document.querySelectorAll('.ux-flt [data-dens]').forEach(function(b){b.classList.toggle('on',+b.dataset.dens===S.dens);});
  document.querySelectorAll('#uxTbl th.srt').forEach(function(th){th.querySelector('.sar').textContent=th.dataset.s===S.sort?(S.dir>0?'▲':'▼'):'';});
- $('uxSort').value=S.sort;
- $('uxDir').innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+DIR_ICO[S.dir>0?1:-1]+'</svg>';
- $('uxDir').setAttribute('data-tip',S.dir>0?'По возрастанию — нажмите для убывания':'По убыванию — нажмите для возрастания');
  var chips=[];if(S.sq)chips.push(['sq','Сквад: '+sqName(S.sq)]);if(S.tag)chips.push(['tag',S.tag==='-'?'Без тега':'Тег: '+S.tag]);
  $('uxChips').innerHTML=chips.map(function(c){return '<span class="ux-chip">'+esc(c[1])+'<button type="button" data-unchip="'+c[0]+'" aria-label="Сбросить фильтр">×</button></span>';}).join(' ');
  $('uxPgr').innerHTML='<span>'+(list.length?(st+1)+'–'+Math.min(st+per,list.length)+' из '+list.length:'0')+'</span><div class="nav">'+(pages>1?'<button type="button" class="wb sm" data-pg="-1"'+(S.page<=1?' disabled':'')+' aria-label="Предыдущая страница">◀</button><span>стр. '+S.page+' / '+pages+'</span><button type="button" class="wb sm" data-pg="1"'+(S.page>=pages?' disabled':'')+' aria-label="Следующая страница">▶</button>':'')+'<label style="margin:0;display:flex;align-items:center;font-size:.82rem">На странице<select id="uxSize"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="0">Все</option></select></label></div>';
@@ -812,7 +813,7 @@ function ovHtml(u){
  h+='<div class="ux-dk">'+
   '<div><div class="k">Трафик</div><div class="v">'+fb(u.used)+'</div><div class="d">'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div>'+
   '<div><div class="k">Истекает</div><div class="v">'+(u.exp?fd(e):'—')+'</div><div class="d" style="color:'+(e<now()?'var(--c-bad-fg)':(e-now()<7*DAY?'var(--c-warn-fg)':'var(--muted)'))+'">'+(u.exp?rel(e):'')+'</div></div>'+
-  '<div><div class="k">Устройства</div><div class="v">'+(CARD.devs?CARD.devs.length:'…')+(hwEff(u).lim?' / '+hwEff(u).lim:'')+'</div><div class="d">лимит: '+esc(hwEff(u).d)+'</div></div>'+
+  '<div class="go" data-tab="dev" role="button" tabindex="0" data-tip="Открыть список устройств"><div class="k">Устройства'+ico('chev',13)+'</div><div class="v">'+(CARD.devs?CARD.devs.length:'…')+(hwEff(u).lim?' / '+hwEff(u).lim:'')+'</div><div class="d">лимит: '+esc(hwEff(u).d)+'</div></div>'+
   '<div><div class="k">Онлайн</div><div class="v" style="font-size:.98rem">'+(u.on?ago(u.on*1000):'—')+'</div><div class="d">'+(u.node?esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):'не подключался')+'</div></div></div>';
  var sqs=u.sq.map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join(' ')||'<span class="m">нет</span>';
  var row=function(k,v){return '<dt>'+k+'</dt><dd>'+v+'</dd>';},emp='<span class="m">—</span>';
@@ -1056,8 +1057,7 @@ document.addEventListener('click',function(e){
  if(t.closest('[data-close="pick"]')||t.id==='uxPickOv'){closePick();return;}
  if(t.id==='uxOv'){closeCard();return;}
  var k=t.closest('.ux-kpi');if(k){S.f=S.f===k.dataset.f&&k.dataset.f!=='all'?'all':k.dataset.f;S.page=1;render();return;}
- var th=t.closest('#uxTbl th.srt');if(th){var s=th.dataset.s;setSort(s,S.sort===s?-S.dir:((s==='tr'||s==='on')?-1:1));return;}
- if(t.closest('#uxDir')){setSort(S.sort,-S.dir);return;}
+ var th=t.closest('#uxTbl th.srt');if(th){var s=th.dataset.s;setSort(s,S.sort===s?-S.dir:((s==='id'||s==='tr'||s==='on')?-1:1));return;}
  var dn=t.closest('.ux-flt [data-dens]');if(dn){S.dens=+dn.dataset.dens;try{localStorage.setItem('utbl_dens',String(S.dens));}catch(_){}render();return;}
  var uc=t.closest('[data-unchip]');if(uc){S[uc.dataset.unchip]='';fillSelects();S.page=1;render();return;}
  var pg=t.closest('[data-pg]');if(pg){S.page+=+pg.dataset.pg;render();return;}
@@ -1087,7 +1087,8 @@ $('uxCreate').addEventListener('click',function(){if(!this.disabled)openCreate()
 $('uxQ').addEventListener('input',function(){S.q=this.value.trim().toLowerCase();S.page=1;render();});
 $('uxSq').addEventListener('change',function(){S.sq=this.value;S.page=1;render();});
 $('uxTag').addEventListener('change',function(){S.tag=this.value;S.page=1;render();});
-document.addEventListener('change',function(e){var t=e.target;if(t.id==='uxSort'){var k=t.value;setSort(k,(k==='id'||k==='tr'||k==='on')?-1:1);return;}if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
+document.addEventListener('change',function(e){var t=e.target;if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
+document.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.ux-dk>.go')){e.preventDefault();e.target.closest('.ux-dk>.go').click();return;}});
 document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
 window.addEventListener('resize',closeMenu);
 document.addEventListener('scroll',function(e){if(e.target&&e.target.closest&&e.target.closest('#uxMenu'))return;closeMenu();},true);
