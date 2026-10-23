@@ -116,6 +116,12 @@ function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null,
 
 function reqlog_pages_enabled() { return setting('reqlog_log_pages', '0') === '1'; }
 
+function reqlog_refresh_options() { return [0, 10, 30, 60, 120, 360]; }
+function reqlog_refresh_secs() {
+    $v = (int) setting('reqlog_refresh', '60');
+    return in_array($v, reqlog_refresh_options(), true) ? $v : 60;
+}
+
 function reqlog_addsub_count($body, $format) {
     $body = (string) $body;
     if ($body === '') return 0;

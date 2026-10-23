@@ -513,7 +513,7 @@ if (isset($_GET['ajax']) && is_auth()) {
 
     if ($a === 'reqlog') {
         require_once __DIR__ . '/inc/_reqlog_rows.php';
-        [$rl_f, $rl_rows, $rl_ctx, $rl_tusers] = reqlog_prepare();
+        [$rl_f, $rl_rows, $rl_ctx, $rl_tusers] = reqlog_prepare(!empty($_GET['fresh']));
         $st   = reqlog_today_stats();
         $ov   = reqlog_overview();
         $spark = rl_spark_html($ov);
@@ -1166,6 +1166,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'save_junk_cfg') {
         set_setting('junk_short_len', empty($_POST['junk_short_len']) ? '0' : '1');
         set_setting('reqlog_log_pages', empty($_POST['reqlog_log_pages']) ? '0' : '1');
+        if (isset($_POST['reqlog_refresh']) && in_array((int) $_POST['reqlog_refresh'], reqlog_refresh_options(), true)) set_setting('reqlog_refresh', (string) (int) $_POST['reqlog_refresh']);
         flash('Настройки лога сохранены');
         form_saved('reqlog');
     }

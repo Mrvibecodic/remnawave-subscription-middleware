@@ -125,7 +125,7 @@
     <div class="card">
         <div class="loghead">
             <h2>Активность по часам <span class="muted" style="font-weight:400;font-size:.78rem">последние 24 часа</span></h2>
-            <div class="loghead-r"><button type="button" class="btn ghost" onclick="rlRefresh()">Обновить</button></div>
+            <div class="loghead-r"><button type="button" class="btn ghost" onclick="rlRefresh(true)">Обновить</button></div>
         </div>
         <?php $rl_hn = intdiv(time(), 3600); ?>
         <div class="spark" id="rlSpark"><?= rl_spark_html($rl_over, $rl_hn) ?></div>
@@ -204,6 +204,17 @@
                     <div class="set-d">Когда пользователь открывает ссылку в браузере, панель отдаёт HTML-страницу. По умолчанию такие запросы в лог не пишутся, чтобы он не забивался. Включите, если хотите видеть их с типом «страница подписки».</div>
                 </div>
                 <label class="switch"><input type="checkbox" name="reqlog_log_pages" <?= reqlog_pages_enabled() ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
+            <div class="set-row">
+                <div class="set-info">
+                    <div class="set-t">Автообновление списка запросов</div>
+                    <div class="set-d">Как часто подтягивать новые запросы, пока вкладка открыта. Сами запросы читаются из базы прослойки; список пользователей панели (имена, статусы, лимиты устройств) запрашивается заново при открытии страницы и по кнопке «Обновить», а между ними берётся из кэша не старше 5 минут. «При открытии» — без таймера, только вручную.</div>
+                </div>
+                <select name="reqlog_refresh" id="rlRefreshSel">
+                    <?php foreach (reqlog_refresh_options() as $rl_o): ?>
+                    <option value="<?= (int) $rl_o ?>"<?= $rl_o === reqlog_refresh_secs() ? ' selected' : '' ?>><?= $rl_o === 0 ? 'при открытии' : ($rl_o >= 120 ? 'каждые ' . (int) ($rl_o / 60) . ' мин' : 'каждые ' . (int) $rl_o . ' с') ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
         </form>
         <?php if (!empty($junk_wl)): ?>
@@ -335,11 +346,12 @@
         function kpi(id, val){ var el = document.getElementById(id); if(el && val !== undefined && val !== null) el.textContent = val; }
         var rlBusy = false;
         function rlIdle(){ rlBusy = false; }
-        window.rlRefresh = function(){
+        window.rlRefresh = function(fresh){
             if(rlBusy) return;
             rlBusy = true;
             var a = document.getElementById('rlAuto'); if(a) a.textContent = '· обновление…';
             var q = new URLSearchParams(window.location.search); q.set('ajax','reqlog');
+            if(fresh) q.set('fresh','1');
             fetch('?'+q.toString()).then(function(r){ return r.json(); }).then(function(d){
                 if(d.ok){
                     body.innerHTML = d.html;
@@ -365,7 +377,15 @@
         };
         localize(document);
         localizeSpark();
-        setInterval(function(){ if(!document.hidden && !anyOpen()) rlRefresh(); }, 10000);
-        document.addEventListener('visibilitychange', function(){ if(!document.hidden && !anyOpen()) rlRefresh(); });
+        var rlTimer = null, rlSel = document.getElementById('rlRefreshSel');
+        function rlEvery(){ return rlSel ? (parseInt(rlSel.value, 10) || 0) : <?= (int) reqlog_refresh_secs() ?>; }
+        function rlArm(){
+            if(rlTimer){ clearInterval(rlTimer); rlTimer = null; }
+            var s = rlEvery();
+            if(s > 0) rlTimer = setInterval(function(){ if(!document.hidden && !anyOpen()) rlRefresh(); }, s * 1000);
+        }
+        rlArm();
+        if(rlSel) rlSel.addEventListener('change', rlArm);
+        document.addEventListener('visibilitychange', function(){ if(!document.hidden && !anyOpen() && rlEvery() > 0) rlRefresh(); });
     })();
     </script>
