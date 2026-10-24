@@ -29,8 +29,9 @@ if ($cr_on) {
     if (!submw_in_docker()) {
         $cr_user  = cron_user_name(cron_site_uid());
         $cr_lines = [
-            ['По адресу — тем же PHP, что отвечает сайту', '* * * * * curl -fsSL --max-time 120 -o /dev/null ' . cron_cron_arg('https://' . mirror_domain() . '/' . cron_secret_ensure()) . ' >/dev/null 2>&1'],
-            ['Из консоли — PHP ' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . ' с теми же расширениями, что у сайта, в crontab пользователя ' . $cr_user . ' (crontab -u ' . $cr_user . ' -e)', '* * * * * ' . cron_cron_arg(cron_php_bin()) . ' ' . cron_cron_arg(dirname(__DIR__, 2) . '/tools/cron.php') . ' >/dev/null 2>&1'],
+            ['Из консоли (надёжнее) — PHP ' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . ' с теми же расширениями, что у сайта. Шаг 1: открыть crontab пользователя сайта', 'crontab -u ' . $cr_user . ' -e'],
+            ['Шаг 2: вставить строку целиком и сохранить', '* * * * * ' . cron_cron_arg(cron_php_bin()) . ' ' . cron_cron_arg(dirname(__DIR__, 2) . '/tools/cron.php') . ' >/dev/null 2>&1'],
+            ['Либо по адресу — тем же PHP, что отвечает сайту; без php-fpm ответ ждёт окончания задач, тяжёлые пропускаются', '* * * * * curl -fsSL --max-time 120 -o /dev/null ' . cron_cron_arg('https://' . mirror_domain() . '/' . cron_secret_ensure()) . ' >/dev/null 2>&1'],
         ];
     }
 }
@@ -193,7 +194,8 @@ if ($cr_on) {
                 <?php if (submw_in_docker()): ?>
                 <p class="muted" style="margin-bottom:0">В Docker планировщик запускается сам, раз в минуту.<?= $cr_alive ? '' : ' Если он не работает — обновите образ и пересоздайте контейнер.' ?></p>
                 <?php else: ?>
-                <h3 style="margin:1.1rem 0 .3rem;font-size:.95rem">Строка для cron — любая из двух</h3>
+                <h3 style="margin:1.1rem 0 .3rem;font-size:.95rem">Как запустить</h3>
+                <p class="muted" style="margin:0 0 .5rem;font-size:.84rem">Строки с <code>* * * * *</code> — это расписание для crontab, а не команда на один раз. В панели хостинга (раздел cron сайта) расписание «каждую минуту» задаётся отдельно, а в команду идёт всё после <code>* * * * *</code>.</p>
                 <?php foreach ($cr_lines as [$cr_lt, $cr_lv]): ?>
                 <div class="set-d"><?= h($cr_lt) ?></div>
                 <div class="cr-line"><code><?= h($cr_lv) ?></code><button type="button" class="btn ghost" data-cr-copy="<?= h($cr_lv) ?>">Копировать</button></div>
