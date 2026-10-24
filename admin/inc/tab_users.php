@@ -361,8 +361,8 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-an .n{font-size:.7rem;background:var(--c-bad-bg);color:var(--c-bad-fg);border-radius:999px;padding:.02rem .4rem;font-weight:700}
 .ux-an.on{border-color:var(--c-bad-fg);background:var(--c-bad-bg);color:var(--c-bad-fg)}
 .ux-sb{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;font-size:.62rem;font-weight:800;flex:none;cursor:help}
-.ux-sb.bad{background:var(--c-bad-bg);color:var(--c-bad-fg)}
-.ux-sb.warn{background:var(--c-warn-bg);color:var(--c-warn-fg)}
+.ux-sb.b{background:var(--c-bad-bg);color:var(--c-bad-fg)}
+.ux-sb.w{background:var(--c-warn-bg);color:var(--c-warn-fg)}
 .ux-live{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:.5rem}
 .ux-live>div{display:grid;grid-template-columns:minmax(9rem,1.7fr) minmax(0,1fr) minmax(0,1.5fr) auto;gap:.5rem .8rem;align-items:center;padding:.55rem .8rem;border-top:1px solid var(--line);font-size:.84rem}
 .ux-live>div:first-child{border-top:0}
@@ -375,10 +375,10 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-fl{font-family:'Twemoji Country Flags',sans-serif;font-size:1.05em;line-height:1;flex:none}
 .ux-cc{display:inline-flex;font-size:.62rem;font-weight:700;letter-spacing:.04em;padding:.05rem .32rem;border-radius:4px;background:var(--hover);color:var(--muted);border:1px solid var(--line);flex:none;font-family:ui-monospace,monospace}
 .ux-ab{border:1px solid var(--c-bad-fg);background:var(--c-bad-bg);border-radius:12px;padding:.75rem .9rem;margin-bottom:.9rem}
-.ux-ab.warn{border-color:var(--c-warn-fg);background:var(--c-warn-bg)}
+.ux-ab.w{border-color:var(--c-warn-fg);background:var(--c-warn-bg)}
 .ux-ab .h{display:flex;gap:.55rem;align-items:center;font-weight:700;color:var(--text-strong);font-size:.9rem}
 .ux-ab .h svg{width:17px;height:17px;flex:none;color:var(--c-bad-fg)}
-.ux-ab.warn .h svg{color:var(--c-warn-fg)}
+.ux-ab.w .h svg{color:var(--c-warn-fg)}
 .ux-ab ul{margin:.4rem 0 0;padding-left:1.2rem;font-size:.84rem;color:var(--text)}
 .ux-ab li+li{margin-top:.15rem}
 .ux-sg{border:1px solid var(--line);border-radius:12px;margin-bottom:.55rem;background:var(--bg2)}
@@ -677,7 +677,8 @@ function sesFlag(u){
  var soft=m.lr>1;
  return{lvl:r.length?'bad':(soft?'warn':''),r:r,soft:soft,m:m};
 }
-function sesBadge(u){var f=sesFlag(u);if(!f||!f.lvl)return '';var tip=f.r.length?f.r.join('; '):'Один провайдер, но '+f.m.lr+' региона одновременно';return '<span class="ux-sb '+f.lvl+'" data-tip="'+esc(tip)+'">!</span>';}
+function lvc(l){return l==='bad'?'b':(l==='warn'?'w':'');}
+function sesBadge(u){var f=sesFlag(u);if(!f||!f.lvl)return '';var tip=f.r.length?f.r.join('; '):'Один провайдер, но '+f.m.lr+' региона одновременно';return '<span class="ux-sb '+lvc(f.lvl)+'" data-tip="'+esc(tip)+'">!</span>';}
 function canW(sc){return !sc||C.ts[sc]!=='miss';}
 function roTip(sc){return 'Нет права '+sc+' у API-токена';}
 function toast(m){if(window.uiToast)uiToast(m);}
@@ -904,7 +905,7 @@ function head(u){
   '<button type="button" class="wb sm" data-a="reset" data-w="users:reset-traffic">'+ico('reset')+'Сбросить трафик</button>'+
   '<button type="button" class="wb sm'+(off?'':' bad')+'" data-a="'+(off?'enable':'disable')+'" data-w="'+(off?'users:enable':'users:disable')+'">'+ico('power')+(off?'Включить':'Выключить')+'</button>'+
   '<button type="button" class="ux-ib" data-a="menu" aria-label="Ещё действия" style="margin-left:auto">'+ico('more')+'</button></div></div>'+
-  '<div class="ux-tabs" role="tablist">'+[['ov','Обзор'],['edit','Изменить'],['dev','Устройства'],['sess','Сессии'],['hist','История']].filter(function(t){return t[0]!=='sess'||SESS;}).map(function(t){var sf=t[0]==='sess'?sesFlag(u):null;return '<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(CARD.tab===t[0]?'on':'')+'"'+(t[0]==='edit'&&!canW('users:update')?' disabled data-tip="'+esc(roTip('users:update'))+'"':'')+'>'+t[1]+(sf&&sf.lvl?'<span class="ux-sb '+sf.lvl+'">!</span>':'')+'</button>';}).join('')+'</div>';
+  '<div class="ux-tabs" role="tablist">'+[['ov','Обзор'],['edit','Изменить'],['dev','Устройства'],['sess','Сессии'],['hist','История']].filter(function(t){return t[0]!=='sess'||SESS;}).map(function(t){var sf=t[0]==='sess'?sesFlag(u):null;return '<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(CARD.tab===t[0]?'on':'')+'"'+(t[0]==='edit'&&!canW('users:update')?' disabled data-tip="'+esc(roTip('users:update'))+'"':'')+'>'+t[1]+(sf&&sf.lvl?'<span class="ux-sb '+lvc(sf.lvl)+'">!</span>':'')+'</button>';}).join('')+'</div>';
 }
 function drawCard(){
  if(!CARD)return;
@@ -983,7 +984,7 @@ function sessTile(u){
  var m=SX[u.id]||null,f=sesFlag(u);
  var v=SESS.on?((m?m.i7:0)+' IP <span style="font-size:.74rem;color:var(--muted);font-weight:500">за 7 дн</span>'):'<span style="font-size:.9rem">сбор выкл.</span>';
  var d=u.on?'онлайн '+ago(u.on*1000)+(u.node?' · '+esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):''):'не подключался';
- return '<div class="go" data-tab="sess" role="button" tabindex="0" data-tip="Открыть сессии"><div class="k">Сессии'+(f&&f.lvl?' <span class="ux-sb '+f.lvl+'">!</span>':'')+ico('chev',13)+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>';
+ return '<div class="go" data-tab="sess" role="button" tabindex="0" data-tip="Открыть сессии"><div class="k">Сессии'+(f&&f.lvl?' <span class="ux-sb '+lvc(f.lvl)+'">!</span>':'')+ico('chev',13)+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>';
 }
 function loadSess(){var su=CARD.u.su,u=CARD.u;CARD.sess=false;getj('sess_user','&id='+encodeURIComponent(u.id||0)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.sess=d.ok?d:{rows:[],nodes:{},err:d.error||'Ошибка'};if(d.ok&&u.id){if(d.m)SX[u.id]=d.m;else delete SX[u.id];}if(CARD.tab==='sess')drawCard();});}
 function loadLive(){var su=CARD.u.su,u=CARD.u;if(!canW(SESS.sc.user)||!canW(SESS.sc.user_res)){CARD.live={err:roTip(canW(SESS.sc.user)?SESS.sc.user_res:SESS.sc.user)};return;}CARD.live=false;getj('sess_live','&rv='+encodeURIComponent(u.rv)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.live=d.ok?{nodes:d.nodes||[],ts:d.ts||0}:{err:d.error||'Ошибка'};if(CARD.tab==='sess')drawCard();});}
@@ -1018,7 +1019,7 @@ function sessHtml(u){
  var h='',sd=CARD.sess,f=sesFlag(u),sc=SESS.sc,hasLive=CARD.live&&CARD.live.nodes&&CARD.live.nodes.length;
  if(!SESS.on)h+='<div class="ux-gb ux-fcb"><div class="h">'+ico('info',18)+'История не собирается</div><p>Сбор сессий выключен — включите его внизу вкладки «Пользователи». «Сейчас онлайн» работает и без него.</p></div>';
  else if(!SESS.alive)h+='<div class="ux-gb ux-fcb bad"><div class="h">'+ico('alert',18)+'Планировщик не запущен</div><p>История не пополняется. Строки для cron — <a href="?tab=sysinfo">«О системе»</a>, блок «Планировщик».</p></div>';
- if(f&&f.lvl)h+='<div class="ux-ab'+(f.lvl==='warn'?' warn':'')+'"><div class="h">'+ico('alert',17)+(f.lvl==='bad'?'Аномалия':'Стоит взглянуть')+'</div><ul>'+f.r.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+(f.soft?'<li>Один провайдер, но '+f.m.lr+' '+plural(f.m.lr,'регион','региона','регионов')+' одновременно — у мобильных операторов такое бывает и само</li>':'')+'</ul></div>';
+ if(f&&f.lvl)h+='<div class="ux-ab'+(f.lvl==='warn'?' w':'')+'"><div class="h">'+ico('alert',17)+(f.lvl==='bad'?'Аномалия':'Стоит взглянуть')+'</div><ul>'+f.r.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+(f.soft?'<li>Один провайдер, но '+f.m.lr+' '+plural(f.m.lr,'регион','региона','регионов')+' одновременно — у мобильных операторов такое бывает и само</li>':'')+'</ul></div>';
  h+='<div class="ux-sect">Сейчас онлайн<span class="sp"></span><button type="button" class="wb sm" data-a="slive"'+(CARD.live===false?' disabled':'')+'>'+ico('refresh')+'Обновить</button>'+(hasLive?'<button type="button" class="wb sm bad" data-a="sdropall" data-w="'+esc(sc.drop)+'">'+ico('ban')+'Сбросить все</button>':'')+'</div>';
  h+=liveHtml();
  if(sd===null||sd===false)return h+'<div class="ux-load">Загрузка истории…</div>';
