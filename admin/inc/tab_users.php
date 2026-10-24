@@ -28,6 +28,7 @@ $ux_cfg = [
     'qr'    => 'assets/qrcode.js?v=' . substr(md5_file(__DIR__ . '/../assets/qrcode.js'), 0, 10),
     'sess'  => null,
     'sx'    => (object) [],
+    'usage' => function_exists('usage_fetch') ? ['sc' => usage_scope(), 'opts' => usage_days_opts()] : null,
 ];
 $ux_sess = function_exists('sess_enabled');
 if ($ux_sess) {
@@ -397,6 +398,33 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-sr .tm b{color:var(--text);font-weight:600}
 .ux-sr.live .ip::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c-ok-fg);box-shadow:0 0 0 2px var(--c-ok-bg);margin-right:.4rem;vertical-align:1px}
 @media(max-width:600px){.ux-live>div{grid-template-columns:minmax(0,1fr) auto}.ux-live .pv{grid-column:1/3}.ux-live .wb{grid-column:1/3;justify-self:start}.ux-sr{grid-template-columns:minmax(0,1fr) auto}.ux-sr .nd{grid-column:1/3}}
+.ux-sect.ux-wr{flex-wrap:wrap}
+.ux-ctl{display:inline-flex;gap:.6rem;align-items:center;margin-left:auto}
+.ux-ctl .ux-seg{text-transform:none;letter-spacing:0;font-weight:500}
+.ux-ctl button{white-space:nowrap}
+.ux-ch{display:flex;align-items:flex-end;gap:2px;height:140px;margin-top:.9rem;border-bottom:1px solid var(--line)}
+.ux-ch.d90{gap:1px}
+.ux-ch>i{flex:1 1 0;min-width:0;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden}
+.ux-ch>i.z{min-height:2px;background:var(--line)}
+.ux-ch b,.ux-cs b{display:block;flex:none;transition:opacity .12s}
+.ux-ch>i:hover b{filter:brightness(1.15)}
+.ux-ch.hl b,.ux-cs.hl b{opacity:.18}
+.ux-ch.hl b.on,.ux-cs.hl b.on{opacity:1}
+.ux-chx{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:.3rem;font-variant-numeric:tabular-nums}
+.ux-cs{display:flex;gap:2px;height:12px;margin:.9rem 0 .3rem;border-radius:999px;overflow:hidden}
+.ux-cs b{min-width:3px;cursor:default}
+.ux-ut>div{display:grid;grid-template-columns:12px minmax(8rem,1.4fr) minmax(0,1fr) 6rem;gap:.4rem .7rem;align-items:center;padding:.5rem .45rem;border-top:1px solid var(--line);font-size:.84rem;cursor:pointer}
+.ux-ut>div:first-child{border-top:0}
+.ux-ut>div:hover,.ux-ut>div.on{background:var(--hover)}
+.ux-ut>div.on .nd{color:var(--accent-text)}
+.ux-ut .sw{width:12px;height:12px;border-radius:4px;flex:none}
+.ux-ut .nd{font-weight:600;color:var(--text-strong);display:flex;gap:.4rem;align-items:center;min-width:0}
+.ux-ut .nd>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ux-ut .sh{display:flex;align-items:center;gap:.5rem;min-width:0}
+.ux-ut .sh .ux-bar{flex:1;margin:0;height:6px}
+.ux-ut .pc{color:var(--muted);font-size:.78rem;width:3rem;text-align:right;font-variant-numeric:tabular-nums;flex:none}
+.ux-ut .tv{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-strong);font-weight:600;white-space:nowrap}
+@media(max-width:600px){.ux-ut>div{grid-template-columns:12px minmax(0,1fr) auto;gap:.3rem .6rem}.ux-ut .sw{grid-column:1;grid-row:1}.ux-ut .nd{grid-column:2;grid-row:1}.ux-ut .tv{grid-column:3;grid-row:1}.ux-ut .sh{grid-column:2/4;grid-row:2}}
 .ux-tbl thead th:first-child{border-top-left-radius:12px}
 .ux-tbl thead th:last-child{border-top-right-radius:12px}
 .ux-load{color:var(--muted);font-size:.86rem;padding:1rem 0}
@@ -595,7 +623,7 @@ document.documentElement.classList.remove('lp');
 var C=window.UX_CFG,U=window.UX_USERS||[];
 var GSQ=C.gsq||'',DAY=86400000,GB=1073741824;
 var S={f:'all',q:'',sq:'',tag:'',sort:(C.sort&&C.sort.k)||'id',dir:(C.sort&&C.sort.d<0)?-1:1,page:1,size:50,dens:0,an:false};
-var SESS=C.sess||null,SX=C.sx||{};
+var SESS=C.sess||null,SX=C.sx||{},USG=C.usage||null;
 try{var v0=parseInt(localStorage.getItem('utbl_size'),10);if([10,25,50,0].indexOf(v0)>-1)S.size=v0;}catch(e){}
 try{if(localStorage.getItem('utbl_dens')==='1')S.dens=1;}catch(e){}
 var STRAT=[['NO_RESET','Без сброса'],['DAY','Каждый день'],['WEEK','Каждую неделю'],['MONTH','Каждый месяц'],['MONTH_ROLLING','Ежемесячно от даты создания']];
@@ -875,7 +903,7 @@ function qrSvg(t){var q=qrcode(0,'M');q.addData(t);q.make();return q.createSvgTa
 function openQr(u){if(!u.lk)return;qrLib().then(function(){$('uxQrBox').innerHTML=qrSvg(u.lk);$('uxQrT').textContent='QR-код · '+u.un;$('uxQrL').textContent=u.lk;$('uxQrCopy').onclick=function(){copy(u.lk,'Ссылка подписки скопирована');};$('uxQrOv').classList.add('open');},function(){if(window.uiAlert)uiAlert('Не загрузился генератор QR-кода');});}
 
 var CARD=null;
-function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,sess:null,live:null,seq:0};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';cardPush();refreshCard();}
+function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,sess:null,live:null,usage:null,ud:30,seq:0};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';cardPush();refreshCard();}
 function refreshCard(){if(!CARD||CARD.create)return;var su=CARD.u.su,s=++CARD.seq;loadMeta().then(function(){if(CARD&&!CARD.create&&CARD.seq===s){var f=$('uxForm'),sc=f?f.scrollTop:0;drawCard();f=$('uxForm');if(f)f.scrollTop=sc;}});getj('ua_user','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;if(d.ok){putUser(d.user,d.mw);if(CARD.tab==='edit'&&CARD.F&&CARD.O&&CARD.O.upd!==d.user.upd&&!diffList().length)CARD.F=null;if(CARD.tab!=='edit'||!CARD.F)drawCard();render();}else{CARD.err=d.error;if(CARD.tab!=='edit')drawCard();}});}
 function openCreate(){CARD={u:null,tab:'edit',create:true,F:null,done:null};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';cardPush();loadMeta().then(function(){if(CARD&&CARD.create&&!CARD.done){var sc=$('uxForm')?$('uxForm').scrollTop:0;drawCard();if($('uxForm'))$('uxForm').scrollTop=sc;}});setTimeout(function(){var i=$('fUser');if(i)i.focus();},60);}
 function closeCard(force){
@@ -909,7 +937,7 @@ function head(u){
   '<button type="button" class="wb sm" data-a="reset" data-w="users:reset-traffic">'+ico('reset')+'Сбросить трафик</button>'+
   '<button type="button" class="wb sm'+(off?'':' bad')+'" data-a="'+(off?'enable':'disable')+'" data-w="'+(off?'users:enable':'users:disable')+'">'+ico('power')+(off?'Включить':'Выключить')+'</button>'+
   '<button type="button" class="ux-ib" data-a="menu" aria-label="Ещё действия" style="margin-left:auto">'+ico('more')+'</button></div></div>'+
-  '<div class="ux-tabs" role="tablist">'+[['ov','Обзор'],['edit','Изменить'],['dev','Устройства'],['sess','Сессии'],['hist','История']].filter(function(t){return t[0]!=='sess'||SESS;}).map(function(t){var sf=t[0]==='sess'?sesFlag(u):null;return '<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(CARD.tab===t[0]?'on':'')+'"'+(t[0]==='edit'&&!canW('users:update')?' disabled data-tip="'+esc(roTip('users:update'))+'"':'')+'>'+t[1]+(sf&&sf.lvl?'<span class="ux-sb '+lvc(sf.lvl)+'">!</span>':'')+'</button>';}).join('')+'</div>';
+  '<div class="ux-tabs" role="tablist">'+[['ov','Обзор'],['edit','Изменить'],['dev','Устройства'],['sess','Сессии'],['usage','Трафик'],['hist','История']].filter(function(t){return (t[0]!=='sess'||SESS)&&(t[0]!=='usage'||USG);}).map(function(t){var sf=t[0]==='sess'?sesFlag(u):null;return '<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(CARD.tab===t[0]?'on':'')+'"'+(t[0]==='edit'&&!canW('users:update')?' disabled data-tip="'+esc(roTip('users:update'))+'"':'')+'>'+t[1]+(sf&&sf.lvl?'<span class="ux-sb '+lvc(sf.lvl)+'">!</span>':'')+'</button>';}).join('')+'</div>';
 }
 function drawCard(){
  if(!CARD)return;
@@ -921,10 +949,12 @@ function drawCard(){
  if(CARD.tab==='ov')h+=ovHtml(u);
  else if(CARD.tab==='dev')h+=devHtml(u);
  else if(CARD.tab==='sess')h+=sessHtml(u);
+ else if(CARD.tab==='usage')h+=usageHtml(u);
  else h+=histHtml(u);
  dr.innerHTML=h+'</div>';applyRo(dr);
  if((CARD.tab==='dev'||CARD.tab==='ov')&&CARD.devs===null)loadDevs();
  if(CARD.tab==='hist'&&CARD.hist===null)loadHist();
+ if(CARD.tab==='usage'){if(CARD.usage===null)loadUsage();else uhlApply();}
  if(CARD.tab==='sess'){if(CARD.sess===null)loadSess();if(CARD.live===null)loadLive();}
 }
 function graceRows(u,g){
@@ -949,7 +979,7 @@ function ovHtml(u){
  }
  var pc=u.tl?Math.min(100,u.used/u.tl*100):0,bc=u.tl?(pc>=100?'lv-b':(pc>=80?'lv-w':'')):'lv-i';
  h+='<div class="ux-dk">'+
-  '<div><div class="k">Трафик</div><div class="v">'+fb(u.used)+'</div><div class="d">'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div>'+
+  (USG?'<div class="go" data-tab="usage" role="button" tabindex="0" data-tip="Открыть трафик по дням"><div class="k">Трафик'+ico('chev',13)+'</div>':'<div><div class="k">Трафик</div>')+'<div class="v">'+fb(u.used)+'</div><div class="d">'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div>'+
   '<div><div class="k">Истекает</div><div class="v">'+(u.exp?fd(e):'—')+'</div><div class="d" style="color:'+(e<now()?'var(--c-bad-fg)':(e-now()<7*DAY?'var(--c-warn-fg)':'var(--muted)'))+'">'+(u.exp?rel(e):'')+'</div></div>'+
   '<div class="go" data-tab="dev" role="button" tabindex="0" data-tip="Открыть список устройств"><div class="k">Устройства'+ico('chev',13)+'</div><div class="v">'+(CARD.devs?CARD.devs.length:'…')+(hwEff(u).lim?' / '+hwEff(u).lim:'')+'</div><div class="d">лимит: '+esc(hwEff(u).d)+'</div></div>'+
   (SESS&&SESS.on?sessTile(u):'<div><div class="k">Онлайн</div><div class="v" style="font-size:.98rem">'+(u.on?ago(u.on*1000):'—')+'</div><div class="d">'+(u.node?esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):'не подключался')+'</div></div>')+'</div>';
@@ -1046,6 +1076,43 @@ function sessHtml(u){
 }
 function sessDrop(cu,ip){
  cfm({ic:'ban',tone:'warn',title:ip?'Сбросить соединения с IP':'Сбросить все соединения',sub:'<b>'+esc(cu.un)+'</b>'+(ip?' · <code>'+esc(ip)+'</code>':''),notes:[['info','info','Клиент переподключится сам','подписка и ключи не меняются'],['net','info','На всех подключённых нодах','']].concat(ip?[['alert','warn','Отключит этот IP у всех пользователей','за одним адресом (NAT) бывает несколько']]:[]),ok:'Сбросить',onOk:function(){busy(true);post('sess_drop',{rv:cu.rv,ip:ip||''}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();toast(ip?'Соединения с '+ip+' сброшены':'Соединения сброшены · '+cu.un);setTimeout(function(){if(CARD&&CARD.u&&CARD.u.su===cu.su&&CARD.tab==='sess'){CARD.live=null;drawCard();}},1500);});}});
+}
+function dayLbl(s){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||'');return m?m[3]+'.'+m[2]:String(s||'');}
+function uNode(s){return s.h&&s.h.length?s.h.join(', '):(s.name||'нода '+String(s.node||'').slice(0,8));}
+function uCol(s,i){return s.c||'var(--ch'+(i%8+1)+')';}
+function loadUsage(){var su=CARD.u.su,u=CARD.u,d=CARD.ud;CARD.uh=null;CARD.uht=null;if(!canW(USG.sc)){CARD.usage={err:roTip(USG.sc)};if(CARD.tab==='usage')drawCard();return;}CARD.usage=false;getj('usage','&rv='+encodeURIComponent(u.rv)+'&d='+d).then(function(r){if(!CARD||CARD.create||CARD.u.su!==su||CARD.ud!==d)return;CARD.usage=r.ok?r:{err:r.error||'Ошибка'};if(CARD.tab==='usage')drawCard();});}
+function uhlApply(){
+ var dr=$('uxDr');if(!dr||!CARD)return;
+ var n=CARD.uh!=null?CARD.uh:(CARD.uht!=null?CARD.uht:null);
+ dr.querySelectorAll('.ux-ch,.ux-cs').forEach(function(el){el.classList.toggle('hl',n!==null);});
+ dr.querySelectorAll('.ux-ch b,.ux-cs b').forEach(function(b){b.classList.toggle('on',n!==null&&+b.dataset.n===n);});
+ dr.querySelectorAll('.ux-ut>div').forEach(function(r){r.classList.toggle('on',CARD.uh!=null&&+r.dataset.n===CARD.uh);});
+}
+function usageHtml(u){
+ var D=CARD.usage,ld=D===null||D===false;
+ var h='<div class="ux-sect ux-wr">Трафик по дням<span class="sp"></span><span class="ux-ctl"><span class="ux-seg">'+USG.opts.map(function(d){return '<button type="button" data-a="ud" data-d="'+d+'" class="'+(CARD.ud===d?'on':'')+'"'+(ld?' disabled':'')+'>'+d+' дн</button>';}).join('')+'</span><button type="button" class="wb sm" data-a="urefresh"'+(ld?' disabled':'')+'>'+ico('refresh')+'Обновить</button></span></div>';
+ if(ld)return h+'<div class="ux-load">Спрашиваем панель…</div>';
+ if(D.err)return h+'<div class="ux-warn">'+esc(D.err)+'</div>';
+ var n=D.days.length,sum=D.sum||0,mx=0,mi=-1,act=0,S=D.series;
+ D.tot.forEach(function(v,i){if(v>0)act++;if(v>mx){mx=v;mi=i;}});
+ var top=S[0]||null,lim=u.tl?(u.ts==='NO_RESET'?Math.round(sum/u.tl*100)+'% от лимита':'лимит '+fb(u.tl)+(STRAT_S[u.ts]?' · сброс: '+STRAT_S[u.ts]:'')):'лимита нет';
+ h+='<div class="ux-dk"><div><div class="k">За '+CARD.ud+' дн</div><div class="v">'+fb(sum)+'</div><div class="d">'+esc(lim)+'</div></div>'+
+  '<div><div class="k">В день</div><div class="v">'+fb(act?sum/act:0)+'</div><div class="d">'+(act?'в '+act+' '+plural(act,'активный день','активных дня','активных дней'):'подключений не было')+'</div></div>'+
+  '<div><div class="k">Пик</div><div class="v">'+fb(mx)+'</div><div class="d">'+(mi>=0&&mx>0?dayLbl(D.days[mi]):'—')+'</div></div>'+
+  '<div><div class="k">Серверов</div><div class="v">'+S.length+'</div><div class="d">'+(top&&sum?esc(uNode(top))+' — '+Math.round(top.total/sum*100)+'%':'—')+'</div></div></div>';
+ if(!sum||!n)return h+'<div class="ux-empty">За этот период трафика не было.</div>';
+ h+='<div class="ux-ch'+(n>45?' d90':'')+'">'+D.tot.map(function(v,i){
+  var pct=mx&&v>0?Math.max(2,v/mx*100):0,parts=[],segs='';
+  S.forEach(function(s,k){var x=s.data[i]||0;if(x<=0)return;parts.push([x,k]);segs+='<b data-n="'+k+'" style="height:'+(x/v*100).toFixed(2)+'%;background:'+uCol(s,k)+'"></b>';});
+  parts.sort(function(a,b){return b[0]-a[0];});
+  var tip=dayLbl(D.days[i])+' · '+fb(v)+parts.slice(0,6).map(function(p){return '\n'+uNode(S[p[1]])+' — '+fb(p[0]);}).join('')+(parts.length>6?'\nещё '+(parts.length-6):'');
+  return '<i class="'+(v>0?'':'z')+'" style="height:'+pct.toFixed(1)+'%" data-tip="'+esc(tip)+'">'+segs+'</i>';}).join('')+'</div>';
+ h+='<div class="ux-chx"><span>'+esc(dayLbl(D.days[0]))+'</span>'+(n>2?'<span>'+esc(dayLbl(D.days[Math.floor(n/2)]))+'</span>':'')+'<span>'+esc(dayLbl(D.days[n-1]))+'</span></div>';
+ h+='<div class="ux-sect">По серверам<span class="sp"></span></div>';
+ h+='<div class="ux-cs">'+S.map(function(s,k){var p=s.total/sum*100;return '<b data-n="'+k+'" style="flex:'+s.total+' 0 0;background:'+uCol(s,k)+'" data-tip="'+esc(uNode(s)+' · '+(p>0&&p<1?'<1':Math.round(p))+'% · '+fb(s.total))+'"></b>';}).join('')+'</div>';
+ h+='<div class="ux-ut">'+S.map(function(s,k){var p=s.total/sum*100,lbl=uNode(s);return '<div data-a="uhl" data-n="'+k+'"><span class="sw" style="background:'+uCol(s,k)+'"></span><span class="nd" title="'+esc(s.h&&s.h.length?'Нода: '+s.name:'')+'">'+(s.cc&&!hasFlag(lbl)?flag(s.cc):'')+'<span>'+esc(lbl)+'</span></span><span class="sh"><span class="ux-bar"><i style="width:'+p.toFixed(1)+'%;background:'+uCol(s,k)+'"></i></span><span class="pc">'+(p>0&&p<1?'&lt;1':Math.round(p))+'%</span></span><span class="tv">'+fb(s.total)+'</span></div>';}).join('')+'</div>';
+ h+='<div class="muted" style="font-size:.76rem;margin-top:.6rem">Данные панели, сутки по UTC · '+fdt(D.ts*1000).replace(' в ',' ')+' · наведите или нажмите на сервер, чтобы выделить его на графике</div>';
+ return h;
 }
 function loadHist(){var su=CARD.u.su;CARD.hist=false;getj('ua_hist','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.hist=d.ok?d.ev:[];if(CARD.tab==='hist')drawCard();});}
 var EVN={'user.created':'Создан','user.modified':'Изменён в панели','user.deleted':'Удалён','user.revoked':'Новые ключи или ссылка','user.disabled':'Выключен','user.enabled':'Включён','user.limited':'Лимит трафика','user.expired':'Истёк','user.traffic_reset':'Сброс трафика','user.expiration':'Напоминание о сроке','user.first_connected':'Первое подключение','user.not_connected':'Давно не подключался','user.bandwidth_usage_threshold_reached':'Порог трафика','user_hwid_devices.added':'Новое устройство','user_hwid_devices.deleted':'Устройство удалено'};
@@ -1281,6 +1348,9 @@ document.addEventListener('click',function(e){
    if(a2==='hwdel'){var dv2=CARD.devs[+da.dataset.i];cfm({ic:'trash',tone:'bad',title:'Удалить устройство',sub:'<b>'+esc(dv2.deviceModel||dv2.platform||'Устройство')+'</b> · '+esc(cu.un),notes:[['info','info','Освободит место в лимите','клиент сможет подключиться снова']],hint:esc(dv2.hwid||''),ok:'Удалить',danger:true,onOk:function(){busy(true);post('del_hwid',{uuid:cu.rv,hwid:dv2.hwid||''}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();toast('Устройство удалено');CARD.devs=null;drawCard();});}});return;}
    if(a2==='delall'){var list=CARD.devs.slice();cfm({ic:'trash',tone:'bad',title:'Удалить все устройства',sub:'<b>'+list.length+'</b> · '+esc(cu.un),ok:'Удалить все',danger:true,onOk:function(){cfClose();var i=0;(function next(){if(i>=list.length){toast('Устройства удалены');CARD.devs=null;drawCard();return;}post('del_hwid',{uuid:cu.rv,hwid:list[i++].hwid||''}).then(next);})();}});return;}
    if(a2==='slive'){CARD.live=null;drawCard();return;}
+   if(a2==='ud'){var nd=+da.dataset.d;if(nd!==CARD.ud){CARD.ud=nd;CARD.usage=null;drawCard();}return;}
+   if(a2==='urefresh'){CARD.usage=null;drawCard();return;}
+   if(a2==='uhl'){var hn=+da.dataset.n;CARD.uh=CARD.uh===hn?null:hn;if(CARD.uh===null)CARD.uht=null;uhlApply();return;}
    if(a2==='sdrop'){sessDrop(cu,da.dataset.ip||'');return;}
    if(a2==='sdropall'){sessDrop(cu,'');return;}
    if(a2==='opencard'){openCard(cu,'ov');return;}
@@ -1298,6 +1368,8 @@ document.addEventListener('change',function(e){var t=e.target;if(t.matches&&t.ma
 document.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.ux-dk>.go')){e.preventDefault();e.target.closest('.ux-dk>.go').click();return;}});
 document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxCols').classList.contains('open')){closeCols();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
 window.addEventListener('resize',closeMenu);
+document.addEventListener('mouseover',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD)return;CARD.uht=+r.dataset.n;uhlApply();});
+document.addEventListener('mouseout',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD||CARD.uht==null)return;if(e.relatedTarget&&r.contains(e.relatedTarget))return;CARD.uht=null;uhlApply();});
 document.addEventListener('scroll',function(e){if(e.target&&e.target.closest&&e.target.closest('#uxMenu'))return;closeMenu();},true);
 document.addEventListener('click',function(e){if(!$('uxMenu').classList.contains('open')||!matchMedia('(max-width:600px)').matches||(e.target.closest&&e.target.closest('#uxMenu')))return;e.preventDefault();e.stopPropagation();closeMenu();},true);
 fillSelects();render();
