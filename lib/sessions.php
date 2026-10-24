@@ -18,6 +18,8 @@ function sess_nolim() { return max(1, min(50, (int) setting('sess_nolim', '3')))
 
 function sess_asn_extra() { return max(0, min(20, (int) setting('sess_asn_extra', '1'))); }
 
+function sess_ip_per() { return max(1, min(10, (int) setting('sess_ip_per', '1'))); }
+
 // Сессия жива, пока её видели не раньше двух интервалов назад: один пропущенный тик её не рвёт.
 function sess_gap() { return sess_every() * 2 + 60; }
 

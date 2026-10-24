@@ -31,7 +31,7 @@ $ux_cfg = [
 ];
 $ux_sess = function_exists('sess_enabled');
 if ($ux_sess) {
-    $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'asn_extra' => sess_asn_extra(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready()];
+    $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'asn_extra' => sess_asn_extra(), 'ip_per' => sess_ip_per(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready()];
     if (sess_enabled()) $ux_cfg['sx'] = (object) sess_metrics();
     $ux_sst = sess_state();
 }
@@ -531,7 +531,11 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
                 <input type="number" name="sess_keep_days" min="7" max="365" value="<?= (int) sess_keep_days() ?>">
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Порог без лимита устройств</div><div class="set-d">Если у пользователя лимит устройств не задан: аномалия, когда одновременно IP или провайдеров за сутки больше этого числа. С лимитом — больше лимита (IP) и больше лимита плюс запас (провайдеры).</div></div>
+                <div class="set-info"><div class="set-t">IP на одно устройство</div><div class="set-d">Сколько адресов одновременно нормально для одного устройства: телефон в Wi-Fi и в мобильной сети — уже два. Тревога, когда одновременных IP больше, чем устройств × это число: лимит 4 и 2 IP на устройство — с 9 IP.</div></div>
+                <input type="number" name="sess_ip_per" min="1" max="10" value="<?= (int) sess_ip_per() ?>">
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Устройств, если лимит не задан</div><div class="set-d">Сколько устройств считать у пользователя без лимита HWID — от этого числа считаются оба порога: одновременные IP (× «IP на устройство») и провайдеры за сутки (+ запас).</div></div>
                 <input type="number" name="sess_nolim" min="1" max="50" value="<?= (int) sess_nolim() ?>">
             </div>
             <div class="set-row">
@@ -670,9 +674,9 @@ function hwEff(u){var h=hwSrc(u);if(u.hw===0)return{lim:null,txt:'без лим�
 function bySu(su){for(var i=0;i<U.length;i++)if(U[i].su===su)return U[i];return null;}
 function sesFlag(u){
  var m=SESS&&SESS.on&&u.id&&SX[u.id];if(!m)return null;
- var lim=hwEff(u).lim,th=lim>0?lim:SESS.nolim,ath=lim>0?lim+SESS.asn_extra:SESS.nolim,r=[];
- if(m.li>th)r.push('Одновременно '+m.li+' IP'+(lim>0?' при лимите '+lim+' устройств':''));
- if(m.da>ath)r.push('За сутки '+m.da+' '+plural(m.da,'провайдер','провайдера','провайдеров')+(lim>0?' при лимите '+lim:''));
+ var lim=hwEff(u).lim,dev=lim>0?lim:SESS.nolim,th=dev*SESS.ip_per,ath=dev+SESS.asn_extra,r=[];
+ if(m.li>th)r.push('Одновременно '+m.li+' IP при '+(lim>0?'лимите ':'')+dev+' '+plural(dev,'устройстве','устройствах','устройствах')+(SESS.ip_per>1?' × '+SESS.ip_per:''));
+ if(m.da>ath)r.push('За сутки '+m.da+' '+plural(m.da,'провайдер','провайдера','провайдеров')+' при '+(lim>0?'лимите ':'')+dev+' + '+SESS.asn_extra);
  if(m.lc>1)r.push('Одновременно из '+m.lc+' стран');
  var soft=m.lr>1;
  return{lvl:r.length?'bad':(soft?'warn':''),r:r,soft:soft,m:m};
