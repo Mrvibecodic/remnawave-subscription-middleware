@@ -35,6 +35,7 @@ require_once __DIR__ . '/lib/reports_view.php';
 require_once __DIR__ . '/lib/clientver.php';
 require_once __DIR__ . '/lib/gc.php';
 if (is_file(__DIR__ . '/lib/sessions.php')) require_once __DIR__ . '/lib/sessions.php';
+if (is_file(__DIR__ . '/lib/usage.php')) require_once __DIR__ . '/lib/usage.php';
 if (is_file(__DIR__ . '/lib/apistat.php')) require_once __DIR__ . '/lib/apistat.php';
 // Прежний апдейтер пишет lib.php раньше lib/cron.php.
 if (is_file(__DIR__ . '/lib/cron.php')) require_once __DIR__ . '/lib/cron.php';

@@ -135,6 +135,27 @@ if (preg_match('~^/api/(connections/by-user|ip-control/fetch-ips/result)/u-([^/]
     mp_json(200, ['response' => ['isCompleted' => true, 'isFailed' => false, 'progress' => ['total' => count($nodes), 'completed' => count($nodes), 'percent' => 100], 'result' => ['success' => true, 'userId' => (int) $uid, 'nodes' => $out]]]);
     exit;
 }
+// usage: {"<userId|uuid>": {"<nodeUuid>": [байт в день, по кругу]}}; no_usage — панель без этого эндпоинта
+if (empty($state['no_usage']) && preg_match('~^/api/bandwidth-stats/users/([^/]+)$~', $path, $m)) {
+    $q = [];
+    parse_str((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_QUERY), $q);
+    $s = strtotime((string) ($q['start'] ?? '') . ' UTC');
+    $e = strtotime((string) ($q['end'] ?? '') . ' UTC');
+    if (!$s || !$e || $e < $s) { mp_json(400, ['message' => 'Validation failed', 'statusCode' => 400]); exit; }
+    if ($log !== '') @file_put_contents($log, 'USAGE ' . $m[1] . ' ' . (string) ($q['start'] ?? '') . ' ' . (string) ($q['end'] ?? '') . "\n", FILE_APPEND | LOCK_EX);
+    $cats = [];
+    for ($t = $s; $t <= $e; $t += 86400) $cats[] = gmdate('Y-m-d', $t);
+    $series = [];
+    $spark = array_fill(0, count($cats), 0);
+    foreach ((array) (($state['usage'] ?? [])[$m[1]] ?? []) as $nu => $per) {
+        $per = array_values((array) $per);
+        $data = [];
+        foreach ($cats as $i => $d) { $v = $per ? (int) $per[$i % count($per)] : 0; $data[] = $v; $spark[$i] += $v; }
+        $series[] = ['uuid' => (string) $nu, 'name' => (string) ($nodes[$nu]['name'] ?? $nu), 'color' => (string) ($nodes[$nu]['color'] ?? '#888888'), 'countryCode' => (string) ($nodes[$nu]['cc'] ?? 'XX'), 'total' => array_sum($data), 'data' => $data];
+    }
+    mp_json(200, ['response' => ['categories' => $cats, 'sparklineData' => $spark, 'topNodes' => array_map(static fn($x) => array_diff_key($x, ['data' => 1]), $series), 'series' => $series]]);
+    exit;
+}
 if (($path === '/api/connections/drop' || $path === '/api/ip-control/drop-connections') && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($log !== '') @file_put_contents($log, 'DROP ' . (string) file_get_contents('php://input') . "\n", FILE_APPEND | LOCK_EX);
     mp_json(202, ['response' => true]);

@@ -6,7 +6,9 @@ function tokscope_catalog() {
     $pool = squadconf_any();
     $sess = function_exists('sess_enabled') && sess_enabled();
     $uuid = '00000000-0000-4000-8000-' . substr(md5($rnd), 0, 12);
-    $conn = (function_exists('sess_api_v3') ? sess_api_v3() : panel_api_v3()) ? [
+    $v3 = function_exists('sess_api_v3') ? sess_api_v3() : panel_api_v3();
+    $usage = function_exists('usage_path') ? [['s' => usage_scope(), 'm' => 'GET', 'p' => usage_path($v3 ? '0' : $uuid, 7), 'w' => 'Трафик по дням и хостам в карточке пользователя', 'need' => false]] : [];
+    $conn = $v3 ? [
         ['s' => 'connections:by-node', 'm' => 'POST', 'p' => '/api/connections/by-node/' . $uuid, 'w' => 'Сессии: опрос нод планировщиком', 'need' => $sess],
         ['s' => 'connections:by-node-result', 'm' => 'GET', 'p' => '/api/connections/by-node/' . $rnd, 'w' => 'Сессии: результат опроса нод', 'need' => $sess],
         ['s' => 'connections:by-user', 'm' => 'POST', 'p' => '/api/connections/by-user/0', 'w' => '«Сейчас онлайн» в карточке пользователя', 'need' => false],
@@ -24,7 +26,7 @@ function tokscope_catalog() {
         ['s' => 'system:configuration', 'm' => 'GET', 'p' => '/api/system/configuration', 'w' => 'Настройки панели: «Подключение», «Вебхуки», длина shortUuid (панель 3.2.0+)', 'need' => panel_supports_config()],
         ['s' => 'system:stats', 'm' => 'GET', 'p' => '/api/system/stats', 'w' => 'Статистика панели на «О системе»', 'need' => true],
         ['s' => 'nodes:list', 'm' => 'GET', 'p' => '/api/nodes', 'w' => 'Счётчик нод на «О системе»; страна узла на «Статистике» Clod Clash; последняя нода в карточке пользователя', 'need' => true],
-        ['s' => 'hosts:list', 'm' => 'GET', 'p' => '/api/hosts', 'w' => 'Адрес хоста → узел на «Статистике» Clod Clash; имена хостов в «Сессиях»', 'need' => rep_enabled() || $sess],
+        ['s' => 'hosts:list', 'm' => 'GET', 'p' => '/api/hosts', 'w' => 'Адрес хоста → узел на «Статистике» Clod Clash; имена хостов в «Сессиях» и «Трафике»', 'need' => rep_enabled() || $sess],
         ['s' => 'config-profiles:list-inbounds', 'm' => 'GET', 'p' => '/api/config-profiles/inbounds', 'w' => 'Транспорт узла (RAW, XHTTP, Reality…) на «Статистике» Clod Clash', 'need' => rep_enabled()],
         ['s' => 'users:list', 'm' => 'GET', 'p' => '/api/users?size=1&start=0', 'w' => 'Список «Пользователи», имена в «Оверрайдах» и «Логе запросов»', 'need' => true],
         ['s' => 'users:by-short-uuid', 'm' => 'GET', 'p' => '/api/users/by-short-uuid/' . $rnd, 'w' => 'Пользователь по ссылке: грейс, доп. конфиги, слияние, имена в логе вебхуков, карточка в «Пользователях»', 'need' => true],
@@ -45,7 +47,7 @@ function tokscope_catalog() {
         ['s' => 'subscription-template:list', 'm' => 'GET', 'p' => '/api/subscription-templates', 'w' => 'Поиск шаблона xray-json для доп. конфигов', 'need' => $pool && squadconf_xray_json_enabled()],
         ['s' => 'subscription-template:get', 'm' => 'GET', 'p' => '/api/subscription-templates/submw-probe', 'w' => 'Тело шаблона xray-json для доп. конфигов', 'need' => $pool && squadconf_xray_json_enabled()],
         ['s' => 'subscriptions:by-short-uuid-protected', 'm' => 'GET', 'p' => '/api/subscriptions/by-short-uuid/' . $rnd, 'w' => 'Хосты панели и серверы второй подписки для «Ключей на странице»', 'need' => pagekeys_active() && (pagekeys_with_panel() || (pagekeys_with_addsub() && addsub_enabled()))],
-    ], $conn);
+    ], $usage, $conn);
 }
 
 function tokscope_classify($code, $body) {

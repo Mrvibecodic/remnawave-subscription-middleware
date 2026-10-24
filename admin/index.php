@@ -412,6 +412,14 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'usage' && function_exists('usage_fetch')) {
+        @set_time_limit(40);
+        $ue = '';
+        $us = usage_fetch((string) ($_GET['rv'] ?? ''), (int) ($_GET['d'] ?? 30), $ue);
+        echo json_encode($us === null ? ['ok' => false, 'error' => $ue] : ['ok' => true] + $us, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
     if ($a === 'sess_drop' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && function_exists('sess_drop')) {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $se = '';
