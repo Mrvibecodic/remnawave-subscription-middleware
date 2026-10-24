@@ -79,7 +79,7 @@ function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null,
     if (!($p = db())) return;
     ensure_reqlog_hwid();
     $extra = [];
-    foreach (['as', 'wg', 'grace', 'sub', 'dv'] as $k) {
+    foreach (['er', 'as', 'wg', 'grace', 'sub', 'chan', 'dv'] as $k) {
         if (isset($meta[$k]) && $meta[$k] !== '' && $meta[$k] !== null && $meta[$k] !== []) $extra[$k] = $meta[$k];
     }
     try {
@@ -254,6 +254,43 @@ function reqlog_is_real($grabbed_headers, $decision, $short_ov) {
     return false;
 }
 
+// Сбой панели попадает в лог только по подписке, которую прослойка уже знает: оверрайд,
+// открывшийся конверт канала или успешная выдача за последние 30 дней — окно нужно, чтобы
+// клиент удалённого в панели пользователя не сыпал ошибки до вытеснения ретеншном.
+// Сканер с мусорным путём получает тот же 404/502, но строки не оставляет.
+function reqlog_known_token($short, $short_ov = null) {
+    $short = (string) $short;
+    if ($short === '') return false;
+    if (!empty($short_ov)) return true;
+    if (function_exists('chan_active') && chan_active()) return true;
+    if (!($p = db())) return false;
+    try {
+        $st = $p->prepare("SELECT 1 FROM request_log WHERE short_uuid = ? AND decision NOT IN ('error', 'browser') AND " . sql_epoch('ts') . " >= ? LIMIT 1");
+        $st->execute([$short, time() - 30 * 86400]);
+        $hit = $st->fetchColumn();
+        $st->closeCursor();
+        if ($hit !== false) return true;
+        if (function_exists('chan_enabled') && chan_enabled()) {
+            $st = $p->prepare('SELECT 1 FROM chan_kid WHERE short_uuid = ? LIMIT 1');
+            $st->execute([$short]);
+            $hit = $st->fetchColumn();
+            $st->closeCursor();
+            return $hit !== false;
+        }
+    } catch (Throwable $e) {}
+    return false;
+}
+
+function reqlog_fail_reason($curl_errno) {
+    $n = (int) $curl_errno;
+    if ($n === 0) return 'reset';
+    if ($n === CURLE_OPERATION_TIMEDOUT) return 'timeout';
+    if (in_array($n, [CURLE_COULDNT_RESOLVE_HOST, CURLE_COULDNT_RESOLVE_PROXY, CURLE_COULDNT_CONNECT], true)) return 'connect';
+    if (in_array($n, [CURLE_GOT_NOTHING, CURLE_RECV_ERROR, CURLE_SEND_ERROR, CURLE_PARTIAL_FILE], true)) return 'reset';
+    if (in_array($n, [CURLE_SSL_CONNECT_ERROR, CURLE_SSL_PEER_CERTIFICATE, CURLE_SSL_CERTPROBLEM, CURLE_SSL_CIPHER, CURLE_SSL_CACERT, CURLE_SSL_CACERT_BADFILE], true)) return 'tls';
+    return 'curl' . $n;
+}
+
 function reqlog_today_stats() {
     $out = ['today_users' => 0, 'today_devices' => 0, 'total_devices' => 0, 'label' => date('d.m.Y')];
     if (!($p = db())) return $out;
@@ -263,7 +300,7 @@ function reqlog_today_stats() {
     $dayStart = $nowLocal - ($nowLocal % 86400) - $tzoff;
     $out['label'] = gmdate('d.m.Y', $nowLocal);
     try {
-        $st = $p->prepare("SELECT COUNT(DISTINCT short_uuid) FROM request_log WHERE short_uuid IS NOT NULL AND is_app = 1 AND decision <> 'browser' AND " . sql_epoch('ts') . " >= ?");
+        $st = $p->prepare("SELECT COUNT(DISTINCT short_uuid) FROM request_log WHERE short_uuid IS NOT NULL AND is_app = 1 AND decision NOT IN ('browser', 'error') AND " . sql_epoch('ts') . " >= ?");
         $st->execute([$dayStart]); $out['today_users'] = (int) $st->fetchColumn();
         $st = $p->prepare("SELECT COUNT(DISTINCT hwid) FROM request_log WHERE hwid IS NOT NULL AND hwid <> '' AND " . sql_epoch('ts') . " >= ?");
         $st->execute([$dayStart]); $out['today_devices'] = (int) $st->fetchColumn();
@@ -325,7 +362,7 @@ function reqlog_fetch(array $f, array $name2short = [], $limit = 300) {
 }
 
 function reqlog_overview() {
-    $out = ['total' => 0, 'blocked' => 0, 'blocked_users' => 0, 'hourly' => array_fill(0, 24, 0), 'peak' => 0, 'peak_h' => 0];
+    $out = ['total' => 0, 'blocked' => 0, 'blocked_users' => 0, 'errors' => 0, 'hourly' => array_fill(0, 24, 0), 'peak' => 0, 'peak_h' => 0];
     if (!($p = db())) return $out;
     ensure_reqlog_hwid();
     $from = time() - 86400;
@@ -336,6 +373,8 @@ function reqlog_overview() {
         $st = $p->prepare("SELECT COUNT(*) AS c, COUNT(DISTINCT short_uuid) AS u FROM request_log WHERE decision = 'blocked' AND $ep >= ?");
         $st->execute([$from]); $r = $st->fetch();
         $out['blocked'] = (int) ($r['c'] ?? 0); $out['blocked_users'] = (int) ($r['u'] ?? 0);
+        $st = $p->prepare("SELECT COUNT(*) FROM request_log WHERE decision = 'error' AND $ep >= ?");
+        $st->execute([$from]); $out['errors'] = (int) $st->fetchColumn();
         $st = $p->prepare("SELECT ($ep / 3600) AS h, COUNT(*) AS c FROM request_log WHERE decision <> 'browser' AND $ep >= ? GROUP BY h");
         $st->execute([$from]);
         $base = intdiv(time(), 3600) - 23;
@@ -402,7 +441,8 @@ function reqlog_collapse(array $rows) {
                 : ((string) ($r['ts'] ?? '') === (string) ($p['ts'] ?? ''));
             if ($su === (string) ($p['short_uuid'] ?? '')
                 && $same_ts
-                && (string) ($r['decision'] ?? '') === (string) ($p['decision'] ?? '')) {
+                && (string) ($r['decision'] ?? '') === (string) ($p['decision'] ?? '')
+                && (reqlog_meta($r)['er'] ?? null) === (reqlog_meta($p)['er'] ?? null)) {
                 $out[$n - 1]['dup'] = (int) ($p['dup'] ?? 1) + 1;
                 continue;
             }

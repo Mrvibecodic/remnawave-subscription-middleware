@@ -230,6 +230,19 @@ $format = ((int) $http_code >= 200 && (int) $http_code < 300 && is_string($respo
 
 $short_ov = find_override_in('shortuuid', $segs);
 
+$current_hwid = $_SERVER['HTTP_X_HWID'] ?? '';
+if ($current_hwid === '' && $ua_hwid_value !== '') $current_hwid = $ua_hwid_value;
+
+$fail_log = function ($reason) use ($skip_log, $short_ov, $segs, $ip, $path, $ua, $current_hwid, $ua_hwid_vals, $http_code) {
+    $short = $short_ov ? (string) $short_ov['match_value'] : (string) ($segs[0] ?? '');
+    if ($skip_log || nolog_is_set($short) || !reqlog_known_token($short, $short_ov)) return;
+    log_request($ip, $short, $path, $ua, 'error', null, $current_hwid, [
+        'er'   => ['c' => (int) $http_code, 'r' => $reason],
+        'dv'   => reqlog_device($ua_hwid_vals),
+        'chan' => chan_active() ? 1 : null,
+    ]);
+};
+
 if ($curl_err) {
     // nginx с `return 444` закрывает соединение без ответа и на несуществующий адрес, и на сбой
     // панели. Адрес подписки — токен с префиксом и типом клиента, не больше трёх частей (ведущий
@@ -245,19 +258,16 @@ if ($curl_err) {
     } else {
         http_response_code(502);
     }
-    if (!$skip_log && $short_ov) log_request($ip, $short_ov['match_value'], $path, $ua, 'error');
+    $fail_log(reqlog_fail_reason($curl_errno));
     die();
 }
 
 if (mask_notfound() && $http_code === 404) {
     header_remove('X-Powered-By');
     http_response_code(404);
-    if (!$skip_log && $short_ov) log_request($ip, $short_ov['match_value'], $path, $ua, 'error');
+    $fail_log('http');
     die();
 }
-
-$current_hwid = $_SERVER['HTTP_X_HWID'] ?? '';
-if ($current_hwid === '' && $ua_hwid_value !== '') $current_hwid = $ua_hwid_value;
 $expire_ts    = parse_expire_from_userinfo($grabbed_headers['subscription-userinfo'] ?? null);
 $now          = time();
 $trust_header = trust_header_expire();
@@ -496,9 +506,20 @@ if (!$skip_log) {
         'wg'    => $log_wg,
         'grace' => $is_grace ? 1 : 0,
         'dv'    => reqlog_device($ua_hwid_vals),
-        'chan'  => chan_active() ? 1 : 0,
+        'chan'  => chan_active() ? 1 : null,
     ];
-    if (!$is_page && reqlog_is_real($grabbed_headers, $log_decision, $short_ov)) {
+    if ((int) $http_code >= 400) {
+        // Ответ панели ушёл клиенту как есть, но выдачей это не было — «error», а не «normal».
+        // Браузер на странице подписки пишется только вместе с остальными страницами.
+        if (!($is_page && !reqlog_pages_enabled() && is_browser_ua($ua)) && reqlog_known_token($short_uuid, $short_ov)) {
+            log_request($ip, $short_uuid, $path, $ua, 'error', $expire_ts, $current_hwid, [
+                'bytes' => strlen($response),
+                'er'    => ['c' => (int) $http_code, 'r' => 'http'],
+                'dv'    => $log_meta['dv'],
+                'chan'  => $log_meta['chan'],
+            ]);
+        }
+    } elseif (!$is_page && reqlog_is_real($grabbed_headers, $log_decision, $short_ov)) {
         $GLOBALS['submw_real_sub'] = true;
         log_request($ip, $short_uuid, $path, $ua, $log_decision, $expire_ts, $current_hwid, $log_meta);
     } elseif ($is_page && $short_uuid !== '' && !$junk_path && reqlog_pages_enabled()) {

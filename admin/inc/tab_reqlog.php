@@ -21,6 +21,12 @@
     .rl-search{position:relative;flex:1 1 250px;max-width:360px}
     .rl-search input{width:100%;padding-left:2.1rem}
     .rl-search svg{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+    .rl-flt .rl-err .n{display:inline-block;min-width:1.5em;padding:0 .4em;border-radius:20px;background:var(--bg2);border:1px solid var(--line);font-size:.72rem;font-weight:600;line-height:1.5;text-align:center;font-variant-numeric:tabular-nums}
+    .rl-flt .rl-err.has .n{background:var(--c-bad-bg);color:var(--c-bad-fg);border-color:transparent}
+    .rl-flt .rl-err.on{border-color:var(--c-bad-fg);color:var(--c-bad-fg);background:var(--c-bad-bg)}
+    .rl-flt .rl-err.on .n{background:var(--card);color:var(--c-bad-fg);border-color:transparent}
+    @media(max-width:560px){.rl-flt .rl-err{flex:1 1 auto;justify-content:center}}
+    .tag .tag-x{font-weight:500;opacity:.8}
     .rl-auto{display:inline-flex;align-items:center;gap:.4rem;margin:0;font-size:.82rem;color:var(--muted);white-space:nowrap}
     .rl-auto label{margin:0;font-size:inherit;color:inherit;line-height:1}
     #rlAuto:empty{display:none}
@@ -35,7 +41,7 @@
     .rl-tbl td:first-child{text-overflow:clip;padding-right:.3rem}
     .rl-tbl tr.rowb{cursor:pointer}
     .rl-tbl tr.rowb.open td{background:var(--hover2)}
-    .c-tgl{width:4%}.c-time{width:10%}.c-dec{width:11%}.c-as{width:15%}.c-user{width:20%}.c-client{width:22%}.c-cnt{width:18%}
+    .c-tgl{width:4%}.c-time{width:10%}.c-dec{width:14%}.c-as{width:14%}.c-user{width:20%}.c-client{width:22%}.c-cnt{width:16%}
     .tgl{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid var(--line);border-radius:6px;background:var(--bg2);color:var(--muted);font-size:.9rem;line-height:1;transition:transform .15s,border-color .15s}
     tr.open .tgl{border-color:var(--accent);color:var(--accent-text);transform:rotate(90deg)}
     .rl-tbl .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
@@ -179,6 +185,17 @@
                 <option value="168" <?= $rl_f['hours'] === 168 ? 'selected' : '' ?>>Неделя</option>
                 <option value="0" <?= $rl_f['hours'] === 0 ? 'selected' : '' ?>>За всё время</option>
             </select>
+            <?php
+            $rl_err_on = $rl_f['dec'] === 'error';
+            $rl_err_q  = ['tab' => 'reqlog'];
+            if ($rl_f['q'] !== '')    $rl_err_q['rl_q'] = $rl_f['q'];
+            if ($rl_f['hours'] !== 24) $rl_err_q['rl_hours'] = $rl_f['hours'];
+            if (!$rl_err_on)          $rl_err_q['rl_dec'] = 'error';
+            ?>
+            <a class="btn ghost rl-err<?= $rl_err_on ? ' on' : '' ?><?= $rl_over['errors'] ? ' has' : '' ?>" href="?<?= h(http_build_query($rl_err_q)) ?>" data-tip="<?= $rl_err_on ? 'Показать все решения' : 'Только запросы, на которые панель не ответила или вернула ошибку. Число — за последние 24 часа' ?>">
+                <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                Только ошибки <b class="n" id="rlErrN"><?= (int) $rl_over['errors'] ?></b>
+            </a>
             <button class="btn ghost" type="submit">Найти</button>
             <?php if ($rl_f['q'] !== '' || $rl_f['dec'] !== '' || $rl_f['hours'] !== 24): ?>
             <a class="btn ghost" href="?tab=reqlog" data-tip="Сбросить фильтры">Сброс</a>
@@ -369,6 +386,12 @@
                     kpi('rlKpiUsers', d.kpi.users); kpi('rlKpiDev', d.kpi.devices);
                     if(d.kpi.utotal) kpi('rlKpiUsersTot', ' / ' + d.kpi.utotal);
                     kpi('rlKpiTotal', d.kpi.total); kpi('rlKpiBlocked', d.kpi.blocked);
+                    var en = document.getElementById('rlErrN');
+                    if(en && d.kpi.errors !== undefined && d.kpi.errors !== null){
+                        var ec = parseInt(d.kpi.errors, 10) || 0;
+                        en.textContent = ec;
+                        en.parentNode.classList.toggle('has', ec > 0);
+                    }
                     var bu = document.getElementById('rlKpiBlockedU');
                     if(bu && d.kpi.blocked_users !== undefined && d.kpi.blocked_users !== null){
                         var bn = parseInt(d.kpi.blocked_users, 10) || 0;

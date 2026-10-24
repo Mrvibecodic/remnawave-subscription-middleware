@@ -570,6 +570,7 @@ if (isset($_GET['ajax']) && is_auth()) {
                 'total'   => (int) $ov['total'],
                 'blocked' => (int) $ov['blocked'],
                 'blocked_users' => (int) $ov['blocked_users'],
+                'errors'  => (int) $ov['errors'],
                 'peak'    => (int) $ov['peak'],
                 'peak_h'  => (int) $ov['peak_h'],
             ],
@@ -1633,7 +1634,7 @@ $addsub_links = [];
 if ($tab === 'users') { foreach (addsub_map_all() as $__r) $addsub_links[(string) $__r['main_short']] = (string) $__r['add_url']; }
 
 $reqlog = [];
-$rl_over = ['total' => 0, 'blocked' => 0, 'blocked_users' => 0, 'hourly' => array_fill(0, 24, 0), 'peak' => 0, 'peak_h' => 0];
+$rl_over = ['total' => 0, 'blocked' => 0, 'blocked_users' => 0, 'errors' => 0, 'hourly' => array_fill(0, 24, 0), 'peak' => 0, 'peak_h' => 0];
 $rl_ctx  = [];
 $rl_f = reqlog_filters();
 if ($db_ok && $tab === 'reqlog' && $rl_view === '') {
