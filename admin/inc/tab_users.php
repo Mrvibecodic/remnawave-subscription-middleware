@@ -1126,8 +1126,8 @@ function histHtml(u){
  var dv=function(x){return typeof x==='number'?fdt(x*1000):esc(x);};
  return '<div class="ux-tl">'+ev.map(function(e){
   var ic,tn,t,s;
-  if(e.k==='rq'){ic='sendh';tn='st-info';t='Запрос подписки';s=esc([e.app||'клиент не распознан',e.os].filter(Boolean).join(' · '))+(e.dec&&e.dec!=='normal'?' <span class="ux-pill '+(e.dec==='blocked'||e.dec==='error'?'st-bad':(e.dec==='grace'?'st-vio':'st-warn'))+'" style="font-size:.66rem">'+esc(({blocked:'блок',expired:'истёк',grace:'грейс',error:'ошибка'})[e.dec]||e.dec)+'</span>':'');}
-  else if(e.k==='wh'){ic='pencil';tn='st-mut';t=EVN[e.ev]||e.ev;s=(e.d||[]).map(function(x){return esc(x.l)+': '+dv(x.a)+' → '+dv(x.b);}).join('<br>')+(e.mw===1?' <span class="ux-pill st-ok" style="font-size:.66rem">прослойка</span>':(e.mw===0?' <span class="ux-pill st-mut" style="font-size:.66rem">извне</span>':''));}
+  if(e.k==='rq'){ic='sendh';tn='st-info';t='Запрос подписки';s=esc([e.app||'клиент не распознан',e.dev||e.os].filter(Boolean).join(' · '))+(e.dec&&e.dec!=='normal'?' <span class="ux-pill '+(e.dec==='blocked'||e.dec==='error'?'st-bad':(e.dec==='grace'?'st-vio':'st-warn'))+'" style="font-size:.66rem">'+esc(({blocked:'блок',expired:'истёк',grace:'грейс',error:'ошибка'})[e.dec]||e.dec)+'</span>':'');}
+  else if(e.k==='wh'){ic='pencil';tn='st-mut';t=EVN[e.ev]||e.ev;s=(e.dev?[esc(e.dev)]:[]).concat((e.d||[]).map(function(x){return esc(x.l)+': '+dv(x.a)+' → '+dv(x.b);})).join('<br>')+(e.mw===1?' <span class="ux-pill st-ok" style="font-size:.66rem">прослойка</span>':(e.mw===0?' <span class="ux-pill st-mut" style="font-size:.66rem">извне</span>':''));}
   else{ic='shield';tn=e.ok?'st-ok':'st-bad';t='Прослойка: '+(OPN[e.op]||e.op).toLowerCase();s=esc(srcL(e.src))+(e.f&&e.f.length?' · '+esc(e.f.join(', ')):'')+(e.ok?'':' · <span style="color:var(--c-bad-fg)">'+esc(e.err||'ошибка')+'</span>');}
   return '<div><span class="tm">'+fdt(e.t*1000).replace(' в ',' ')+'</span><span class="ic '+tn+'">'+ico(ic,13)+'</span><span class="tx"><b>'+esc(t)+'</b><span class="s">'+s+'</span></span></div>';
  }).join('')+'</div>'+foot;

@@ -695,7 +695,26 @@ function whlog_meta($row) {
         'd'  => is_array($m['d'] ?? null) ? $m['d'] : [],
         'mw' => array_key_exists('mw', $m) ? (int) $m['mw'] : null,
         'src' => (string) ($m['src'] ?? ''),
+        'hw' => is_array($m['hw'] ?? null) ? $m['hw'] : null,
     ];
+}
+
+// Устройство из hwid-вебхука: модель · платформа и версия ОС · user-agent клиента (без hwid).
+function whlog_device_info($dev, $data = []) {
+    $out = [];
+    foreach (['deviceModel' => 'm', 'platform' => 'p', 'osVersion' => 'os', 'userAgent' => 'ua'] as $k => $t) {
+        $v = (string) ((is_array($dev) ? ($dev[$k] ?? null) : null) ?? (is_array($data) ? ($data[$k] ?? '') : ''));
+        $v = trim(preg_replace('/[\x00-\x1F\x7F]/', '', $v));
+        if ($v !== '') $out[$t] = mb_substr($v, 0, $t === 'ua' ? 120 : 48);
+    }
+    return $out;
+}
+
+function whlog_device_label($hw) {
+    if (!is_array($hw)) return '';
+    $os = trim((string) ($hw['p'] ?? '') . ' ' . (string) ($hw['os'] ?? ''));
+    $parts = array_values(array_filter([(string) ($hw['m'] ?? ''), $os, (string) ($hw['ua'] ?? '')], fn($x) => $x !== ''));
+    return implode(' · ', $parts);
 }
 
 function whlog_mask_snapshot($snap) {
@@ -709,14 +728,15 @@ function whlog_mask_snapshot($snap) {
     return $snap;
 }
 
-function log_webhook($event, $short_uuid, $username, $status, $sig_ok, $action, $data = null) {
+function log_webhook($event, $short_uuid, $username, $status, $sig_ok, $action, $data = null, $extra = null) {
     if (!($p = db())) return;
     whlog_ensure_meta();
     $meta = null;
     try {
+        $m = [];
         $snap = whlog_snapshot($data);
         if ($snap !== null) {
-            $m = ['s' => $snap];
+            $m['s'] = $snap;
             $diff = whlog_diff(whlog_prev_snapshot($short_uuid), $snap);
             if ($diff) {
                 $m['d'] = $diff;
@@ -724,6 +744,9 @@ function log_webhook($event, $short_uuid, $username, $status, $sig_ok, $action, 
                 if (is_array($who)) { $m['mw'] = 1; if ($who['src'] !== '') $m['src'] = $who['src']; }
                 elseif ($who === 0) $m['mw'] = 0;
             }
+        }
+        if (is_array($extra) && $extra) $m['hw'] = $extra;
+        if ($m) {
             $enc = json_encode($m, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if (is_string($enc) && strlen($enc) <= 8000) $meta = $enc;
         }

@@ -83,4 +83,24 @@ if (extension_loaded('Zend OPcache')) {
     t_ok('только файловый кэш OPcache — предупреждения нет', strpos($page, 'Окружение') !== false && strpos($page, 'OPcache выключен') === false);
 }
 
+// Вебхуки об устройствах: модель, ОС и клиент попадают в историю карточки и в лог вебхуков, hwid — нет
+t_settings(['webhook_secret' => 'whsec']);
+unset($GLOBALS['submw_settings_cache']);
+$whPost = static function (array $payload) use ($mw): int {
+    $raw = json_encode($payload, JSON_UNESCAPED_UNICODE);
+    [$c] = t_http('POST', $mw . '/webhook.php', ['content-type' => 'application/json', 'x-remnawave-signature' => hash_hmac('sha256', $raw, 'whsec')], $raw);
+    return $c;
+};
+$whUser = ['uuid' => '00000000-0000-4000-8000-000000000000', 'id' => 1, 'shortUuid' => 'AbCdEfGhIjKlMnOp', 'username' => 'user0', 'status' => 'ACTIVE'];
+t_eq('hwid-вебхук принят', $whPost(['event' => 'user_hwid_devices.added', 'timestamp' => gmdate('c'), 'data' => ['user' => $whUser, 'hwidUserDevice' => ['hwid' => 'HW-SECRET-1', 'platform' => 'android', 'osVersion' => '14', 'deviceModel' => 'Pixel 8', 'userAgent' => "Happ/2.1.0\x01"]]]), 200);
+t_eq('hwid-вебхук об удалении принят', $whPost(['event' => 'user_hwid_devices.deleted', 'timestamp' => gmdate('c'), 'data' => ['user' => $whUser, 'hwidUserDevice' => ['hwid' => 'HW-SECRET-1', 'platform' => 'ios', 'osVersion' => '17.4', 'deviceModel' => 'iPhone15,2']]]), 200);
+$hist = ua_history('AbCdEfGhIjKlMnOp');
+$hw = array_values(array_filter($hist, static fn($e) => $e['k'] === 'wh' && strpos($e['ev'], 'user_hwid') === 0));
+t_eq('история: устройство из вебхука — модель, платформа, версия ОС, клиент', array_map(static fn($e) => $e['dev'], $hw), ['iPhone15,2 · ios 17.4', 'Pixel 8 · android 14 · Happ/2.1.0']);
+$st = $tt_pdo->query("SELECT meta FROM webhook_log WHERE event LIKE 'user_hwid%'");
+$metas = implode("\n", $st->fetchAll(PDO::FETCH_COLUMN));
+t_ok('hwid в журнал вебхуков не пишется', strpos($metas, 'HW-SECRET') === false && strpos($metas, '"hw"') !== false);
+[, , $page] = t_http('GET', $mw . '/admin/index.php?tab=whlog', [], null, $jar);
+t_ok('лог вебхуков показывает устройство', strpos($page, 'Pixel 8 · android 14 · Happ/2.1.0') !== false && strpos($page, 'HW-SECRET') === false);
+
 t_done();

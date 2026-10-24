@@ -49,7 +49,7 @@ t_eq('проксирование подписки — отдельный адр�
 // Срез для блока
 $v = apistat_view(72);
 t_ok('срез: итоги и группы', $v['total'] >= 8 && $v['hours'] === 72 && count($v['series']) === 72 && $v['groups'][0]['n'] >= $v['groups'][count($v['groups']) - 1]['n']);
-t_eq('подписи групп', [apistat_src_label('sub'), apistat_src_label('cron:grace'), apistat_src_label('ajax:ua_meta')], ['Запросы подписки', 'Планировщик: проверки грейса', 'Админка, фоновый запрос: ua_meta']);
+t_eq('подписи групп', [apistat_src_label('sub'), apistat_src_label('cron:grace'), apistat_src_label('ajax:ua_meta')], ['Запросы подписки', 'Планировщик: проверки грейса', 'Админка, фоновый запрос: справочники карточки (сквады, лимиты)']);
 t_ok('срез ограничен неделей', apistat_view(9999)['hours'] === 168);
 
 // Чистка
