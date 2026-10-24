@@ -121,7 +121,7 @@
                 <td><?= (string) $r['status'] !== '' ? '<span class="tag ' . h($r['status']) . '">' . h($r['status']) . '</span>' : '<span class="muted">—</span>' ?></td>
                 <td>
                     <?php $wm = whlog_meta($r); ?>
-                    <?php if ($wm && $wm['hw']): ?><span class="muted wh-dev" title="Устройство из вебхука панели"><?= h(whlog_device_label($wm['hw'])) ?></span><?php endif; ?>
+                    <?php if ($wm && $wm['hw']): ?><span class="muted wh-dev" data-tip="Устройство из вебхука панели"><?= h(whlog_device_label($wm['hw'])) ?></span><?php endif; ?>
                     <?php if ($wm && $wm['d']): ?>
                     <button type="button" class="wh-tg" aria-expanded="false">
                         <svg class="wh-cv" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
