@@ -243,7 +243,7 @@ if ($cr_on) {
             $as_pct = static fn($a, $b) => $b > 0 ? rtrim(rtrim(number_format($a / $b * 100, 1, ',', ''), '0'), ',') . '%' : '—';
             $as_max = max(1, $as['peak']);
         ?>
-        <section class="<?= coll_cls('sysinfo_api', false) ?>" data-coll="sysinfo_api">
+        <section class="<?= coll_cls('sysinfo_api', false) ?>" data-coll="sysinfo_api" id="siApi">
             <button type="button" class="coll-head" onclick="collToggle(this)"><span>Запросы к панели <span class="tag normal"><?= $as_n($as['total']) ?> за <?= $as_h === 24 ? 'сутки' : ($as_h === 72 ? '3 дня' : 'неделю') ?></span></span>
                 <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </button>
@@ -287,6 +287,21 @@ if ($cr_on) {
         <?php endif; ?>
         <script>
         document.querySelectorAll('[data-cr-copy]').forEach(function(b){ b.addEventListener('click', function(){ uiCopy(b.getAttribute('data-cr-copy'), b); }); });
+        // Период «Запросов к панели» подменяется на месте: страница не перезагружается и не прыгает наверх.
+        (function(){
+            var sec=document.getElementById('siApi'); if(!sec) return;
+            sec.addEventListener('click',function(e){
+                var a=e.target.closest&&e.target.closest('.api-sw a'); if(!a||e.ctrlKey||e.metaKey||e.shiftKey||e.button) return;
+                e.preventDefault(); sec.style.opacity='.6';
+                fetch(a.href,{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.text();}).then(function(html){
+                    var d=new DOMParser().parseFromString(html,'text/html'), n=d.getElementById('siApi'); if(!n) throw 0;
+                    sec.querySelector('.coll-body').innerHTML=n.querySelector('.coll-body').innerHTML;
+                    var t=sec.querySelector('.coll-head .tag'), nt=n.querySelector('.coll-head .tag'); if(t&&nt) t.textContent=nt.textContent;
+                    sec.querySelectorAll('.cr-ts[data-ts]').forEach(function(td){var v=siLocal(td.getAttribute('data-ts'),true);if(v)td.textContent=v;});
+                    try{history.replaceState(null,'',a.href);}catch(_){}
+                }).catch(function(){location.href=a.href;}).then(function(){sec.style.opacity='';});
+            });
+        })();
         </script>
     </div>
 
