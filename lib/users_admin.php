@@ -305,7 +305,7 @@ function ua_history($short) {
     try {
         $st = $p->prepare('SELECT *, ' . sql_epoch('ts') . ' AS e FROM request_log WHERE short_uuid = ? ORDER BY id DESC LIMIT 12');
         $st->execute([$short]);
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $c = reqlog_client($r['user_agent'] ?? '', reqlog_meta($r)['dv'] ?? null); $ev[] = ['t' => (int) $r['e'], 'k' => 'rq', 'app' => $c['app'], 'os' => $c['os'], 'dec' => (string) $r['decision']]; }
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $dv = reqlog_meta($r)['dv'] ?? null; $c = reqlog_client($r['user_agent'] ?? '', $dv); $ev[] = ['t' => (int) $r['e'], 'k' => 'rq', 'app' => $c['app'], 'os' => $c['os'], 'dev' => reqlog_device_label($dv) ?: $c['dev'], 'dec' => (string) $r['decision']]; }
     } catch (Throwable $e) {}
     try {
         whlog_ensure_meta();
@@ -324,7 +324,7 @@ function ua_history($short) {
                 };
                 $d[] = ['k' => $k, 'l' => whlog_field_label($k), 'a' => $fmt($pair[0] ?? null), 'b' => $fmt($pair[1] ?? null)];
             }
-            $ev[] = ['t' => (int) $r['e'], 'k' => 'wh', 'ev' => (string) $r['event'], 'act' => (string) $r['action'], 'd' => $d, 'mw' => $m['mw'] ?? null, 'src' => (string) ($m['src'] ?? '')];
+            $ev[] = ['t' => (int) $r['e'], 'k' => 'wh', 'ev' => (string) $r['event'], 'act' => (string) $r['action'], 'd' => $d, 'mw' => $m['mw'] ?? null, 'src' => (string) ($m['src'] ?? ''), 'dev' => whlog_device_label($m['hw'] ?? null)];
         }
     } catch (Throwable $e) {}
     try {

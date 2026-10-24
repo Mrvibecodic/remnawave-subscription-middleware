@@ -119,7 +119,11 @@ function apistat_src_label($src) {
         $titles = $GLOBALS['tab_titles'] ?? [];
         return 'Админка: ' . (isset($titles[$tab]) ? $titles[$tab] : $tab);
     }
-    if (strpos($src, 'ajax:') === 0) return 'Админка, фоновый запрос: ' . substr($src, 5);
+    if (strpos($src, 'ajax:') === 0) {
+        $ajax = ['usage' => 'трафик в карточке пользователя', 'sess_live' => '«сейчас онлайн» в карточке', 'sess_user' => 'сессии в карточке', 'sess_drop' => 'сброс соединений', 'hwids' => 'устройства в карточке', 'del_hwid' => 'удаление устройства', 'ua_user' => 'карточка пользователя', 'ua_meta' => 'справочники карточки (сквады, лимиты)', 'ua_save' => 'запись пользователя', 'ua_act' => 'действие с пользователем', 'tokscopes' => 'проверка прав токена', 'panelmeta' => 'версия панели', 'panelstats' => 'статистика панели на «О системе»', 'clod_names' => 'имена для статистики Clod Clash', 'pool_user' => 'поиск пользователя для WG / AWG', 'pool_sizing' => 'подсчёт устройств для пула', 'addsub_map_set' => 'привязка доп. подписки'];
+        $n = substr($src, 5);
+        return 'Админка, фоновый запрос: ' . ($ajax[$n] ?? $n);
+    }
     if (strpos($src, 'post:') === 0) return 'Админка, действие: ' . substr($src, 5);
     return $src;
 }

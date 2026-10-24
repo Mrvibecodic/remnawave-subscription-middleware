@@ -51,6 +51,7 @@
     .wh-dt{margin:0;border-collapse:collapse;font-size:.8rem}
     .wh-dt th,.wh-dt td{padding:.3rem .7rem;border:1px solid var(--line);text-align:left;vertical-align:top;white-space:nowrap}
     .wh-snap{margin:0;font-size:.78rem;text-align:center}
+    .wh-dev{display:block;font-size:.78rem;max-width:28rem;overflow-wrap:anywhere}
     .logtbl a:hover .tag,.logtbl a:hover code{outline:1px solid var(--accent);outline-offset:1px}
     @media(max-width:760px){
         .wh-flt select,.wh-flt input[type=text]{flex:1 1 46%;max-width:none;width:auto}
@@ -120,6 +121,7 @@
                 <td><?= (string) $r['status'] !== '' ? '<span class="tag ' . h($r['status']) . '">' . h($r['status']) . '</span>' : '<span class="muted">—</span>' ?></td>
                 <td>
                     <?php $wm = whlog_meta($r); ?>
+                    <?php if ($wm && $wm['hw']): ?><span class="muted wh-dev" title="Устройство из вебхука панели"><?= h(whlog_device_label($wm['hw'])) ?></span><?php endif; ?>
                     <?php if ($wm && $wm['d']): ?>
                     <button type="button" class="wh-tg" aria-expanded="false">
                         <svg class="wh-cv" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -148,6 +150,7 @@
                             <?php endif; ?>
                         </div>
                     </template>
+                    <?php elseif ($wm && $wm['hw']): ?>
                     <?php elseif ($wm && $wm['s']): ?><span class="muted" title="Состояние пользователя не изменилось">без изменений</span>
                     <?php else: ?><span class="muted">—</span><?php endif; ?>
                 </td>
