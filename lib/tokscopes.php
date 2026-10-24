@@ -24,7 +24,7 @@ function tokscope_catalog() {
         ['s' => 'system:configuration', 'm' => 'GET', 'p' => '/api/system/configuration', 'w' => 'Настройки панели: «Подключение», «Вебхуки», длина shortUuid (панель 3.2.0+)', 'need' => panel_supports_config()],
         ['s' => 'system:stats', 'm' => 'GET', 'p' => '/api/system/stats', 'w' => 'Статистика панели на «О системе»', 'need' => true],
         ['s' => 'nodes:list', 'm' => 'GET', 'p' => '/api/nodes', 'w' => 'Счётчик нод на «О системе»; страна узла на «Статистике» Clod Clash; последняя нода в карточке пользователя', 'need' => true],
-        ['s' => 'hosts:list', 'm' => 'GET', 'p' => '/api/hosts', 'w' => 'Адрес хоста → узел и его страна на «Статистике» Clod Clash', 'need' => rep_enabled()],
+        ['s' => 'hosts:list', 'm' => 'GET', 'p' => '/api/hosts', 'w' => 'Адрес хоста → узел на «Статистике» Clod Clash; имена хостов в «Сессиях»', 'need' => rep_enabled() || $sess],
         ['s' => 'config-profiles:list-inbounds', 'm' => 'GET', 'p' => '/api/config-profiles/inbounds', 'w' => 'Транспорт узла (RAW, XHTTP, Reality…) на «Статистике» Clod Clash', 'need' => rep_enabled()],
         ['s' => 'users:list', 'm' => 'GET', 'p' => '/api/users?size=1&start=0', 'w' => 'Список «Пользователи», имена в «Оверрайдах» и «Логе запросов»', 'need' => true],
         ['s' => 'users:by-short-uuid', 'm' => 'GET', 'p' => '/api/users/by-short-uuid/' . $rnd, 'w' => 'Пользователь по ссылке: грейс, доп. конфиги, слияние, имена в логе вебхуков, карточка в «Пользователях»', 'need' => true],

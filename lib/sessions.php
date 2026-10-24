@@ -146,15 +146,48 @@ function sess_nodes_fetch(&$err = '') {
     $list = is_array($resp) ? ($resp['nodes'] ?? (isset($resp[0]) ? $resp : [])) : [];
     $known = sess_nodes_known();
     $live = [];
+    $byAddr = [];
     foreach ((array) $list as $n) {
         if (!is_array($n) || empty($n['uuid'])) continue;
         $u = (string) $n['uuid'];
-        $known[$u] = ['n' => mb_substr((string) ($n['name'] ?? ''), 0, 64), 'cc' => strtoupper(mb_substr((string) ($n['countryCode'] ?? ''), 0, 2))];
+        $known[$u] = ['n' => mb_substr((string) ($n['name'] ?? ''), 0, 64), 'cc' => strtoupper(mb_substr((string) ($n['countryCode'] ?? ''), 0, 2)), 'h' => $known[$u]['h'] ?? []];
+        $addr = strtolower(trim((string) ($n['address'] ?? '')));
+        if ($addr !== '') $byAddr[$addr][] = $u;
         if (!empty($n['isConnected']) && empty($n['isDisabled']) && empty($n['isConnecting'])) $live[$u] = $known[$u];
+    }
+    // Хосты — то, что юзер видит в подписке; нода привязана к хосту явно (nodes) или совпадает адресом.
+    [$hok, , $hd, ] = remnawave_api_get('/api/hosts');
+    if ($hok) {
+        $hr = is_array($hd) ? ($hd['response'] ?? $hd) : [];
+        $hosts = is_array($hr) ? ($hr['hosts'] ?? (isset($hr[0]) ? $hr : [])) : [];
+        $map = [];
+        foreach ((array) $hosts as $h) {
+            if (!is_array($h) || !empty($h['isDisabled'])) continue;
+            $rem = trim(preg_replace('~\s+~u', ' ', (string) ($h['remark'] ?? '')));
+            if ($rem === '') continue;
+            $rem = mb_substr($rem, 0, 48);
+            $ids = [];
+            foreach ((array) ($h['nodes'] ?? []) as $ref) {
+                $id = is_array($ref) ? (string) ($ref['uuid'] ?? '') : (string) $ref;
+                if ($id !== '') $ids[] = $id;
+            }
+            if (!$ids) $ids = $byAddr[strtolower(trim((string) ($h['address'] ?? '')))] ?? [];
+            foreach ($ids as $id) if (isset($known[$id]) && !in_array($rem, $map[$id] ?? [], true) && count($map[$id] ?? []) < 4) $map[$id][] = $rem;
+        }
+        foreach ($known as $u => $info) $known[$u]['h'] = $map[$u] ?? [];
+        foreach ($live as $u => $info) $live[$u]['h'] = $map[$u] ?? [];
     }
     if (count($known) > 500) $known = array_slice($known, -500, null, true);
     set_setting('sess_nodes', json_encode($known, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+    set_setting('sess_nodes_ts', (string) time());
     return $live;
+}
+
+function sess_nodes_fresh() {
+    if (time() - (int) setting('sess_nodes_ts', '0') < 600) return sess_nodes_known();
+    $e = '';
+    sess_nodes_fetch($e);
+    return sess_nodes_known();
 }
 
 // Снимок со всех подключённых нод → сессии. Возвращает текст ошибки для планировщика или ''.
@@ -323,7 +356,7 @@ function sess_user_data($uid) {
         'gap'   => sess_gap(),
         'keep'  => sess_keep_days(),
         'state' => sess_state(),
-        'nodes' => sess_nodes_known(),
+        'nodes' => sess_nodes_fresh(),
         'rows'  => $uid > 0 ? sess_user_rows($uid) : [],
         'm'     => $m[$uid] ?? null,
         'city'  => function_exists('geoip_city_ready') && geoip_city_ready(),
@@ -351,7 +384,7 @@ function sess_live($ref, &$err = '') {
     $res = sess_jobs_wait(['u' => $job], $P['user_res'], microtime(true) + 8);
     $r = $res['u'] ?? null;
     if (!is_array($r)) { $err = $r === false ? 'Панель не успела опросить ноды — попробуйте ещё раз' : 'Нет ответа'; return null; }
-    $known = sess_nodes_known();
+    $known = sess_nodes_fresh();
     $out = [];
     foreach ((array) ($r['nodes'] ?? []) as $n) {
         if (!is_array($n)) continue;
@@ -364,7 +397,7 @@ function sess_live($ref, &$err = '') {
             $ips[] = ['ip' => (string) $ip, 'seen' => $seen ? (int) $seen : 0] + sess_geo($ip);
         }
         if (!$ips) continue;
-        $out[] = ['node' => $nu, 'name' => (string) ($n['nodeName'] ?? ($known[$nu]['n'] ?? '')), 'ncc' => strtoupper((string) ($n['countryCode'] ?? ($known[$nu]['cc'] ?? ''))), 'ips' => $ips];
+        $out[] = ['node' => $nu, 'name' => (string) ($n['nodeName'] ?? ($known[$nu]['n'] ?? '')), 'ncc' => strtoupper((string) ($n['countryCode'] ?? ($known[$nu]['cc'] ?? ''))), 'h' => array_values((array) ($known[$nu]['h'] ?? [])), 'ips' => $ips];
     }
     return $out;
 }

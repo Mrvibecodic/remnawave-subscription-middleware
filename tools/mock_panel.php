@@ -100,6 +100,13 @@ if ($path === '/api/nodes') {
     mp_json(200, ['response' => $out]);
     exit;
 }
+if ($path === '/api/hosts') {
+    // hosts: [{"remark": "…", "address": "…", "nodes": ["<nodeUuid>"], "off": false}]
+    $out = [];
+    foreach ((array) ($state['hosts'] ?? []) as $h) $out[] = ['uuid' => md5((string) ($h['remark'] ?? '')), 'remark' => (string) ($h['remark'] ?? ''), 'address' => (string) ($h['address'] ?? ''), 'port' => 443, 'isDisabled' => !empty($h['off']), 'nodes' => array_values((array) ($h['nodes'] ?? []))];
+    mp_json(200, ['response' => $out]);
+    exit;
+}
 if (preg_match('~^/api/(connections/by-node|ip-control/fetch-users-ips)/([^/]+)$~', $path, $m) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($nodes[$m[2]])) { mp_json(404, ['message' => 'Node not found', 'errorCode' => 'A011']); exit; }
     mp_json(201, ['response' => ['jobId' => 'n-' . $m[2]]]);
