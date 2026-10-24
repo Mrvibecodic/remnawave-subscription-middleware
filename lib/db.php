@@ -604,7 +604,7 @@ function db_migrate(array $from, array $to, &$err = '') {
     if (!$tables) {
         $ddl = array_merge(install_statements($sdrv), [ddl_metrics_minute($sdrv), ddl_metrics_peak($sdrv)], migrate_extra_ddl($sdrv), rep_ddl($sdrv),
             function_exists('app_ddl') ? app_ddl($sdrv) : [], function_exists('fc_ddl') ? [fc_ddl($sdrv)] : [], function_exists('addsub_swap_ddl') ? [addsub_swap_ddl($sdrv)] : [],
-            function_exists('sess_ddl') ? sess_ddl($sdrv) : []);
+            function_exists('sess_ddl') ? sess_ddl($sdrv) : [], function_exists('apistat_ddl') ? apistat_ddl($sdrv) : []);
         foreach ($ddl as $sql) if (preg_match('~CREATE TABLE IF NOT EXISTS\s+(\w+)~i', $sql, $m)) $tables[] = $m[1];
         $tables = array_values(array_unique($tables));
     }
@@ -616,6 +616,9 @@ function db_migrate(array $from, array $to, &$err = '') {
     }
     if (in_array('conn_sess', $tables, true) && function_exists('sess_ddl')) {
         foreach (sess_ddl($drv) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
+    }
+    if (in_array('api_stat_hour', $tables, true) && function_exists('apistat_ddl')) {
+        foreach (apistat_ddl($drv) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
     }
     $verb = ($drv === 'mysql') ? 'REPLACE' : 'INSERT OR REPLACE';
     $dst_cols = [];

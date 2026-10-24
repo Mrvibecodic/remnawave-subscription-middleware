@@ -7,7 +7,10 @@ require __DIR__ . '/lib.php';
 
 // function_exists: прежний апдейтер пишет index.php раньше lib/cron.php.
 if (function_exists('cron_intercept') && cron_intercept()) exit();
+$api_src = function_exists('apistat_src') ? 'apistat_src' : static function ($s) {};
+$api_src('chan');
 chan_intercept();
+$api_src('app');
 if (app_intercept() === 'web') {
     require __DIR__ . '/admin/index.php';
     exit();
@@ -40,6 +43,7 @@ $prefix_in = false;
 if (!$apisub_in) [$path, $prefix_in] = sub_prefix_strip($path);
 $wire_path = ($prefix_in ? sub_prefix_seg() : '') . $path;
 
+$api_src('page');
 if (empty($path) || $path === 'index.php') {
     header('X-Robots-Tag: noindex, nofollow');
     landing_render();
@@ -75,6 +79,7 @@ $skip_log =
     || junk_short_len_mismatch($path);
 
 $junk_path = $skip_log && !junk_excluded($path);
+$api_src($junk_path ? 'junk' : 'sub');
 
 $to_panel = subpage_active() || $apisub_in;
 if ($to_panel) {
@@ -197,6 +202,7 @@ if ($addsub_pre !== null && $addsub_pre['ch'] !== null) {
     if ($response === null) $response = false;
     $curl_err  = curl_error($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $proxy_ms  = curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000;
     if ($curl_err === '' && $ch_res !== CURLE_OK) $curl_err = curl_strerror($ch_res);
     if ($curl_err === '' && (int) $http_code === 0) $curl_err = 'no response';
     [$addsub_pre['body'], $addsub_pre['info']] = addsub_fetch_collect($addsub_pre['ch'], $addsub_pre['st'], curl_multi_getcontent($addsub_pre['ch']));
@@ -212,8 +218,10 @@ if ($addsub_pre !== null && $addsub_pre['ch'] !== null) {
     $curl_err  = curl_error($ch);
     $curl_errno = curl_errno($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $proxy_ms  = curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000;
     curl_close($ch);
 }
+if (function_exists('apistat_hit')) apistat_hit('GET', $to_panel ? '/api/sub/{x}' : '/{x}', $curl_err ? 0 : $http_code, $proxy_ms);
 
 $ip     = client_ip();
 $ua     = $_SERVER['HTTP_USER_AGENT'] ?? '';

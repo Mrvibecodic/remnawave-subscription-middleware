@@ -49,6 +49,7 @@ function remnawave_api_get($path, $assoc = true) {
     $body = curl_exec($ch);
     $err  = curl_error($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if (function_exists('apistat_hit')) apistat_hit('GET', $path, $err ? 0 : $code, curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000);
     curl_close($ch);
     if ($err) return [false, $code, null, $err];
     $json = json_decode($body, $assoc);
@@ -113,6 +114,7 @@ function remnawave_api_request($method, $path, $body = null) {
     $resp = curl_exec($ch);
     $err  = curl_error($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if (function_exists('apistat_hit')) apistat_hit($method, $path, $err ? 0 : $code, curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000);
     curl_close($ch);
     if ($err) return [false, $code, null, $err];
     $data = json_decode($resp, true);
