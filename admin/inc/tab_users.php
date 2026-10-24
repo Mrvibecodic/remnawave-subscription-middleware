@@ -1030,7 +1030,7 @@ function sessHtml(u){
  if(sd.err)return h+'<div class="ux-warn">'+esc(sd.err)+'</div>';
  var s7=sessSum(sd.rows,7),s30=sessSum(sd.rows,30);
  h+='<div class="ux-sect">За 7 дней<span class="sp"></span><span style="font-weight:500;text-transform:none;letter-spacing:0">за 30: '+s30.ip+' IP · '+s30.as+' пров. · '+s30.h+' ч</span></div>';
- h+='<div class="ux-dk" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div><div class="k">IP</div><div class="v">'+s7.ip+'</div></div><div><div class="k">Провайдеров</div><div class="v">'+s7.as+'</div></div><div><div class="k">Нод</div><div class="v">'+s7.nd+'</div></div><div><div class="k">Часов онлайн</div><div class="v">'+s7.h+'</div><div class="d">шаг '+Math.round(SESS.every/60)+' мин</div></div></div>';
+ h+='<div class="ux-dk"><div><div class="k">IP</div><div class="v">'+s7.ip+'</div></div><div><div class="k">Провайдеров</div><div class="v">'+s7.as+'</div></div><div><div class="k">Нод</div><div class="v">'+s7.nd+'</div></div><div><div class="k">Часов онлайн</div><div class="v">'+s7.h+'</div><div class="d">шаг '+Math.round(SESS.every/60)+' мин</div></div></div>';
  h+='<div class="ux-sect">История за 30 дней<span class="sp"></span></div>';
  if(!sd.rows.length)return h+'<div class="ux-empty">Записей пока нет.</div>';
  var G=sessGroups(sd.rows),open=G.length<=3;
