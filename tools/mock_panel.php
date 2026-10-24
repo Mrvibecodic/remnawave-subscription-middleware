@@ -90,6 +90,50 @@ if (preg_match('~^/api/users/by-short-uuid/([A-Za-z0-9_-]+)$~', $path, $m)) {
     exit;
 }
 
+// Обозреватель сессий: nodes: {"<uuid>": {"name": "…", "cc": "NL", "off": false}},
+// conns: {"<nodeUuid>": {"<userId>": ["1.2.3.4", …]}}; принимает оба семейства адресов (2.x и 3.x).
+$nodes = is_array($state['nodes'] ?? null) ? $state['nodes'] : [];
+$conns = is_array($state['conns'] ?? null) ? $state['conns'] : [];
+if ($path === '/api/nodes') {
+    $out = [];
+    foreach ($nodes as $nu => $n) $out[] = ['uuid' => (string) $nu, 'name' => (string) ($n['name'] ?? $nu), 'countryCode' => (string) ($n['cc'] ?? 'XX'), 'isConnected' => empty($n['off']), 'isDisabled' => false, 'isConnecting' => false];
+    mp_json(200, ['response' => $out]);
+    exit;
+}
+if (preg_match('~^/api/(connections/by-node|ip-control/fetch-users-ips)/([^/]+)$~', $path, $m) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($nodes[$m[2]])) { mp_json(404, ['message' => 'Node not found', 'errorCode' => 'A011']); exit; }
+    mp_json(201, ['response' => ['jobId' => 'n-' . $m[2]]]);
+    exit;
+}
+if (preg_match('~^/api/(connections/by-node|ip-control/fetch-users-ips/result)/n-([^/]+)$~', $path, $m)) {
+    $users = [];
+    foreach ((array) ($conns[$m[2]] ?? []) as $uid => $ips) $users[] = ['userId' => (string) $uid, 'ips' => array_map(static fn($ip) => ['ip' => $ip, 'lastSeen' => gmdate('Y-m-d\TH:i:s.000\Z')], (array) $ips)];
+    $slow = !empty($state['job_slow']);
+    mp_json(200, ['response' => ['isCompleted' => !$slow, 'isFailed' => false, 'result' => $slow ? null : ['success' => true, 'nodeUuid' => $m[2], 'users' => $users]]]);
+    exit;
+}
+if (preg_match('~^/api/(connections/by-user|ip-control/fetch-ips)/([^/]+)$~', $path, $m) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    mp_json(201, ['response' => ['jobId' => 'u-' . $m[2]]]);
+    exit;
+}
+if (preg_match('~^/api/(connections/by-user|ip-control/fetch-ips/result)/u-([^/]+)$~', $path, $m)) {
+    $ref = $m[2];
+    $i = 0; $uid = null;
+    foreach ($users as $short => $u) { $mu = mp_user((string) $short, (array) $u, $i++); if ((string) $mu['id'] === $ref || $mu['uuid'] === $ref) $uid = $mu['id']; }
+    $out = [];
+    foreach ($conns as $nu => $byUser) {
+        $ips = (array) ($byUser[(string) $uid] ?? []);
+        if ($ips) $out[] = ['nodeUuid' => (string) $nu, 'nodeName' => (string) ($nodes[$nu]['name'] ?? $nu), 'countryCode' => (string) ($nodes[$nu]['cc'] ?? 'XX'), 'ips' => array_map(static fn($ip) => ['ip' => $ip, 'lastSeen' => gmdate('Y-m-d\TH:i:s.000\Z')], $ips)];
+    }
+    mp_json(200, ['response' => ['isCompleted' => true, 'isFailed' => false, 'progress' => ['total' => count($nodes), 'completed' => count($nodes), 'percent' => 100], 'result' => ['success' => true, 'userId' => (int) $uid, 'nodes' => $out]]]);
+    exit;
+}
+if (($path === '/api/connections/drop' || $path === '/api/ip-control/drop-connections') && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($log !== '') @file_put_contents($log, 'DROP ' . (string) file_get_contents('php://input') . "\n", FILE_APPEND | LOCK_EX);
+    mp_json(202, ['response' => true]);
+    exit;
+}
+
 if ($path === '/api/system/metadata') {
     mp_json(200, ['response' => ['version' => (string) ($state['version'] ?? '2.8.1'), 'build' => ['time' => '2026-01-01T00:00:00Z', 'number' => '1'], 'git' => ['backend' => ['commitSha' => 'test', 'branch' => 'main', 'commitUrl' => '']]]]);
     exit;
