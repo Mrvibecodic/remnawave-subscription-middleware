@@ -4,7 +4,22 @@ function tokscope_catalog() {
     $rnd = 'submw-probe-' . bin2hex(random_bytes(4));
     $grace = grace_squad_enabled();
     $pool = squadconf_any();
-    return [
+    $sess = function_exists('sess_enabled') && sess_enabled();
+    $uuid = '00000000-0000-4000-8000-' . substr(md5($rnd), 0, 12);
+    $conn = (function_exists('sess_api_v3') ? sess_api_v3() : panel_api_v3()) ? [
+        ['s' => 'connections:by-node', 'm' => 'POST', 'p' => '/api/connections/by-node/' . $uuid, 'w' => 'Сессии: опрос нод планировщиком', 'need' => $sess],
+        ['s' => 'connections:by-node-result', 'm' => 'GET', 'p' => '/api/connections/by-node/' . $rnd, 'w' => 'Сессии: результат опроса нод', 'need' => $sess],
+        ['s' => 'connections:by-user', 'm' => 'POST', 'p' => '/api/connections/by-user/0', 'w' => '«Сейчас онлайн» в карточке пользователя', 'need' => false],
+        ['s' => 'connections:by-user-result', 'm' => 'GET', 'p' => '/api/connections/by-user/' . $rnd, 'w' => '«Сейчас онлайн» в карточке пользователя: результат', 'need' => false],
+        ['s' => 'connections:drop', 'm' => 'POST', 'p' => '/api/connections/drop', 'b' => '[]', 'w' => 'Сброс соединений пользователя (запись)', 'need' => false],
+    ] : [
+        ['s' => 'ip-control:fetch-users-ips', 'm' => 'POST', 'p' => '/api/ip-control/fetch-users-ips/' . $uuid, 'w' => 'Сессии: опрос нод планировщиком', 'need' => $sess],
+        ['s' => 'ip-control:fetch-users-ips-result', 'm' => 'GET', 'p' => '/api/ip-control/fetch-users-ips/result/' . $rnd, 'w' => 'Сессии: результат опроса нод', 'need' => $sess],
+        ['s' => 'ip-control:fetch-ips', 'm' => 'POST', 'p' => '/api/ip-control/fetch-ips/' . $uuid, 'w' => '«Сейчас онлайн» в карточке пользователя', 'need' => false],
+        ['s' => 'ip-control:fetch-ips-result', 'm' => 'GET', 'p' => '/api/ip-control/fetch-ips/result/' . $rnd, 'w' => '«Сейчас онлайн» в карточке пользователя: результат', 'need' => false],
+        ['s' => 'ip-control:drop-connections', 'm' => 'POST', 'p' => '/api/ip-control/drop-connections', 'b' => '[]', 'w' => 'Сброс соединений пользователя (запись)', 'need' => false],
+    ];
+    return array_merge([
         ['s' => 'system:metadata', 'm' => 'GET', 'p' => '/api/system/metadata', 'w' => 'Версия панели — без неё ломаются грейс и операции с пользователями', 'need' => true],
         ['s' => 'system:configuration', 'm' => 'GET', 'p' => '/api/system/configuration', 'w' => 'Настройки панели: «Подключение», «Вебхуки», длина shortUuid (панель 3.2.0+)', 'need' => panel_supports_config()],
         ['s' => 'system:stats', 'm' => 'GET', 'p' => '/api/system/stats', 'w' => 'Статистика панели на «О системе»', 'need' => true],
@@ -30,7 +45,7 @@ function tokscope_catalog() {
         ['s' => 'subscription-template:list', 'm' => 'GET', 'p' => '/api/subscription-templates', 'w' => 'Поиск шаблона xray-json для доп. конфигов', 'need' => $pool && squadconf_xray_json_enabled()],
         ['s' => 'subscription-template:get', 'm' => 'GET', 'p' => '/api/subscription-templates/submw-probe', 'w' => 'Тело шаблона xray-json для доп. конфигов', 'need' => $pool && squadconf_xray_json_enabled()],
         ['s' => 'subscriptions:by-short-uuid-protected', 'm' => 'GET', 'p' => '/api/subscriptions/by-short-uuid/' . $rnd, 'w' => 'Хосты панели и серверы второй подписки для «Ключей на странице»', 'need' => pagekeys_active() && (pagekeys_with_panel() || (pagekeys_with_addsub() && addsub_enabled()))],
-    ];
+    ], $conn);
 }
 
 function tokscope_classify($code, $body) {

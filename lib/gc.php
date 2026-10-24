@@ -17,6 +17,7 @@ function gc_tables() {
         'rep_node'       => ['title' => 'Отчёты: узлы',              'pk' => 'id', 'col' => 'last_seen', 'kind' => 'epoch'],
         'rep_sub_node'   => ['title' => 'Отчёты: узлы подписок',     'pk' => 'id', 'col' => 'last_seen', 'kind' => 'epoch'],
         'rep_raw'        => ['title' => 'Отчёты: сырые отчёты клиентов', 'pk' => 'id', 'col' => 'ts',    'kind' => 'epoch'],
+        'conn_sess'      => ['title' => 'Сессии подключений',          'pk' => 'id', 'col' => 'last_ts', 'kind' => 'epoch'],
     ];
 }
 
@@ -41,6 +42,7 @@ function gc_ensure() {
     ensure_panel_write_log();
     ensure_metrics_tables();
     rep_ensure();
+    if (function_exists('sess_ensure')) sess_ensure();
 }
 
 function gc_count($table, $days) {

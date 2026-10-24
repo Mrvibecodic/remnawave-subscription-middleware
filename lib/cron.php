@@ -18,6 +18,7 @@ function cron_tasks() {
         'cleanup' => ['Чистка метрик, мусорных адресов и чата', 3600, false],
         'brand'   => ['Брендинг из панели', 3600, false],
         'update'  => ['Проверка обновлений', 3600, true],
+        'sessions' => ['Сессии: опрос нод', function_exists('sess_every') ? sess_every() : 120, false],
     ];
 }
 
@@ -163,8 +164,9 @@ function cron_task_grace($ctx) {
 }
 
 function cron_task_reports($ctx) {
-    if (!rep_enabled()) return '';
-    rep_purge_maybe();
+    $sess = function_exists('sess_enabled') && sess_enabled();
+    if (!rep_enabled() && !$sess) return '';
+    if (rep_enabled()) rep_purge_maybe();
     if ($ctx['detached']) geoip_maybe_update();
     return '';
 }

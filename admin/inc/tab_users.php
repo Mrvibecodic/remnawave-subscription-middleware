@@ -26,7 +26,15 @@ $ux_cfg = [
     'sort'  => ua_sort(),
     'hide'  => ua_cols_hidden(),
     'qr'    => 'assets/qrcode.js?v=' . substr(md5_file(__DIR__ . '/../assets/qrcode.js'), 0, 10),
+    'sess'  => null,
+    'sx'    => (object) [],
 ];
+$ux_sess = function_exists('sess_enabled');
+if ($ux_sess) {
+    $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'asn_extra' => sess_asn_extra(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready()];
+    if (sess_enabled()) $ux_cfg['sx'] = (object) sess_metrics();
+    $ux_sst = sess_state();
+}
 $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
     <style>
@@ -349,6 +357,44 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-cff .h svg{width:14px;height:14px;flex:none}
 .ux-cff .btn{white-space:nowrap}
 @media(max-width:560px){.ux-cfr{grid-template-columns:30px minmax(0,1fr)}.ux-cfr .v{grid-column:2;justify-content:flex-start;text-align:left}.ux-cff{flex-wrap:wrap}.ux-cff .h{flex:1 1 100%}}
+.ux-an{display:inline-flex;align-items:center;gap:.4rem}
+.ux-an .n{font-size:.7rem;background:var(--c-bad-bg);color:var(--c-bad-fg);border-radius:999px;padding:.02rem .4rem;font-weight:700}
+.ux-an.on{border-color:var(--c-bad-fg);background:var(--c-bad-bg);color:var(--c-bad-fg)}
+.ux-sb{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;font-size:.62rem;font-weight:800;flex:none;cursor:help}
+.ux-sb.bad{background:var(--c-bad-bg);color:var(--c-bad-fg)}
+.ux-sb.warn{background:var(--c-warn-bg);color:var(--c-warn-fg)}
+.ux-live{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:.5rem}
+.ux-live>div{display:grid;grid-template-columns:minmax(7rem,1.1fr) minmax(0,1.3fr) minmax(0,1.6fr) auto;gap:.5rem .8rem;align-items:center;padding:.55rem .8rem;border-top:1px solid var(--line);font-size:.84rem}
+.ux-live>div:first-child{border-top:0}
+.ux-live .nd{font-weight:600;color:var(--text-strong);display:flex;gap:.4rem;align-items:center;min-width:0}
+.ux-live .nd span,.ux-live .ip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ux-live .ip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;color:var(--text-strong)}
+.ux-live .pv{color:var(--muted);font-size:.8rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ux-live .pv b{color:var(--text);font-weight:600}
+.ux-cc{display:inline-flex;font-size:.62rem;font-weight:700;letter-spacing:.04em;padding:.05rem .32rem;border-radius:4px;background:var(--hover);color:var(--muted);border:1px solid var(--line);flex:none;font-family:ui-monospace,monospace}
+.ux-ab{border:1px solid var(--c-bad-fg);background:var(--c-bad-bg);border-radius:12px;padding:.75rem .9rem;margin-bottom:.9rem}
+.ux-ab.warn{border-color:var(--c-warn-fg);background:var(--c-warn-bg)}
+.ux-ab .h{display:flex;gap:.55rem;align-items:center;font-weight:700;color:var(--text-strong);font-size:.9rem}
+.ux-ab .h svg{width:17px;height:17px;flex:none;color:var(--c-bad-fg)}
+.ux-ab.warn .h svg{color:var(--c-warn-fg)}
+.ux-ab ul{margin:.4rem 0 0;padding-left:1.2rem;font-size:.84rem;color:var(--text)}
+.ux-ab li+li{margin-top:.15rem}
+.ux-sg{border:1px solid var(--line);border-radius:12px;margin-bottom:.55rem;background:var(--bg2)}
+.ux-sg>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.6rem;padding:.65rem .85rem;font-size:.88rem;color:var(--text-strong);font-weight:600}
+.ux-sg>summary::-webkit-details-marker{display:none}
+.ux-sg>summary .ch{color:var(--muted);transition:transform .15s;flex:none}
+.ux-sg[open]>summary .ch{transform:rotate(90deg)}
+.ux-sg>summary .sp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ux-sg>summary .st{color:var(--muted);font-weight:500;font-size:.78rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ux-sg .rg{padding:0 .85rem .25rem 1.4rem}
+.ux-sg .rt{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;margin:.45rem 0 .25rem}
+.ux-sr{display:grid;grid-template-columns:minmax(8rem,1fr) minmax(0,1.6fr) auto;gap:.3rem .8rem;align-items:center;padding:.4rem 0;border-top:1px solid var(--line);font-size:.82rem}
+.ux-sr .ip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-strong);font-size:.8rem;overflow-wrap:anywhere}
+.ux-sr .nd{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ux-sr .tm{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;font-size:.78rem}
+.ux-sr .tm b{color:var(--text);font-weight:600}
+.ux-sr.live .ip::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c-ok-fg);box-shadow:0 0 0 2px var(--c-ok-bg);margin-right:.4rem;vertical-align:1px}
+@media(max-width:600px){.ux-live>div{grid-template-columns:minmax(0,1fr) auto}.ux-live .pv{grid-column:1/3}.ux-live .wb{grid-column:1/3;justify-self:start}.ux-sr{grid-template-columns:minmax(0,1fr) auto}.ux-sr .nd{grid-column:1/3}}
 .ux-tbl thead th:first-child{border-top-left-radius:12px}
 .ux-tbl thead th:last-child{border-top-right-radius:12px}
 .ux-load{color:var(--muted);font-size:.86rem;padding:1rem 0}
@@ -428,6 +474,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <select id="uxSq" aria-label="Сквад"><option value="">Все сквады</option></select>
             <select id="uxTag" aria-label="Тег" hidden><option value="">Все теги</option></select>
             <span id="uxChips"></span>
+            <?php if ($ux_sess && sess_enabled()): ?><button type="button" class="wb ux-an" id="uxAn" aria-pressed="false" data-tip="Только пользователи с аномалиями по сессиям"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Аномалии<span class="n" id="uxAnN" hidden></span></button><?php endif; ?>
             <span class="sp"></span>
             <div class="ux-seg" id="uxColsSeg"><button type="button" id="uxColsBtn" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>Колонки</button></div>
             <div class="ux-seg" data-tip="Плотность строк">
@@ -452,6 +499,51 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
         </div>
         <div class="ux-pgr" id="uxPgr"></div>
     </div>
+
+    <?php if ($ux_sess): $ux_sc = sess_scopes(); $ux_sc_miss = array_values(array_filter([$ux_sc['node'], $ux_sc['node_res']], fn($s) => ($ux_ts[$s] ?? '') === 'miss')); ?>
+    <div class="card" id="uxSess">
+        <h2 style="margin-top:0;font-size:1rem">Сессии и аномалии</h2>
+        <p class="muted">Планировщик спрашивает у панели, кто сейчас онлайн на каждой ноде и с каких IP, и складывает ответы в сессии: пользователь, нода, IP, провайдер и регион по базам GeoIP, с какого по какое время. Сама панель историю не хранит. Результат — вкладка «Сессии» в карточке пользователя, значки аномалий в списке и фильтр «Аномалии». Сессия короче интервала опроса в историю не попадёт.</p>
+        <?php if (!function_exists('cron_alive')): ?>
+        <div class="warn">Нужен планировщик — обновите прослойку.</div>
+        <?php elseif (sess_enabled() && !cron_alive()): ?>
+        <div class="warn">Планировщик не запущен — история не собирается. Строки для cron — на вкладке <a href="?tab=sysinfo">«О системе»</a>, блок «Планировщик».</div>
+        <?php endif; ?>
+        <?php if (sess_enabled() && $ux_sc_miss): ?>
+        <div class="warn">У API-токена нет прав <?= h(implode(', ', $ux_sc_miss)) ?> — опрос нод не сработает. Выдайте права токену в панели и нажмите «Проверить» на вкладке <a href="?tab=connection">«Подключение»</a>.</div>
+        <?php endif; ?>
+        <form method="post" data-autosave>
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="save_sess">
+            <div class="ctg">
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Собирать историю сессий</div><div class="set-d">Хранятся IP пользователей. Выключение сбор останавливает, накопленное остаётся до чистки.</div></div>
+                <label class="switch"><input type="checkbox" name="sess_enabled" <?= sess_enabled() ? 'checked' : '' ?> data-reload><span class="sl"></span></label>
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Как часто опрашивать ноды</div><div class="set-d">Это и разрешение истории: что короче — не видно. На каждую ноду один лёгкий запрос в панель.</div></div>
+                <select name="sess_every"><?php foreach (sess_every_opts() as $ux_e): ?><option value="<?= $ux_e ?>" <?= sess_every() === $ux_e ? 'selected' : '' ?>><?= $ux_e < 60 ? $ux_e . ' с' : ($ux_e / 60) . ' мин' ?></option><?php endforeach; ?></select>
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Сколько дней хранить</div><div class="set-d">Старше — удаляет планировщик. От 7 до 365. Вручную — вкладка «База данных».</div></div>
+                <input type="number" name="sess_keep_days" min="7" max="365" value="<?= (int) sess_keep_days() ?>">
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Порог без лимита устройств</div><div class="set-d">Если у пользователя лимит устройств не задан: аномалия, когда одновременно IP или провайдеров за сутки больше этого числа. С лимитом — больше лимита (IP) и больше лимита плюс запас (провайдеры).</div></div>
+                <input type="number" name="sess_nolim" min="1" max="50" value="<?= (int) sess_nolim() ?>">
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">Запас по провайдерам за сутки</div><div class="set-d">Сколько провайдеров сверх лимита устройств допустимо за сутки: телефон днём в мобильной сети, вечером дома — уже два.</div></div>
+                <input type="number" name="sess_asn_extra" min="0" max="20" value="<?= (int) sess_asn_extra() ?>">
+            </div>
+            </div>
+        </form>
+        <?php if (sess_enabled()): $ux_st = $ux_sst ?? []; ?>
+        <p class="muted" style="font-size:.8rem;margin:.8rem 0 0"><?php if (!empty($ux_st['ts'])): ?>Последний опрос <span class="ct-time" data-ts="<?= (int) $ux_st['ts'] ?>"><?= h(date('Y-m-d H:i', (int) $ux_st['ts'])) ?></span>: нод <?= (int) ($ux_st['ok'] ?? 0) ?> из <?= (int) ($ux_st['nodes'] ?? 0) ?>, подключений <?= (int) ($ux_st['rows'] ?? 0) ?>, <?= (int) ($ux_st['ms'] ?? 0) ?> мс.<?php if (!empty($ux_st['fail'])): ?> Не ответили: <?= h(implode(', ', (array) $ux_st['fail'])) ?>.<?php endif; ?><?php if (!empty($ux_st['err'])): ?> Ошибка: <?= h((string) $ux_st['err']) ?>.<?php endif; ?><?php else: ?>Опроса ещё не было — планировщик сделает его в ближайший тик.<?php endif; ?>
+        Страна, провайдер и регион берутся из баз GeoIP — их настройки на вкладке <a href="?tab=reports">«Статистика»</a>.</p>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
 
     <div class="ux-menu" id="uxMenu" role="menu"></div>
     <div class="ux-menu" id="uxCols" aria-label="Колонки таблицы">
@@ -496,7 +588,8 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 document.documentElement.classList.remove('lp');
 var C=window.UX_CFG,U=window.UX_USERS||[];
 var GSQ=C.gsq||'',DAY=86400000,GB=1073741824;
-var S={f:'all',q:'',sq:'',tag:'',sort:(C.sort&&C.sort.k)||'id',dir:(C.sort&&C.sort.d<0)?-1:1,page:1,size:50,dens:0};
+var S={f:'all',q:'',sq:'',tag:'',sort:(C.sort&&C.sort.k)||'id',dir:(C.sort&&C.sort.d<0)?-1:1,page:1,size:50,dens:0,an:false};
+var SESS=C.sess||null,SX=C.sx||{};
 try{var v0=parseInt(localStorage.getItem('utbl_size'),10);if([10,25,50,0].indexOf(v0)>-1)S.size=v0;}catch(e){}
 try{if(localStorage.getItem('utbl_dens')==='1')S.dens=1;}catch(e){}
 var STRAT=[['NO_RESET','Без сброса'],['DAY','Каждый день'],['WEEK','Каждую неделю'],['MONTH','Каждый месяц'],['MONTH_ROLLING','Ежемесячно от даты создания']];
@@ -573,6 +666,16 @@ function hwTxt(v){return v===null||v===undefined?'как в панели':(v===0
 function hwSrc(u){if(!META||!META.hwid)return null;var s=META.hwid,from='panel';if(u.ex)for(var i=0;i<META.ex.length;i++)if(META.ex[i].uuid===u.ex&&META.ex[i].hwid){s=META.ex[i].hwid;from='ex';}return{s:s,from:from};}
 function hwEff(u){var h=hwSrc(u);if(u.hw===0)return{lim:null,txt:'без лимита',d:'без лимита'};if(!h){return u.hw?{lim:u.hw,txt:String(u.hw),d:'свой'}:{lim:null,txt:'как в панели',d:'как в панели'};}if(!h.s.enabled)return{lim:null,txt:'выключен в панели',d:'выключен в панели'};if(u.hw)return{lim:u.hw,txt:String(u.hw),d:'свой'};var w=h.from==='ex'?'из внешнего сквада':'общий из панели';return{lim:h.s.limit,txt:h.s.limit+' — '+w,d:w};}
 function bySu(su){for(var i=0;i<U.length;i++)if(U[i].su===su)return U[i];return null;}
+function sesFlag(u){
+ var m=SESS&&SESS.on&&u.id&&SX[u.id];if(!m)return null;
+ var lim=hwEff(u).lim,th=lim>0?lim:SESS.nolim,ath=lim>0?lim+SESS.asn_extra:SESS.nolim,r=[];
+ if(m.li>th)r.push('Одновременно '+m.li+' IP'+(lim>0?' при лимите '+lim+' устройств':''));
+ if(m.da>ath)r.push('За сутки '+m.da+' '+plural(m.da,'провайдер','провайдера','провайдеров')+(lim>0?' при лимите '+lim:''));
+ if(m.lc>1)r.push('Одновременно из '+m.lc+' стран');
+ var soft=m.lr>1;
+ return{lvl:r.length?'bad':(soft?'warn':''),r:r,soft:soft,m:m};
+}
+function sesBadge(u){var f=sesFlag(u);if(!f||!f.lvl)return '';var tip=f.r.length?f.r.join('; '):'Один провайдер, но '+f.m.lr+' региона одновременно';return '<span class="ux-sb '+f.lvl+'" data-tip="'+esc(tip)+'">!</span>';}
 function canW(sc){return !sc||C.ts[sc]!=='miss';}
 function roTip(sc){return 'Нет права '+sc+' у API-токена';}
 function toast(m){if(window.uiToast)uiToast(m);}
@@ -616,6 +719,7 @@ function matches(u){
  if(S.sq&&u.sq.indexOf(S.sq)<0)return false;
  if(S.tag==='-'&&u.tag)return false;
  if(S.tag&&S.tag!=='-'&&u.tag!==S.tag)return false;
+ if(S.an){var sf=sesFlag(u);if(!sf||!sf.lvl)return false;}
  if(S.q){var h=[u.un,u.su,u.desc,u.tg,u.em,u.tag].join(' ').toLowerCase();if(h.indexOf(S.q)<0)return false;}
  return true;
 }
@@ -642,7 +746,7 @@ function rowHtml(u){
  var ot=u.on*1000,live=u.on&&now()-ot<5*60000;
  var sub=u.desc?esc(u.desc):'<span style="font-family:ui-monospace,monospace">'+esc(u.su)+'</span>';
  return '<tr data-su="'+esc(u.su)+'">'+
-  '<td class="c-nm"><div class="u-nm"><span>'+esc(u.un)+'</span>'+(u.tag?'<span class="ux-tag">'+esc(u.tag)+'</span>':'')+(C.ovb[u.su]?'<span class="ux-pill st-bad" data-tip="Заблокирован в оверрайдах" style="font-size:.66rem">блок</span>':'')+(fcPend(u.su)?'<span class="ux-pill st-info" data-tip="'+esc('Срок '+durTxt(fcPend(u.su).dur)+' пойдёт с первого подключения')+'" style="font-size:.66rem">ждёт подключения</span>':'')+'</div><span class="u-sub">'+sub+'</span></td>'+
+  '<td class="c-nm"><div class="u-nm"><span>'+esc(u.un)+'</span>'+sesBadge(u)+(u.tag?'<span class="ux-tag">'+esc(u.tag)+'</span>':'')+(C.ovb[u.su]?'<span class="ux-pill st-bad" data-tip="Заблокирован в оверрайдах" style="font-size:.66rem">блок</span>':'')+(fcPend(u.su)?'<span class="ux-pill st-info" data-tip="'+esc('Срок '+durTxt(fcPend(u.su).dur)+' пойдёт с первого подключения')+'" style="font-size:.66rem">ждёт подключения</span>':'')+'</div><span class="u-sub">'+sub+'</span></td>'+
   '<td class="c-id">'+(u.id?esc(u.id):'<span class="muted">—</span>')+'</td>'+
   '<td class="c-st" data-l="Статус">'+pill(u)+'</td>'+
   '<td class="c-tr" data-l="Трафик"><div class="ux-tr"><div class="t"><b>'+fb(u.used)+'</b><span>'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</span></div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div></td>'+
@@ -668,6 +772,7 @@ function render(){
  $('uxChips').innerHTML=chips.map(function(c){return '<span class="ux-chip">'+esc(c[1])+'<button type="button" data-unchip="'+c[0]+'" aria-label="Сбросить фильтр">×</button></span>';}).join(' ');
  $('uxPgr').innerHTML='<span>'+(list.length?(st+1)+'–'+Math.min(st+per,list.length)+' из '+list.length:'0')+'</span><div class="nav">'+(pages>1?'<button type="button" class="wb sm" data-pg="-1"'+(S.page<=1?' disabled':'')+' aria-label="Предыдущая страница">◀</button><span>стр. '+S.page+' / '+pages+'</span><button type="button" class="wb sm" data-pg="1"'+(S.page>=pages?' disabled':'')+' aria-label="Следующая страница">▶</button>':'')+'<label style="margin:0;display:flex;align-items:center;font-size:.82rem">На странице<select id="uxSize"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="0">Все</option></select></label></div>';
  $('uxSize').value=String(S.size);
+ var ab=$('uxAn');if(ab){var an=U.filter(function(u){var f=sesFlag(u);return f&&f.lvl;}).length;ab.classList.toggle('on',S.an);ab.setAttribute('aria-pressed',S.an?'true':'false');$('uxAnN').hidden=!an;$('uxAnN').textContent=an;}
  applyRo(document.getElementById('ux'));
 }
 function applyRo(root){root.querySelectorAll('[data-w]').forEach(function(b){var sc=b.dataset.w;var dis=!canW(sc);if(dis){b.disabled=true;b.setAttribute('data-tip',roTip(sc));}else if((b.getAttribute('data-tip')||'').indexOf('Нет права')===0){b.removeAttribute('data-tip');}});}
@@ -763,7 +868,7 @@ function qrSvg(t){var q=qrcode(0,'M');q.addData(t);q.make();return q.createSvgTa
 function openQr(u){if(!u.lk)return;qrLib().then(function(){$('uxQrBox').innerHTML=qrSvg(u.lk);$('uxQrT').textContent='QR-код · '+u.un;$('uxQrL').textContent=u.lk;$('uxQrCopy').onclick=function(){copy(u.lk,'Ссылка подписки скопирована');};$('uxQrOv').classList.add('open');},function(){if(window.uiAlert)uiAlert('Не загрузился генератор QR-кода');});}
 
 var CARD=null;
-function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,seq:0};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';cardPush();refreshCard();}
+function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,sess:null,live:null,seq:0};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';cardPush();refreshCard();}
 function refreshCard(){if(!CARD||CARD.create)return;var su=CARD.u.su,s=++CARD.seq;loadMeta().then(function(){if(CARD&&!CARD.create&&CARD.seq===s){var f=$('uxForm'),sc=f?f.scrollTop:0;drawCard();f=$('uxForm');if(f)f.scrollTop=sc;}});getj('ua_user','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;if(d.ok){putUser(d.user,d.mw);if(CARD.tab==='edit'&&CARD.F&&CARD.O&&CARD.O.upd!==d.user.upd&&!diffList().length)CARD.F=null;if(CARD.tab!=='edit'||!CARD.F)drawCard();render();}else{CARD.err=d.error;if(CARD.tab!=='edit')drawCard();}});}
 function openCreate(){CARD={u:null,tab:'edit',create:true,F:null,done:null};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';cardPush();loadMeta().then(function(){if(CARD&&CARD.create&&!CARD.done){var sc=$('uxForm')?$('uxForm').scrollTop:0;drawCard();if($('uxForm'))$('uxForm').scrollTop=sc;}});setTimeout(function(){var i=$('fUser');if(i)i.focus();},60);}
 function closeCard(force){
@@ -797,7 +902,7 @@ function head(u){
   '<button type="button" class="wb sm" data-a="reset" data-w="users:reset-traffic">'+ico('reset')+'Сбросить трафик</button>'+
   '<button type="button" class="wb sm'+(off?'':' bad')+'" data-a="'+(off?'enable':'disable')+'" data-w="'+(off?'users:enable':'users:disable')+'">'+ico('power')+(off?'Включить':'Выключить')+'</button>'+
   '<button type="button" class="ux-ib" data-a="menu" aria-label="Ещё действия" style="margin-left:auto">'+ico('more')+'</button></div></div>'+
-  '<div class="ux-tabs" role="tablist">'+[['ov','Обзор'],['edit','Изменить'],['dev','Устройства'],['hist','История']].map(function(t){return '<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(CARD.tab===t[0]?'on':'')+'"'+(t[0]==='edit'&&!canW('users:update')?' disabled data-tip="'+esc(roTip('users:update'))+'"':'')+'>'+t[1]+'</button>';}).join('')+'</div>';
+  '<div class="ux-tabs" role="tablist">'+[['ov','Обзор'],['edit','Изменить'],['dev','Устройства'],['sess','Сессии'],['hist','История']].filter(function(t){return t[0]!=='sess'||SESS;}).map(function(t){var sf=t[0]==='sess'?sesFlag(u):null;return '<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(CARD.tab===t[0]?'on':'')+'"'+(t[0]==='edit'&&!canW('users:update')?' disabled data-tip="'+esc(roTip('users:update'))+'"':'')+'>'+t[1]+(sf&&sf.lvl?'<span class="ux-sb '+sf.lvl+'">!</span>':'')+'</button>';}).join('')+'</div>';
 }
 function drawCard(){
  if(!CARD)return;
@@ -808,10 +913,12 @@ function drawCard(){
  var h=head(u)+'<div class="ux-db">'+(CARD.err?'<div class="ux-warn">'+esc(CARD.err)+'</div>':'');
  if(CARD.tab==='ov')h+=ovHtml(u);
  else if(CARD.tab==='dev')h+=devHtml(u);
+ else if(CARD.tab==='sess')h+=sessHtml(u);
  else h+=histHtml(u);
  dr.innerHTML=h+'</div>';applyRo(dr);
  if((CARD.tab==='dev'||CARD.tab==='ov')&&CARD.devs===null)loadDevs();
  if(CARD.tab==='hist'&&CARD.hist===null)loadHist();
+ if(CARD.tab==='sess'){if(CARD.sess===null)loadSess();if(CARD.live===null)loadLive();}
 }
 function graceRows(u,g){
  var tl=function(b,s){return(b?fb(b):'без лимита')+(STRAT_S[s]?', сброс: '+STRAT_S[s]:'');};
@@ -838,7 +945,7 @@ function ovHtml(u){
   '<div><div class="k">Трафик</div><div class="v">'+fb(u.used)+'</div><div class="d">'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div>'+
   '<div><div class="k">Истекает</div><div class="v">'+(u.exp?fd(e):'—')+'</div><div class="d" style="color:'+(e<now()?'var(--c-bad-fg)':(e-now()<7*DAY?'var(--c-warn-fg)':'var(--muted)'))+'">'+(u.exp?rel(e):'')+'</div></div>'+
   '<div class="go" data-tab="dev" role="button" tabindex="0" data-tip="Открыть список устройств"><div class="k">Устройства'+ico('chev',13)+'</div><div class="v">'+(CARD.devs?CARD.devs.length:'…')+(hwEff(u).lim?' / '+hwEff(u).lim:'')+'</div><div class="d">лимит: '+esc(hwEff(u).d)+'</div></div>'+
-  '<div><div class="k">Онлайн</div><div class="v" style="font-size:.98rem">'+(u.on?ago(u.on*1000):'—')+'</div><div class="d">'+(u.node?esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):'не подключался')+'</div></div></div>';
+  (SESS?sessTile(u):'<div><div class="k">Онлайн</div><div class="v" style="font-size:.98rem">'+(u.on?ago(u.on*1000):'—')+'</div><div class="d">'+(u.node?esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):'не подключался')+'</div></div>')+'</div>';
  var sqs=u.sq.map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join(' ')||'<span class="m">нет</span>';
  var row=function(k,v){return '<dt>'+k+'</dt><dd>'+v+'</dd>';},emp='<span class="m">—</span>';
  h+='<div class="ux-sect">Панель<span class="sp"></span></div><dl class="ux-dl">'+
@@ -869,6 +976,64 @@ function devHtml(u){
  var ds=CARD.devs,h='<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.8rem"><span class="muted" style="font-size:.88rem">Устройств: <b style="color:var(--text-strong)">'+ds.length+'</b>'+(hwEff(u).lim?' из '+hwEff(u).lim:'')+' · лимит: '+esc(hwEff(u).d)+'</span>'+(ds.length>1?'<button type="button" class="wb sm bad" data-a="delall" data-w="hwid-user-devices:delete">'+ico('trash')+'Удалить все</button>':'')+'</div>';
  if(!ds.length)return h+'<div class="ux-empty">Устройств нет — клиент ещё не присылал HWID.</div>';
  return h+ds.map(function(d,i){var hw=d.hwid||'',bl=C.hwb.indexOf(String(hw).toLowerCase())>-1,dt=Date.parse(d.updatedAt||d.createdAt||'');return '<div class="ux-dev"><div class="l"><span class="os">'+ico('dev',17)+'</span><div style="min-width:0"><div class="m1">'+esc(d.deviceModel||d.platform||'Устройство')+(bl?' <span class="ux-pill st-bad" style="font-size:.66rem">блок</span>':'')+'</div><div class="m2">'+esc([d.platform,d.osVersion].filter(Boolean).join(' ')||'ОС неизвестна')+(d.userAgent?' · '+esc(d.userAgent):'')+'</div><div class="m3">'+esc(hw)+(isNaN(dt)?'':' · '+fdt(dt))+'</div></div></div><div class="a"><button type="button" class="wb sm" data-a="hwblock" data-i="'+i+'">'+ico(bl?'check':'ban')+(bl?'Разблок.':'Блок')+'</button><button type="button" class="wb sm bad" data-a="hwdel" data-i="'+i+'" data-w="hwid-user-devices:delete">'+ico('trash')+'Удалить</button></div></div>';}).join('');
+}
+function sessTile(u){
+ var m=SX[u.id]||null,f=sesFlag(u);
+ var v=SESS.on?((m?m.i7:0)+' IP <span style="font-size:.74rem;color:var(--muted);font-weight:500">за 7 дн</span>'):'<span style="font-size:.9rem">сбор выкл.</span>';
+ var d=u.on?'онлайн '+ago(u.on*1000)+(u.node?' · '+esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):''):'не подключался';
+ return '<div class="go" data-tab="sess" role="button" tabindex="0" data-tip="Открыть сессии"><div class="k">Сессии'+(f&&f.lvl?' <span class="ux-sb '+f.lvl+'">!</span>':'')+ico('chev',13)+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>';
+}
+function loadSess(){var su=CARD.u.su,u=CARD.u;CARD.sess=false;getj('sess_user','&id='+encodeURIComponent(u.id||0)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.sess=d.ok?d:{rows:[],nodes:{},err:d.error||'Ошибка'};if(d.ok&&u.id){if(d.m)SX[u.id]=d.m;else delete SX[u.id];}if(CARD.tab==='sess')drawCard();});}
+function loadLive(){var su=CARD.u.su,u=CARD.u;if(!canW(SESS.sc.user)||!canW(SESS.sc.user_res)){CARD.live={err:roTip(canW(SESS.sc.user)?SESS.sc.user_res:SESS.sc.user)};return;}CARD.live=false;getj('sess_live','&rv='+encodeURIComponent(u.rv)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.live=d.ok?{nodes:d.nodes||[],ts:d.ts||0}:{err:d.error||'Ошибка'};if(CARD.tab==='sess')drawCard();});}
+function sNode(sd,id){var n=sd&&sd.nodes&&sd.nodes[id];return n&&n.n?n.n:(nodeName(id)||'нода '+String(id).slice(0,8));}
+function provHtml(x){var p=[];if(x.cc)p.push('<span class="ux-cc">'+esc(x.cc)+'</span>');p.push(x.org?'<b>'+esc(x.org)+'</b>':(x.asn?'<b>AS'+x.asn+'</b>':'<span>провайдер неизвестен</span>'));if(x.sub)p.push(esc(x.sub));return p.join(' · ');}
+function spanTxt(s,e){var a=fdt(s*1000),b=fdt(e*1000);if(fd(s*1000)===fd(e*1000))return a.replace(' в ',' ')+'–'+b.split(' в ')[1];return a.replace(' в ',' ')+' – '+b.replace(' в ',' ');}
+function sessSum(rows,days){var t=now()/1000-days*86400,ips={},as={},nd={},sec=0;rows.forEach(function(r){if(r.e<t)return;ips[r.ip]=1;as[r.asn>0?'a'+r.asn:'i'+r.ip]=1;nd[r.node]=1;sec+=Math.max(r.e,t)-Math.max(r.s,t)+SESS.every;});return{ip:Object.keys(ips).length,as:Object.keys(as).length,nd:Object.keys(nd).length,h:Math.round(sec/360)/10};}
+function sessGroups(rows){
+ var G={},lv=now()/1000-SESS.gap;
+ rows.forEach(function(r){
+  var gk=r.asn>0?'a'+r.asn:'i'+r.ip,g=G[gk]||(G[gk]={k:gk,cc:r.cc,asn:r.asn,org:r.org,R:{},e:0,ips:{}});
+  if(r.e>g.e)g.e=r.e;g.ips[r.ip]=1;if(!g.org&&r.org)g.org=r.org;if(!g.cc&&r.cc)g.cc=r.cc;
+  var rk=r.sub||'',rg=g.R[rk]||(g.R[rk]={I:{}}),x=rg.I[r.ip]||(rg.I[r.ip]={ip:r.ip,nodes:{},s:r.s,e:r.e,n:0,sec:0,live:false});
+  x.nodes[r.node]=1;x.s=Math.min(x.s,r.s);x.e=Math.max(x.e,r.e);x.n++;x.sec+=r.e-r.s+SESS.every;if(r.e>=lv)x.live=true;
+ });
+ return Object.keys(G).map(function(k){return G[k];}).sort(function(a,b){return b.e-a.e;});
+}
+function liveHtml(){
+ var L=CARD.live;
+ if(L===null||L===false)return '<div class="ux-load">Спрашиваем ноды через панель…</div>';
+ if(L.err)return '<div class="ux-warn">'+esc(L.err)+'</div>';
+ if(!L.nodes.length)return '<div class="ux-empty" style="padding:1rem">Сейчас подключений нет'+(L.ts?' · '+fdt(L.ts*1000).replace(' в ',' '):'')+'</div>';
+ var rows=[];
+ L.nodes.forEach(function(n){n.ips.forEach(function(x){rows.push('<div><span class="nd">'+(n.ncc?'<span class="ux-cc">'+esc(n.ncc)+'</span>':'')+'<span>'+esc(n.name||'нода '+String(n.node).slice(0,8))+'</span></span><span class="ip">'+esc(x.ip)+'</span><span class="pv">'+provHtml(x)+'</span><button type="button" class="wb sm" data-a="sdrop" data-ip="'+esc(x.ip)+'" data-w="'+esc(SESS.sc.drop)+'">'+ico('ban')+'Сбросить</button></div>');});});
+ return '<div class="ux-live">'+rows.join('')+'</div><div class="muted" style="font-size:.76rem;margin:-.1rem 0 .4rem">Снимок '+fdt(L.ts*1000).replace(' в ',' ')+' · IP остаётся в списке, пока с него открыто соединение.</div>';
+}
+function sessHtml(u){
+ var h='',sd=CARD.sess,f=sesFlag(u),sc=SESS.sc,hasLive=CARD.live&&CARD.live.nodes&&CARD.live.nodes.length;
+ if(!SESS.on)h+='<div class="ux-gb ux-fcb"><div class="h">'+ico('info',18)+'История не собирается</div><p>Сбор сессий выключен — включите его внизу вкладки «Пользователи». «Сейчас онлайн» работает и без него.</p></div>';
+ else if(!SESS.alive)h+='<div class="ux-gb ux-fcb bad"><div class="h">'+ico('alert',18)+'Планировщик не запущен</div><p>История не пополняется. Строки для cron — <a href="?tab=sysinfo">«О системе»</a>, блок «Планировщик».</p></div>';
+ if(f&&f.lvl)h+='<div class="ux-ab'+(f.lvl==='warn'?' warn':'')+'"><div class="h">'+ico('alert',17)+(f.lvl==='bad'?'Аномалия':'Стоит взглянуть')+'</div><ul>'+f.r.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+(f.soft?'<li>Один провайдер, но '+f.m.lr+' '+plural(f.m.lr,'регион','региона','регионов')+' одновременно — у мобильных операторов такое бывает и само</li>':'')+'</ul></div>';
+ h+='<div class="ux-sect">Сейчас онлайн<span class="sp"></span><button type="button" class="wb sm" data-a="slive"'+(CARD.live===false?' disabled':'')+'>'+ico('refresh')+'Обновить</button>'+(hasLive?'<button type="button" class="wb sm bad" data-a="sdropall" data-w="'+esc(sc.drop)+'">'+ico('ban')+'Сбросить все</button>':'')+'</div>';
+ h+=liveHtml();
+ if(sd===null||sd===false)return h+'<div class="ux-load">Загрузка истории…</div>';
+ if(sd.err)return h+'<div class="ux-warn">'+esc(sd.err)+'</div>';
+ var s7=sessSum(sd.rows,7),s30=sessSum(sd.rows,30);
+ h+='<div class="ux-sect">За 7 дней<span class="sp"></span><span style="font-weight:500;text-transform:none;letter-spacing:0">за 30: '+s30.ip+' IP · '+s30.as+' пров. · '+s30.h+' ч</span></div>';
+ h+='<div class="ux-dk" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div><div class="k">IP</div><div class="v">'+s7.ip+'</div></div><div><div class="k">Провайдеров</div><div class="v">'+s7.as+'</div></div><div><div class="k">Нод</div><div class="v">'+s7.nd+'</div></div><div><div class="k">Часов онлайн</div><div class="v">'+s7.h+'</div><div class="d">шаг '+Math.round(SESS.every/60)+' мин</div></div></div>';
+ h+='<div class="ux-sect">История за 30 дней<span class="sp"></span></div>';
+ if(!sd.rows.length)return h+'<div class="ux-empty">Записей пока нет.</div>';
+ var G=sessGroups(sd.rows),open=G.length<=3;
+ h+=G.map(function(g){
+  var regs=Object.keys(g.R).sort(function(a,b){return(a===''?1:0)-(b===''?1:0)||a.localeCompare(b);});
+  return '<details class="ux-sg"'+(open?' open':'')+'><summary>'+ico('chev',14).replace('<svg','<svg class="ch"')+(g.cc?'<span class="ux-cc">'+esc(g.cc)+'</span>':'')+'<span class="sp">'+esc(g.org||(g.asn?'AS'+g.asn:'Провайдер неизвестен'))+(g.asn&&g.org?' <span class="muted" style="font-weight:500">AS'+g.asn+'</span>':'')+'</span><span class="st">'+Object.keys(g.ips).length+' IP · '+ago(g.e*1000)+'</span></summary>'+
+   regs.map(function(rk){var ips=Object.keys(g.R[rk].I).map(function(k){return g.R[rk].I[k];}).sort(function(a,b){return b.e-a.e;});
+    return '<div class="rg">'+(regs.length>1||rk?'<div class="rt">'+(rk?esc(rk):'регион неизвестен')+'</div>':'')+ips.map(function(x){var nn=Object.keys(x.nodes).map(function(id){return sNode(sd,id);}).join(', ');return '<div class="ux-sr'+(x.live?' live':'')+'"><span class="ip">'+esc(x.ip)+'</span><span class="nd" title="'+esc(nn)+'">'+esc(nn)+'</span><span class="tm"><b>'+spanTxt(x.s,x.e)+'</b><br>'+x.n+' '+plural(x.n,'сессия','сессии','сессий')+' · '+(Math.round(x.sec/360)/10)+' ч</span></div>';}).join('')+'</div>';
+   }).join('')+'</details>';
+ }).join('');
+ return h;
+}
+function sessDrop(cu,ip){
+ cfm({ic:'ban',tone:'warn',title:ip?'Сбросить соединения с IP':'Сбросить все соединения',sub:'<b>'+esc(cu.un)+'</b>'+(ip?' · <code>'+esc(ip)+'</code>':''),notes:[['info','info','Клиент переподключится сам','подписка и ключи не меняются'],['net','info','На всех подключённых нодах','']],ok:'Сбросить',onOk:function(){busy(true);post('sess_drop',{rv:cu.rv,ip:ip||''}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();toast(ip?'Соединения с '+ip+' сброшены':'Соединения сброшены · '+cu.un);setTimeout(function(){if(CARD&&CARD.u&&CARD.u.su===cu.su&&CARD.tab==='sess'){CARD.live=null;drawCard();}},1500);});}});
 }
 function loadHist(){var su=CARD.u.su;CARD.hist=false;getj('ua_hist','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.hist=d.ok?d.ev:[];if(CARD.tab==='hist')drawCard();});}
 var EVN={'user.created':'Создан','user.modified':'Изменён в панели','user.deleted':'Удалён','user.revoked':'Новые ключи или ссылка','user.disabled':'Выключен','user.enabled':'Включён','user.limited':'Лимит трафика','user.expired':'Истёк','user.traffic_reset':'Сброс трафика','user.expiration':'Напоминание о сроке','user.first_connected':'Первое подключение','user.not_connected':'Давно не подключался','user.bandwidth_usage_threshold_reached':'Порог трафика','user_hwid_devices.added':'Новое устройство','user_hwid_devices.deleted':'Устройство удалено'};
@@ -1084,6 +1249,7 @@ document.addEventListener('click',function(e){
  if(t.id==='uxOv'){closeCard();return;}
  var k=t.closest('.ux-kpi');if(k){S.f=S.f===k.dataset.f&&k.dataset.f!=='all'?'all':k.dataset.f;S.page=1;render();return;}
  var th=t.closest('#uxTbl th.srt');if(th){var s=th.dataset.s;setSort(s,S.sort===s?-S.dir:((s==='id'||s==='tr'||s==='on')?-1:1));return;}
+ if(t.closest('#uxAn')){S.an=!S.an;S.page=1;render();return;}
  var dn=t.closest('.ux-flt [data-dens]');if(dn){S.dens=+dn.dataset.dens;try{localStorage.setItem('utbl_dens',String(S.dens));}catch(_){}render();return;}
  var uc=t.closest('[data-unchip]');if(uc){S[uc.dataset.unchip]='';fillSelects();S.page=1;render();return;}
  var pg=t.closest('[data-pg]');if(pg){S.page+=+pg.dataset.pg;render();return;}
@@ -1102,6 +1268,9 @@ document.addEventListener('click',function(e){
     cfm({ic:'ban',tone:bl?'ok':'bad',title:bl?'Снять блок устройства':'Заблокировать устройство',sub:'<b>'+esc(dv.deviceModel||dv.platform||'Устройство')+'</b> · '+esc(cu.un),notes:[bl?['check','ok','Клиент снова получит конфиг','']:['ban','bad','Клиент с этим HWID получит заглушку','снять можно здесь или в «Оверрайдах»']],hint:esc(hw),ok:bl?'Снять блок':'Заблокировать',danger:!bl,onOk:function(){busy(true);post('block_hwid',{hwid:hw,username:cu.un,block:bl?'0':'1'}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка');return;}cfClose();if(bl)C.hwb=C.hwb.filter(function(x){return x!==lc;});else C.hwb.push(lc);toast(bl?'Блок снят':'Устройство заблокировано');drawCard();});}});return;}
    if(a2==='hwdel'){var dv2=CARD.devs[+da.dataset.i];cfm({ic:'trash',tone:'bad',title:'Удалить устройство',sub:'<b>'+esc(dv2.deviceModel||dv2.platform||'Устройство')+'</b> · '+esc(cu.un),notes:[['info','info','Освободит место в лимите','клиент сможет подключиться снова']],hint:esc(dv2.hwid||''),ok:'Удалить',danger:true,onOk:function(){busy(true);post('del_hwid',{uuid:cu.rv,hwid:dv2.hwid||''}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();toast('Устройство удалено');CARD.devs=null;drawCard();});}});return;}
    if(a2==='delall'){var list=CARD.devs.slice();cfm({ic:'trash',tone:'bad',title:'Удалить все устройства',sub:'<b>'+list.length+'</b> · '+esc(cu.un),ok:'Удалить все',danger:true,onOk:function(){cfClose();var i=0;(function next(){if(i>=list.length){toast('Устройства удалены');CARD.devs=null;drawCard();return;}post('del_hwid',{uuid:cu.rv,hwid:list[i++].hwid||''}).then(next);})();}});return;}
+   if(a2==='slive'){CARD.live=null;drawCard();return;}
+   if(a2==='sdrop'){sessDrop(cu,da.dataset.ip||'');return;}
+   if(a2==='sdropall'){sessDrop(cu,'');return;}
    if(a2==='opencard'){openCard(cu,'ov');return;}
    if(a2==='again'){openCreate();return;}
    if(a2==='fccancel'){cfm({ic:'x',tone:'warn',title:'Отменить отсчёт от подключения',sub:'<b>'+esc(cu.un)+'</b>',notes:[['cal','info','Срок останется как есть','до '+fdt(expMs(cu))]],ok:'Отменить отсчёт',onOk:function(){busy(true);post('ua_act',{su:cu.su,act:'fccancel'}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка');return;}cfClose();delete C.fc[cu.su];if(CARD.mw)CARD.mw.fc=null;toast('Отсчёт от подключения отменён · '+cu.un);render();drawCard();});}});return;}
