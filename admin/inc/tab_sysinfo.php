@@ -58,6 +58,7 @@ if ($cr_on) {
         .si-card .sb .vsub{color:var(--accent-text);font-weight:600}
         .si-bar2{flex:1 1 0;min-width:2px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:2px 2px 0 0;overflow:hidden}
         .si-bar2.zero{background:var(--line);opacity:.5}
+        #siApi .coll-body{transition:opacity .25s ease}
         .api-sw{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg2)}
         .api-sw a{padding:.35rem .7rem;font-size:.8rem;color:var(--muted);text-decoration:none;border-left:1px solid var(--line)}
         .api-sw a:first-child{border-left:0}
@@ -292,14 +293,14 @@ if ($cr_on) {
             var sec=document.getElementById('siApi'); if(!sec) return;
             sec.addEventListener('click',function(e){
                 var a=e.target.closest&&e.target.closest('.api-sw a'); if(!a||e.ctrlKey||e.metaKey||e.shiftKey||e.button) return;
-                e.preventDefault(); sec.style.opacity='.6';
+                e.preventDefault(); var body=sec.querySelector('.coll-body'), dim=setTimeout(function(){body.style.opacity='.55';},150);
                 fetch(a.href,{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.text();}).then(function(html){
                     var d=new DOMParser().parseFromString(html,'text/html'), n=d.getElementById('siApi'); if(!n) throw 0;
-                    sec.querySelector('.coll-body').innerHTML=n.querySelector('.coll-body').innerHTML;
+                    body.style.minHeight=body.offsetHeight+'px';body.innerHTML=n.querySelector('.coll-body').innerHTML;setTimeout(function(){body.style.minHeight='';},300);
                     var t=sec.querySelector('.coll-head .tag'), nt=n.querySelector('.coll-head .tag'); if(t&&nt) t.textContent=nt.textContent;
                     sec.querySelectorAll('.cr-ts[data-ts]').forEach(function(td){var v=siLocal(td.getAttribute('data-ts'),true);if(v)td.textContent=v;});
                     try{history.replaceState(null,'',a.href);}catch(_){}
-                }).catch(function(){location.href=a.href;}).then(function(){sec.style.opacity='';});
+                }).catch(function(){location.href=a.href;}).then(function(){clearTimeout(dim);body.style.opacity='';});
             });
         })();
         </script>
