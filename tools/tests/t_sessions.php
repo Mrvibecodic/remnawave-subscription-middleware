@@ -11,6 +11,7 @@ $mock = static function (array $conns, array $extra = []) use ($state, $N1, $N2)
     file_put_contents($state, json_encode([
         'users' => ['AbCdEfGhIjKlMnOp' => ['status' => 'ACTIVE'], 'SecondUserShort1' => ['status' => 'ACTIVE']],
         'nodes' => [$N1 => ['name' => 'Amsterdam', 'cc' => 'NL'], $N2 => ['name' => 'Frankfurt', 'cc' => 'DE']],
+        'hosts' => [['remark' => '🇳🇱 Нидерланды', 'address' => 'ams.example.net', 'nodes' => [$N1]], ['remark' => 'NL · WS', 'address' => 'ams.example.net', 'nodes' => [$N1]], ['remark' => 'Выключенный', 'address' => 'x', 'nodes' => [$N1], 'off' => 1], ['remark' => 'Германия', 'address' => 'fra.example.net', 'nodes' => []]],
         'conns' => $conns,
     ] + $extra));
 };
@@ -37,6 +38,8 @@ t_eq('снимок разложен по сессиям: пользовател�
 $st = sess_state();
 t_eq('состояние опроса: ноды и подключения', [$st['nodes'], $st['ok'], $st['rows'], $st['fail']], [2, 2, 4, []]);
 t_eq('имена нод запомнены', sess_nodes_known()[$N1]['n'] ?? '', 'Amsterdam');
+t_eq('хосты ноды: по явной привязке, выключенный хост пропущен', sess_nodes_known()[$N1]['h'] ?? null, ['🇳🇱 Нидерланды', 'NL · WS']);
+t_eq('хост без привязки к ноде — к ноде не относится', sess_nodes_known()[$N2]['h'] ?? null, []);
 t_ok('панель 2.x — адреса ip-control', $logHas('POST /api/ip-control/fetch-users-ips/' . $N1) && !$logHas('/api/connections/'));
 
 sleep(1);
@@ -64,7 +67,7 @@ t_ok('данные карточки: история и имена нод', count
 // Живой опрос и сброс соединений
 $e = '';
 $live = sess_live('1', $e);
-t_ok('живой опрос пользователя: две ноды', is_array($live) && count($live) === 2 && $live[0]['name'] !== '', $e);
+t_ok('живой опрос пользователя: две ноды, у первой имена хостов', is_array($live) && count($live) === 2 && $live[0]['name'] !== '' && count(array_filter($live, static fn($n) => $n['node'] === $N1 && $n['h'] === ['🇳🇱 Нидерланды', 'NL · WS'])) === 1, $e . ' ' . json_encode($live, JSON_UNESCAPED_UNICODE));
 $ips = [];
 foreach ($live ?: [] as $n) foreach ($n['ips'] as $x) $ips[] = $x['ip'];
 sort($ips);
