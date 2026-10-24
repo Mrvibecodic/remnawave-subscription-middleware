@@ -58,6 +58,30 @@ if ($cr_on) {
         .si-card .sb .vsub{color:var(--accent-text);font-weight:600}
         .si-bar2{flex:1 1 0;min-width:2px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:2px 2px 0 0;overflow:hidden}
         .si-bar2.zero{background:var(--line);opacity:.5}
+        .api-sw{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg2)}
+        .api-sw a{padding:.35rem .7rem;font-size:.8rem;color:var(--muted);text-decoration:none;border-left:1px solid var(--line)}
+        .api-sw a:first-child{border-left:0}
+        .api-sw a.on{background:var(--accent-light);color:var(--accent-text);font-weight:600}
+        .api-sp{display:flex;align-items:flex-end;gap:1px;height:56px;padding:.4rem .5rem;background:var(--bg2);border:1px solid var(--line);border-radius:10px;margin:.2rem 0 .9rem}
+        .api-sp i{flex:1 1 0;min-width:1px;background:var(--accent);border-radius:1px 1px 0 0;opacity:.85}
+        .api-sp i.z{background:var(--line);height:2px!important;opacity:.6}
+        .api-g{border:1px solid var(--line);border-radius:10px;background:var(--bg2);margin-bottom:.45rem}
+        .api-g>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) 5.5rem 4.5rem 4.5rem 4.5rem;gap:.6rem;align-items:center;padding:.55rem .8rem;font-size:.86rem}
+        .api-g>summary::-webkit-details-marker{display:none}
+        .api-g .nm{font-weight:600;color:var(--text-strong);display:flex;align-items:center;gap:.5rem;min-width:0}
+        .api-g .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .api-g .nm svg{flex:none;color:var(--muted);transition:transform .15s}
+        .api-g[open] .nm svg{transform:rotate(90deg)}
+        .api-g .num{text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
+        .api-g .num small{color:var(--muted);font-size:.74rem}
+        .api-g .num.bad{color:var(--c-bad-fg)}
+        .api-g .bar{grid-column:1/-1;height:3px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:-.1rem}
+        .api-g .bar i{display:block;height:100%;background:var(--accent)}
+        .api-e{display:grid;grid-template-columns:minmax(0,1fr) 5.5rem 4.5rem 4.5rem 4.5rem;gap:.6rem;padding:.35rem .8rem .35rem 2.1rem;font-size:.8rem;border-top:1px dashed var(--line);align-items:center}
+        .api-e code{font-size:.76rem;overflow-wrap:anywhere;padding:.05rem .35rem}
+        .api-hd{display:grid;grid-template-columns:minmax(0,1fr) 5.5rem 4.5rem 4.5rem 4.5rem;gap:.6rem;padding:0 .8rem .3rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:right}
+        .api-hd span:first-child{text-align:left}
+        @media(max-width:640px){.api-g>summary,.api-e,.api-hd{grid-template-columns:minmax(0,1fr) 4.5rem 3.6rem}.api-g .c-err,.api-g .c-ms,.api-hd .c-err,.api-hd .c-ms,.api-e .c-err,.api-e .c-ms{display:none}}
         .si-bar2 .seg-bot{background:var(--line);opacity:.7}
         .si-bar2 .seg-sub{background:var(--accent);opacity:.9}
         .si-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.7rem;margin-bottom:1.1rem}
@@ -206,6 +230,57 @@ if ($cr_on) {
                     <button type="submit" class="btn ghost">Сменить секрет</button>
                     <span class="hint">Адрес с секретом запускает задачи. Если он попал в чужие руки — смените.</span>
                 </form>
+                <?php endif; ?>
+            </div>
+        </section>
+        <?php endif; ?>
+        <?php if (function_exists('apistat_view')):
+            $as_h = (int) ($_GET['api_h'] ?? 72);
+            if (!in_array($as_h, [24, 72, 168], true)) $as_h = 72;
+            $as = apistat_view($as_h);
+            $as_n = static fn($v) => number_format((int) $v, 0, ',', ' ');
+            $as_ms = static fn($ms, $n) => $n > 0 ? $as_n(round($ms / $n)) . ' мс' : '—';
+            $as_pct = static fn($a, $b) => $b > 0 ? rtrim(rtrim(number_format($a / $b * 100, 1, ',', ''), '0'), ',') . '%' : '—';
+            $as_max = max(1, $as['peak']);
+        ?>
+        <section class="<?= coll_cls('sysinfo_api', false) ?>" data-coll="sysinfo_api">
+            <button type="button" class="coll-head" onclick="collToggle(this)"><span>Запросы к панели <span class="tag normal"><?= $as_n($as['total']) ?> за <?= $as_h === 24 ? 'сутки' : ($as_h === 72 ? '3 дня' : 'неделю') ?></span></span>
+                <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </button>
+            <div class="coll-body">
+                <div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:.7rem">
+                    <p class="muted" style="margin:0;flex:1 1 18rem">Кто из прослойки и как часто ходит в панель: проксирование подписки и каждый вызов API, по точкам входа и адресам. Считается в памяти, в базу пишется почасовыми суммами после ответа клиенту; хранится неделю.</p>
+                    <span class="api-sw"><?php foreach ([24 => 'сутки', 72 => '3 дня', 168 => 'неделя'] as $as_k => $as_l): ?><a href="?tab=sysinfo&amp;seg=mw&amp;api_h=<?= $as_k ?>" class="<?= $as_h === $as_k ? 'on' : '' ?>"><?= $as_l ?></a><?php endforeach; ?></span>
+                </div>
+                <div class="si-stat">
+                    <div class="si-card"><div class="n"><?= $as_n($as['total']) ?></div><div class="l">всего</div></div>
+                    <div class="si-card"><div class="n"><?= $as_n(round($as['total'] / $as_h)) ?></div><div class="l">в час в среднем</div></div>
+                    <div class="si-card"><div class="n"><?= $as_n($as['peak']) ?></div><div class="l">пик часа<?= $as['peak_h'] ? ' · <span class="cr-ts" data-ts="' . (int) $as['peak_h'] . '">' . h(date('d.m H:00', (int) $as['peak_h'])) . '</span>' : '' ?></div></div>
+                    <div class="si-card"><div class="n"<?= $as['err'] > 0 ? ' style="color:var(--c-bad-fg)"' : '' ?>><?= $as_pct($as['err'], $as['total']) ?></div><div class="l">ошибок<?= $as['err'] > 0 ? ' · ' . $as_n($as['err']) : '' ?></div></div>
+                    <div class="si-card"><div class="n"><?= $as_ms($as['ms'], $as['total']) ?></div><div class="l">среднее время ответа</div></div>
+                </div>
+                <div class="api-sp" data-tip="Запросов к панели по часам, слева направо">
+                    <?php foreach ($as['series'] as $as_v): ?><i<?= $as_v > 0 ? ' style="height:' . max(4, (int) round($as_v / $as_max * 100)) . '%"' : ' class="z"' ?>></i><?php endforeach; ?>
+                </div>
+                <?php if (!$as['groups']): ?>
+                <p class="muted" style="margin:0">За этот период обращений к панели не записано.</p>
+                <?php else: ?>
+                <div class="api-hd"><span>Откуда</span><span>Запросов</span><span>Доля</span><span class="c-err">Ошибок</span><span class="c-ms">Среднее</span></div>
+                <?php foreach ($as['groups'] as $as_i => $as_g): ?>
+                <details class="api-g"<?= $as_i === 0 ? ' open' : '' ?>>
+                    <summary>
+                        <span class="nm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg><span title="<?= h($as_g['src']) ?>"><?= h($as_g['label']) ?></span></span>
+                        <span class="num"><?= $as_n($as_g['n']) ?></span>
+                        <span class="num"><?= $as_pct($as_g['n'], $as['total']) ?></span>
+                        <span class="num c-err<?= $as_g['err'] > 0 ? ' bad' : '' ?>"><?= $as_g['err'] > 0 ? $as_n($as_g['err']) : '—' ?></span>
+                        <span class="num c-ms"><?= $as_ms($as_g['ms'], $as_g['n']) ?></span>
+                        <span class="bar"><i style="width:<?= $as['total'] > 0 ? round($as_g['n'] / $as['total'] * 100, 1) : 0 ?>%"></i></span>
+                    </summary>
+                    <?php foreach ($as_g['eps'] as $as_e): ?>
+                    <div class="api-e"><span><code><?= h($as_e['ep']) ?></code></span><span class="num"><?= $as_n($as_e['n']) ?></span><span class="num"><?= $as_pct($as_e['n'], $as_g['n']) ?></span><span class="num c-err<?= $as_e['err'] > 0 ? ' bad' : '' ?>"><?= $as_e['err'] > 0 ? $as_n($as_e['err']) : '—' ?></span><span class="num c-ms"><?= $as_ms($as_e['ms'], $as_e['n']) ?></span></div>
+                    <?php endforeach; ?>
+                </details>
+                <?php endforeach; ?>
                 <?php endif; ?>
             </div>
         </section>

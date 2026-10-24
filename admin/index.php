@@ -7,6 +7,7 @@ require __DIR__ . '/../lib.php';
 
 header('X-Robots-Tag: noindex, nofollow');
 header('X-Frame-Options: DENY');
+if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) ($_GET['tab'] ?? 'users')));
 
 if (is_installed() && app_only_closed()) {
     header('X-Robots-Tag: noindex, nofollow');
@@ -388,6 +389,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     session_write_close();
     header('Content-Type: application/json; charset=utf-8');
     $a = $_GET['ajax'];
+    if (function_exists('apistat_src')) apistat_src('ajax:' . preg_replace('~[^a-z0-9_]~i', '', (string) $a));
 
     if ($a === 'hwids') {
         $uuid = $_GET['uuid'] ?? '';
@@ -886,6 +888,7 @@ if (isset($_GET['ajax']) && is_auth()) {
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if (!csrf_ok()) { http_response_code(400); die('CSRF'); }
     $action = $_POST['action'] ?? '';
+    if (function_exists('apistat_src')) apistat_src('post:' . preg_replace('~[^a-z0-9_]~i', '', (string) $action));
 
     if ($action === 'save_clod') {
         set_setting('chan_enabled',      isset($_POST['chan_enabled']) ? '1' : '0');
@@ -1592,6 +1595,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 $tab   = $_GET['tab'] ?? 'users';
 if ($tab === 'settings') $tab = 'connection';
 if ($tab === 'headers') $tab = 'rules';
+if (function_exists('apistat_src')) apistat_src('admin:' . $tab);
 $rl_view = ($tab === 'reqlog' && ($_GET['view'] ?? '') === 'clients') ? 'clients' : '';
 rules_migrate_legacy();
 squadconf_migrate_v3();

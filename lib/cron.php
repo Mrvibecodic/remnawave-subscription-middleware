@@ -178,6 +178,7 @@ function cron_task_cleanup($ctx) {
     junk_ensure();
     junk_prune($p);
     chat_gc();
+    if (function_exists('apistat_prune')) apistat_prune();
     return '';
 }
 
@@ -228,6 +229,7 @@ function cron_run($src) {
             $st['tasks'][$name] = $t;
             cron_save($st);
             $m = microtime(true);
+            if (function_exists('apistat_src')) apistat_src('cron:' . $name);
             try {
                 $err = (string) ('cron_task_' . $name)($ctx);
             } catch (Throwable $e) {
