@@ -1595,7 +1595,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 $tab   = $_GET['tab'] ?? 'users';
 if ($tab === 'settings') $tab = 'connection';
 if ($tab === 'headers') $tab = 'rules';
-if (function_exists('apistat_src')) apistat_src('admin:' . $tab);
+if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) $tab));
+if (function_exists('cron_note_web_user')) cron_note_web_user();
 $rl_view = ($tab === 'reqlog' && ($_GET['view'] ?? '') === 'clients') ? 'clients' : '';
 rules_migrate_legacy();
 squadconf_migrate_v3();
@@ -1778,7 +1779,7 @@ if ($tab === 'reqlog' && $rl_view === '') {
 $sys_info = []; $sys_db = []; $sys_load = []; $sys_series = []; $sys_peaks = [];
 // Базы GeoIP для отчётов клиентов: раз в месяц, после отдачи страницы. Запрос
 // клиента качает их только под php-fpm, где ответ уже ушёл; здесь — везде.
-if ($tab === 'reports' && rep_enabled()) register_shutdown_function('geoip_update_after_response');
+if (($tab === 'reports' && rep_enabled()) || ($tab === 'users' && function_exists('sess_enabled') && sess_enabled())) register_shutdown_function('geoip_update_after_response');
 if ($tab === 'sysinfo') {
     ensure_metrics_tables();
     $sys_info   = metrics_system_info();

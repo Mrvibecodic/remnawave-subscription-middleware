@@ -31,7 +31,7 @@ $ux_cfg = [
 ];
 $ux_sess = function_exists('sess_enabled');
 if ($ux_sess) {
-    $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'asn_extra' => sess_asn_extra(), 'ip_per' => sess_ip_per(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready()];
+    $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'asn_extra' => sess_asn_extra(), 'ip_per' => sess_ip_per(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready(), 'glim' => sess_enabled() ? sess_hwid_cached() : null, 'geo' => geoip_reader('asn') !== null];
     if (sess_enabled()) $ux_cfg['sx'] = (object) sess_metrics();
     $ux_sst = sess_state();
 }
@@ -531,7 +531,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
                 <input type="number" name="sess_keep_days" min="7" max="365" value="<?= (int) sess_keep_days() ?>">
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">IP на одно устройство</div><div class="set-d">Сколько адресов одновременно нормально для одного устройства: телефон в Wi-Fi и в мобильной сети — уже два. Тревога, когда одновременных IP больше, чем устройств × это число: лимит 4 и 2 IP на устройство — с 9 IP.</div></div>
+                <div class="set-info"><div class="set-t">IP на одно устройство</div><div class="set-d">Сколько адресов одновременно нормально для одного устройства: IPv4 и IPv6 сразу или смена Wi-Fi на мобильную сеть — уже два. Тревога, когда одновременных IP больше, чем устройств × это число: лимит 4 и 2 IP на устройство — с 9 IP.</div></div>
                 <input type="number" name="sess_ip_per" min="1" max="10" value="<?= (int) sess_ip_per() ?>">
             </div>
             <div class="set-row">
@@ -669,14 +669,14 @@ function soon(u){var e=expMs(u);return u.st==='ACTIVE'&&!isGr(u)&&e>now()&&e-now
 function stInfo(u){if(isGr(u)&&u.st==='ACTIVE')return{c:'st-vio',t:'Грейс'};return({ACTIVE:{c:'st-ok',t:'Активен'},EXPIRED:{c:'st-bad',t:'Истёк'},DISABLED:{c:'st-mut',t:'Выключен'},LIMITED:{c:'st-warn',t:'Лимит'}})[u.st]||{c:'st-mut',t:u.st||'—'};}
 function pill(u){var s=stInfo(u);return '<span class="ux-pill '+s.c+'"'+(u.st==='LIMITED'?' data-tip="Трафик закончился"':'')+'><i></i>'+s.t+'</span>';}
 function hwTxt(v){return v===null||v===undefined?'как в панели':(v===0?'без лимита':String(v));}
-function hwSrc(u){if(!META||!META.hwid)return null;var s=META.hwid,from='panel';if(u.ex)for(var i=0;i<META.ex.length;i++)if(META.ex[i].uuid===u.ex&&META.ex[i].hwid){s=META.ex[i].hwid;from='ex';}return{s:s,from:from};}
+function hwSrc(u){if(!META||!META.hwid){if(SESS&&SESS.glim)return{s:SESS.glim,from:'panel'};return null;}var s=META.hwid,from='panel';if(u.ex)for(var i=0;i<META.ex.length;i++)if(META.ex[i].uuid===u.ex&&META.ex[i].hwid){s=META.ex[i].hwid;from='ex';}return{s:s,from:from};}
 function hwEff(u){var h=hwSrc(u);if(u.hw===0)return{lim:null,txt:'без лимита',d:'без лимита'};if(!h){return u.hw?{lim:u.hw,txt:String(u.hw),d:'свой'}:{lim:null,txt:'как в панели',d:'как в панели'};}if(!h.s.enabled)return{lim:null,txt:'выключен в панели',d:'выключен в панели'};if(u.hw)return{lim:u.hw,txt:String(u.hw),d:'свой'};var w=h.from==='ex'?'из внешнего сквада':'общий из панели';return{lim:h.s.limit,txt:h.s.limit+' — '+w,d:w};}
 function bySu(su){for(var i=0;i<U.length;i++)if(U[i].su===su)return U[i];return null;}
 function sesFlag(u){
  var m=SESS&&SESS.on&&u.id&&SX[u.id];if(!m)return null;
  var lim=hwEff(u).lim,dev=lim>0?lim:SESS.nolim,th=dev*SESS.ip_per,ath=dev+SESS.asn_extra,r=[];
  if(m.li>th)r.push('Одновременно '+m.li+' IP при '+(lim>0?'лимите ':'')+dev+' '+plural(dev,'устройстве','устройствах','устройствах')+(SESS.ip_per>1?' × '+SESS.ip_per:''));
- if(m.da>ath)r.push('За сутки '+m.da+' '+plural(m.da,'провайдер','провайдера','провайдеров')+' при '+(lim>0?'лимите ':'')+dev+' + '+SESS.asn_extra);
+ if(m.da>ath)r.push('За сутки '+m.da+' '+plural(m.da,'провайдер','провайдера','провайдеров')+(SESS.geo?'':' (сетей — базы ASN нет)')+' при '+(lim>0?'лимите ':'')+dev+' + '+SESS.asn_extra);
  if(m.lc>1)r.push('Одновременно из '+m.lc+' стран');
  var soft=m.lr>1;
  return{lvl:r.length?'bad':(soft?'warn':''),r:r,soft:soft,m:m};
@@ -952,7 +952,7 @@ function ovHtml(u){
   '<div><div class="k">Трафик</div><div class="v">'+fb(u.used)+'</div><div class="d">'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div>'+
   '<div><div class="k">Истекает</div><div class="v">'+(u.exp?fd(e):'—')+'</div><div class="d" style="color:'+(e<now()?'var(--c-bad-fg)':(e-now()<7*DAY?'var(--c-warn-fg)':'var(--muted)'))+'">'+(u.exp?rel(e):'')+'</div></div>'+
   '<div class="go" data-tab="dev" role="button" tabindex="0" data-tip="Открыть список устройств"><div class="k">Устройства'+ico('chev',13)+'</div><div class="v">'+(CARD.devs?CARD.devs.length:'…')+(hwEff(u).lim?' / '+hwEff(u).lim:'')+'</div><div class="d">лимит: '+esc(hwEff(u).d)+'</div></div>'+
-  (SESS?sessTile(u):'<div><div class="k">Онлайн</div><div class="v" style="font-size:.98rem">'+(u.on?ago(u.on*1000):'—')+'</div><div class="d">'+(u.node?esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):'не подключался')+'</div></div>')+'</div>';
+  (SESS&&SESS.on?sessTile(u):'<div><div class="k">Онлайн</div><div class="v" style="font-size:.98rem">'+(u.on?ago(u.on*1000):'—')+'</div><div class="d">'+(u.node?esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):'не подключался')+'</div></div>')+'</div>';
  var sqs=u.sq.map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join(' ')||'<span class="m">нет</span>';
  var row=function(k,v){return '<dt>'+k+'</dt><dd>'+v+'</dd>';},emp='<span class="m">—</span>';
  h+='<div class="ux-sect">Панель<span class="sp"></span></div><dl class="ux-dl">'+
@@ -999,7 +999,8 @@ function sNode(sd,id){var i=sInfo(sd,id);return i.h.length?i.h.join(', '):i.n;}
 function sTip(sd,id){var i=sInfo(sd,id);return i.h.length?'Нода: '+i.n:'';}
 function provHtml(x){var p=[];if(x.cc)p.push(flag(x.cc)||'<span class="ux-cc">'+esc(x.cc)+'</span>');p.push(x.org?'<b>'+esc(x.org)+'</b>':(x.asn?'<b>AS'+x.asn+'</b>':'<span>провайдер неизвестен</span>'));if(x.sub)p.push(esc(x.sub));return p.join(' · ');}
 function spanTxt(s,e){var a=fdt(s*1000),b=fdt(e*1000);if(fd(s*1000)===fd(e*1000))return a.replace(' в ',' ')+'–'+b.split(' в ')[1];return a.replace(' в ',' ')+' – '+b.replace(' в ',' ');}
-function sessSum(rows,days){var t=now()/1000-days*86400,ips={},as={},nd={},sec=0;rows.forEach(function(r){if(r.e<t)return;ips[r.ip]=1;as[r.asn>0?'a'+r.asn:'i'+r.ip]=1;nd[r.node]=1;sec+=Math.max(r.e,t)-Math.max(r.s,t)+SESS.every;});return{ip:Object.keys(ips).length,as:Object.keys(as).length,nd:Object.keys(nd).length,h:Math.round(sec/360)/10};}
+function netKey(ip){return ip.indexOf(':')>-1?'n6:'+ip.split(':').slice(0,3).join(':'):'n4:'+ip.split('.').slice(0,3).join('.');}
+function sessSum(rows,days){var t=now()/1000-days*86400,ips={},as={},nd={},sec=0;rows.forEach(function(r){if(r.e<t)return;ips[r.ip]=1;as[r.asn>0?'a'+r.asn:netKey(r.ip)]=1;nd[r.node]=1;sec+=Math.max(r.e,t)-Math.max(r.s,t)+SESS.every;});return{ip:Object.keys(ips).length,as:Object.keys(as).length,nd:Object.keys(nd).length,h:Math.round(sec/360)/10};}
 function sessGroups(rows){
  var G={},lv=now()/1000-SESS.gap;
  rows.forEach(function(r){
@@ -1044,7 +1045,7 @@ function sessHtml(u){
  return h;
 }
 function sessDrop(cu,ip){
- cfm({ic:'ban',tone:'warn',title:ip?'Сбросить соединения с IP':'Сбросить все соединения',sub:'<b>'+esc(cu.un)+'</b>'+(ip?' · <code>'+esc(ip)+'</code>':''),notes:[['info','info','Клиент переподключится сам','подписка и ключи не меняются'],['net','info','На всех подключённых нодах','']],ok:'Сбросить',onOk:function(){busy(true);post('sess_drop',{rv:cu.rv,ip:ip||''}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();toast(ip?'Соединения с '+ip+' сброшены':'Соединения сброшены · '+cu.un);setTimeout(function(){if(CARD&&CARD.u&&CARD.u.su===cu.su&&CARD.tab==='sess'){CARD.live=null;drawCard();}},1500);});}});
+ cfm({ic:'ban',tone:'warn',title:ip?'Сбросить соединения с IP':'Сбросить все соединения',sub:'<b>'+esc(cu.un)+'</b>'+(ip?' · <code>'+esc(ip)+'</code>':''),notes:[['info','info','Клиент переподключится сам','подписка и ключи не меняются'],['net','info','На всех подключённых нодах','']].concat(ip?[['alert','warn','Отключит этот IP у всех пользователей','за одним адресом (NAT) бывает несколько']]:[]),ok:'Сбросить',onOk:function(){busy(true);post('sess_drop',{rv:cu.rv,ip:ip||''}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();toast(ip?'Соединения с '+ip+' сброшены':'Соединения сброшены · '+cu.un);setTimeout(function(){if(CARD&&CARD.u&&CARD.u.su===cu.su&&CARD.tab==='sess'){CARD.live=null;drawCard();}},1500);});}});
 }
 function loadHist(){var su=CARD.u.su;CARD.hist=false;getj('ua_hist','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.hist=d.ok?d.ev:[];if(CARD.tab==='hist')drawCard();});}
 var EVN={'user.created':'Создан','user.modified':'Изменён в панели','user.deleted':'Удалён','user.revoked':'Новые ключи или ссылка','user.disabled':'Выключен','user.enabled':'Включён','user.limited':'Лимит трафика','user.expired':'Истёк','user.traffic_reset':'Сброс трафика','user.expiration':'Напоминание о сроке','user.first_connected':'Первое подключение','user.not_connected':'Давно не подключался','user.bandwidth_usage_threshold_reached':'Порог трафика','user_hwid_devices.added':'Новое устройство','user_hwid_devices.deleted':'Устройство удалено'};

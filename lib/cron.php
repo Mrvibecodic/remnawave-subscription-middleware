@@ -18,8 +18,7 @@ function cron_tasks() {
         'cleanup' => ['Чистка метрик, мусорных адресов и чата', 3600, false],
         'brand'   => ['Брендинг из панели', 3600, false],
         'update'  => ['Проверка обновлений', 3600, true],
-        'sessions' => ['Сессии: опрос нод', function_exists('sess_every') ? sess_every() : 120, false],
-    ];
+    ] + (function_exists('cron_task_sessions') ? ['sessions' => ['Сессии: опрос нод', sess_every(), false]] : []);
 }
 
 // Отметка из будущего (часы сервера ушли назад) свежей не считается.
