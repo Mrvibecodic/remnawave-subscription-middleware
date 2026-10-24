@@ -828,6 +828,7 @@ function chan_intercept() {
     if (!chan_enabled()) return $deny();
 
     [$prefix, $kid, $spid, $blob] = $route;
+    $log_path = ltrim($prefix, '/') . '/c1/' . $kid . '/' . $spid . '/…';
 
     $dbg  = chan_debug_on();
     $head = $dbg ? chan_debug_incoming_headers() : [];
@@ -841,6 +842,7 @@ function chan_intercept() {
             chan_debug_record(['ok' => 0, 'why' => $why, 'kid' => $kid, 'spid' => $spid,
                                'short_uuid' => (string) $found, 'req_path' => $uri, 'req_head' => $head]);
         }
+        chan_fail_log((string) $found, (string) $why, $log_path);
 
         return $deny();
     }
@@ -850,6 +852,7 @@ function chan_intercept() {
                                'short_uuid' => $ctx['token'], 'req_path' => $uri,
                                'req_head' => $head, 'req_json' => $ctx['plain']]);
         }
+        chan_fail_log($ctx['token'], 'replay', $log_path, (string) ($ctx['req']['ua'] ?? ''));
 
         return $deny();
     }
@@ -892,6 +895,15 @@ function chan_intercept() {
 }
 
 function chan_active() { return !empty($GLOBALS['chan_ctx']); }
+
+// Конверт по известной метке не открылся: подписка настоящая, а клиент до панели не дошёл —
+// строка «error» в логе запросов. Неизвестная метка (нет в панели, сменился токен) строки не оставляет.
+// UA берётся только из конверта: снаружи у канала браузерные заголовки, они бы выдали клиента за браузер.
+function chan_fail_log($short, $why, $path, $ua = '') {
+    $short = (string) $short;
+    if ($short === '' || nolog_is_set($short)) return;
+    log_request(client_ip(), $short, $path, $ua, 'error', null, '', ['er' => ['c' => 0, 'r' => 'chan:' . $why], 'chan' => 1]);
+}
 
 // Ответ на служебную операцию канала (сейчас одна — отчёт клиента, op=rep). Конверт уже
 // расшифрован, значит клиент настоящий: исход едет кодом внутри шифра, снаружи любой

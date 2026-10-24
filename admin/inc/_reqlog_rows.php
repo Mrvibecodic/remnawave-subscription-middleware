@@ -101,13 +101,43 @@ function reqlog_prepare($fresh = true) {
     return $cache;
 }
 
-function rl_dec_tag($dec, $short = false) {
+// Короткая метка и расшифровка сбоя из meta.er: c — код ответа панели (0 — ответа не было), r — причина.
+function rl_err_info($meta) {
+    $er = is_array($meta['er'] ?? null) ? $meta['er'] : [];
+    $c  = (int) ($er['c'] ?? 0);
+    $r  = (string) ($er['r'] ?? '');
+    if ($r === 'http' && $c > 0) return [(string) $c, 'панель ответила ' . $c . ($c === 404 ? ' — подписка не найдена' : '')];
+    if ($r === 'timeout') return ['таймаут', 'панель не ответила за отведённое время'];
+    if ($r === 'connect') return ['сеть', 'не удалось соединиться с панелью'];
+    if ($r === 'reset')   return ['сеть', 'панель оборвала соединение, не ответив'];
+    if ($r === 'tls')     return ['TLS', 'не удалось установить TLS-соединение с панелью'];
+    if (strpos($r, 'chan:') === 0) {
+        $why = substr($r, 5);
+        $map = [
+            'time'   => 'часы клиента расходятся с сервером',
+            'nonce'  => 'повтор запроса — nonce уже использован',
+            'replay' => 'повтор запроса — nonce уже использован',
+            'spid'   => 'клиент шифрует на старый ключ прослойки',
+            'dh'     => 'конверт не открылся — ключ не подошёл',
+            'aead'   => 'конверт не открылся — повреждён или подделан',
+            'json'   => 'конверт открылся, но содержимое не разобрано',
+        ];
+        return ['канал', 'защищённый канал: ' . ($map[$why] ?? 'конверт не открылся (' . $why . ')')];
+    }
+    if (strpos($r, 'curl') === 0) return ['сеть', 'ошибка соединения с панелью (curl ' . substr($r, 4) . ')'];
+    return ['', 'панель не ответила или вернула ошибку'];
+}
+
+function rl_dec_tag($dec, $short = false, $meta = []) {
     if ($dec === 'blocked') return '<span class="tag blocked" data-tip="запрос от неразрешённого устройства">' . ($short ? 'blocked' : 'HWID blocked') . '</span>';
     if ($dec === 'grace')   return $short
         ? '<span class="tag grace" data-tip="выдан грейс-сквад">грейс</span>'
         : '<span class="tag normal">normal <span style="opacity:.6">(грейс)</span></span>';
     if ($dec === 'expired') return '<span class="tag expired">expired</span>';
-    if ($dec === 'error')   return '<span class="tag error">error</span>';
+    if ($dec === 'error') {
+        [$lbl] = rl_err_info($meta);
+        return '<span class="tag error">error' . ($lbl !== '' ? ' <span class="tag-x">' . h($lbl) . '</span>' : '') . '</span>';
+    }
     return '<span class="tag normal">' . h($dec) . '</span>';
 }
 
@@ -115,7 +145,7 @@ function rl_dec_why($dec, $meta) {
     if ($dec === 'blocked') return 'устройство не в списке разрешённых';
     if ($dec === 'grace')   return 'грейс-сквад активен';
     if ($dec === 'expired') return 'срок подписки вышел';
-    if ($dec === 'error')   return 'панель не ответила или вернула ошибку';
+    if ($dec === 'error')   return rl_err_info($meta)[1];
     if (!empty($meta['wg']))   return 'подписка активна, добавлены конфиги пула';
     return 'подписка активна';
 }
@@ -241,7 +271,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $out .= '<tr class="rowb" data-i="' . $i . '">'
               . '<td><span class="tgl">›</span></td>'
               . '<td class="dim mono rl-time" data-label="Время" data-ts="' . (int) ($r['ts_epoch'] ?? 0) . '">' . h(mb_substr((string) ($r['ts'] ?? ''), 11)) . ($dup > 1 ? '<span class="rep">×' . $dup . '</span>' : '') . '</td>'
-              . '<td data-label="Решение">' . rl_dec_tag($dec, true) . '</td>'
+              . '<td data-label="Решение">' . rl_dec_tag($dec, true, $meta) . '</td>'
               . '<td data-label="Доп. подписка">' . rl_as_badge($as) . '</td>'
               . '<td data-label="Пользователь"><span class="u-cell"><span class="nm">' . $who . '</span>' . $sub . '</span></td>'
               . '<td data-label="Клиент"><span class="cl"><span class="c1"><span class="nm">' . ($cl['app'] !== '' ? h($cl['app']) : '<span class="dim">—</span>') . '</span>' . rl_cv_dot($cv) . '</span>'
@@ -254,6 +284,10 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $asn = (int) ($as['n'] ?? 0);
         $asb = (int) ($as['b'] ?? 0);
         $asm = (int) ($as['ms'] ?? 0);
+
+        $chan_v   = $meta['chan'] ?? null;
+        $chan_row = $chan_v === 'down' ? 'жёсткий режим: запрос пришёл в открытую, выдана заглушка' : ((int) $chan_v === 1 ? 'защищённый (c1)' : '');
+        if ($chan_row !== '') $chan_row = '<div class="xr"><span class="l">Канал</span><span class="v">' . $chan_row . '</span></div>';
 
         $as_s    = (string) ($as['s'] ?? '');
         $as_full = in_array($as_s, ['on', 'stub', 'err'], true);
@@ -274,7 +308,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '<div class="xr"><span class="l">Пользователь</span><span class="v">' . ($name !== '' ? h($name) . ' · ' : '') . '<span class="mono">' . h($su !== '' ? $su : '—') . '</span></span></div>'
               . '<div class="xr"><span class="l">Статус</span><span class="v">' . (($u['status'] ?? '') !== '' ? '<span class="tag ' . h((string) $u['status']) . '">' . h((string) $u['status']) . '</span>' : '<span class="dim">неизвестен</span>') . '</span></div>'
               . '<div class="xr"><span class="l">Expire</span><span class="v">' . ($exp > 0 ? '<span class="mono rl-dt" data-ts="' . $exp . '">' . h(date('Y-m-d H:i', $exp)) . '</span> · <span class="' . $lcls . '">' . h($left) . '</span>' : '—') . '</span></div>'
-              . '<div class="xr"><span class="l">Решение</span><span class="v">' . rl_dec_tag($dec) . ' — ' . h(rl_dec_why($dec, $meta)) . '</span></div>'
+              . '<div class="xr"><span class="l">Решение</span><span class="v">' . rl_dec_tag($dec, false, $meta) . ' — ' . h(rl_dec_why($dec, $meta)) . '</span></div>'
               . '</div>'
               . '<div class="xcol"><div class="xh">Клиент</div>'
               . '<div class="xr"><span class="l">Приложение</span><span class="v">' . ($cl['app'] !== '' ? h($cl['app']) : '—') . '</span></div>'
@@ -287,6 +321,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '<div class="xr"><span class="l">IP</span><span class="v mono">' . h((string) ($r['ip'] ?? '')) . '</span></div>'
               . '<div class="xr"><span class="l">Путь</span><span class="v mono">' . h((string) ($r['path'] ?? '')) . '</span></div>'
               . '<div class="xr"><span class="l">User-Agent</span><span class="v mono">' . ((string) ($r['user_agent'] ?? '') !== '' ? h((string) $r['user_agent']) : '—') . '</span></div>'
+              . $chan_row
               . '</div>'
               . '<div class="xcol"><div class="xh">Доп. подписка</div>'
               . '<div class="xr"><span class="l">Состояние</span><span class="v">' . rl_as_badge($as) . '</span></div>'
