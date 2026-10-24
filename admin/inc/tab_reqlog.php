@@ -358,7 +358,7 @@
         window.rlRefresh = function(fresh){
             if(rlBusy) return;
             rlBusy = true;
-            var a = document.getElementById('rlAuto'); if(a) a.textContent = '· обновление…';
+            var a = document.getElementById('rlAuto'); if(a) a.textContent = 'обновление…';
             var q = new URLSearchParams(window.location.search); q.set('ajax','reqlog');
             if(fresh) q.set('fresh','1');
             fetch('?'+q.toString()).then(function(r){ return r.json(); }).then(function(d){
@@ -381,8 +381,8 @@
                     localizeSpark();
                     if(rlPager) rlPager.refresh();
                 }
-                if(a) a.textContent = '· обновлено в ' + new Date().toLocaleTimeString();
-            }).catch(function(){ if(a) a.textContent = '· ошибка обновления'; }).then(rlIdle, rlIdle);
+                if(a) a.textContent = 'обновлено в ' + new Date().toLocaleTimeString();
+            }).catch(function(){ if(a) a.textContent = 'ошибка обновления'; }).then(rlIdle, rlIdle);
         };
         localize(document);
         localizeSpark();
