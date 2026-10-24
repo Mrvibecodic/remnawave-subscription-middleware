@@ -41,7 +41,7 @@ function apistat_hit($method, $path, $code, $ms, $src = null) {
     }
     if (!isset($b[$k])) $b[$k] = [0, 0, 0.0];
     $b[$k][0]++;
-    if ((int) $code < 200 || (int) $code >= 300) $b[$k][1]++;
+    if ((int) $code < 200 || (int) $code >= 400) $b[$k][1]++;
     $b[$k][2] += (float) $ms;
 }
 
@@ -64,14 +64,16 @@ function apistat_ensure() {
     static $ok = null;
     if ($ok !== null) return $ok;
     if (!function_exists('db') || !($p = db())) return false;
-    try { foreach (apistat_ddl(db_driver()) as $sql) $p->exec($sql); $ok = true; }
+    // DDL в каждом запросе подписки — лишний metadata-lock на MySQL; флаг в настройках, как у метрик.
+    if (setting('apistat_tables', '') === '1') return $ok = true;
+    try { foreach (apistat_ddl(db_driver()) as $sql) $p->exec($sql); set_setting('apistat_tables', '1'); $ok = true; }
     catch (Throwable $e) { error_log('submw api_stat_hour table: ' . $e->getMessage()); $ok = false; }
     return $ok;
 }
 
 function apistat_flush() {
     $b = $GLOBALS['submw_apistat'] ?? null;
-    $GLOBALS['submw_apistat'] = [];
+    unset($GLOBALS['submw_apistat']);
     if (!is_array($b) || !$b || !apistat_ensure()) return;
     $p = db();
     $h = intdiv(time(), 3600) * 3600;

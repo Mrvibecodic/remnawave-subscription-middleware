@@ -18,7 +18,29 @@ function sess_nolim() { return max(1, min(50, (int) setting('sess_nolim', '3')))
 
 function sess_asn_extra() { return max(0, min(20, (int) setting('sess_asn_extra', '1'))); }
 
-function sess_ip_per() { return max(1, min(10, (int) setting('sess_ip_per', '1'))); }
+// По умолчанию 2: у одного устройства часто два адреса сразу (IPv4 + IPv6, смена Wi-Fi ↔ LTE в окне склейки).
+function sess_ip_per() { return max(1, min(10, (int) setting('sess_ip_per', '2'))); }
+
+// Общий лимит устройств панели — для порогов в списке, пока карточка не подгрузила META. Кэш 10 минут.
+function sess_hwid_cached() {
+    $c = json_decode((string) setting('sess_hwid_json', ''), true);
+    if (is_array($c) && time() - (int) ($c['ts'] ?? 0) < 600) return $c['s'] ?? null;
+    $e = '';
+    $s = remnawave_hwid_settings($e);
+    if ($s === null && is_array($c)) return $c['s'] ?? null;
+    set_setting('sess_hwid_json', json_encode(['ts' => time(), 's' => $s]));
+    return $s;
+}
+
+// Без базы ASN провайдера нет — считаем сетью /24 (IPv6 — /48), чтобы смена адреса внутри пула не выглядела новым провайдером.
+function sess_net_key($ip) {
+    if (strpos($ip, ':') !== false) {
+        $bin = @inet_pton($ip);
+        return 'n6:' . ($bin !== false ? bin2hex(substr($bin, 0, 6)) : $ip);
+    }
+    $parts = explode('.', $ip);
+    return 'n4:' . implode('.', array_slice($parts, 0, 3));
+}
 
 // Сессия жива, пока её видели не раньше двух интервалов назад: один пропущенный тик её не рвёт.
 function sess_gap() { return sess_every() * 2 + 60; }
@@ -68,7 +90,15 @@ function sess_nodes_known() {
 // До 3.0 обозреватель сессий — /api/ip-control с uuid пользователя, с 3.0 — /api/connections с числовым id.
 function sess_api_v3() {
     $o = $GLOBALS['submw_sess_v3'] ?? null;
-    return is_bool($o) ? $o : panel_api_v3();
+    if (is_bool($o)) return $o;
+    $saved = (string) setting('sess_api_v3', '');
+    return $saved === '1' ? true : ($saved === '0' ? false : panel_api_v3());
+}
+
+// Панель ответила «нет такого адреса» — семейство API угадано неверно; запоминаем другое.
+function sess_api_flip() {
+    $GLOBALS['submw_sess_v3'] = !sess_api_v3();
+    set_setting('sess_api_v3', $GLOBALS['submw_sess_v3'] ? '1' : '0');
 }
 
 function sess_paths() {
@@ -212,7 +242,7 @@ function sess_collect($deadline) {
         if ($e === 'нет такого адреса API' && !$flipped) {
             // Версия панели в кэше могла быть не той: пробуем второе семейство адресов один раз.
             $flipped = true;
-            $GLOBALS['submw_sess_v3'] = !sess_api_v3();
+            sess_api_flip();
             $P = sess_paths();
             $jobs[$uuid] = sess_job_start($P['node']($uuid), $e);
         }
@@ -305,10 +335,10 @@ function sess_metrics(?array $uids = null) {
         }
         $st = $p->prepare($sql);
         $st->execute($args);
-        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) { return $out; }
     $acc = [];
-    foreach ($rows as $r) {
+    // Построчно: таблица за неделю бывает в сотни тысяч строк, память — только по пользователям.
+    while (($r = $st->fetch(PDO::FETCH_ASSOC)) !== false) {
         $u = (int) $r['uid'];
         if (!isset($acc[$u])) $acc[$u] = ['li' => [], 'lc' => [], 'lr' => [], 'da' => [], 'i7' => [], 'ls' => 0];
         $a = &$acc[$u];
@@ -316,7 +346,7 @@ function sess_metrics(?array $uids = null) {
         $asn = (int) $r['asn'];
         $cc = (string) $r['cc'];
         $sub = (string) $r['sub'];
-        $pk = $asn > 0 ? 'a' . $asn : 'i' . $ip;
+        $pk = $asn > 0 ? 'a' . $asn : sess_net_key($ip);
         $a['i7'][$ip] = 1;
         $a['ls'] = max($a['ls'], (int) $r['last_ts']);
         if ((int) $r['last_ts'] >= $now - 86400) $a['da'][$pk] = 1;
@@ -378,7 +408,7 @@ function sess_live($ref, &$err = '') {
     $P = sess_paths();
     $job = sess_job_start($P['user']($ref['val']), $err);
     if ($job === '' && $err === 'нет такого адреса API') {
-        $GLOBALS['submw_sess_v3'] = !sess_api_v3();
+        sess_api_flip();
         $P = sess_paths();
         $job = sess_job_start($P['user']($ref['val']), $err);
     }

@@ -31,7 +31,7 @@ if ($cr_on) {
         $cr_lines = [
             ['Из консоли (надёжнее) — PHP ' . PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION . ' с теми же расширениями, что у сайта. Шаг 1: открыть crontab пользователя сайта', 'crontab -u ' . $cr_user . ' -e'],
             ['Шаг 2: вставить строку целиком и сохранить', '* * * * * ' . cron_cron_arg(cron_php_bin()) . ' ' . cron_cron_arg(dirname(__DIR__, 2) . '/tools/cron.php') . ' >/dev/null 2>&1'],
-            ['Либо по адресу — тем же PHP, что отвечает сайту; без php-fpm ответ ждёт окончания задач, тяжёлые пропускаются', '* * * * * curl -fsSL --max-time 120 -o /dev/null ' . cron_cron_arg('https://' . mirror_domain() . '/' . cron_secret_ensure()) . ' >/dev/null 2>&1'],
+            ['Либо по адресу — тем же PHP, что отвечает сайту; без php-fpm ответ ждёт окончания задач (до 25 с — на Apache с mod_fcgid FcgidIOTimeout должен быть не меньше 60), тяжёлые пропускаются', '* * * * * curl -fsSL --max-time 120 -o /dev/null ' . cron_cron_arg('https://' . mirror_domain() . '/' . cron_secret_ensure()) . ' >/dev/null 2>&1'],
         ];
     }
 }
