@@ -32,6 +32,11 @@ remnawave_api_get('/api/users?size=1&start=0');
 apistat_flush();
 t_eq('повторный сброс складывает в ту же строку часа', (int) $rows("ep = '/api/users'")[0]['n'], 2);
 t_eq('пустой буфер ничего не пишет', (static function () use ($rows) { apistat_flush(); return count($rows()); })(), 3);
+apistat_expect(404);
+remnawave_api_get('/api/users/by-short-uuid/NoSuchUser000002');
+remnawave_api_get('/api/users/by-short-uuid/NoSuchUser000003');
+apistat_flush();
+t_eq('ожидаемый 404 — не ошибка, и только для одного следующего запроса', (int) $rows("ep = '/api/users/by-short-uuid/{x}'")[0]['err'], 2);
 
 // Точки входа: подписка, мусорный адрес, админка
 t_http('GET', $mw . '/AbCdEfGhIjKlMnOp', ['User-Agent' => 'v2rayN/7.0']);

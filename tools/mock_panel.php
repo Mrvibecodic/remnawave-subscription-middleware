@@ -85,6 +85,15 @@ if ($path === '/api/users') {
     exit;
 }
 
+if (preg_match('~^/api/users/by-username/([^/]+)$~', $path, $m)) {
+    $name = rawurldecode($m[1]);
+    foreach (array_keys($users) as $i => $short) {
+        if ((string) (($users[$short]['username'] ?? null) ?? ('user' . $i)) === $name) { mp_json(200, ['response' => mp_user($short, (array) $users[$short], (int) $i)]); exit; }
+    }
+    mp_json(404, ['message' => 'User not found', 'statusCode' => 404]);
+    exit;
+}
+
 if (preg_match('~^/api/users/by-short-uuid/([A-Za-z0-9_-]+)$~', $path, $m)) {
     $keys = array_keys($users);
     $i = array_search($m[1], $keys, true);

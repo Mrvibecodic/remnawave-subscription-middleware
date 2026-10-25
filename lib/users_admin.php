@@ -368,6 +368,7 @@ function ua_fetch($short, &$err = '', &$code = 0) {
 function ua_after_write($short, $u) {
     squadconf_cache_drop($short);
     addsub_cache_drop($short);
+    if (is_array($u) && function_exists('addsub_cache_drop_main_of')) addsub_cache_drop_main_of((string) ($u['username'] ?? ''));
     if (is_array($u) && ua_ts($u['expireAt'] ?? null) > time() && ($u['status'] ?? '') === 'ACTIVE') delete_override('shortuuid', $short, 'webhook');
 }
 

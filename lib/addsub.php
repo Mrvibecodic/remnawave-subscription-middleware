@@ -139,9 +139,12 @@ function addsub_cache_get($short) {
         $st = $p->prepare('SELECT add_url, ts FROM addsub_cache WHERE main_short = ?');
         $st->execute([$short]);
         $row = $st->fetch();
-        if ($row && (time() - (int) $row['ts'] < addsub_cache_ttl())) {
+        if ($row) {
             $u = $row['add_url'];
-            return ['hit' => true, 'url' => ($u === null || $u === '') ? null : (string) $u];
+            $none = ($u === null || $u === '');
+            // «Второй учётки нет» при настроенном вебхуке живёт дольше: её появление сбросит запись сразу.
+            $ttl = $none && function_exists('webhook_secret') && webhook_secret() !== '' ? max(addsub_cache_ttl(), 3600) : addsub_cache_ttl();
+            if (time() - (int) $row['ts'] < $ttl) return ['hit' => true, 'url' => $none ? null : (string) $u];
         }
     } catch (Throwable $e) {}
     return ['hit' => false, 'url' => null];
@@ -167,6 +170,17 @@ function addsub_cache_drop_by_target($short) {
     addsub_ensure();
     try { $p->prepare('DELETE FROM addsub_cache WHERE add_url LIKE ?')->execute(['%' . $short . '%']); }
     catch (Throwable $e) {}
+}
+
+// Появилась или изменилась вторая учётка — основной с тем же именем без суффикса надо переискать её.
+function addsub_cache_drop_main_of($username) {
+    $u = trim((string) $username);
+    $suf = addsub_suffix();
+    if ($u === '' || strlen($u) <= strlen($suf) || substr($u, -strlen($suf)) !== $suf) return;
+    $err = '';
+    $main = remnawave_get_user_by_username(substr($u, 0, -strlen($suf)), $err);
+    $short = is_array($main) ? (string) ($main['shortUuid'] ?? '') : '';
+    if ($short !== '') addsub_cache_drop($short);
 }
 
 function addsub_cache_drop($short) {
@@ -252,6 +266,7 @@ function addsub_resolve($short) {
     $suf = addsub_suffix();
     if ($suf !== '' && substr($uname, -strlen($suf)) === $suf) { addsub_cache_put($short, null); return null; }
 
+    if (function_exists('apistat_expect')) apistat_expect(404);
     $userB = remnawave_get_user_by_username($uname . $suf, $err);
     if (!is_array($userB)) { addsub_cache_put($short, null); return null; }
 

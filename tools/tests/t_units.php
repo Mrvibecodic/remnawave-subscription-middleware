@@ -108,4 +108,16 @@ t_eq('geoip: чужое значение источника — origin', geoip_a
 t_settings(['geoip_asn_src' => 'origin']);
 unset($GLOBALS['submw_settings_cache']);
 
+// Слияние подписок: «второй учётки нет» живёт дольше только при настроенном вебхуке
+addsub_ensure();
+$tt_pdo->exec("DELETE FROM addsub_cache");
+$tt_pdo->prepare('INSERT INTO addsub_cache (main_short, add_url, ts) VALUES (?, NULL, ?)')->execute(['MainUser00000001', time() - 1800]);
+t_settings(['webhook_secret' => '']); unset($GLOBALS['submw_settings_cache']);
+t_eq('addsub: без вебхука отрицательный кэш истекает по обычному сроку', addsub_cache_get('MainUser00000001')['hit'], false);
+t_settings(['webhook_secret' => str_repeat('a', 32)]); unset($GLOBALS['submw_settings_cache']);
+t_eq('addsub: с вебхуком «нет второй учётки» держится час', addsub_cache_get('MainUser00000001')['hit'], true);
+$tt_pdo->prepare('INSERT INTO addsub_cache (main_short, add_url, ts) VALUES (?, ?, ?)')->execute(['MainUser00000002', 'https://b.example/sub/x', time() - 1800]);
+t_eq('addsub: найденная вторая учётка — обычный срок и с вебхуком', addsub_cache_get('MainUser00000002')['hit'], false);
+t_settings(['webhook_secret' => '']); unset($GLOBALS['submw_settings_cache']);
+
 t_done();

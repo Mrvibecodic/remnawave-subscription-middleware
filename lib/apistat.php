@@ -32,6 +32,11 @@ function apistat_ep($path) {
     return mb_substr('/' . implode('/', $segs), 0, 120);
 }
 
+// Ожидаемый ответ следующего запроса (поиск второй учётки — 404, пробы прав — любой 4xx): не ошибка.
+function apistat_expect($codes) {
+    $GLOBALS['submw_apistat_expect'] = is_array($codes) ? $codes : [(int) $codes];
+}
+
 function apistat_hit($method, $path, $code, $ms, $src = null) {
     $k = ($src ?? apistat_src_auto()) . '|' . strtoupper((string) $method) . '|' . apistat_ep($path);
     $b = &$GLOBALS['submw_apistat'];
@@ -39,9 +44,13 @@ function apistat_hit($method, $path, $code, $ms, $src = null) {
         $b = [];
         register_shutdown_function('apistat_flush');
     }
+    $code = (int) $code;
+    $exp = $GLOBALS['submw_apistat_expect'] ?? null;
+    unset($GLOBALS['submw_apistat_expect']);
+    $expected = is_array($exp) && (in_array($code, $exp, true) || (in_array('4xx', $exp, true) && $code >= 400 && $code < 500));
     if (!isset($b[$k])) $b[$k] = [0, 0, 0.0];
     $b[$k][0]++;
-    if ((int) $code < 200 || (int) $code >= 400) $b[$k][1]++;
+    if (($code < 200 || $code >= 400) && !$expected) $b[$k][1]++;
     $b[$k][2] += (float) $ms;
 }
 

@@ -122,7 +122,7 @@ $action = 'ignored';
 
 if ($short_uuid !== '') squadconf_cache_drop($short_uuid);
 if ($short_uuid !== '') addsub_cache_drop($short_uuid);
-if ($short_uuid !== '' && addsub_is_secondary($short_uuid, $username)) addsub_cache_drop_by_target($short_uuid);
+if ($short_uuid !== '' && addsub_is_secondary($short_uuid, $username)) { addsub_cache_drop_by_target($short_uuid); addsub_cache_drop_main_of($username); }
 
 if ($short_uuid !== '' && $event !== 'user.deleted' && function_exists('chan_index_add') && chan_enabled()) {
     try { chan_index_add($short_uuid); } catch (Throwable $e) { error_log('submw chan index add: ' . $e->getMessage()); }
