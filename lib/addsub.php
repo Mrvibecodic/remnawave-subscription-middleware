@@ -131,6 +131,8 @@ function addsub_is_secondary($short, $username) {
     return $memo[$k] = addsub_map_is_target($k);
 }
 
+function addsub_webhook_alive() { return time() - (int) setting('webhook_seen_ts', '0') < 86400; }
+
 function addsub_cache_get($short) {
     $short = trim((string) $short);
     if ($short === '' || !($p = db())) return ['hit' => false, 'url' => null];
@@ -142,8 +144,8 @@ function addsub_cache_get($short) {
         if ($row) {
             $u = $row['add_url'];
             $none = ($u === null || $u === '');
-            // «Второй учётки нет» при настроенном вебхуке живёт дольше: её появление сбросит запись сразу.
-            $ttl = $none && function_exists('webhook_secret') && webhook_secret() !== '' ? max(addsub_cache_ttl(), 3600) : addsub_cache_ttl();
+            // «Второй учётки нет» живёт дольше, только пока вебхуки реально приходят: тогда её появление сбросит запись сразу.
+            $ttl = $none && addsub_webhook_alive() ? max(addsub_cache_ttl(), 3600) : addsub_cache_ttl();
             if (time() - (int) $row['ts'] < $ttl) return ['hit' => true, 'url' => $none ? null : (string) $u];
         }
     } catch (Throwable $e) {}
