@@ -4,7 +4,10 @@
 .gi-grid .set-row{margin:0}
 .gi-grid .set-row>select{flex:0 1 auto;min-width:0;max-width:19rem}
 @media(max-width:1000px){.gi-grid{grid-template-columns:1fr}}
+.gi-tbl{table-layout:fixed;width:100%;min-width:0}
+.gi-tbl td{min-width:0;overflow-wrap:anywhere}
 .gi-tbl td:first-child{width:2.2rem}
+.gi-tbl code{white-space:normal;overflow-wrap:anywhere;word-break:break-all}
 </style>
 <div class="card">
     <h2 style="margin-top:0;font-size:1rem">Базы GeoIP</h2>
