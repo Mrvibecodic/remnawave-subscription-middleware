@@ -116,7 +116,7 @@ function tokscope_probe(array $only = []) {
         $err = curl_error($ch);
         if ($err === '' && ($res[$i] ?? CURLE_OK) !== CURLE_OK) $err = curl_strerror($res[$i]);
         if ($err === '' && $code === 0) $err = 'нет ответа';
-        if (function_exists('apistat_hit')) apistat_hit($r['m'], $r['p'], $err !== '' ? 0 : $code, curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000);
+        if (function_exists('apistat_hit')) { apistat_expect(['4xx']); apistat_hit($r['m'], $r['p'], $err !== '' ? 0 : $code, curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000); }
         curl_multi_remove_handle($mh, $ch);
         curl_close($ch);
         $st = $err !== '' ? 'err' : tokscope_classify($code, $body);
