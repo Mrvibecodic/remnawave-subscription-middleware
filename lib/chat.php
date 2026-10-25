@@ -647,6 +647,10 @@ function chat_widget_render() {
     .swc-x{background:0;border:0;color:#fff;cursor:pointer;font-size:1.3rem;line-height:1;opacity:.85}
     .swc-x:hover{opacity:1}
     .swc-body{flex:1;overflow-y:auto;padding:1rem;background:#f3f4f6;display:flex;flex-direction:column;gap:.5rem}
+    .swc-body::-webkit-scrollbar{width:8px}
+    .swc-body::-webkit-scrollbar-track{background:transparent}
+    .swc-body::-webkit-scrollbar-thumb{background-color:#d1d5db;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+    @supports not selector(::-webkit-scrollbar){.swc-body{scrollbar-width:thin;scrollbar-color:#d1d5db transparent}}
     .swc-msg{max-width:80%;padding:.55rem .8rem;border-radius:14px;font-size:.9rem;line-height:1.4;word-wrap:break-word;white-space:pre-wrap}
     .swc-v{align-self:flex-end;background:<?= $color ?>;color:#fff;border-bottom-right-radius:4px}
     .swc-a{align-self:flex-start;background:#fff;color:#1f2937;border:1px solid #e5e7eb;border-bottom-left-radius:4px}
