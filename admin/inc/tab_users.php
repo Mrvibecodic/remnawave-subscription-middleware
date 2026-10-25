@@ -660,7 +660,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
         </form>
         <?php if (sess_enabled()): $ux_st = $ux_sst ?? []; ?>
         <p class="muted" style="font-size:.8rem;margin:.8rem 0 0"><?php if (!empty($ux_st['ts'])): ?>Последний опрос <span class="ct-time" data-ts="<?= (int) $ux_st['ts'] ?>"><?= h(date('Y-m-d H:i', (int) $ux_st['ts'])) ?></span>: нод <?= (int) ($ux_st['ok'] ?? 0) ?> из <?= (int) ($ux_st['nodes'] ?? 0) ?>, подключений <?= (int) ($ux_st['rows'] ?? 0) ?>, <?= (int) ($ux_st['ms'] ?? 0) ?> мс.<?php if (!empty($ux_st['fail'])): ?> Не ответили: <?= h(implode(', ', (array) $ux_st['fail'])) ?>.<?php endif; ?><?php if (!empty($ux_st['err'])): ?> Ошибка: <?= h((string) $ux_st['err']) ?>.<?php endif; ?><?php else: ?>Опроса ещё не было — планировщик сделает его в ближайший тик.<?php endif; ?>
-        Страна, провайдер и регион берутся из баз GeoIP — их настройки на вкладке <a href="?tab=reports">«Статистика»</a>.</p>
+        Страна, провайдер и регион берутся из баз GeoIP — их настройки на вкладке <a href="?tab=geoip">«Геобазы»</a>.</p>
         <?php endif; ?>
         </div>
     </section>
