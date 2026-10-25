@@ -366,7 +366,8 @@ function geoip_sub($rec) {
 }
 
 function geoip_reader($which) {
-    static $open = [];
+    $open = &$GLOBALS['submw_geoip_open'];
+    if (!is_array($open)) $open = [];
     if (array_key_exists($which, $open)) return $open[$which];
     $path = geoip_files()[$which] ?? '';
     $open[$which] = null;
@@ -377,9 +378,16 @@ function geoip_reader($which) {
     return $open[$which];
 }
 
+// После подмены файлов в этом же процессе открытые базы и кэш поиска устарели.
+function geoip_reset() {
+    $GLOBALS['submw_geoip_open'] = [];
+    $GLOBALS['submw_geoip_lc'] = [];
+}
+
 // Страна (ISO-код), номер AS и название AS. Пустые поля — база не знает или её нет.
 function geoip_lookup($ip) {
-    static $cache = [];
+    $cache = &$GLOBALS['submw_geoip_lc'];
+    if (!is_array($cache)) $cache = [];
     $ip = (string) $ip;
     if (isset($cache[$ip])) return $cache[$ip];
 
@@ -480,6 +488,7 @@ function geoip_update(&$err = '', $only = null) {
     }
     if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
     if (isset($done['country'], $done['asn'])) set_setting('geoip_ts', (string) time());
+    if ($done) { geoip_reset(); if (function_exists('sess_regeo')) sess_regeo(); }
     $err = implode('; ', $errs);
 
     return count($done) === count($want);
@@ -564,7 +573,8 @@ function geoip_maybe_update() {
     foreach (geoip_wanted() as $which => $remote) {
         $f = geoip_files()[$which];
         $max = geoip_src_of($which) === 'dbip' ? 35 * 86400 : 7 * 86400;
-        if (!is_file($f) || $now - (int) @filemtime($f) >= $max || (isset($have[$which]) && $have[$which] !== geoip_src_of($which))) $need[] = $which;
+        // Файл без записи об источнике скачан старой версией — тогда источник был только DB-IP.
+        if (!is_file($f) || $now - (int) @filemtime($f) >= $max || ($have[$which] ?? 'dbip') !== geoip_src_of($which)) $need[] = $which;
     }
     if (!$need) return;
     $err = '';
