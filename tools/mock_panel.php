@@ -27,7 +27,7 @@ function mp_json(int $code, $data): void
 
 function mp_user(string $short, array $u, int $i): array
 {
-    return [
+    $out = [
         'uuid'      => sprintf('00000000-0000-4000-8000-%012d', $i),
         'id'        => $i + 1,
         'shortUuid' => $short,
@@ -36,6 +36,9 @@ function mp_user(string $short, array $u, int $i): array
         'expireAt'  => gmdate('Y-m-d\TH:i:s.000\Z', time() + 30 * 86400),
         'activeInternalSquads' => [],
     ];
+    // node: "<nodeUuid>" — пользователь только что был онлайн на этой ноде.
+    if (!empty($u['node'])) $out['userTraffic'] = ['onlineAt' => gmdate('Y-m-d\TH:i:s.000\Z', time() - 30), 'lastConnectedNodeUuid' => (string) $u['node'], 'usedTrafficBytes' => 0];
+    return $out;
 }
 
 if (preg_match('~^/api/sub/([A-Za-z0-9_-]+)~', $path, $m)) {

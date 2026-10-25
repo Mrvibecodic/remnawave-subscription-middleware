@@ -28,6 +28,7 @@ $ux_cfg = [
     'qr'    => 'assets/qrcode.js?v=' . substr(md5_file(__DIR__ . '/../assets/qrcode.js'), 0, 10),
     'sess'  => null,
     'sx'    => (object) [],
+    'nodes' => (object) [],
     'usage' => function_exists('usage_fetch') ? ['sc' => usage_scope(), 'opts' => usage_days_opts()] : null,
 ];
 $ux_sess = function_exists('sess_enabled');
@@ -35,6 +36,13 @@ if ($ux_sess) {
     $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'asn_extra' => sess_asn_extra(), 'ip_per' => sess_ip_per(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready(), 'glim' => sess_enabled() ? sess_hwid_cached() : null, 'geo' => geoip_reader('asn') !== null];
     if (sess_enabled()) $ux_cfg['sx'] = (object) sess_metrics();
     $ux_sst = sess_state();
+    $ux_sc = sess_scopes();
+    $ux_sc_miss = array_values(array_filter([$ux_sc['node'], $ux_sc['node_res']], fn($s) => ($ux_ts[$s] ?? '') === 'miss'));
+    if (array_filter(array_column($ux_list, 'node'))) {
+        $ux_nodes = [];
+        foreach (sess_nodes_fresh() as $__id => $__n) $ux_nodes[(string) $__id] = ['n' => (string) ($__n['n'] ?? ''), 'h' => array_values((array) ($__n['h'] ?? []))];
+        $ux_cfg['nodes'] = (object) $ux_nodes;
+    }
 }
 $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
@@ -133,6 +141,11 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-on i{width:7px;height:7px;border-radius:50%;background:var(--line);flex:none}
 .ux-on.live{color:var(--text)}
 .ux-on.live i{background:var(--c-ok-fg);box-shadow:0 0 0 3px var(--c-ok-bg)}
+.ux-onw{display:flex;flex-direction:column;align-items:flex-start;gap:.15rem;min-width:0}
+.ux-nd{display:block;max-width:14rem;padding-left:calc(7px + .4rem);font-size:.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ux-tbl.compact .ux-onw{flex-direction:row;align-items:center;gap:.45rem}
+.ux-tbl.compact .ux-nd{padding-left:0}
+.ux-tbl.compact .ux-nd::before{content:'· '}
 .ux-dv{font-variant-numeric:tabular-nums;white-space:nowrap}
 .ux-dv.full{color:var(--c-warn-fg);font-weight:600}
 .ux-pgr{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-top:.75rem;flex-wrap:wrap;font-size:.82rem;color:var(--muted);min-height:36px}
@@ -296,6 +309,8 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-tbl td.acts{grid-row:1;grid-column:2}
 .ux-tbl td.c-st,.ux-tbl td.c-tr,.ux-tbl td.c-ex,.ux-tbl td.c-dv,.ux-tbl td.c-on,.ux-tbl td.c-sq{grid-column:1/3;display:flex;justify-content:space-between;align-items:center;gap:1rem}
 .ux-tbl td.c-on,.ux-tbl td.c-sq{display:flex}
+.ux-tbl td.c-on .ux-onw{align-items:flex-end}
+.ux-tbl td.c-on .ux-nd{padding-left:0;max-width:12rem;text-align:right}
 .ux-tbl td[data-l]::before{content:attr(data-l);color:var(--muted);font-size:.78rem}
 .ux-tbl .acts .ux-ib.q{opacity:1}
 .ux-tr{min-width:0;width:60%}
@@ -538,9 +553,12 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
         <div class="ux-pgr" id="uxPgr"></div>
     </div>
 
-    <?php if ($ux_sess): $ux_sc = sess_scopes(); $ux_sc_miss = array_values(array_filter([$ux_sc['node'], $ux_sc['node_res']], fn($s) => ($ux_ts[$s] ?? '') === 'miss')); ?>
-    <div class="card" id="uxSess">
-        <h2 style="margin-top:0;font-size:1rem">Сессии и аномалии</h2>
+    <?php if ($ux_sess): ?>
+    <section class="<?= coll_cls('users_sess', true) ?>" data-coll="users_sess" id="uxSess">
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Сессии и аномалии <?php if (!sess_enabled()): ?><span class="tag expired">выключено</span><?php elseif (!function_exists('cron_alive') || !cron_alive()): ?><span class="tag blocked">планировщик не запущен</span><?php elseif ($ux_sc_miss): ?><span class="tag blocked">нет прав токена</span><?php else: ?><span class="tag normal">собирается</span><?php endif; ?></span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="coll-body">
         <p class="muted">Планировщик спрашивает у панели, кто сейчас онлайн на каждой ноде и с каких IP, и складывает ответы в сессии: пользователь, нода, IP, провайдер и регион по базам GeoIP, с какого по какое время. Сама панель историю не хранит. Результат — вкладка «Сессии» в карточке пользователя, значки аномалий в списке и фильтр «Аномалии». Сессия короче интервала опроса в историю не попадёт.</p>
         <?php if (!function_exists('cron_alive')): ?>
         <div class="warn">Нужен планировщик — обновите прослойку.</div>
@@ -584,7 +602,8 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
         <p class="muted" style="font-size:.8rem;margin:.8rem 0 0"><?php if (!empty($ux_st['ts'])): ?>Последний опрос <span class="ct-time" data-ts="<?= (int) $ux_st['ts'] ?>"><?= h(date('Y-m-d H:i', (int) $ux_st['ts'])) ?></span>: нод <?= (int) ($ux_st['ok'] ?? 0) ?> из <?= (int) ($ux_st['nodes'] ?? 0) ?>, подключений <?= (int) ($ux_st['rows'] ?? 0) ?>, <?= (int) ($ux_st['ms'] ?? 0) ?> мс.<?php if (!empty($ux_st['fail'])): ?> Не ответили: <?= h(implode(', ', (array) $ux_st['fail'])) ?>.<?php endif; ?><?php if (!empty($ux_st['err'])): ?> Ошибка: <?= h((string) $ux_st['err']) ?>.<?php endif; ?><?php else: ?>Опроса ещё не было — планировщик сделает его в ближайший тик.<?php endif; ?>
         Страна, провайдер и регион берутся из баз GeoIP — их настройки на вкладке <a href="?tab=reports">«Статистика»</a>.</p>
         <?php endif; ?>
-    </div>
+        </div>
+    </section>
     <?php endif; ?>
 
     <div class="ux-menu" id="uxMenu" role="menu"></div>
@@ -631,7 +650,7 @@ document.documentElement.classList.remove('lp');
 var C=window.UX_CFG,U=window.UX_USERS||[];
 var GSQ=C.gsq||'',DAY=86400000,GB=1073741824;
 var S={f:'all',q:'',sq:'',tag:'',sort:(C.sort&&C.sort.k)||'id',dir:(C.sort&&C.sort.d<0)?-1:1,page:1,size:50,dens:0,an:false};
-var SESS=C.sess||null,SX=C.sx||{},USG=C.usage||null;
+var SESS=C.sess||null,SX=C.sx||{},USG=C.usage||null,ND=C.nodes||{};
 try{var v0=parseInt(localStorage.getItem('utbl_size'),10);if([10,25,50,0].indexOf(v0)>-1)S.size=v0;}catch(e){}
 try{if(localStorage.getItem('utbl_dens')==='1')S.dens=1;}catch(e){}
 var STRAT=[['NO_RESET','Без сброса'],['DAY','Каждый день'],['WEEK','Каждую неделю'],['MONTH','Каждый месяц'],['MONTH_ROLLING','Ежемесячно от даты создания']];
@@ -700,7 +719,8 @@ function gInfo(u){return C.gr[u.su]||null;}
 function isGr(u){return !!gInfo(u);}
 function sqName(id){if(META)for(var i=0;i<META.sq.length;i++)if(META.sq[i].uuid===id)return META.sq[i].name;return SQN[id]||(id?id.slice(0,8):'');}
 function exName(id){if(!id)return '';if(META)for(var i=0;i<META.ex.length;i++)if(META.ex[i].uuid===id)return META.ex[i].name;return id.slice(0,8);}
-function nodeName(id){return META&&META.nodes&&META.nodes[id]||'';}
+function nodeName(id){return META&&META.nodes&&META.nodes[id]||(ND[id]&&ND[id].n)||'';}
+function nodeCell(u){if(!u.on||!u.node)return '';var n=ND[u.node]||{},h=n.h||[],nm=nodeName(u.node)||'нода '+u.node.slice(0,8),lbl=h.length?h.join(', '):nm,tip=h.length?(h.length>1?lbl+' · ':'')+'Нода: '+nm:'';return '<span class="ux-nd"'+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+esc(lbl)+'</span>';}
 function soon(u){var e=expMs(u);return u.st==='ACTIVE'&&!isGr(u)&&e>now()&&e-now()<=7*DAY;}
 function stInfo(u){if(isGr(u)&&u.st==='ACTIVE')return{c:'st-vio',t:'Грейс'};return({ACTIVE:{c:'st-ok',t:'Активен'},EXPIRED:{c:'st-bad',t:'Истёк'},DISABLED:{c:'st-mut',t:'Выключен'},LIMITED:{c:'st-warn',t:'Лимит'}})[u.st]||{c:'st-mut',t:u.st||'—'};}
 function pill(u){var s=stInfo(u);return '<span class="ux-pill '+s.c+'"'+(u.st==='LIMITED'?' data-tip="Трафик закончился"':'')+'><i></i>'+s.t+'</span>';}
@@ -795,7 +815,7 @@ function rowHtml(u){
   '<td class="c-tr" data-l="Трафик"><div class="ux-tr"><div class="t"><b>'+fb(u.used)+'</b><span>'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</span></div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div></td>'+
   '<td class="c-ex" data-l="Истекает"><div class="ux-dt">'+(u.exp?fdt(e)+'<span class="r '+rc+'">'+(isGr(u)?'грейс, ':'')+rel(e)+'</span>':'—')+'</div></td>'+
   '<td class="c-sq" data-l="Сквады"><div class="ux-sqs">'+(sh||'<span class="muted">—</span>')+'</div></td>'+
-  '<td class="c-on" data-l="Онлайн"><span class="ux-on'+(live?' live':'')+'"><i></i>'+(u.on?ago(ot):'не подключался')+'</span></td>'+
+  '<td class="c-on" data-l="Онлайн"><div class="ux-onw"><span class="ux-on'+(live?' live':'')+'"><i></i>'+(u.on?ago(ot):'не подключался')+'</span>'+nodeCell(u)+'</div></td>'+
   '<td class="acts"><button type="button" class="ux-ib q" data-act="copy" data-tip="'+(u.lk?'Скопировать ссылку подписки':'Не задан адрес зеркала')+'" aria-label="Скопировать ссылку"'+(u.lk?'':' disabled')+'>'+ico('copy')+'</button><button type="button" class="ux-ib" data-act="menu" aria-label="Действия" aria-haspopup="menu">'+ico('more')+'</button></td></tr>';
 }
 function render(){

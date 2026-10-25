@@ -67,6 +67,11 @@ t_ok('пользователи: по умолчанию все колонки в
 t_eq('пользователи: скрытые колонки сохраняются', $ucols('sq,on'), '["sq","on"]');
 t_eq('пользователи: чужие колонки отбрасываются, имя скрыть нельзя', $ucols('nm,hack,id'), '["id"]');
 t_eq('пользователи: пустой список — все видны', $ucols(''), '[]');
+t_ok('пользователи: «Сессии и аномалии» по умолчанию свёрнуты', strpos($page, '<section class="coll collapsed" data-coll="users_sess"') !== false);
+$N = '11111111-1111-4111-8111-111111111111';
+file_put_contents($state, json_encode(['users' => ['AbCdEfGhIjKlMnOp' => ['status' => 'ACTIVE', 'node' => $N]], 'nodes' => [$N => ['name' => 'Amsterdam', 'cc' => 'NL']], 'hosts' => [['remark' => 'NL · WS', 'address' => 'ams.example.net', 'nodes' => [$N]]]]));
+[, , $page] = t_http('GET', $mw . '/admin/index.php?tab=users', [], null, $jar);
+t_ok('пользователи: последняя нода — имя ноды и хосты панели в конфиге списка', strpos($page, '"nodes":{"' . $N . '":{"n":"Amsterdam","h":["NL · WS"]}}') !== false);
 
 [, , $page] = t_http('GET', $mw . '/admin/index.php?tab=sysinfo', [], null, $jar);
 t_ok('OPcache выключен — предупреждение на «О системе»', strpos($page, '<b>OPcache выключен.</b>') !== false);
