@@ -421,6 +421,37 @@ function sess_user_data($uid) {
     ];
 }
 
+// Пересчёт страны, провайдера и региона в накопленных сессиях по текущим базам: гео пишется
+// при появлении сессии, и после смены базы история и идущие сессии иначе остаются со старыми именами.
+function sess_regeo() {
+    if (!sess_ensure() || !($p = db()) || !function_exists('geoip_reader')) return 0;
+    if (geoip_reader('country') === null && geoip_reader('asn') === null) return 0;
+    $n = 0;
+    try {
+        $st = $p->prepare('SELECT ip, cc, asn, org, sub FROM conn_sess WHERE last_ts >= ? GROUP BY ip, cc, asn, org, sub');
+        $st->execute([time() - sess_keep_days() * 86400]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        $upd = $p->prepare('UPDATE conn_sess SET cc = ?, asn = ?, org = ?, sub = ? WHERE ip = ? AND cc = ? AND asn = ? AND org = ? AND sub = ?');
+        $p->beginTransaction();
+        foreach ($rows as $r) {
+            $g = sess_geo((string) $r['ip']);
+            // Чего новая база не знает — не стирать: лучше старое значение, чем пустое.
+            $cc = $g['cc'] !== '' ? $g['cc'] : (string) $r['cc'];
+            $asn = $g['asn'] > 0 ? $g['asn'] : (int) $r['asn'];
+            $org = $g['asn'] > 0 ? mb_substr($g['org'], 0, 128) : (string) $r['org'];
+            $sub = $g['sub'] !== '' ? mb_substr($g['sub'], 0, 64) : (string) $r['sub'];
+            if ($cc === (string) $r['cc'] && $asn === (int) $r['asn'] && $org === (string) $r['org'] && $sub === (string) $r['sub']) continue;
+            $upd->execute([$cc, $asn, $org, $sub, $r['ip'], $r['cc'], $r['asn'], $r['org'], $r['sub']]);
+            $n += $upd->rowCount();
+        }
+        $p->commit();
+    } catch (Throwable $e) {
+        try { $p->rollBack(); } catch (Throwable $e2) {}
+        error_log('submw sess regeo: ' . $e->getMessage());
+    }
+    return $n;
+}
+
 function sess_geo($ip) {
     $g = function_exists('geoip_lookup') ? geoip_lookup($ip) : [];
     return ['cc' => (string) ($g['cc'] ?? ''), 'asn' => (int) ($g['asn'] ?? 0), 'org' => (string) ($g['org'] ?? ''), 'sub' => (string) ($g['sub'] ?? '')];
