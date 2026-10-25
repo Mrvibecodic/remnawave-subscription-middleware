@@ -33,7 +33,7 @@ $ux_cfg = [
 ];
 $ux_sess = function_exists('sess_enabled');
 if ($ux_sess) {
-    $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'asn_extra' => sess_asn_extra(), 'ip_per' => sess_ip_per(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready(), 'glim' => sess_enabled() ? sess_hwid_cached() : null, 'geo' => geoip_reader('asn') !== null];
+    $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'asn_extra' => sess_asn_extra(), 'ip_per' => sess_ip_per(), 'win' => sess_win_days(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready(), 'glim' => sess_enabled() ? sess_hwid_cached() : null, 'geo' => geoip_reader('asn') !== null];
     if (sess_enabled()) $ux_cfg['sx'] = (object) sess_metrics();
     $ux_sst = sess_state();
     $ux_sc = sess_scopes();
@@ -146,6 +146,20 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-tbl.compact .ux-onw{flex-direction:row;align-items:center;gap:.45rem}
 .ux-tbl.compact .ux-nd{padding-left:0}
 .ux-tbl.compact .ux-nd::before{content:'· '}
+.ux-sg2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.2rem 1.5rem;align-items:start}
+.ux-sgc>p.muted{margin:.25rem 0 .2rem;font-size:.8rem;line-height:1.45}
+.ux-sgh{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin-top:.2rem}
+.ux-sgc .set-row{padding:.55rem .8rem}
+.ux-sgc .set-row>input[type=number]{width:84px}
+.ux-sgc .set-row>select{flex:0 0 auto;width:auto;min-width:7.5rem}
+@media(max-width:900px){.ux-sg2{grid-template-columns:minmax(0,1fr)}.ux-sgc+.ux-sgc{margin-top:1.1rem}}
+.ux-dk.ux-dk5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.ux-dk>.bad{border-color:var(--c-bad-fg)}
+.ux-dk>.bad .v{color:var(--c-bad-fg)}
+.ux-sl{display:flex;flex-wrap:wrap;gap:.3rem 1.4rem;margin:.7rem 0 .2rem;font-size:.8rem;color:var(--muted)}
+.ux-sl b{color:var(--text);font-weight:600;margin-right:.35rem}
+@media(max-width:900px){.ux-dk.ux-dk5{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:520px){.ux-dk.ux-dk5{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .ux-dv{font-variant-numeric:tabular-nums;white-space:nowrap}
 .ux-dv.full{color:var(--c-warn-fg);font-weight:600}
 .ux-pgr{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-top:.75rem;flex-wrap:wrap;font-size:.82rem;color:var(--muted);min-height:36px}
@@ -559,7 +573,6 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
-        <p class="muted">Планировщик спрашивает у панели, кто сейчас онлайн на каждой ноде и с каких IP, и складывает ответы в сессии: пользователь, нода, IP, провайдер и регион по базам GeoIP, с какого по какое время. Сама панель историю не хранит. Результат — вкладка «Сессии» в карточке пользователя, значки аномалий в списке и фильтр «Аномалии». Сессия короче интервала опроса в историю не попадёт.</p>
         <?php if (!function_exists('cron_alive')): ?>
         <div class="warn">Нужен планировщик — обновите прослойку.</div>
         <?php elseif (sess_enabled() && !cron_alive()): ?>
@@ -571,30 +584,42 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
         <form method="post" data-autosave>
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_sess">
-            <div class="ctg">
+            <div class="ux-sg2">
+            <div class="ux-sgc">
+            <div class="ux-sgh">Сбор</div>
+            <p class="muted">Планировщик спрашивает у панели, кто сейчас онлайн на каждой ноде и с каких IP, и складывает ответы в сессии: нода, IP, провайдер и регион по GeoIP, с какого по какое время. Сама панель историю не хранит. Что короче интервала опроса — в историю не попадёт.</p>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Собирать историю сессий</div><div class="set-d">Хранятся IP пользователей. Выключение сбор останавливает, накопленное остаётся до чистки.</div></div>
+                <div class="set-info"><div class="set-t">Собирать историю сессий</div><div class="set-d">Хранятся IP пользователей. Накопленное остаётся до чистки.</div></div>
                 <label class="switch"><input type="checkbox" name="sess_enabled" <?= sess_enabled() ? 'checked' : '' ?> data-reload><span class="sl"></span></label>
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Как часто опрашивать ноды</div><div class="set-d">Это и разрешение истории: что короче — не видно. На каждую ноду один лёгкий запрос в панель.</div></div>
+                <div class="set-info"><div class="set-t">Как часто опрашивать ноды</div><div class="set-d">Один лёгкий запрос на ноду. Это же — разрешение истории.</div></div>
                 <select name="sess_every"><?php foreach (sess_every_opts() as $ux_e): ?><option value="<?= $ux_e ?>" <?= sess_every() === $ux_e ? 'selected' : '' ?>><?= $ux_e < 60 ? $ux_e . ' с' : ($ux_e / 60) . ' мин' ?></option><?php endforeach; ?></select>
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Сколько дней хранить</div><div class="set-d">Старше — удаляет планировщик. От 7 до 365. Вручную — вкладка «База данных».</div></div>
+                <div class="set-info"><div class="set-t">Сколько дней хранить</div><div class="set-d">От 7 до 365. Старше — удаляет планировщик.</div></div>
                 <input type="number" name="sess_keep_days" min="7" max="365" value="<?= (int) sess_keep_days() ?>">
             </div>
+            </div>
+            <div class="ux-sgc">
+            <div class="ux-sgh">Аномалии</div>
+            <p class="muted">Красный значок у имени: в какой-то момент окна одновременно IP больше, чем устройств × «IP на устройство»; за окно провайдеров больше лимита + запас; одновременно из двух стран. Жёлтый — разные регионы одного провайдера. Фильтр «Аномалии» — над таблицей.</p>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">IP на одно устройство</div><div class="set-d">Сколько адресов одновременно нормально для одного устройства: IPv4 и IPv6 сразу или смена Wi-Fi на мобильную сеть — уже два. Тревога, когда одновременных IP больше, чем устройств × это число: лимит 4 и 2 IP на устройство — с 9 IP.</div></div>
+                <div class="set-info"><div class="set-t">Считать за дней</div><div class="set-d">Окно для значков и плиток в карточке. 1 — за сутки.</div></div>
+                <input type="number" name="sess_win_days" min="1" max="30" value="<?= (int) sess_win_days() ?>">
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">IP на одно устройство</div><div class="set-d">IPv4 + IPv6 или смена Wi-Fi на мобильную сеть — уже два.</div></div>
                 <input type="number" name="sess_ip_per" min="1" max="10" value="<?= (int) sess_ip_per() ?>">
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Устройств, если лимит не задан</div><div class="set-d">Сколько устройств считать у пользователя без лимита HWID — от этого числа считаются оба порога: одновременные IP (× «IP на устройство») и провайдеры за сутки (+ запас).</div></div>
+                <div class="set-info"><div class="set-t">Устройств, если лимит не задан</div><div class="set-d">От этого числа считаются оба порога у пользователя без лимита HWID.</div></div>
                 <input type="number" name="sess_nolim" min="1" max="50" value="<?= (int) sess_nolim() ?>">
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Запас по провайдерам за сутки</div><div class="set-d">Сколько провайдеров сверх лимита устройств допустимо за сутки: телефон днём в мобильной сети, вечером дома — уже два.</div></div>
+                <div class="set-info"><div class="set-t">Запас по провайдерам</div><div class="set-d">Сверх лимита устройств: днём мобильная сеть, вечером дома — уже два.</div></div>
                 <input type="number" name="sess_asn_extra" min="0" max="20" value="<?= (int) sess_asn_extra() ?>">
+            </div>
             </div>
             </div>
         </form>
@@ -728,17 +753,18 @@ function hwTxt(v){return v===null||v===undefined?'как в панели':(v===0
 function hwSrc(u){if(!META||!META.hwid){if(SESS&&SESS.glim)return{s:SESS.glim,from:'panel'};return null;}var s=META.hwid,from='panel';if(u.ex)for(var i=0;i<META.ex.length;i++)if(META.ex[i].uuid===u.ex&&META.ex[i].hwid){s=META.ex[i].hwid;from='ex';}return{s:s,from:from};}
 function hwEff(u){var h=hwSrc(u);if(u.hw===0)return{lim:null,txt:'без лимита',d:'без лимита'};if(!h){return u.hw?{lim:u.hw,txt:String(u.hw),d:'свой'}:{lim:null,txt:'как в панели',d:'как в панели'};}if(!h.s.enabled)return{lim:null,txt:'выключен в панели',d:'выключен в панели'};if(u.hw)return{lim:u.hw,txt:String(u.hw),d:'свой'};var w=h.from==='ex'?'из внешнего сквада':'общий из панели';return{lim:h.s.limit,txt:h.s.limit+' — '+w,d:w};}
 function bySu(su){for(var i=0;i<U.length;i++)if(U[i].su===su)return U[i];return null;}
+function winTxt(){return SESS.win===1?'за сутки':'за '+dd(SESS.win);}
 function sesFlag(u){
  var m=SESS&&SESS.on&&u.id&&SX[u.id];if(!m)return null;
  var lim=hwEff(u).lim,dev=lim>0?lim:SESS.nolim,th=dev*SESS.ip_per,ath=dev+SESS.asn_extra,r=[];
- if(m.li>th)r.push('Одновременно '+m.li+' IP при '+(lim>0?'лимите ':'')+dev+' '+plural(dev,'устройстве','устройствах','устройствах')+(SESS.ip_per>1?' × '+SESS.ip_per:''));
- if(m.da>ath)r.push('За сутки '+m.da+' '+plural(m.da,'провайдер','провайдера','провайдеров')+(SESS.geo?'':' (сетей — базы ASN нет)')+' при '+(lim>0?'лимите ':'')+dev+' + '+SESS.asn_extra);
- if(m.lc>1)r.push('Одновременно из '+m.lc+' стран');
- var soft=m.lr>1;
+ if(m.pi>th)r.push('Одновременно до '+m.pi+' IP '+winTxt()+' при '+(lim>0?'лимите ':'')+dev+' '+plural(dev,'устройстве','устройствах','устройствах')+(SESS.ip_per>1?' × '+SESS.ip_per:''));
+ if(m.da>ath)r.push(winTxt().charAt(0).toUpperCase()+winTxt().slice(1)+' '+m.da+' '+plural(m.da,'провайдер','провайдера','провайдеров')+(SESS.geo?'':' (сетей — базы ASN нет)')+' при '+(lim>0?'лимите ':'')+dev+' + '+SESS.asn_extra);
+ if(m.pc>1)r.push('Одновременно из '+m.pc+' стран '+winTxt());
+ var soft=m.pr>1;
  return{lvl:r.length?'bad':(soft?'warn':''),r:r,soft:soft,m:m};
 }
 function lvc(l){return l==='bad'?'b':(l==='warn'?'w':'');}
-function sesBadge(u){var f=sesFlag(u);if(!f||!f.lvl)return '';var tip=f.r.length?f.r.join('; '):'Один провайдер, но '+f.m.lr+' региона одновременно';return '<span class="ux-sb '+lvc(f.lvl)+'" data-tip="'+esc(tip)+'">!</span>';}
+function sesBadge(u){var f=sesFlag(u);if(!f||!f.lvl)return '';var tip=f.r.length?f.r.join('; '):'Один провайдер, но '+f.m.pr+' региона одновременно '+winTxt();return '<span class="ux-sb '+lvc(f.lvl)+'" data-tip="'+esc(tip)+'">!</span>';}
 function canW(sc){return !sc||C.ts[sc]!=='miss';}
 function roTip(sc){return 'Нет права '+sc+' у API-токена';}
 function toast(m){if(window.uiToast)uiToast(m);}
@@ -1044,7 +1070,7 @@ function devHtml(u){
 }
 function sessTile(u){
  var m=SX[u.id]||null,f=sesFlag(u);
- var v=SESS.on?((m?m.i7:0)+' IP <span style="font-size:.74rem;color:var(--muted);font-weight:500">за 7 дн</span>'):'<span style="font-size:.9rem">сбор выкл.</span>';
+ var v=SESS.on?((m?m.iw:0)+' IP <span style="font-size:.74rem;color:var(--muted);font-weight:500">'+winTxt()+'</span>'):'<span style="font-size:.9rem">сбор выкл.</span>';
  var d=u.on?'онлайн '+ago(u.on*1000)+(u.node?' · '+esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):''):'не подключался';
  return '<div class="go" data-tab="sess" role="button" tabindex="0" data-tip="Открыть сессии"><div class="k">Сессии'+(f&&f.lvl?' <span class="ux-sb '+lvc(f.lvl)+'">!</span>':'')+ico('chev',13)+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>';
 }
@@ -1082,14 +1108,15 @@ function sessHtml(u){
  var h='',sd=CARD.sess,f=sesFlag(u),sc=SESS.sc,hasLive=CARD.live&&CARD.live.nodes&&CARD.live.nodes.length;
  if(!SESS.on)h+='<div class="ux-gb ux-fcb"><div class="h">'+ico('info',18)+'История не собирается</div><p>Сбор сессий выключен — включите его внизу вкладки «Пользователи». «Сейчас онлайн» работает и без него.</p></div>';
  else if(!SESS.alive)h+='<div class="ux-gb ux-fcb bad"><div class="h">'+ico('alert',18)+'Планировщик не запущен</div><p>История не пополняется. Строки для cron — <a href="?tab=sysinfo">«О системе»</a>, блок «Планировщик».</p></div>';
- if(f&&f.lvl)h+='<div class="ux-ab'+(f.lvl==='warn'?' w':'')+'"><div class="h">'+ico('alert',17)+(f.lvl==='bad'?'Аномалия':'Стоит взглянуть')+'</div><ul>'+f.r.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+(f.soft?'<li>Один провайдер, но '+f.m.lr+' '+plural(f.m.lr,'регион','региона','регионов')+' одновременно — у мобильных операторов такое бывает и само</li>':'')+'</ul></div>';
+ if(f&&f.lvl)h+='<div class="ux-ab'+(f.lvl==='warn'?' w':'')+'"><div class="h">'+ico('alert',17)+(f.lvl==='bad'?'Аномалия':'Стоит взглянуть')+'</div><ul>'+f.r.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+(f.soft?'<li>Один провайдер, но '+f.m.pr+' '+plural(f.m.pr,'регион','региона','регионов')+' одновременно '+winTxt()+' — у мобильных операторов такое бывает и само</li>':'')+'</ul></div>';
  h+='<div class="ux-sect">Сейчас онлайн<span class="sp"></span><button type="button" class="wb sm" data-a="slive"'+(CARD.live===false?' disabled':'')+'>'+ico('refresh')+'Обновить</button>'+(hasLive?'<button type="button" class="wb sm bad" data-a="sdropall" data-w="'+esc(sc.drop)+'">'+ico('ban')+'Сбросить все</button>':'')+'</div>';
  h+=liveHtml();
  if(sd===null||sd===false)return h+'<div class="ux-load">Загрузка истории…</div>';
  if(sd.err)return h+'<div class="ux-warn">'+esc(sd.err)+'</div>';
- var s7=sessSum(sd.rows,7),s30=sessSum(sd.rows,30);
- h+='<div class="ux-sect">За 7 дней<span class="sp"></span><span style="font-weight:500;text-transform:none;letter-spacing:0">за 30: '+s30.ip+' IP · '+s30.as+' пров. · '+s30.h+' ч</span></div>';
- h+='<div class="ux-dk"><div><div class="k">IP</div><div class="v">'+s7.ip+'</div></div><div><div class="k">Провайдеров</div><div class="v">'+s7.as+'</div></div><div><div class="k">Нод</div><div class="v">'+s7.nd+'</div></div><div><div class="k">Часов онлайн</div><div class="v">'+s7.h+'</div><div class="d">шаг '+Math.round(SESS.every/60)+' мин</div></div></div>';
+ var sw=sessSum(sd.rows,SESS.win),s7=sessSum(sd.rows,7),s30=sessSum(sd.rows,30),m=(u.id&&SX[u.id])||sd.m||null,lim=hwEff(u).lim,dev=lim>0?lim:SESS.nolim;
+ h+='<div class="ux-sect">'+winTxt().charAt(0).toUpperCase()+winTxt().slice(1)+'<span class="sp"></span></div>';
+ h+='<div class="ux-dk ux-dk5"><div><div class="k">IP</div><div class="v">'+sw.ip+'</div><div class="d">разных</div></div><div'+(m&&m.pi>dev*SESS.ip_per?' class="bad"':'')+'><div class="k">Пик IP</div><div class="v">'+(m?m.pi:0)+'</div><div class="d">порог '+dev*SESS.ip_per+'</div></div><div'+(m&&m.da>dev+SESS.asn_extra?' class="bad"':'')+'><div class="k">Провайдеров</div><div class="v">'+(m?m.da:sw.as)+'</div><div class="d">порог '+(dev+SESS.asn_extra)+'</div></div><div><div class="k">Нод</div><div class="v">'+sw.nd+'</div></div><div><div class="k">Часов онлайн</div><div class="v">'+sw.h+'</div><div class="d">шаг '+Math.round(SESS.every/60)+' мин</div></div></div>';
+ h+='<div class="ux-sl"><span><b>7 дн</b> '+s7.ip+' IP · '+s7.as+' пров. · '+s7.nd+' '+plural(s7.nd,'нода','ноды','нод')+' · '+s7.h+' ч</span><span><b>30 дн</b> '+s30.ip+' IP · '+s30.as+' пров. · '+s30.nd+' '+plural(s30.nd,'нода','ноды','нод')+' · '+s30.h+' ч</span></div>';
  h+='<div class="ux-sect">История за 30 дней<span class="sp"></span></div>';
  if(!sd.rows.length)return h+'<div class="ux-empty">Записей пока нет.</div>';
  var G=sessGroups(sd.rows),open=G.length<=3;
