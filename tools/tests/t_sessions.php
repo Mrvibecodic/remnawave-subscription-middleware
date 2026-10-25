@@ -58,9 +58,21 @@ t_eq('после паузы длиннее двух интервалов отк�
 
 // Метрики для аномалий
 $m = sess_metrics([1, 2]);
-t_eq('метрики: сейчас 2 IP у второго, за сутки 2 провайдера (ASN нет — по IP)', [$m[2]['li'], $m[2]['da'], $m[2]['i7']], [2, 2, 2]);
-t_eq('метрики: первый сейчас на двух нодах с двух IP', [$m[1]['li'], $m[1]['i7']], [2, 2]);
+t_eq('метрики: у второго пик 2 IP одновременно, 2 провайдера (ASN нет — по сети), 2 разных IP', [$m[2]['pi'], $m[2]['da'], $m[2]['iw']], [2, 2, 2]);
+t_eq('метрики: первый на двух нодах с двух IP одной сети', [$m[1]['pi'], $m[1]['iw'], $m[1]['da']], [2, 2, 1]);
 t_ok('метрики всех пользователей', count(sess_metrics()) === 2);
+$tn = time(); $ev = sess_every();
+$ins = $tt_pdo->prepare('INSERT INTO conn_sess (uid, node, ip, cc, asn, org, sub, start_ts, last_ts, n) VALUES (3, ?, ?, ?, 0, \'\', \'\', ?, ?, 1)');
+$ins->execute([$N1, '10.0.0.1', 'NL', $tn - 600, $tn - 480]);
+$ins->execute([$N1, '10.0.0.2', 'NL', $tn - 480 + $ev, $tn - 100]);
+$m3 = sess_metrics([3]);
+t_eq('смена IP между опросами — не одновременность: пик 1 при 2 разных IP', [$m3[3]['pi'], $m3[3]['iw'], $m3[3]['pc']], [1, 2, 1]);
+$ins->execute([$N2, '10.0.0.3', 'DE', $tn - 200, $tn - 100]);
+$m3 = sess_metrics([3]);
+t_eq('пересечение во времени — пик 2 IP и 2 страны', [$m3[3]['pi'], $m3[3]['pc']], [2, 2]);
+$tt_pdo->exec('UPDATE conn_sess SET start_ts = start_ts - 2 * 86400, last_ts = last_ts - 2 * 86400 WHERE uid = 3');
+t_eq('окно аномалий: за сутки пользователя нет, за 3 дня — есть', [isset(sess_metrics([3])[3]), sess_metrics([3], 3)[3]['pi'] ?? 0], [false, 2]);
+$tt_pdo->exec('DELETE FROM conn_sess WHERE uid = 3');
 $d = sess_user_data(2);
 t_ok('данные карточки: история и имена нод', count($d['rows']) >= 2 && ($d['nodes'][$N2]['n'] ?? '') === 'Frankfurt' && $d['on'] === true);
 
@@ -120,7 +132,7 @@ t_ok('свежие сессии остались', $count() > 0);
 $jar = t_admin_login($mw);
 [$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=users', [], null, $jar);
 t_ok('вкладка «Пользователи» с блоком сессий', $c === 200 && strpos($page, 'Сессии и аномалии') !== false && strpos($page, 'id="uxAn"') !== false);
-t_ok('метрики переданы в список', (bool) preg_match('~"sx":\{"1":\{"li":~', $page));
+t_ok('метрики переданы в список', (bool) preg_match('~"sx":\{"1":\{"pi":~', $page));
 [$c, , $b] = t_http('GET', $mw . '/admin/index.php?ajax=sess_user&id=1', [], null, $jar);
 $j = json_decode($b, true);
 t_ok('ajax sess_user: история и метрики', $c === 200 && !empty($j['ok']) && count($j['rows']) >= 1 && is_array($j['m']));

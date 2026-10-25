@@ -318,50 +318,75 @@ function cron_task_sessions($ctx) {
     return $err;
 }
 
-// Сырые метрики по пользователям за 7 дней; пороги применяет интерфейс, у него под рукой лимит устройств.
-function sess_metrics(?array $uids = null) {
+// Окно аномалий в днях: по нему считаются значок в списке и плитки в карточке.
+function sess_win_days() { return max(1, min(30, (int) setting('sess_win_days', '1'))); }
+
+// Метрики за окно: pi/pc/pr — пик одновременных IP / стран / регионов одного провайдера в любой
+// момент окна (а не «сейчас» и не «разных за окно»: мобильный IP меняется по нескольку раз в день),
+// da — разных провайдеров, iw — разных IP, ls — последний раз виден. Пороги применяет интерфейс,
+// у него под рукой лимит устройств. Строки читаются по пользователям подряд, в памяти — интервалы одного.
+function sess_metrics(?array $uids = null, $days = null) {
     $out = [];
     if (!sess_ensure() || !($p = db())) return $out;
     $now = time();
-    $gap = sess_gap();
+    $from = $now - max(1, (int) ($days ?? sess_win_days())) * 86400;
+    $every = sess_every();
     try {
-        $sql = 'SELECT uid, node, ip, cc, asn, sub, start_ts, last_ts FROM conn_sess WHERE last_ts >= ?';
-        $args = [$now - 7 * 86400];
+        $sql = 'SELECT uid, ip, cc, asn, sub, start_ts, last_ts FROM conn_sess WHERE last_ts >= ?';
+        $args = [$from];
         if ($uids !== null) {
             $uids = array_values(array_unique(array_map('intval', $uids)));
             if (!$uids) return $out;
             $sql .= ' AND uid IN (' . implode(',', array_fill(0, count($uids), '?')) . ')';
             $args = array_merge($args, $uids);
         }
-        $st = $p->prepare($sql);
+        $st = $p->prepare($sql . ' ORDER BY uid');
         $st->execute($args);
     } catch (Throwable $e) { return $out; }
-    $acc = [];
-    // Построчно: таблица за неделю бывает в сотни тысяч строк, память — только по пользователям.
+    $cur = null; $rows = [];
+    $flush = static function () use (&$cur, &$rows, &$out, $every, $from) {
+        if ($cur === null) return;
+        $ips = []; $as = []; $ls = 0; $ev = [];
+        foreach ($rows as $r) {
+            $ips[$r['ip']] = 1;
+            $as[$r['asn'] > 0 ? 'a' . $r['asn'] : sess_net_key($r['ip'])] = 1;
+            $ls = max($ls, $r['e']);
+            $s = max($r['s'], $from); $e = $r['e'] + $every;
+            if ($e <= $s) continue;
+            $ev[] = [$s, 1, $r]; $ev[] = [$e, -1, $r];
+        }
+        // Конец интервала раньше начала другого в тот же момент: смена IP между опросами — не одновременность.
+        usort($ev, static fn($a, $b) => $a[0] <=> $b[0] ?: $a[1] <=> $b[1]);
+        $act = ['ip' => [], 'cc' => [], 'sub' => []];
+        $n = ['ip' => 0, 'cc' => 0]; $pk = ['ip' => 0, 'cc' => 0, 'sub' => 0]; $nsub = [];
+        foreach ($ev as [$t, $d, $r]) {
+            $keys = ['ip' => $r['ip'], 'cc' => $r['cc']];
+            foreach ($keys as $k => $v) {
+                if ($v === '') continue;
+                $c = ($act[$k][$v] ?? 0) + $d;
+                if ($c <= 0) { unset($act[$k][$v]); $n[$k]--; }
+                elseif ($c === $d) { $act[$k][$v] = $c; $n[$k]++; }
+                else $act[$k][$v] = $c;
+                if ($n[$k] > $pk[$k]) $pk[$k] = $n[$k];
+            }
+            if ($r['asn'] > 0 && $r['sub'] !== '') {
+                $a = $r['asn']; $v = $r['sub'];
+                $c = ($act['sub'][$a][$v] ?? 0) + $d;
+                if ($c <= 0) { unset($act['sub'][$a][$v]); $nsub[$a]--; }
+                elseif ($c === $d) { $act['sub'][$a][$v] = $c; $nsub[$a] = ($nsub[$a] ?? 0) + 1; }
+                else $act['sub'][$a][$v] = $c;
+                if (($nsub[$a] ?? 0) > $pk['sub']) $pk['sub'] = $nsub[$a];
+            }
+        }
+        $out[$cur] = ['pi' => $pk['ip'], 'pc' => $pk['cc'], 'pr' => $pk['sub'], 'da' => count($as), 'iw' => count($ips), 'ls' => $ls];
+        $rows = [];
+    };
     while (($r = $st->fetch(PDO::FETCH_ASSOC)) !== false) {
         $u = (int) $r['uid'];
-        if (!isset($acc[$u])) $acc[$u] = ['li' => [], 'lc' => [], 'lr' => [], 'da' => [], 'i7' => [], 'ls' => 0];
-        $a = &$acc[$u];
-        $ip = (string) $r['ip'];
-        $asn = (int) $r['asn'];
-        $cc = (string) $r['cc'];
-        $sub = (string) $r['sub'];
-        $pk = $asn > 0 ? 'a' . $asn : sess_net_key($ip);
-        $a['i7'][$ip] = 1;
-        $a['ls'] = max($a['ls'], (int) $r['last_ts']);
-        if ((int) $r['last_ts'] >= $now - 86400) $a['da'][$pk] = 1;
-        if ((int) $r['last_ts'] >= $now - $gap) {
-            $a['li'][$ip] = 1;
-            if ($cc !== '') $a['lc'][$cc] = 1;
-            if ($asn > 0 && $sub !== '') $a['lr'][$asn][$sub] = 1;
-        }
-        unset($a);
+        if ($u !== $cur) { $flush(); $cur = $u; }
+        $rows[] = ['ip' => (string) $r['ip'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'sub' => (string) $r['sub'], 's' => (int) $r['start_ts'], 'e' => (int) $r['last_ts']];
     }
-    foreach ($acc as $u => $a) {
-        $lr = 0;
-        foreach ($a['lr'] as $subs) $lr = max($lr, count($subs));
-        $out[$u] = ['li' => count($a['li']), 'lc' => count($a['lc']), 'lr' => $lr, 'da' => count($a['da']), 'i7' => count($a['i7']), 'ls' => $a['ls']];
-    }
+    $flush();
     return $out;
 }
 
@@ -387,6 +412,7 @@ function sess_user_data($uid) {
         'every' => sess_every(),
         'gap'   => sess_gap(),
         'keep'  => sess_keep_days(),
+        'win'   => sess_win_days(),
         'state' => sess_state(),
         'nodes' => sess_nodes_fresh(),
         'rows'  => $uid > 0 ? sess_user_rows($uid) : [],
