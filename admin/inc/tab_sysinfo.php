@@ -201,7 +201,7 @@ if ($cr_on) {
 
         <?php if ($cr_on): ?>
         <section class="<?= coll_cls('sysinfo_cron', $cr_alive) ?>" data-coll="sysinfo_cron">
-            <button type="button" class="coll-head" onclick="collToggle(this)"><span>Планировщик <?php if ($cr_alive): ?><span class="tag normal">работает</span><?php elseif ($cr_v['status'] === 'stopped'): ?><span class="tag blocked">остановился</span><?php else: ?><span class="tag expired">не настроен</span><?php endif; ?></span>
+            <button type="button" class="coll-head" onclick="collToggle(this)"><span>Планировщик <?php if ($cr_alive): ?><span class="tag normal">работает</span><?php if ($cr_v['errors'] > 0): ?> <span class="tag blocked">ошибки: <?= (int) $cr_v['errors'] ?></span><?php endif; ?><?php elseif ($cr_v['status'] === 'stopped'): ?><span class="tag blocked">остановился</span><?php else: ?><span class="tag expired">не настроен</span><?php endif; ?></span>
                 <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </button>
             <div class="coll-body">

@@ -275,7 +275,8 @@ function cron_view($now = null) {
     $error = (is_array($e) && (int) ($e['ts'] ?? 0) >= $beat) ? $e : null;
     $status = cron_alive($st, $now) ? 'alive' : ($beat > 0 ? 'stopped' : 'never');
     $label = ['url' => 'cron по адресу', 'cli' => 'cron из консоли', 'docker' => 'Docker'][$src] ?? '';
-    return ['status' => $status, 'beat' => $beat, 'src' => $label, 'rows' => $rows, 'error' => $error];
+    $errors = count(array_filter($rows, static function ($r) { return $r['state'] === 'err'; })) + ($error ? 1 : 0);
+    return ['status' => $status, 'beat' => $beat, 'src' => $label, 'rows' => $rows, 'error' => $error, 'errors' => $errors];
 }
 
 // Секретный путь: без верного секрета запрос идёт дальше как обычный неизвестный адрес.

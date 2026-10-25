@@ -118,4 +118,18 @@ remnawave_internal_squads($e);
 remnawave_internal_squads($e);
 t_eq('без maxAge — каждый вызов идёт в панель', $n($hits(), '/api/internal-squads'), 2);
 
+// Планировщик: бейдж ошибок рядом с «работает»
+set_setting('cron_state', json_encode(['beat' => time(), 'src' => 'cli', 'tasks' => [
+    'grace'   => ['start' => time() - 10, 'ok_at' => time() - 5, 'err' => ''],
+    'reports' => ['start' => time() - 10, 'ok_at' => 0, 'err' => 'нет доступа к файлу'],
+    'brand'   => ['start' => time() - 400, 'ok_at' => 0, 'err' => ''],
+]]));
+$v = cron_view();
+t_eq('ошибки задач посчитаны: явная и зависшая', [$v['status'], $v['errors']], ['alive', 2]);
+[$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=sysinfo&seg=mw', [], null, $jar);
+t_ok('бейдж «ошибки: 2» рядом с «работает»', $c === 200 && preg_match('~работает</span> <span class="tag blocked">ошибки: 2</span>~u', $page) === 1, (string) $c);
+set_setting('cron_state', json_encode(['beat' => time(), 'src' => 'cli', 'tasks' => ['grace' => ['start' => time() - 10, 'ok_at' => time() - 5, 'err' => '']]]));
+[$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=sysinfo&seg=mw', [], null, $jar);
+t_ok('без ошибок бейджа нет', $c === 200 && strpos($page, 'ошибки:') === false);
+
 t_done();
