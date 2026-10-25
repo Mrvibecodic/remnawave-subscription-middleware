@@ -921,6 +921,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('rep_keep_days', (string) max(7, min(365, (int) ($_POST['rep_keep_days'] ?? 90))));
         @set_time_limit(120);
         rep_purge();
+        flash(isset($_POST['rep_enabled']) ? 'Приём отчётов клиентов включён' : 'Приём отчётов клиентов выключен');
+        if (isset($_POST['rep_enabled'])) register_shutdown_function('geoip_update_after_response');
+        form_saved('reports');
+    }
+
+    if ($action === 'save_geoip') {
         set_setting('geoip_auto', isset($_POST['geoip_auto']) ? '1' : '0');
         set_setting('geoip_city', isset($_POST['geoip_city']) ? '1' : '0');
         if (!isset($_POST['geoip_city'])) geoip_city_drop();
@@ -930,16 +936,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
             $v = (string) ($_POST[$sk] ?? $cur);
             if (isset($opts[$v]) && $v !== $cur) { set_setting($sk, $v); $src_changed = true; }
         }
-        if ($src_changed) { set_setting('geoip_try', '0'); register_shutdown_function('geoip_update_after_response'); }
-        flash(isset($_POST['rep_enabled']) ? 'Приём отчётов клиентов включён' : 'Приём отчётов клиентов выключен');
-        if (isset($_POST['rep_enabled'])) register_shutdown_function('geoip_update_after_response');
-        form_saved('reports');
+        if ($src_changed) set_setting('geoip_try', '0');
+        flash('Настройки баз GeoIP сохранены');
+        register_shutdown_function('geoip_update_after_response');
+        form_saved('geoip');
     }
 
-    if ($action === 'clod_geoip_update') {
+    if ($action === 'geoip_update') {
         $gerr = '';
         flash(geoip_update($gerr) ? 'Базы GeoIP обновлены' : 'Не все базы GeoIP обновились: ' . $gerr);
-        form_saved('reports');
+        form_saved('geoip');
     }
 
     if ($action === 'save_clod_debug') {
@@ -1809,7 +1815,7 @@ if ($tab === 'reqlog' && $rl_view === '') {
 $sys_info = []; $sys_db = []; $sys_load = []; $sys_series = []; $sys_peaks = [];
 // Базы GeoIP для отчётов клиентов: раз в месяц, после отдачи страницы. Запрос
 // клиента качает их только под php-fpm, где ответ уже ушёл; здесь — везде.
-if (($tab === 'reports' && rep_enabled()) || ($tab === 'users' && function_exists('sess_enabled') && sess_enabled())) register_shutdown_function('geoip_update_after_response');
+if ($tab === 'geoip' || ($tab === 'reports' && rep_enabled()) || ($tab === 'users' && function_exists('sess_enabled') && sess_enabled())) register_shutdown_function('geoip_update_after_response');
 if ($tab === 'sysinfo') {
     ensure_metrics_tables();
     $sys_info   = metrics_system_info();
@@ -1872,7 +1878,7 @@ if ($tab === 'pagekeys') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Базы GeoIP'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 // function_exists: прежний апдейтер пишет admin/index.php раньше lib/branding.php.
 if ($db_ok && function_exists('brand_refresh_if_stale')) brand_refresh_if_stale();
@@ -2021,6 +2027,7 @@ $nav = [
     'wg_pool'   => ['WG / AWG', '<rect x="16" y="16" width="6" height="6" rx="1" /> <rect x="2" y="16" width="6" height="6" rx="1" /> <rect x="9" y="2" width="6" height="6" rx="1" /> <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /> <path d="M12 12V8" />'],
     'addsub'    => ['Слияние подписок', '<path d="M3 7h5l3.5 5h9.5" /> <path d="M3 17h5l3.495 -5" /> <path d="M18 15l3 -3l-3 -3" />'],
     'pagekeys'  => ['Ключи на странице', '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /> <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />'],
+    'geoip'     => ['Геобазы', '<circle cx="12" cy="12" r="10" /> <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /> <path d="M2 12h20" />'],
     'app'       => ['Приложение', '<rect x="5" y="2" width="14" height="20" rx="2" ry="2" /> <path d="M12 18h.01" />'],
     'clod'      => ['Защищённый канал', '<circle cx="12" cy="16" r="1" /> <rect x="3" y="10" width="18" height="12" rx="2" /> <path d="M7 10V7a5 5 0 0 1 10 0v3" />'],
     'reports'   => ['Статистика', '<path d="M22 12h-4l-3 9L9 3l-3 9H2" />'],
@@ -2041,7 +2048,7 @@ $wg_mig_note = is_array($wg_mig_note) ? array_values(array_filter($wg_mig_note, 
 $nav_badge = array_filter(['update' => $upd_avail ? 'Доступно обновление' : '', 'wg_pool' => $wg_mig_note ? 'Есть заметки после обновления — откройте вкладку' : '']);
 $nav_sections = [
     ['l' => 'Главное',          'coll' => false, 'k' => 'main',   'items' => ['users', 'chat', 'reqlog']],
-    ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding', 'app']],
+    ['l' => 'Настройки',        'coll' => true,  'k' => 'set',    'items' => ['connection', 'branding', 'geoip', 'app']],
     ['l' => 'Clod Clash',       'coll' => true,  'k' => 'clod',   'items' => ['clod', 'reports']],
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog'] : ['webhooks', 'whlog']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
@@ -2220,6 +2227,8 @@ navHidSync();
     <?php include __DIR__ . '/inc/tab_clod.php'; ?>
 <?php elseif ($tab === 'app'): ?>
     <?php include __DIR__ . '/inc/tab_app.php'; ?>
+<?php elseif ($tab === 'geoip'): ?>
+    <?php include __DIR__ . '/inc/tab_geoip.php'; ?>
 <?php elseif ($tab === 'reports'): ?>
     <?php include __DIR__ . '/inc/tab_reports.php'; ?>
 

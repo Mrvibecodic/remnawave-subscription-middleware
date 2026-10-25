@@ -645,41 +645,15 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 <div class="set-info"><div class="set-t">Сколько дней хранить</div><div class="set-d">Старше — удаляется само. От 7 до 365.</div></div>
                 <input type="number" name="rep_keep_days" min="7" max="365" value="<?= (int) rep_keep_days() ?>">
             </div>
-            <div class="set-row">
-                <div class="set-info"><div class="set-t">Обновлять базы GeoIP сами</div><div class="set-d">С зеркала ip-location-db — раз в неделю, DB-IP — раз в месяц. Выключите, если кладёте свои файлы.</div></div>
-                <label class="switch"><input type="checkbox" name="geoip_auto" <?= geoip_auto() ? 'checked' : '' ?>><span class="sl"></span></label>
-            </div>
-            <div class="set-row">
-                <div class="set-info"><div class="set-t">База стран и регионов</div><div class="set-d">GeoLite2 с зеркала ip-location-db точнее по регионам, обновляется дважды в неделю. DB-IP Lite — раз в месяц. Смена источника перекачивает базы.</div></div>
-                <select name="geoip_geo_src"><?php foreach (geoip_geo_srcs() as $gs_k => $gs_l): ?><option value="<?= h($gs_k) ?>" <?= geoip_geo_src() === $gs_k ? 'selected' : '' ?>><?= h($gs_l) ?></option><?php endforeach; ?></select>
-            </div>
-            <div class="set-row">
-                <div class="set-info"><div class="set-t">База провайдеров (AS)</div><div class="set-d">origin-asn собрана из данных регистраторов и BGP, обновляется ежедневно, без регистрации и условий. DB-IP ASN Lite — раз в месяц, имена провайдеров беднее.</div></div>
-                <select name="geoip_asn_src"><?php foreach (geoip_asn_srcs() as $gs_k => $gs_l): ?><option value="<?= h($gs_k) ?>" <?= geoip_asn_src() === $gs_k ? 'selected' : '' ?>><?= h($gs_l) ?></option><?php endforeach; ?></select>
-            </div>
-            <div class="set-row">
-                <div class="set-info"><div class="set-t">Регионы на карте</div><div class="set-d">База городов: регион и координаты адреса клиента. GeoLite2 — около 45 МБ, DB-IP — 60 МБ скачивания и 130 на диске. Выключение удаляет файлы.</div></div>
-                <label class="switch"><input type="checkbox" name="geoip_city" <?= geoip_city_on() ? 'checked' : '' ?>><span class="sl"></span></label>
-            </div>
             </div>
         </form>
         <table class="logtbl" style="margin-top:1rem">
             <tbody>
             <tr><td style="width:2.2rem"><?= (int) $rep_st['week'] > 0 ? '✅' : '—' ?></td>
                 <td>Устройств с отчётами: за сутки <b><?= (int) $rep_st['day'] ?></b>, за неделю <b><?= (int) $rep_st['week'] ?></b><?php if ((int) $rep_st['last'] > 0): ?> · последний отчёт <span class="ct-time" data-ts="<?= (int) $rep_st['last'] ?>"><?= h(date('Y-m-d H:i', (int) $rep_st['last'])) ?></span><?php endif; ?></td></tr>
-            <?php foreach (['country' => 'Страна', 'asn' => 'Автономная система (провайдер)', 'city' => 'Города и координаты (регионы на карте)', 'city6' => 'Города и координаты, IPv6'] as $gk => $gt): $g = $rep_geo[$gk]; if (($gk === 'city' && !geoip_city_on() && !$g['ok']) || ($gk === 'city6' && !(geoip_city_on() && geoip_geo_src() !== 'dbip') && !$g['ok'])) continue; ?>
-            <tr><td><?= $g['ok'] ? '✅' : '⚠️' ?></td>
-                <td><?= h($gt) ?> — <?php if ($g['ok']): ?><code><?= h($g['type']) ?></code>, сборка <?= $g['built'] > 0 ? h(gmdate('Y-m-d', (int) $g['built'])) : '—' ?><?php else: ?>базы нет<?= is_file($g['path']) ? ', файл не читается' : '' ?><?php endif; ?>
-                    <div class="muted" style="font-size:.78rem"><code><?= h($g['path']) ?></code></div></td></tr>
-            <?php endforeach; ?>
             </tbody>
         </table>
-        <p class="muted" style="font-size:.8rem;margin-top:.6rem">Без баз отчёты всё равно принимаются, но страна, провайдер и регион у этих записей останутся пустыми. Свои файлы MaxMind DB (например, GeoLite2-Country, GeoLite2-ASN и GeoLite2-City) кладите по путям выше под теми же именами. Базы по умолчанию — с зеркала <a href="https://github.com/sapics/ip-location-db" target="_blank" rel="noopener">ip-location-db</a>: страна и города — GeoLite2 (данные <a href="https://www.maxmind.com" target="_blank" rel="noopener">MaxMind</a>), провайдеры — origin-asn (PDDL); запасной источник — <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a>, CC BY 4.0.</p>
-        <form method="post" style="margin-top:.6rem">
-            <input type="hidden" name="csrf" value="<?= h($token) ?>">
-            <input type="hidden" name="action" value="clod_geoip_update">
-            <button type="submit" class="btn ghost">↻ Скачать базы сейчас</button>
-        </form>
+        <p class="muted" style="font-size:.8rem;margin-top:.6rem">Страна, провайдер и регион в отчётах — по базам GeoIP; их настройки и обновление — на вкладке <a href="?tab=geoip">«Геобазы»</a>.</p>
         <div class="set-row" style="margin-top:1rem">
             <div class="set-info"><div class="set-t">Сырые отчёты</div><div class="set-d" id="rvRawInfo"><?php if ($rep_raw['n'] > 0): ?>Хранится <b><?= $rv_num($rep_raw['n']) ?></b> <?= h(['отчёт', 'отчёта', 'отчётов'][($rep_raw['n'] % 10 === 1 && $rep_raw['n'] % 100 !== 11) ? 0 : (($rep_raw['n'] % 10 >= 2 && $rep_raw['n'] % 10 <= 4 && ($rep_raw['n'] % 100 < 10 || $rep_raw['n'] % 100 >= 20)) ? 1 : 2)]) ?> с <span class="ct-time" data-ts="<?= (int) $rep_raw['first'] ?>"><?= h(date('Y-m-d H:i', (int) $rep_raw['first'])) ?></span>, <?= h($rv_bytes($rep_raw['bytes'])) ?> до сжатия.<?php if ($rep_raw['old'] > 0): ?> Из них <b><?= $rv_num($rep_raw['old']) ?></b> — от клиентов старее Android 0.1.23-alpha.7 и ПК 0.1.12-alpha.5: они не различают узлы на одном адресе и порту (мосты), поэтому в статистику не идут.<?php endif; ?><?php else: ?>Пока нет ни одного.<?php endif; ?> Каждый отчёт клиента хранится как пришёл, вся статистика строится из них. Срок хранения — тот же.</div></div>
             <button type="button" class="btn ghost" id="rvRebuild" data-csrf="<?= h($token) ?>" data-active="<?= rep_rebuild_active() ? '1' : '' ?>" data-tip="Сводки стираются и заново раскладываются из сохранённых сырых отчётов по порядку. Что пришло до появления сырых отчётов, пересобрать не из чего — это удалится."><?= rep_rebuild_active() ? 'Продолжить пересборку' : 'Пересобрать статистику' ?></button>
