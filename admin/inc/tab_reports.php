@@ -646,8 +646,12 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 <input type="number" name="rep_keep_days" min="7" max="365" value="<?= (int) rep_keep_days() ?>">
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Обновлять базы GeoIP сами</div><div class="set-d">Раз в месяц скачиваются бесплатные DB-IP Lite (страна и AS). Выключите, если кладёте свои файлы.</div></div>
+                <div class="set-info"><div class="set-t">Обновлять базы GeoIP сами</div><div class="set-d">Страна и города — DB-IP Lite раз в месяц, провайдер — база ниже раз в неделю. Выключите, если кладёте свои файлы.</div></div>
                 <label class="switch"><input type="checkbox" name="geoip_auto" <?= geoip_auto() ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">База провайдеров (AS)</div><div class="set-d">origin-asn собрана из данных регистраторов и BGP, обновляется ежедневно, без регистрации и условий. DB-IP ASN Lite — раз в месяц, имена провайдеров беднее. Смена источника перекачивает базу.</div></div>
+                <select name="geoip_asn_src"><?php foreach (geoip_asn_srcs() as $gs_k => $gs_l): ?><option value="<?= h($gs_k) ?>" <?= geoip_asn_src() === $gs_k ? 'selected' : '' ?>><?= h($gs_l) ?></option><?php endforeach; ?></select>
             </div>
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Регионы на карте</div><div class="set-d">База городов DB-IP City Lite: координаты адреса клиента. Около 60 МБ скачивания и 130 МБ на диске. Выключение удаляет файл.</div></div>
@@ -666,11 +670,11 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             <?php endforeach; ?>
             </tbody>
         </table>
-        <p class="muted" style="font-size:.8rem;margin-top:.6rem">Без баз отчёты всё равно принимаются, но страна, провайдер и регион у этих записей останутся пустыми. Свои файлы MaxMind DB (например, GeoLite2-Country, GeoLite2-ASN и GeoLite2-City) кладите по путям выше под теми же именами. Базы по умолчанию: <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a>, лицензия CC BY 4.0.</p>
+        <p class="muted" style="font-size:.8rem;margin-top:.6rem">Без баз отчёты всё равно принимаются, но страна, провайдер и регион у этих записей останутся пустыми. Свои файлы MaxMind DB (например, GeoLite2-Country, GeoLite2-ASN и GeoLite2-City) кладите по путям выше под теми же именами. Страна и города — <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a>, лицензия CC BY 4.0; провайдеры — <a href="https://github.com/sapics/ip-location-db" target="_blank" rel="noopener">origin-asn из ip-location-db</a>, PDDL.</p>
         <form method="post" style="margin-top:.6rem">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="clod_geoip_update">
-            <button type="submit" class="btn ghost">↻ Скачать базы DB-IP сейчас</button>
+            <button type="submit" class="btn ghost">↻ Скачать базы сейчас</button>
         </form>
         <div class="set-row" style="margin-top:1rem">
             <div class="set-info"><div class="set-t">Сырые отчёты</div><div class="set-d" id="rvRawInfo"><?php if ($rep_raw['n'] > 0): ?>Хранится <b><?= $rv_num($rep_raw['n']) ?></b> <?= h(['отчёт', 'отчёта', 'отчётов'][($rep_raw['n'] % 10 === 1 && $rep_raw['n'] % 100 !== 11) ? 0 : (($rep_raw['n'] % 10 >= 2 && $rep_raw['n'] % 10 <= 4 && ($rep_raw['n'] % 100 < 10 || $rep_raw['n'] % 100 >= 20)) ? 1 : 2)]) ?> с <span class="ct-time" data-ts="<?= (int) $rep_raw['first'] ?>"><?= h(date('Y-m-d H:i', (int) $rep_raw['first'])) ?></span>, <?= h($rv_bytes($rep_raw['bytes'])) ?> до сжатия.<?php if ($rep_raw['old'] > 0): ?> Из них <b><?= $rv_num($rep_raw['old']) ?></b> — от клиентов старее Android 0.1.23-alpha.7 и ПК 0.1.12-alpha.5: они не различают узлы на одном адресе и порту (мосты), поэтому в статистику не идут.<?php endif; ?><?php else: ?>Пока нет ни одного.<?php endif; ?> Каждый отчёт клиента хранится как пришёл, вся статистика строится из них. Срок хранения — тот же.</div></div>

@@ -1,9 +1,10 @@
 <?php
 
-// Страна и автономная система по IP для отчётов клиентов. Базы — файлы MaxMind DB
-// (.mmdb): по умолчанию бесплатные DB-IP Lite (страна и ASN, CC BY 4.0), раз в
-// месяц скачиваются сами; вместо них можно положить свои файлы, например GeoLite2.
-// Читатель формата свой, без composer: проект зависимостей не тянет.
+// Страна и автономная система по IP для отчётов и сессий. Базы — файлы MaxMind DB
+// (.mmdb): страна и города — бесплатные DB-IP Lite (CC BY 4.0) раз в месяц; AS —
+// по умолчанию origin-asn из ip-location-db (PDDL, собрана из RIR/BGP, обновляется
+// ежедневно, качается раз в неделю), по выбору — DB-IP ASN Lite. Вместо них можно
+// положить свои файлы, например GeoLite2. Читатель формата свой, без composer.
 
 const GEOIP_MAX_DEPTH = 32;
 const GEOIP_MAX_ITEMS = 20000;
@@ -247,6 +248,33 @@ function geoip_files() {
 
 function geoip_auto() { return setting('geoip_auto', '1') === '1'; }
 
+function geoip_asn_srcs() { return ['origin' => 'origin-asn (ip-location-db)', 'dbip' => 'DB-IP ASN Lite']; }
+
+function geoip_asn_src() {
+    $v = (string) setting('geoip_asn_src', 'origin');
+    return isset(geoip_asn_srcs()[$v]) ? $v : 'origin';
+}
+
+// Откуда скачан текущий asn.mmdb — чтобы смена источника перекачала базу, не дожидаясь срока.
+function geoip_asn_have() { return (string) setting('geoip_asn_have', ''); }
+
+// Кандидаты на скачивание по порядку: [url, gz]. У origin-asn чексум на зеркале отстаёт от
+// файла на сутки, поэтому целостность проверяется чтением базы и контрольным поиском.
+function geoip_sources($which) {
+    $dbip = [];
+    foreach ([gmdate('Y-m'), gmdate('Y-m', strtotime('first day of last month'))] as $month) $dbip[] = [geoip_dbip_url($which, $month), true];
+    if ($which === 'asn' && geoip_asn_src() === 'origin') {
+        return array_merge([['https://github.com/sapics/ip-location-db/releases/download/latest/origin-asn.mmdb', false]], $dbip);
+    }
+    return $dbip;
+}
+
+// База AS обязана знать AS15169 Google: пустой или битый файл — не замена рабочему.
+function geoip_asn_sane(SubmwMmdb $db) {
+    try { $rec = $db->get('8.8.8.8'); } catch (Throwable $e) { return false; }
+    return is_array($rec) && (int) ($rec['autonomous_system_number'] ?? 0) === 15169;
+}
+
 function geoip_city_on() { return setting('geoip_city', '1') === '1'; }
 
 function geoip_city_ready() {
@@ -366,9 +394,9 @@ function geoip_dbip_url($which, $month) {
     return 'https://download.db-ip.com/free/dbip-' . $which . '-lite-' . $month . '.mmdb.gz';
 }
 
-// Скачивает свежие базы DB-IP Lite. Месяц пробуется текущий, затем прошлый: в первые
-// дни месяца новый выпуск может ещё не лежать. Файл заменяется только целиком и только
-// если он открывается как MaxMind DB нужного вида.
+// Скачивает свежие базы. Источники пробуются по порядку (у DB-IP — текущий месяц, затем
+// прошлый: в первые дни месяца новый выпуск может ещё не лежать). Файл заменяется только
+// целиком и только если он открывается как MaxMind DB нужного вида.
 function geoip_update(&$err = '', $only = null) {
     $err = '';
     $dir = geoip_dir();
@@ -384,22 +412,24 @@ function geoip_update(&$err = '', $only = null) {
     $errs = [];
     foreach ($want as $which => $remote) {
         $last = '';
-        foreach ([gmdate('Y-m'), gmdate('Y-m', strtotime('first day of last month'))] as $month) {
+        foreach (geoip_sources($remote) as [$url, $gz]) {
             $tmp = $dir . '/.' . $which . '.part';
             $e   = '';
-            if (!geoip_fetch_gz(geoip_dbip_url($remote, $month), $tmp, $e)) { $last = $e; continue; }
+            if (!geoip_fetch($url, $tmp, $gz, $e)) { $last = $e; continue; }
             try {
                 $probe = new SubmwMmdb($tmp);
                 $kind  = strtolower($probe->type());
+                $sane  = $which !== 'asn' || geoip_asn_sane($probe);
                 unset($probe);
-            } catch (Throwable $t) { $kind = ''; $last = 'скачанный файл не читается: ' . $t->getMessage(); }
-            if ($kind === '' || strpos($kind, $which) === false) {
+            } catch (Throwable $t) { $kind = ''; $sane = false; $last = 'скачанный файл не читается: ' . $t->getMessage(); }
+            if ($kind === '' || strpos($kind, $which) === false || !$sane) {
                 @unlink($tmp);
-                if ($kind !== '') $last = 'скачан не тот файл: ' . $kind;
+                if ($kind !== '') $last = $sane ? 'скачан не тот файл: ' . $kind : 'база ' . basename($url) . ' не отвечает на контрольный адрес';
                 continue;
             }
             if ($which === 'city' && !geoip_city_live()) { @unlink($tmp); break; }
             if (!@rename($tmp, geoip_files()[$which])) { @unlink($tmp); $last = 'не заменяется файл базы'; continue; }
+            if ($which === 'asn') set_setting('geoip_asn_have', strpos($url, 'db-ip.com') !== false ? 'dbip' : 'origin');
             $done[$which] = true;
             $last = '';
             break;
@@ -413,10 +443,10 @@ function geoip_update(&$err = '', $only = null) {
     return count($done) === count($want);
 }
 
-function geoip_fetch_gz($url, $dest, &$err = '') {
+function geoip_fetch($url, $dest, $gz = true, &$err = '') {
     $err = '';
-    $gz = $dest . '.gz';
-    $fh = @fopen($gz, 'wb');
+    $raw = $gz ? $dest . '.gz' : $dest;
+    $fh = @fopen($raw, 'wb');
     if ($fh === false) { $err = 'не пишется временный файл'; return false; }
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -435,14 +465,18 @@ function geoip_fetch_gz($url, $dest, &$err = '') {
     if (!$ok) $err = 'скачивание ' . basename($url) . ': ' . ($code > 0 ? 'HTTP ' . $code : curl_error($ch));
     curl_close($ch);
     fclose($fh);
-    if (!$ok) { @unlink($gz); return false; }
+    if (!$ok) { @unlink($raw); return false; }
+    if (!$gz) {
+        if ((int) @filesize($dest) < 1024) { @unlink($dest); $err = 'пустой файл ' . basename($url); return false; }
+        return true;
+    }
 
-    $in  = @gzopen($gz, 'rb');
+    $in  = @gzopen($raw, 'rb');
     $out = @fopen($dest, 'wb');
     if ($in === false || $out === false) {
         if ($in) gzclose($in);
         if ($out) fclose($out);
-        @unlink($gz);
+        @unlink($raw);
         $err = 'не распаковывается ' . basename($url);
         return false;
     }
@@ -456,13 +490,13 @@ function geoip_fetch_gz($url, $dest, &$err = '') {
     }
     gzclose($in);
     fclose($out);
-    @unlink($gz);
+    @unlink($raw);
     if ($total === 0 || $total > 512 * 1048576) { @unlink($dest); $err = 'пустой или огромный файл ' . basename($url); return false; }
 
     return true;
 }
 
-// Раз в 35 дней, и не чаще попытки раз в 6 часов. Зовётся после ответа клиенту.
+// Страна и города — раз в 35 дней, AS из origin-asn — раз в 7; попытка не чаще раза в 6 часов. Зовётся после ответа клиенту.
 // Скачивание баз после отдачи страницы: под php-fpm ответ завершается, под
 // mod_php буферы выталкиваются — страница у человека уже есть, а соединение
 // живёт, пока базы качаются; уход со страницы скачивание не обрывает.
@@ -486,7 +520,8 @@ function geoip_maybe_update() {
     $need = [];
     foreach (geoip_wanted() as $which => $remote) {
         $f = geoip_files()[$which];
-        if (!is_file($f) || $now - (int) @filemtime($f) >= 35 * 86400) $need[] = $which;
+        $max = ($which === 'asn' && geoip_asn_src() === 'origin') ? 7 * 86400 : 35 * 86400;
+        if (!is_file($f) || $now - (int) @filemtime($f) >= $max || ($which === 'asn' && geoip_asn_have() !== '' && geoip_asn_have() !== geoip_asn_src())) $need[] = $which;
     }
     if (!$need) return;
     $err = '';

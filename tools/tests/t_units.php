@@ -85,4 +85,18 @@ t_ok('vless → clash: тип, сервер, tls', is_string($c) && strpos($c, '
 $x = vless_to_xray($r, 'T');
 t_ok('vless → xray: протокол и адрес', is_array($x) && ($x['protocol'] ?? '') === 'vless' && ($x['settings']['vnext'][0]['address'] ?? '') === 'ex.com', var_export($x, true));
 
+// GeoIP: источник базы AS
+t_eq('geoip: по умолчанию AS из origin-asn', geoip_asn_src(), 'origin');
+$src = geoip_sources('asn');
+t_ok('geoip: сначала origin-asn без gz, затем два месяца DB-IP в gz', count($src) === 3 && strpos($src[0][0], 'origin-asn.mmdb') !== false && $src[0][1] === false && strpos($src[1][0], 'db-ip.com') !== false && $src[1][1] === true && $src[2][1] === true);
+t_ok('geoip: страна — только DB-IP', count(geoip_sources('country')) === 2 && strpos(geoip_sources('country')[0][0], 'dbip-country-lite') !== false);
+t_settings(['geoip_asn_src' => 'dbip']);
+unset($GLOBALS['submw_settings_cache']);
+t_ok('geoip: выбран DB-IP — origin-asn не пробуется', count(geoip_sources('asn')) === 2 && strpos(geoip_sources('asn')[0][0], 'dbip-asn-lite') !== false);
+t_settings(['geoip_asn_src' => 'hack']);
+unset($GLOBALS['submw_settings_cache']);
+t_eq('geoip: чужое значение источника — origin', geoip_asn_src(), 'origin');
+t_settings(['geoip_asn_src' => 'origin']);
+unset($GLOBALS['submw_settings_cache']);
+
 t_done();
