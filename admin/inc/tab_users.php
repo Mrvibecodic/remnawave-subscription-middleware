@@ -149,7 +149,9 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-tbl.compact .ux-nd{padding-left:0}
 .ux-tbl.compact .ux-nd::before{content:'· '}
 .ux-sgp{margin:0 0 .2rem;font-size:.82rem;line-height:1.45;max-width:72rem}
-.ux-sgf{max-width:56rem}
+.ux-sgg{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.7rem}
+.ux-sgg .set-row{margin:0}
+@media(max-width:1000px){.ux-sgg{grid-template-columns:1fr}}
 .ux-sgf .set-row{padding:.55rem .8rem}
 .ux-sgf .set-row>input[type=number]{width:84px}
 .ux-sgf .set-row>select{flex:0 0 auto;width:auto;min-width:7.5rem}
@@ -641,6 +643,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
         <form method="post" data-autosave class="ux-sgf">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_sess">
+            <div class="ux-sgg">
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Собирать историю сессий</div><div class="set-d">Хранятся IP пользователей. Накопленное остаётся до чистки.</div></div>
                 <label class="switch"><input type="checkbox" name="sess_enabled" <?= sess_enabled() ? 'checked' : '' ?> data-reload><span class="sl"></span></label>
@@ -656,6 +659,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Статистика в карточке за дней</div><div class="set-d">Окно плиток «IP / провайдеров / нод». 1 — за сутки.</div></div>
                 <input type="number" name="sess_win_days" min="1" max="30" value="<?= (int) sess_win_days() ?>">
+            </div>
             </div>
         </form>
         <?php if (sess_enabled()): $ux_st = $ux_sst ?? []; ?>
@@ -675,6 +679,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <input type="hidden" name="action" value="save_anom">
             <input type="hidden" name="sess_anom" id="uxAnJson" value="<?= h(json_encode($ux_an_rules, JSON_UNESCAPED_UNICODE)) ?>">
             <div id="uxAnB" class="ux-anb"></div>
+            <div class="ux-sgg">
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Устройств, если лимит не задан</div><div class="set-d">«Устройства» в условиях — лимит HWID пользователя; без лимита — это число.</div></div>
                 <input type="number" name="sess_nolim" min="1" max="50" value="<?= (int) sess_nolim() ?>">
@@ -682,6 +687,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Хранить аномалии, дней</div><div class="set-d">От 7 до 30. Закрытые остаются в журнале до этого срока.</div></div>
                 <input type="number" name="sess_anom_keep" min="7" max="30" value="<?= (int) sess_anom_keep_days() ?>">
+            </div>
             </div>
         </form>
         </div>
