@@ -174,6 +174,29 @@ if (($path === '/api/connections/drop' || $path === '/api/ip-control/drop-connec
     exit;
 }
 
+// Справочники: squads: [{"uuid": "…", "name": "…", "members": 3}], esquads — то же, hwid: {"enabled": true, "limit": 2}
+if ($path === '/api/internal-squads' || $path === '/api/external-squads') {
+    $out = [];
+    foreach ((array) ($state[$path === '/api/internal-squads' ? 'squads' : 'esquads'] ?? []) as $s) $out[] = ['uuid' => (string) ($s['uuid'] ?? ''), 'name' => (string) ($s['name'] ?? ''), 'info' => ['membersCount' => (int) ($s['members'] ?? 0)]];
+    mp_json(200, ['response' => [$path === '/api/internal-squads' ? 'internalSquads' : 'externalSquads' => $out]]);
+    exit;
+}
+if ($path === '/api/subscription-settings') {
+    $hw = is_array($state['hwid'] ?? null) ? ['enabled' => !empty($state['hwid']['enabled']), 'fallbackDeviceLimit' => (int) ($state['hwid']['limit'] ?? 0)] : null;
+    mp_json(200, ['response' => ['uuid' => 'sub-settings', 'hwidSettings' => $hw]]);
+    exit;
+}
+if ($path === '/api/config-profiles/inbounds') {
+    mp_json(200, ['response' => ['inbounds' => array_values((array) ($state['inbounds'] ?? []))]]);
+    exit;
+}
+if ($path === '/api/system/stats') {
+    $on = 0;
+    foreach ($nodes as $n) if (empty($n['off'])) $on++;
+    mp_json(200, ['response' => ['users' => ['statusCounts' => ['ACTIVE' => count($users), 'LIMITED' => 0, 'EXPIRED' => 0, 'DISABLED' => 0], 'totalUsers' => count($users)], 'onlineStats' => ['onlineNow' => 0, 'lastDay' => 0, 'lastWeek' => 0], 'nodes' => ['totalOnline' => $on]]]);
+    exit;
+}
+
 if ($path === '/api/system/metadata') {
     mp_json(200, ['response' => ['version' => (string) ($state['version'] ?? '2.8.1'), 'build' => ['time' => '2026-01-01T00:00:00Z', 'number' => '1'], 'git' => ['backend' => ['commitSha' => 'test', 'branch' => 'main', 'commitUrl' => '']]]]);
     exit;

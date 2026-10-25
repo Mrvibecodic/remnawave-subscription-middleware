@@ -209,32 +209,120 @@ function remnawave_hwid_all_devices(&$error = '') {
     return $all;
 }
 
-function remnawave_internal_squads(&$error = '') {
-    $error = '';
-    [$ok, $code, $data, $e] = remnawave_api_get('/api/internal-squads');
-    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return []; }
-    $resp = $data['response'] ?? $data;
-    $list = $resp['internalSquads'] ?? (is_array($resp) ? $resp : []);
+// Справочники панели (ноды, хосты, сквады, настройки подписки) — один общий снимок на всех:
+// кто сходил в панель первым, тот и обновил, остальные читают его, пока он не старше их maxAge.
+const PANEL_REF_RETRY = 30;
+
+function panel_ref_list($data, $key) {
+    $r = is_array($data) ? ($data['response'] ?? $data) : null;
+    if (!is_array($r)) return [];
+    if (isset($r[$key]) && is_array($r[$key])) return $r[$key];
+    return isset($r[0]) ? $r : [];
+}
+
+function panel_ref_pick(array $row, array $keys) {
     $out = [];
-    if (is_array($list)) foreach ($list as $s) {
-        if (!is_array($s) || empty($s['uuid'])) continue;
-        $out[] = ['uuid' => (string) $s['uuid'], 'name' => (string) ($s['name'] ?? $s['uuid']), 'members' => (int) ($s['info']['membersCount'] ?? 0)];
-    }
+    foreach ($keys as $k) if (array_key_exists($k, $row)) $out[$k] = $row[$k];
     return $out;
 }
 
-function remnawave_external_squads(&$error = '') {
-    $error = '';
-    [$ok, $code, $data, $e] = remnawave_api_get('/api/external-squads');
-    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return []; }
-    $resp = $data['response'] ?? $data;
-    $list = $resp['externalSquads'] ?? (is_array($resp) ? $resp : []);
-    $out = [];
-    if (is_array($list)) foreach ($list as $s) {
-        if (!is_array($s) || empty($s['uuid'])) continue;
-        $out[] = ['uuid' => (string) $s['uuid'], 'name' => (string) ($s['name'] ?? $s['uuid']), 'members' => (int) ($s['info']['membersCount'] ?? 0), 'hwid' => remnawave_hwid_settings_norm($s['hwidSettings'] ?? null)];
+function panel_ref_spec($name) {
+    switch ($name) {
+        case 'nodes':   return ['/api/nodes', static function ($d) {
+            $out = [];
+            foreach (panel_ref_list($d, 'nodes') as $n) if (is_array($n)) $out[] = panel_ref_pick($n, ['uuid', 'name', 'countryCode', 'address', 'isConnected', 'isNodeOnline', 'isDisabled', 'isConnecting']);
+            return $out;
+        }];
+        case 'hosts':   return ['/api/hosts', static function ($d) {
+            $out = [];
+            foreach (panel_ref_list($d, 'hosts') as $h) {
+                if (!is_array($h)) continue;
+                $row = panel_ref_pick($h, ['uuid', 'remark', 'address', 'port', 'isDisabled', 'securityLayer']);
+                $row['inbound'] = (string) ($h['inbound']['configProfileInboundUuid'] ?? '');
+                $row['nodes'] = [];
+                foreach ((array) ($h['nodes'] ?? []) as $ref) {
+                    $id = is_array($ref) ? (string) ($ref['uuid'] ?? $ref['nodeUuid'] ?? '') : (string) $ref;
+                    if ($id !== '') $row['nodes'][] = $id;
+                }
+                $out[] = $row;
+            }
+            return $out;
+        }];
+        case 'inbounds': return ['/api/config-profiles/inbounds', static function ($d) {
+            $out = [];
+            foreach (panel_ref_list($d, 'inbounds') as $in) if (is_array($in) && !empty($in['uuid'])) $out[] = panel_ref_pick($in, ['uuid', 'type', 'network', 'security']);
+            return $out;
+        }];
+        case 'isquads': return ['/api/internal-squads', static function ($d) {
+            $out = [];
+            foreach (panel_ref_list($d, 'internalSquads') as $s) {
+                if (!is_array($s) || empty($s['uuid'])) continue;
+                $out[] = ['uuid' => (string) $s['uuid'], 'name' => (string) ($s['name'] ?? $s['uuid']), 'members' => (int) ($s['info']['membersCount'] ?? 0)];
+            }
+            return $out;
+        }];
+        case 'esquads': return ['/api/external-squads', static function ($d) {
+            $out = [];
+            foreach (panel_ref_list($d, 'externalSquads') as $s) {
+                if (!is_array($s) || empty($s['uuid'])) continue;
+                $out[] = ['uuid' => (string) $s['uuid'], 'name' => (string) ($s['name'] ?? $s['uuid']), 'members' => (int) ($s['info']['membersCount'] ?? 0), 'hwid' => remnawave_hwid_settings_norm($s['hwidSettings'] ?? null)];
+            }
+            return $out;
+        }];
+        case 'subset':  return ['/api/subscription-settings', static function ($d) {
+            $r = is_array($d) ? ($d['response'] ?? $d) : null;
+            return ['hwid' => remnawave_hwid_settings_norm(is_array($r) ? ($r['hwidSettings'] ?? null) : null)];
+        }];
     }
-    return $out;
+    return null;
+}
+
+// maxAge 0 — всегда свежий ответ панели (и он же обновляет снимок для остальных).
+// При сбое панели: снимок есть и maxAge > 0 — отдаём его и PANEL_REF_RETRY с не ходим снова; иначе null.
+function panel_ref($name, $maxAge, &$error = '') {
+    $error = '';
+    $spec = panel_ref_spec($name);
+    if ($spec === null) return null;
+    $now = time();
+    $key = 'pref_' . $name;
+    $memo = &$GLOBALS['submw_pref_memo'];
+    if (!is_array($memo)) $memo = [];
+    $fresh = static function ($c) use ($now, $maxAge) { return $maxAge > 0 && is_array($c) && is_array($c['d'] ?? null) && $now - (int) ($c['ts'] ?? 0) <= $maxAge; };
+    $c = $memo[$name] ?? null;
+    if (!$fresh($c)) $c = json_decode((string) setting($key, ''), true);
+    $has = is_array($c) && is_array($c['d'] ?? null);
+    if ($fresh($c)) { $memo[$name] = $c; return $c['d']; }
+    if ($has && $maxAge > 0 && $now - (int) ($c['e'] ?? 0) < PANEL_REF_RETRY) { $memo[$name] = $c; $error = (string) ($c['em'] ?? 'панель недоступна'); return $c['d']; }
+    if (remnawave_url() === '' || remnawave_token() === '') { $error = 'Не заданы URL панели или API-токен'; return $has && $maxAge > 0 ? $c['d'] : null; }
+    [$ok, $code, $data, $e] = remnawave_api_get($spec[0]);
+    if (!$ok) {
+        $error = $e ?: ('HTTP ' . $code);
+        $c = $has ? $c : ['ts' => 0, 'd' => null];
+        $c['e'] = $now;
+        $c['em'] = $error;
+        $memo[$name] = $c;
+        set_setting($key, json_encode($c, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+        return $has && $maxAge > 0 ? $c['d'] : null;
+    }
+    $c = ['ts' => $now, 'd' => $spec[1]($data)];
+    $memo[$name] = $c;
+    set_setting($key, json_encode($c, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+    return $c['d'];
+}
+
+function panel_ref_ts($name) {
+    $c = $GLOBALS['submw_pref_memo'][$name] ?? json_decode((string) setting('pref_' . $name, ''), true);
+    return is_array($c) && is_array($c['d'] ?? null) ? (int) ($c['ts'] ?? 0) : 0;
+}
+
+function remnawave_internal_squads(&$error = '', $maxAge = 0) {
+    $out = panel_ref('isquads', $maxAge, $error);
+    return is_array($out) ? $out : [];
+}
+
+function remnawave_external_squads(&$error = '', $maxAge = 0) {
+    $out = panel_ref('esquads', $maxAge, $error);
+    return is_array($out) ? $out : [];
 }
 
 function remnawave_hwid_settings_norm($h) {
@@ -242,12 +330,9 @@ function remnawave_hwid_settings_norm($h) {
     return ['enabled' => (bool) $h['enabled'], 'limit' => isset($h['fallbackDeviceLimit']) ? (int) $h['fallbackDeviceLimit'] : null];
 }
 
-function remnawave_hwid_settings(&$error = '') {
-    $error = '';
-    [$ok, $code, $data, $e] = remnawave_api_get('/api/subscription-settings');
-    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return null; }
-    $resp = $data['response'] ?? $data;
-    return remnawave_hwid_settings_norm(is_array($resp) ? ($resp['hwidSettings'] ?? null) : null);
+function remnawave_hwid_settings(&$error = '', $maxAge = 0) {
+    $out = panel_ref('subset', $maxAge, $error);
+    return is_array($out) ? ($out['hwid'] ?? null) : null;
 }
 
 function remnawave_sub_templates(&$error = '') {
@@ -643,20 +728,17 @@ function remnawave_system_stats($maxAge = 45, &$error = '') {
     $no = $resp['nodes']['totalOnline'] ?? ($resp['nodesOnline'] ?? null);
     if ($no !== null) $out['nodes']['online'] = (int) $no;
     $out['ok'] = true;
-    [$nok, , $nd, ] = remnawave_api_get('/api/nodes');
-    if ($nok) {
-        $nr = $nd['response'] ?? $nd;
-        $list = is_array($nr) ? ($nr['nodes'] ?? (isset($nr[0]) ? $nr : [])) : [];
-        if (is_array($list) && $list) {
-            $out['nodes']['total'] = count($list);
-            $on = 0; $flag = false;
-            foreach ($list as $n) {
-                if (!is_array($n)) continue;
-                if (array_key_exists('isConnected', $n)) { $flag = true; if (!empty($n['isConnected'])) $on++; }
-                elseif (array_key_exists('isNodeOnline', $n)) { $flag = true; if (!empty($n['isNodeOnline'])) $on++; }
-            }
-            if ($flag) $out['nodes']['online'] = $on;
+    // Список нод — из общего снимка не старше собственного кэша блока (его освежает и опрос сессий).
+    $list = panel_ref('nodes', max(0, (int) $maxAge));
+    if (is_array($list) && $list) {
+        $out['nodes']['total'] = count($list);
+        $on = 0; $flag = false;
+        foreach ($list as $n) {
+            if (!is_array($n)) continue;
+            if (array_key_exists('isConnected', $n)) { $flag = true; if (!empty($n['isConnected'])) $on++; }
+            elseif (array_key_exists('isNodeOnline', $n)) { $flag = true; if (!empty($n['isNodeOnline'])) $on++; }
         }
+        if ($flag) $out['nodes']['online'] = $on;
     }
     set_setting('panelstats_json', json_encode($out, JSON_UNESCAPED_UNICODE));
     set_setting('panelstats_ts', (string) $now);
