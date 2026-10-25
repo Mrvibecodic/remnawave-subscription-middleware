@@ -507,7 +507,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                     <div class="rv-zhint" id="rvZhint">Нажмите на карту или держите Ctrl, чтобы приближать колёсиком</div>
                 </div>
                 <div class="rv-legend" id="rvLegend"></div>
-                <p class="muted" style="font-size:.78rem;margin:.4rem 0 0">Регион — по координатам адреса из базы DB-IP City Lite<?= !empty($rep_geo['city']['ok']) ? '' : ' (базы сейчас нет — точки появятся после её скачивания и новых отчётов)' ?>. У мобильных операторов адрес часто числится в точке выхода оператора (Москва, Санкт-Петербург, Новосибирск), а не там, где абонент.<?= $rv_mapd['cut'] ? ' Показана часть данных — сузьте период или фильтры.' : '' ?></p>
+                <p class="muted" style="font-size:.78rem;margin:.4rem 0 0">Регион — по базе городов<?= !empty($rep_geo['city']['ok']) ? '' : ' (базы сейчас нет — точки появятся после её скачивания и новых отчётов)' ?>. У мобильных операторов адрес часто числится в точке выхода оператора (Москва, Санкт-Петербург, Новосибирск), а не там, где абонент.<?= $rv_mapd['cut'] ? ' Показана часть данных — сузьте период или фильтры.' : '' ?></p>
             </div>
             <div class="rv-side" id="rvSide"></div>
         </div>
@@ -646,15 +646,19 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
                 <input type="number" name="rep_keep_days" min="7" max="365" value="<?= (int) rep_keep_days() ?>">
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Обновлять базы GeoIP сами</div><div class="set-d">Страна и города — DB-IP Lite раз в месяц, провайдер — база ниже раз в неделю. Выключите, если кладёте свои файлы.</div></div>
+                <div class="set-info"><div class="set-t">Обновлять базы GeoIP сами</div><div class="set-d">С зеркала ip-location-db — раз в неделю, DB-IP — раз в месяц. Выключите, если кладёте свои файлы.</div></div>
                 <label class="switch"><input type="checkbox" name="geoip_auto" <?= geoip_auto() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">База провайдеров (AS)</div><div class="set-d">origin-asn собрана из данных регистраторов и BGP, обновляется ежедневно, без регистрации и условий. DB-IP ASN Lite — раз в месяц, имена провайдеров беднее. Смена источника перекачивает базу.</div></div>
+                <div class="set-info"><div class="set-t">База стран и регионов</div><div class="set-d">GeoLite2 с зеркала ip-location-db точнее по регионам, обновляется дважды в неделю. DB-IP Lite — раз в месяц. Смена источника перекачивает базы.</div></div>
+                <select name="geoip_geo_src"><?php foreach (geoip_geo_srcs() as $gs_k => $gs_l): ?><option value="<?= h($gs_k) ?>" <?= geoip_geo_src() === $gs_k ? 'selected' : '' ?>><?= h($gs_l) ?></option><?php endforeach; ?></select>
+            </div>
+            <div class="set-row">
+                <div class="set-info"><div class="set-t">База провайдеров (AS)</div><div class="set-d">origin-asn собрана из данных регистраторов и BGP, обновляется ежедневно, без регистрации и условий. DB-IP ASN Lite — раз в месяц, имена провайдеров беднее.</div></div>
                 <select name="geoip_asn_src"><?php foreach (geoip_asn_srcs() as $gs_k => $gs_l): ?><option value="<?= h($gs_k) ?>" <?= geoip_asn_src() === $gs_k ? 'selected' : '' ?>><?= h($gs_l) ?></option><?php endforeach; ?></select>
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Регионы на карте</div><div class="set-d">База городов DB-IP City Lite: координаты адреса клиента. Около 60 МБ скачивания и 130 МБ на диске. Выключение удаляет файл.</div></div>
+                <div class="set-info"><div class="set-t">Регионы на карте</div><div class="set-d">База городов: регион и координаты адреса клиента. GeoLite2 — около 45 МБ, DB-IP — 60 МБ скачивания и 130 на диске. Выключение удаляет файлы.</div></div>
                 <label class="switch"><input type="checkbox" name="geoip_city" <?= geoip_city_on() ? 'checked' : '' ?>><span class="sl"></span></label>
             </div>
             </div>
@@ -663,14 +667,14 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             <tbody>
             <tr><td style="width:2.2rem"><?= (int) $rep_st['week'] > 0 ? '✅' : '—' ?></td>
                 <td>Устройств с отчётами: за сутки <b><?= (int) $rep_st['day'] ?></b>, за неделю <b><?= (int) $rep_st['week'] ?></b><?php if ((int) $rep_st['last'] > 0): ?> · последний отчёт <span class="ct-time" data-ts="<?= (int) $rep_st['last'] ?>"><?= h(date('Y-m-d H:i', (int) $rep_st['last'])) ?></span><?php endif; ?></td></tr>
-            <?php foreach (['country' => 'Страна', 'asn' => 'Автономная система (провайдер)', 'city' => 'Города и координаты (регионы на карте)'] as $gk => $gt): $g = $rep_geo[$gk]; if ($gk === 'city' && !geoip_city_on() && !$g['ok']) continue; ?>
+            <?php foreach (['country' => 'Страна', 'asn' => 'Автономная система (провайдер)', 'city' => 'Города и координаты (регионы на карте)', 'city6' => 'Города и координаты, IPv6'] as $gk => $gt): $g = $rep_geo[$gk]; if (($gk === 'city' && !geoip_city_on() && !$g['ok']) || ($gk === 'city6' && !(geoip_city_on() && geoip_geo_src() !== 'dbip') && !$g['ok'])) continue; ?>
             <tr><td><?= $g['ok'] ? '✅' : '⚠️' ?></td>
                 <td><?= h($gt) ?> — <?php if ($g['ok']): ?><code><?= h($g['type']) ?></code>, сборка <?= $g['built'] > 0 ? h(gmdate('Y-m-d', (int) $g['built'])) : '—' ?><?php else: ?>базы нет<?= is_file($g['path']) ? ', файл не читается' : '' ?><?php endif; ?>
                     <div class="muted" style="font-size:.78rem"><code><?= h($g['path']) ?></code></div></td></tr>
             <?php endforeach; ?>
             </tbody>
         </table>
-        <p class="muted" style="font-size:.8rem;margin-top:.6rem">Без баз отчёты всё равно принимаются, но страна, провайдер и регион у этих записей останутся пустыми. Свои файлы MaxMind DB (например, GeoLite2-Country, GeoLite2-ASN и GeoLite2-City) кладите по путям выше под теми же именами. Страна и города — <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a>, лицензия CC BY 4.0; провайдеры — <a href="https://github.com/sapics/ip-location-db" target="_blank" rel="noopener">origin-asn из ip-location-db</a>, PDDL.</p>
+        <p class="muted" style="font-size:.8rem;margin-top:.6rem">Без баз отчёты всё равно принимаются, но страна, провайдер и регион у этих записей останутся пустыми. Свои файлы MaxMind DB (например, GeoLite2-Country, GeoLite2-ASN и GeoLite2-City) кладите по путям выше под теми же именами. Базы по умолчанию — с зеркала <a href="https://github.com/sapics/ip-location-db" target="_blank" rel="noopener">ip-location-db</a>: страна и города — GeoLite2 (данные <a href="https://www.maxmind.com" target="_blank" rel="noopener">MaxMind</a>), провайдеры — origin-asn (PDDL); запасной источник — <a href="https://db-ip.com" target="_blank" rel="noopener">IP Geolocation by DB-IP</a>, CC BY 4.0.</p>
         <form method="post" style="margin-top:.6rem">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="clod_geoip_update">
