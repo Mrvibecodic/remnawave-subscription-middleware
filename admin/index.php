@@ -331,33 +331,39 @@ if (!is_auth()) {
         html[data-theme=light]{color-scheme:light}
         html[data-theme=dark],html[data-theme=black]{color-scheme:dark}
         .lg{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:max(24px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:radial-gradient(120% 80% at 50% 0%,var(--accent-light),transparent 60%),var(--bg)}
-        .lg-card{width:min(380px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:1.6rem 1.4rem 1.3rem}
-        .lg-logo{width:48px;height:48px;border-radius:14px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;margin-bottom:1rem}
-        .lg-card h1{font-size:1.25rem;margin:0;color:var(--text-strong);font-weight:700}
-        .lg-sub{margin:.25rem 0 .6rem;color:var(--muted);font-size:.88rem}
-        .lg-card label{margin:.9rem 0 .35rem}
-        .lg-card input[type=text],.lg-card input[type=password]{min-height:46px;font-size:16px}
-        .lg-pw{position:relative}
+        .lg-card{width:min(360px,100%);background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:1.35rem 1.35rem 1.35rem}
+        .lg-card h1{font-size:1.25rem;margin:0 0 1rem;text-align:center;color:var(--text-strong);font-weight:700;letter-spacing:-.01em}
+        .lg-fields{display:flex;flex-direction:column;gap:.6rem}
+        .lg-f{position:relative;display:block}
+        .lg-f label{position:absolute;left:0;top:0;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+        .lg-f input{display:block;width:100%;margin:0;min-height:46px;font-size:16px;padding-left:42px;border-radius:11px}
+        .lg-f input::placeholder{color:var(--muted);opacity:.9}
+        .lg-f>svg{position:absolute;left:14px;top:50%;width:18px;height:18px;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+        .lg-f input:focus~svg{color:var(--accent-text)}
         .lg-pw input{padding-right:48px}
-        .lg-eye{position:absolute;top:0;right:0;width:46px;height:46px;padding:0;display:flex;align-items:center;justify-content:center;background:none;border:0;border-radius:var(--radius);color:var(--muted);min-height:0}
+        .lg-eye{position:absolute;top:0;right:0;width:46px;height:46px;padding:0;display:flex;align-items:center;justify-content:center;background:none;border:0;border-radius:11px;color:var(--muted);min-height:0}
         .lg-eye:hover,.lg-eye:active{background:none;color:var(--text-strong);filter:none;transform:none}
         .lg-eye[aria-pressed=true]{color:var(--accent-text)}
-        .lg-go{width:100%;min-height:46px;margin-top:1.3rem;font-size:.95rem;border-radius:10px}
+        .lg-go{width:100%;min-height:46px;margin-top:.9rem;font-size:.95rem;font-weight:700;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:.5rem}
+        .lg-go svg{width:17px;height:17px;transition:transform .16s}
+        .lg-go:hover svg{transform:translateX(2px)}
         .lg-go:disabled{opacity:.6;cursor:default}
-        .lg-err{color:var(--c-bad-fg);font-size:.86rem;margin-top:.8rem;min-height:1.2rem}
-        .lg-ok{background:var(--c-ok-bg);color:var(--c-ok-fg);border-radius:10px;padding:.55rem .75rem;font-size:.86rem;margin:.4rem 0 .2rem}
+        .lg-err{display:flex;align-items:center;gap:.5rem;margin-top:.75rem;padding:.55rem .75rem;border-radius:10px;background:var(--c-bad-bg);color:var(--c-bad-fg);font-size:.86rem;font-weight:500}
+        .lg-err:empty{display:none}
+        .lg-err svg{flex:none;width:16px;height:16px}
+        .lg-ok{display:flex;align-items:center;gap:.5rem;background:var(--c-ok-bg);color:var(--c-ok-fg);border-radius:10px;padding:.55rem .75rem;font-size:.86rem;font-weight:500;margin:0 0 .75rem}
+        .lg-ok svg{flex:none;width:16px;height:16px}
     </style></head><body class="lg">
     <form class="lg-card" method="post">
-        <div class="lg-logo"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z"/></svg></div>
-        <h1>Вход в админку</h1>
-        <p class="lg-sub">Прослойка подписки</p>
-        <?php if ($just_installed): ?><div class="lg-ok">Установка завершена. Войдите.</div><?php endif; ?>
-        <label for="username">Логин</label><input id="username" name="user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" value="<?= h(is_string($_POST['user'] ?? null) ? $_POST['user'] : '') ?>" required autofocus>
+        <h1>Вход</h1>
+        <?php if ($just_installed): ?><div class="lg-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Установка завершена. Войдите.</div><?php endif; ?>
         <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-        <label for="password">Пароль</label>
-        <div class="lg-pw"><input id="password" name="pass" type="password" autocomplete="current-password" enterkeyhint="go" required><button type="button" class="lg-eye" aria-label="Показать пароль" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
-        <button type="submit" class="lg-go">Войти</button>
-        <div class="lg-err" role="alert"><?= h($err) ?></div>
+        <div class="lg-fields">
+        <div class="lg-f"><label for="username">Логин</label><input id="username" name="user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="Логин" value="<?= h(is_string($_POST['user'] ?? null) ? $_POST['user'] : '') ?>" required autofocus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div>
+        <div class="lg-f lg-pw"><label for="password">Пароль</label><input id="password" name="pass" type="password" autocomplete="current-password" enterkeyhint="go" placeholder="Пароль" required><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><button type="button" class="lg-eye" aria-label="Показать пароль" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+        </div>
+        <button type="submit" class="lg-go">Войти<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <div class="lg-err" role="alert"><?php if ($err !== ''): ?><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><?= h($err) ?><?php endif; ?></div>
     </form>
     <script>
     (function(){
