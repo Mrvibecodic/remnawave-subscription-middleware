@@ -925,6 +925,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('geoip_city', isset($_POST['geoip_city']) ? '1' : '0');
         if (!isset($_POST['geoip_city'])) geoip_city_drop();
         elseif (!is_file(geoip_files()['city'])) set_setting('geoip_try', '0');
+        $asn_src = (string) ($_POST['geoip_asn_src'] ?? geoip_asn_src());
+        if (isset(geoip_asn_srcs()[$asn_src]) && $asn_src !== geoip_asn_src()) {
+            set_setting('geoip_asn_src', $asn_src);
+            set_setting('geoip_try', '0');
+            register_shutdown_function('geoip_update_after_response');
+        }
         flash(isset($_POST['rep_enabled']) ? 'Приём отчётов клиентов включён' : 'Приём отчётов клиентов выключен');
         if (isset($_POST['rep_enabled'])) register_shutdown_function('geoip_update_after_response');
         form_saved('reports');
