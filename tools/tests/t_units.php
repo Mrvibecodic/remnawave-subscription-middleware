@@ -89,7 +89,16 @@ t_ok('vless → xray: протокол и адрес', is_array($x) && ($x['prot
 t_eq('geoip: по умолчанию AS из origin-asn', geoip_asn_src(), 'origin');
 $src = geoip_sources('asn');
 t_ok('geoip: сначала origin-asn без gz, затем два месяца DB-IP в gz', count($src) === 3 && strpos($src[0][0], 'origin-asn.mmdb') !== false && $src[0][1] === false && strpos($src[1][0], 'db-ip.com') !== false && $src[1][1] === true && $src[2][1] === true);
-t_ok('geoip: страна — только DB-IP', count(geoip_sources('country')) === 2 && strpos(geoip_sources('country')[0][0], 'dbip-country-lite') !== false);
+t_ok('geoip: страна и города — GeoLite2 с зеркала, затем DB-IP', count(geoip_sources('country')) === 3 && strpos(geoip_sources('country')[0][0], 'geolite2-country.mmdb') !== false && strpos(geoip_sources('city')[0][0], 'geolite2-city-ipv4.mmdb') !== false && count(geoip_sources('city6')) === 1 && strpos(geoip_sources('city6')[0][0], 'geolite2-city-ipv6.mmdb') !== false);
+t_settings(['geoip_city' => '1']);
+unset($GLOBALS['submw_settings_cache']);
+t_eq('geoip: с зеркалом города нужны двумя файлами', array_keys(geoip_wanted()), ['country', 'asn', 'city', 'city6']);
+t_settings(['geoip_geo_src' => 'dbip']);
+unset($GLOBALS['submw_settings_cache']);
+t_ok('geoip: выбран DB-IP — страна только от него, второго файла городов нет', count(geoip_sources('country')) === 2 && array_keys(geoip_wanted()) === ['country', 'asn', 'city']);
+t_settings(['geoip_geo_src' => 'geolite2']);
+unset($GLOBALS['submw_settings_cache']);
+t_eq('geoip: плоская схема зеркала и вложенная MaxMind читаются одинаково', [geoip_cc(['country_code' => 'RU']), geoip_cc(['country' => ['iso_code' => 'DE']]), geoip_sub(['state1' => 'Moscow']), geoip_sub(['subdivisions' => [['names' => ['en' => 'Tver']]]]), geoip_loc(['latitude' => 55.75, 'longitude' => 37.62]), geoip_loc(['location' => ['latitude' => 55.75, 'longitude' => 37.62]])], ['RU', 'DE', 'Moscow', 'Tver', '55.75,37.62', '55.75,37.62']);
 t_settings(['geoip_asn_src' => 'dbip']);
 unset($GLOBALS['submw_settings_cache']);
 t_ok('geoip: выбран DB-IP — origin-asn не пробуется', count(geoip_sources('asn')) === 2 && strpos(geoip_sources('asn')[0][0], 'dbip-asn-lite') !== false);

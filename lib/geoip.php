@@ -1,10 +1,11 @@
 <?php
 
-// Страна и автономная система по IP для отчётов и сессий. Базы — файлы MaxMind DB
-// (.mmdb): страна и города — бесплатные DB-IP Lite (CC BY 4.0) раз в месяц; AS —
-// по умолчанию origin-asn из ip-location-db (PDDL, собрана из RIR/BGP, обновляется
-// ежедневно, качается раз в неделю), по выбору — DB-IP ASN Lite. Вместо них можно
-// положить свои файлы, например GeoLite2. Читатель формата свой, без composer.
+// Страна, регион и автономная система по IP для отчётов и сессий. Базы — файлы MaxMind DB
+// (.mmdb) с зеркала ip-location-db: страна и города — GeoLite2 (дважды в неделю, города
+// двумя файлами: IPv4 и IPv6), AS — origin-asn (PDDL, из RIR/BGP, ежедневно); качаются раз
+// в неделю. По выбору и как запасной источник — DB-IP Lite раз в месяц. У зеркала схема
+// плоская (country_code, state1, latitude), у DB-IP/MaxMind — вложенная; читаются обе.
+// Читатель формата свой, без composer.
 
 const GEOIP_MAX_DEPTH = 32;
 const GEOIP_MAX_ITEMS = 20000;
@@ -243,10 +244,12 @@ final class SubmwMmdb
 function geoip_dir() { return dirname(default_db_path()) . '/geoip'; }
 
 function geoip_files() {
-    return ['country' => geoip_dir() . '/country.mmdb', 'asn' => geoip_dir() . '/asn.mmdb', 'city' => geoip_dir() . '/city.mmdb'];
+    return ['country' => geoip_dir() . '/country.mmdb', 'asn' => geoip_dir() . '/asn.mmdb', 'city' => geoip_dir() . '/city.mmdb', 'city6' => geoip_dir() . '/city6.mmdb'];
 }
 
 function geoip_auto() { return setting('geoip_auto', '1') === '1'; }
+
+const GEOIP_MIRROR = 'https://github.com/sapics/ip-location-db/releases/download/latest/';
 
 function geoip_asn_srcs() { return ['origin' => 'origin-asn (ip-location-db)', 'dbip' => 'DB-IP ASN Lite']; }
 
@@ -255,24 +258,50 @@ function geoip_asn_src() {
     return isset(geoip_asn_srcs()[$v]) ? $v : 'origin';
 }
 
-// Откуда скачан текущий asn.mmdb — чтобы смена источника перекачала базу, не дожидаясь срока.
-function geoip_asn_have() { return (string) setting('geoip_asn_have', ''); }
+function geoip_geo_srcs() { return ['geolite2' => 'GeoLite2 (ip-location-db)', 'dbip' => 'DB-IP Lite']; }
 
-// Кандидаты на скачивание по порядку: [url, gz]. У origin-asn чексум на зеркале отстаёт от
-// файла на сутки, поэтому целостность проверяется чтением базы и контрольным поиском.
+function geoip_geo_src() {
+    $v = (string) setting('geoip_geo_src', 'geolite2');
+    return isset(geoip_geo_srcs()[$v]) ? $v : 'geolite2';
+}
+
+function geoip_src_of($which) { return $which === 'asn' ? geoip_asn_src() : geoip_geo_src(); }
+
+// Откуда скачан каждый файл — чтобы смена источника перекачала базу, не дожидаясь срока.
+function geoip_have() {
+    $v = json_decode((string) setting('geoip_have', ''), true);
+    $out = is_array($v) ? $v : [];
+    $asn = (string) setting('geoip_asn_have', '');
+    if ($asn !== '' && !isset($out['asn'])) $out['asn'] = $asn;
+    return $out;
+}
+
+function geoip_have_set($which, $src) {
+    $h = geoip_have();
+    $h[$which] = $src;
+    set_setting('geoip_have', json_encode($h));
+}
+
+// Кандидаты на скачивание по порядку: [url, gz]. Чексум на зеркале отстаёт от файла на сутки,
+// поэтому целостность проверяется чтением базы и контрольным поиском.
 function geoip_sources($which) {
     $dbip = [];
-    foreach ([gmdate('Y-m'), gmdate('Y-m', strtotime('first day of last month'))] as $month) $dbip[] = [geoip_dbip_url($which, $month), true];
-    if ($which === 'asn' && geoip_asn_src() === 'origin') {
-        return array_merge([['https://github.com/sapics/ip-location-db/releases/download/latest/origin-asn.mmdb', false]], $dbip);
+    if ($which !== 'city6') {
+        foreach ([gmdate('Y-m'), gmdate('Y-m', strtotime('first day of last month'))] as $month) $dbip[] = [geoip_dbip_url($which, $month), true];
     }
+    $mirror = ['asn' => 'origin-asn.mmdb', 'country' => 'geolite2-country.mmdb', 'city' => 'geolite2-city-ipv4.mmdb', 'city6' => 'geolite2-city-ipv6.mmdb'];
+    if (isset($mirror[$which]) && geoip_src_of($which) !== 'dbip') return array_merge([[GEOIP_MIRROR . $mirror[$which], false]], $dbip);
     return $dbip;
 }
 
-// База AS обязана знать AS15169 Google: пустой или битый файл — не замена рабочему.
-function geoip_asn_sane(SubmwMmdb $db) {
-    try { $rec = $db->get('8.8.8.8'); } catch (Throwable $e) { return false; }
-    return is_array($rec) && (int) ($rec['autonomous_system_number'] ?? 0) === 15169;
+// Контрольный адрес Google: база AS обязана дать AS15169, страны и города — US.
+// Пустой или битый файл — не замена рабочему.
+function geoip_sane(SubmwMmdb $db, $which) {
+    $ip = $which === 'city6' ? '2001:4860:4860::8888' : '8.8.8.8';
+    try { $rec = $db->get($ip); } catch (Throwable $e) { return false; }
+    if (!is_array($rec)) return false;
+    if ($which === 'asn') return (int) ($rec['autonomous_system_number'] ?? 0) === 15169;
+    return geoip_cc($rec) === 'US';
 }
 
 function geoip_city_on() { return setting('geoip_city', '1') === '1'; }
@@ -294,21 +323,32 @@ function geoip_city_live() {
 
 function geoip_wanted() {
     $w = ['country' => 'country', 'asn' => 'asn'];
-    if (geoip_city_on()) $w['city'] = 'city';
+    if (geoip_city_on()) {
+        $w['city'] = 'city';
+        if (geoip_geo_src() !== 'dbip') $w['city6'] = 'city6';
+    }
 
     return $w;
 }
 
-function geoip_city_drop() {
-    foreach ([geoip_files()['city'], geoip_dir() . '/.city.part', geoip_dir() . '/.city.part.gz'] as $f) {
-        if (is_file($f)) @unlink($f);
-    }
+function geoip_city_drop($only6 = false) {
+    $f = geoip_files();
+    $list = [$f['city6'], geoip_dir() . '/.city6.part'];
+    if (!$only6) $list = array_merge($list, [$f['city'], geoip_dir() . '/.city.part', geoip_dir() . '/.city.part.gz']);
+    foreach ($list as $x) if (is_file($x)) @unlink($x);
+}
+
+function geoip_cc($rec) {
+    if (!is_array($rec)) return '';
+    $cc = $rec['country']['iso_code'] ?? ($rec['registered_country']['iso_code'] ?? ($rec['country_code'] ?? ''));
+    return is_string($cc) && preg_match('~^[A-Z]{2}$~', $cc) ? $cc : '';
 }
 
 function geoip_loc($rec) {
-    if (!is_array($rec) || !is_array($rec['location'] ?? null)) return '';
-    $la = $rec['location']['latitude'] ?? null;
-    $lo = $rec['location']['longitude'] ?? null;
+    if (!is_array($rec)) return '';
+    $src = is_array($rec['location'] ?? null) ? $rec['location'] : $rec;
+    $la = $src['latitude'] ?? null;
+    $lo = $src['longitude'] ?? null;
     if (!is_numeric($la) || !is_numeric($lo)) return '';
     $la = (float) $la;
     $lo = (float) $lo;
@@ -318,7 +358,7 @@ function geoip_loc($rec) {
 }
 
 function geoip_sub($rec) {
-    $n = is_array($rec) ? ($rec['subdivisions'][0]['names']['en'] ?? '') : '';
+    $n = is_array($rec) ? ($rec['subdivisions'][0]['names']['en'] ?? ($rec['state1'] ?? '')) : '';
     if (!is_string($n)) return '';
     $n = trim(preg_replace('~[\x00-\x1F\x7F]~', '', $n));
 
@@ -346,16 +386,15 @@ function geoip_lookup($ip) {
     $out = ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => ''];
     foreach (['country', 'asn', 'city'] as $which) {
         if ($which === 'city' && !geoip_city_on()) continue;
+        // Города с зеркала лежат двумя файлами: IPv6 — отдельно.
+        if ($which === 'city' && strpos($ip, ':') !== false && geoip_reader('city6') !== null) $which = 'city6';
         $r = geoip_reader($which);
         if ($r === null) continue;
         try { $rec = $r->get($ip); } catch (Throwable $e) { $rec = null; }
         if (!is_array($rec)) continue;
         if ($out['loc'] === '') $out['loc'] = geoip_loc($rec);
         if ($out['sub'] === '') $out['sub'] = geoip_sub($rec);
-        if ($out['cc'] === '') {
-            $cc = $rec['country']['iso_code'] ?? ($rec['registered_country']['iso_code'] ?? '');
-            if (is_string($cc) && preg_match('~^[A-Z]{2}$~', $cc)) $out['cc'] = $cc;
-        }
+        if ($out['cc'] === '') $out['cc'] = geoip_cc($rec);
         if ($out['asn'] === 0) {
             $asn = $rec['autonomous_system_number'] ?? 0;
             if (is_int($asn) && $asn > 0) {
@@ -419,17 +458,20 @@ function geoip_update(&$err = '', $only = null) {
             try {
                 $probe = new SubmwMmdb($tmp);
                 $kind  = strtolower($probe->type());
-                $sane  = $which !== 'asn' || geoip_asn_sane($probe);
+                $sane  = geoip_sane($probe, $which);
                 unset($probe);
             } catch (Throwable $t) { $kind = ''; $sane = false; $last = 'скачанный файл не читается: ' . $t->getMessage(); }
-            if ($kind === '' || strpos($kind, $which) === false || !$sane) {
+            if ($kind === '' || strpos($kind, $which === 'city6' ? 'city' : $which) === false || !$sane) {
                 @unlink($tmp);
                 if ($kind !== '') $last = $sane ? 'скачан не тот файл: ' . $kind : 'база ' . basename($url) . ' не отвечает на контрольный адрес';
                 continue;
             }
-            if ($which === 'city' && !geoip_city_live()) { @unlink($tmp); break; }
+            if (($which === 'city' || $which === 'city6') && !geoip_city_live()) { @unlink($tmp); break; }
             if (!@rename($tmp, geoip_files()[$which])) { @unlink($tmp); $last = 'не заменяется файл базы'; continue; }
-            if ($which === 'asn') set_setting('geoip_asn_have', strpos($url, 'db-ip.com') !== false ? 'dbip' : 'origin');
+            $from = strpos($url, 'db-ip.com') !== false ? 'dbip' : ($which === 'asn' ? 'origin' : 'geolite2');
+            geoip_have_set($which, $from);
+            // Города DB-IP — один файл на оба семейства: отдельный IPv6-файл от зеркала больше не нужен.
+            if ($which === 'city' && $from === 'dbip') geoip_city_drop(true);
             $done[$which] = true;
             $last = '';
             break;
@@ -496,7 +538,7 @@ function geoip_fetch($url, $dest, $gz = true, &$err = '') {
     return true;
 }
 
-// Страна и города — раз в 35 дней, AS из origin-asn — раз в 7; попытка не чаще раза в 6 часов. Зовётся после ответа клиенту.
+// С зеркала — раз в 7 дней, DB-IP — раз в 35; попытка не чаще раза в 6 часов. Зовётся после ответа клиенту.
 // Скачивание баз после отдачи страницы: под php-fpm ответ завершается, под
 // mod_php буферы выталкиваются — страница у человека уже есть, а соединение
 // живёт, пока базы качаются; уход со страницы скачивание не обрывает.
@@ -518,10 +560,11 @@ function geoip_maybe_update() {
     $now = time();
     if ($now - (int) setting('geoip_try', '0') < 6 * 3600) return;
     $need = [];
+    $have = geoip_have();
     foreach (geoip_wanted() as $which => $remote) {
         $f = geoip_files()[$which];
-        $max = ($which === 'asn' && geoip_asn_src() === 'origin') ? 7 * 86400 : 35 * 86400;
-        if (!is_file($f) || $now - (int) @filemtime($f) >= $max || ($which === 'asn' && geoip_asn_have() !== '' && geoip_asn_have() !== geoip_asn_src())) $need[] = $which;
+        $max = geoip_src_of($which) === 'dbip' ? 35 * 86400 : 7 * 86400;
+        if (!is_file($f) || $now - (int) @filemtime($f) >= $max || (isset($have[$which]) && $have[$which] !== geoip_src_of($which))) $need[] = $which;
     }
     if (!$need) return;
     $err = '';
