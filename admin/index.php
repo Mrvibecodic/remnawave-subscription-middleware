@@ -966,13 +966,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         $ev = (int) ($_POST['sess_every'] ?? 120);
         set_setting('sess_every', (string) (in_array($ev, sess_every_opts(), true) ? $ev : 120));
         set_setting('sess_keep_days', (string) max(7, min(365, (int) ($_POST['sess_keep_days'] ?? 30))));
-        set_setting('sess_nolim', (string) max(1, min(50, (int) ($_POST['sess_nolim'] ?? 3))));
-        set_setting('sess_asn_extra', (string) max(0, min(20, (int) ($_POST['sess_asn_extra'] ?? 1))));
-        set_setting('sess_ip_per', (string) max(1, min(10, (int) ($_POST['sess_ip_per'] ?? 1))));
         set_setting('sess_win_days', (string) max(1, min(30, (int) ($_POST['sess_win_days'] ?? 1))));
         if (sess_enabled()) sess_ensure();
         flash(sess_enabled() ? ($was ? 'Настройки сессий сохранены' : 'Сбор сессий включён — планировщик начнёт опрашивать ноды') : 'Сбор сессий выключен — история остаётся');
         if (sess_enabled() && !$was) register_shutdown_function('geoip_update_after_response');
+        form_saved('users');
+    }
+
+    if ($action === 'save_anom' && function_exists('sess_anom_save')) {
+        set_setting('sess_nolim', (string) max(1, min(50, (int) ($_POST['sess_nolim'] ?? 3))));
+        set_setting('sess_anom_keep', (string) max(7, min(30, (int) ($_POST['sess_anom_keep'] ?? 30))));
+        $anBefore = json_encode(sess_anom_rules());
+        $rules = sess_anom_save(json_decode((string) ($_POST['sess_anom'] ?? '[]'), true));
+        // Схема изменилась — открытые события пересчитываются по последнему снимку сразу, не дожидаясь опроса.
+        if (sess_enabled() && json_encode($rules) !== $anBefore) sess_anom_recalc();
+        flash($rules ? 'Схема аномалий сохранена' : 'Схема пуста — аномалии не отслеживаются');
         form_saved('users');
     }
 

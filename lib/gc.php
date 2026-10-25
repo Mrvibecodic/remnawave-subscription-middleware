@@ -18,6 +18,7 @@ function gc_tables() {
         'rep_sub_node'   => ['title' => 'Отчёты: узлы подписок',     'pk' => 'id', 'col' => 'last_seen', 'kind' => 'epoch'],
         'rep_raw'        => ['title' => 'Отчёты: сырые отчёты клиентов', 'pk' => 'id', 'col' => 'ts',    'kind' => 'epoch'],
         'conn_sess'      => ['title' => 'Сессии подключений',          'pk' => 'id', 'col' => 'last_ts', 'kind' => 'epoch'],
+        'sess_anom'      => ['title' => 'Журнал аномалий сессий',      'pk' => 'id', 'col' => 'last_ts', 'kind' => 'epoch'],
         'api_stat_hour'  => ['title' => 'Запросы к панели по часам',   'pk' => 'h',  'col' => 'h',       'kind' => 'epoch'],
     ];
 }

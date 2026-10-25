@@ -383,6 +383,52 @@ function set_setting($key, $value) {
     return $ok;
 }
 
+// Кэш админки и планировщика — отдельная таблица, не settings: settings целиком читаются на каждом запросе подписки.
+function admin_cache_ensure($p) {
+    static $done = false;
+    if ($done) return true;
+    try {
+        if (db_driver() === 'mysql') {
+            $p->exec("CREATE TABLE IF NOT EXISTS admin_cache (
+                k VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                v LONGTEXT NOT NULL,
+                ts INT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (k)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        } else {
+            $p->exec("CREATE TABLE IF NOT EXISTS admin_cache (k TEXT NOT NULL PRIMARY KEY, v TEXT NOT NULL, ts INTEGER NOT NULL DEFAULT 0)");
+        }
+        return $done = true;
+    } catch (Throwable $e) { error_log('submw admin_cache ensure: ' . $e->getMessage()); return false; }
+}
+
+function admin_cache_get($key, $maxAge) {
+    if (!($p = db()) || !admin_cache_ensure($p)) return null;
+    try {
+        $st = $p->prepare('SELECT v, ts FROM admin_cache WHERE k = ?');
+        $st->execute([$key]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        $st->closeCursor();
+        if (!$row || time() - (int) $row['ts'] >= $maxAge) return null;
+        $d = json_decode((string) $row['v'], true);
+        return is_array($d) ? $d : null;
+    } catch (Throwable $e) { return null; }
+}
+
+function admin_cache_put($key, array $data) {
+    if (!($p = db()) || !admin_cache_ensure($p)) return false;
+    $v = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($v === false) return false;
+    try {
+        if (db_driver() === 'mysql') {
+            $st = $p->prepare('INSERT INTO admin_cache (k, v, ts) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v), ts = VALUES(ts)');
+        } else {
+            $st = $p->prepare('INSERT INTO admin_cache (k, v, ts) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, ts = excluded.ts');
+        }
+        return $st->execute([$key, $v, time()]);
+    } catch (Throwable $e) { error_log('submw admin_cache put: ' . $e->getMessage()); return false; }
+}
+
 function db_has_cols($p, $table, array $cols) {
     try { $p->query('SELECT ' . implode(', ', $cols) . ' FROM ' . $table . ' LIMIT 1'); return true; }
     catch (Throwable $e) { return false; }

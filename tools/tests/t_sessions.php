@@ -143,9 +143,9 @@ t_ok('ajax sess_user: история и метрики', $c === 200 && !empty($j
 $j = json_decode($b, true);
 t_ok('ajax sess_live: ноды с адресами', $c === 200 && !empty($j['ok']) && count($j['nodes']) === 1 && $j['nodes'][0]['ips'][0]['ip'] === '1.2.3.5');
 preg_match('~name="csrf" value="([0-9a-f]+)"~', $page, $cm);
-[$c, , $b] = t_http('POST', $mw . '/admin/index.php', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $cm[1], 'action' => 'save_sess', 'sess_enabled' => '1', 'sess_every' => '300', 'sess_keep_days' => '3', 'sess_nolim' => '5', 'sess_asn_extra' => '2', 'sess_ip_per' => '0', 'xhr' => '1']), $jar);
+[$c, , $b] = t_http('POST', $mw . '/admin/index.php', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $cm[1], 'action' => 'save_sess', 'sess_enabled' => '1', 'sess_every' => '300', 'sess_keep_days' => '3', 'sess_win_days' => '99', 'xhr' => '1']), $jar);
 unset($GLOBALS['submw_settings_cache']);
-t_ok('настройки сохраняются с проверкой границ', $c === 200 && sess_every() === 300 && sess_keep_days() === 7 && sess_nolim() === 5 && sess_asn_extra() === 2 && sess_ip_per() === 1, $b);
+t_ok('настройки сохраняются с проверкой границ', $c === 200 && sess_every() === 300 && sess_keep_days() === 7 && sess_win_days() === 30, $b);
 [$c, , $b] = t_http('POST', $mw . '/admin/index.php', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $cm[1], 'action' => 'save_sess', 'sess_every' => '999', 'sess_keep_days' => '30', 'sess_nolim' => '3', 'sess_asn_extra' => '1', 'xhr' => '1']), $jar);
 unset($GLOBALS['submw_settings_cache']);
 t_ok('выключение сбора: история остаётся, интервал вне списка — по умолчанию', !sess_enabled() && sess_every() === 120 && $count() > 0);
