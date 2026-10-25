@@ -37,6 +37,8 @@ if (!is_array($payload)) {
     echo 'Bad JSON';
     exit();
 }
+// Отметка «вебхуки реально приходят» — по ней слияние подписок доверяет сбросу кэша по событию.
+if (time() - (int) setting('webhook_seen_ts', '0') > 300) set_setting('webhook_seen_ts', (string) time());
 
 $ts_raw = (isset($payload['timestamp']) && is_scalar($payload['timestamp']) && (string) $payload['timestamp'] !== '')
     ? (string) $payload['timestamp']

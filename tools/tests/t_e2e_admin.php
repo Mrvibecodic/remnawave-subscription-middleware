@@ -116,6 +116,8 @@ $tt_pdo->prepare('INSERT INTO addsub_cache (main_short, add_url, ts) VALUES (?, 
 file_put_contents($state, json_encode(['users' => ['AbCdEfGhIjKlMnOp' => ['status' => 'ACTIVE', 'username' => 'user0'], 'SecondUser000001' => ['status' => 'ACTIVE', 'username' => 'user0_addsub']]]));
 t_eq('вебхук о второй учётке принят', $whPost(['event' => 'user.created', 'timestamp' => gmdate('c'), 'data' => ['uuid' => '00000000-0000-4000-8000-000000000001', 'id' => 2, 'shortUuid' => 'SecondUser000001', 'username' => 'user0_addsub', 'status' => 'ACTIVE']]), 200);
 t_eq('отрицательная запись основной учётки стёрта', (int) $tt_pdo->query("SELECT COUNT(*) FROM addsub_cache WHERE main_short = 'AbCdEfGhIjKlMnOp'")->fetchColumn(), 0);
+unset($GLOBALS['submw_settings_cache']);
+t_ok('принятый вебхук отмечен как живой', time() - (int) setting('webhook_seen_ts', '0') < 60);
 t_settings(['addsub_enabled' => '0']);
 
 t_done();
