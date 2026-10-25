@@ -3,24 +3,7 @@
 // Свежий список — при открытии страницы и по кнопке; тики автообновления живут кэшем до 5 минут.
 function reqlog_users_ttl($fresh = true) { return $fresh ? 20 : 300; }
 
-// Отдельная таблица, не settings: settings целиком читаются на каждом запросе подписки.
-function reqlog_users_ensure($p) {
-    static $done = false;
-    if ($done) return true;
-    try {
-        if (db_driver() === 'mysql') {
-            $p->exec("CREATE TABLE IF NOT EXISTS admin_cache (
-                k VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-                v LONGTEXT NOT NULL,
-                ts INT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (k)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        } else {
-            $p->exec("CREATE TABLE IF NOT EXISTS admin_cache (k TEXT NOT NULL PRIMARY KEY, v TEXT NOT NULL, ts INTEGER NOT NULL DEFAULT 0)");
-        }
-        return $done = true;
-    } catch (Throwable $e) { error_log('submw admin_cache ensure: ' . $e->getMessage()); return false; }
-}
+function reqlog_users_ensure($p) { return admin_cache_ensure($p); }
 
 function reqlog_users($fresh = true) {
     $now = time();

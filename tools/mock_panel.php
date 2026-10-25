@@ -36,6 +36,8 @@ function mp_user(string $short, array $u, int $i): array
         'expireAt'  => gmdate('Y-m-d\TH:i:s.000\Z', time() + 30 * 86400),
         'activeInternalSquads' => [],
     ];
+    // hw: лимит устройств (0 — без лимита); отсутствует — «как в панели».
+    if (array_key_exists('hw', $u)) $out['hwidDeviceLimit'] = (int) $u['hw'];
     // node: "<nodeUuid>" — пользователь только что был онлайн на этой ноде.
     if (!empty($u['node'])) $out['userTraffic'] = ['onlineAt' => gmdate('Y-m-d\TH:i:s.000\Z', time() - 30), 'lastConnectedNodeUuid' => (string) $u['node'], 'usedTrafficBytes' => 0];
     return $out;

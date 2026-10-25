@@ -50,6 +50,14 @@ function sess_ddl($drv) {
             org VARCHAR(128) NOT NULL DEFAULT '', sub VARCHAR(64) NOT NULL DEFAULT '',
             start_ts INT UNSIGNED NOT NULL, last_ts INT UNSIGNED NOT NULL, n INT UNSIGNED NOT NULL DEFAULT 1,
             PRIMARY KEY (id), KEY idx_cs_uid (uid, last_ts), KEY idx_cs_last (last_ts)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS sess_anom (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, uid BIGINT UNSIGNED NOT NULL,
+            gid VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+            lvl VARCHAR(8) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'bad',
+            start_ts INT UNSIGNED NOT NULL, last_ts INT UNSIGNED NOT NULL, end_ts INT UNSIGNED NOT NULL DEFAULT 0,
+            why TEXT NOT NULL, ips TEXT NOT NULL,
+            PRIMARY KEY (id), KEY idx_sa_uid (uid, end_ts), KEY idx_sa_last (last_ts)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"];
     }
     return [
@@ -60,6 +68,13 @@ function sess_ddl($drv) {
         )",
         'CREATE INDEX IF NOT EXISTS idx_cs_uid ON conn_sess(uid, last_ts)',
         'CREATE INDEX IF NOT EXISTS idx_cs_last ON conn_sess(last_ts)',
+        "CREATE TABLE IF NOT EXISTS sess_anom (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER NOT NULL, gid TEXT NOT NULL, lvl TEXT NOT NULL DEFAULT 'bad',
+            start_ts INTEGER NOT NULL, last_ts INTEGER NOT NULL, end_ts INTEGER NOT NULL DEFAULT 0,
+            why TEXT NOT NULL DEFAULT '', ips TEXT NOT NULL DEFAULT ''
+        )",
+        'CREATE INDEX IF NOT EXISTS idx_sa_uid ON sess_anom(uid, end_ts)',
+        'CREATE INDEX IF NOT EXISTS idx_sa_last ON sess_anom(last_ts)',
     ];
 }
 
@@ -259,8 +274,11 @@ function sess_collect($deadline) {
         }
     }
     $st['rows'] = count($seen);
-    if ($seen) $st['err'] = sess_store($seen, $now);
+    $cur = [];
+    if ($seen) $st['err'] = sess_store($seen, $now, $cur);
     elseif ($first !== '' && $st['ok'] === 0) $st['err'] = $first;
+    // Схема аномалий — по тому же снимку; закрывать события по «пропавшим» можно только при полном опросе.
+    if ($st['ok'] > 0 && $st['err'] === '') $st['an'] = sess_anom_eval($cur, $now, !$st['fail'], $deadline);
     sess_state_save($st, $t0);
     if ($st['ok'] === 0) return 'ни одна нода не ответила' . ($first !== '' ? ': ' . $first : '');
     return $st['err'];
@@ -272,23 +290,32 @@ function sess_state_save(array $st, $t0) {
     set_setting('sess_state', json_encode($st, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
 }
 
-function sess_store(array $seen, $now) {
+// $cur — тот же снимок с гео по пользователям (uid → строки ip/node/cc/asn/org/sub), для расчёта аномалий без второго прохода по базе.
+function sess_store(array $seen, $now, ?array &$cur = null) {
     $p = db();
     if (!$p) return 'нет базы';
     $open = [];
+    $cur = [];
     try {
-        $st = $p->prepare('SELECT id, uid, node, ip FROM conn_sess WHERE last_ts >= ?');
+        $st = $p->prepare('SELECT id, uid, node, ip, cc, asn, org, sub FROM conn_sess WHERE last_ts >= ?');
         $st->execute([$now - sess_gap()]);
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $open[(int) $r['uid'] . '|' . $r['node'] . '|' . $r['ip']] = (int) $r['id'];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $open[(int) $r['uid'] . '|' . $r['node'] . '|' . $r['ip']] = $r;
     } catch (Throwable $e) { return 'чтение сессий: ' . $e->getMessage(); }
     try {
         $p->beginTransaction();
         $upd = $p->prepare('UPDATE conn_sess SET last_ts = ?, n = n + 1 WHERE id = ?');
         $ins = $p->prepare('INSERT INTO conn_sess (uid, node, ip, cc, asn, org, sub, start_ts, last_ts, n) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)');
         foreach ($seen as $k => [$uid, $node, $ip]) {
-            if (isset($open[$k])) { $upd->execute([$now, $open[$k]]); continue; }
+            if (isset($open[$k])) {
+                $r = $open[$k];
+                $upd->execute([$now, (int) $r['id']]);
+                $cur[$uid][] = ['ip' => $ip, 'node' => $node, 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub']];
+                continue;
+            }
             $g = function_exists('geoip_lookup') ? geoip_lookup($ip) : [];
-            $ins->execute([$uid, $node, $ip, (string) ($g['cc'] ?? ''), (int) ($g['asn'] ?? 0), (string) ($g['org'] ?? ''), (string) ($g['sub'] ?? ''), $now, $now]);
+            $row = ['ip' => $ip, 'node' => $node, 'cc' => (string) ($g['cc'] ?? ''), 'asn' => (int) ($g['asn'] ?? 0), 'org' => (string) ($g['org'] ?? ''), 'sub' => (string) ($g['sub'] ?? '')];
+            $ins->execute([$uid, $node, $ip, $row['cc'], $row['asn'], $row['org'], $row['sub'], $now, $now]);
+            $cur[$uid][] = $row;
         }
         $p->commit();
     } catch (Throwable $e) {
@@ -301,7 +328,7 @@ function sess_store(array $seen, $now) {
 function sess_purge_maybe() {
     if (time() - (int) setting('sess_purge_ts', '0') < 3600) return;
     set_setting('sess_purge_ts', (string) time());
-    if (sess_ensure() && function_exists('gc_purge')) gc_purge('conn_sess', sess_keep_days(), 5.0);
+    if (sess_ensure() && function_exists('gc_purge')) { gc_purge('conn_sess', sess_keep_days(), 5.0); gc_purge('sess_anom', sess_anom_keep_days(), 2.0); }
 }
 
 function cron_task_sessions($ctx) {
@@ -410,6 +437,7 @@ function sess_user_data($uid) {
         'nodes' => sess_nodes_fresh(),
         'rows'  => $uid > 0 ? sess_user_rows($uid) : [],
         'm'     => $m[$uid] ?? null,
+        'an'    => $uid > 0 ? sess_anom_user($uid) : [],
         'city'  => function_exists('geoip_city_ready') && geoip_city_ready(),
     ];
 }
@@ -502,4 +530,285 @@ function sess_drop($ref, array $ips = [], &$err = '') {
         return false;
     }
     return true;
+}
+
+// ===== Аномалии: схема условий, расчёт по снимку, журнал =====
+
+function sess_anom_keep_days() { return max(7, min(30, (int) setting('sess_anom_keep', '30'))); }
+
+function sess_anom_metrics() {
+    return ['ip' => 'IP сейчас', 'asn' => 'Провайдеров сейчас', 'sub' => 'Регионов у провайдера', 'cc' => 'Стран сейчас'];
+}
+
+function sess_anom_kinds() { return ['mul' => 'устройств ×', 'add' => 'устройств +', 'abs' => 'числа']; }
+
+// Типовая схема: красная — IP или провайдеров больше, чем устройств; жёлтая — регионы одного провайдера или две страны.
+function sess_anom_default() {
+    return [
+        ['name' => 'Группа 1', 'lvl' => 'bad', 'op' => 'or', 'c' => [['m' => 'ip', 'k' => 'mul', 'n' => 2], ['m' => 'asn', 'k' => 'add', 'n' => 1]]],
+        ['name' => 'Группа 2', 'lvl' => 'warn', 'op' => 'or', 'c' => [['m' => 'sub', 'k' => 'abs', 'n' => 1], ['m' => 'cc', 'k' => 'abs', 'n' => 1]]],
+    ];
+}
+
+// Прежние пороги (IP на устройство, запас по провайдерам, две страны, регионы) — одной схемой.
+function sess_anom_legacy() {
+    return [
+        ['name' => 'Группа 1', 'lvl' => 'bad', 'op' => 'or', 'c' => [['m' => 'ip', 'k' => 'mul', 'n' => sess_ip_per()], ['m' => 'asn', 'k' => 'add', 'n' => sess_asn_extra()], ['m' => 'cc', 'k' => 'abs', 'n' => 1]]],
+        ['name' => 'Группа 2', 'lvl' => 'warn', 'op' => 'and', 'c' => [['m' => 'sub', 'k' => 'abs', 'n' => 1]]],
+    ];
+}
+
+function sess_anom_norm($raw) {
+    if (!is_array($raw)) return [];
+    $out = [];
+    $i = 0;
+    foreach ($raw as $g) {
+        if (!is_array($g) || count($out) >= 10) break;
+        $c = [];
+        foreach ((array) ($g['c'] ?? []) as $x) {
+            if (!is_array($x) || count($c) >= 8) continue;
+            $m = (string) ($x['m'] ?? ''); $k = (string) ($x['k'] ?? '');
+            if (!isset(sess_anom_metrics()[$m]) || !isset(sess_anom_kinds()[$k])) continue;
+            $n = (int) ($x['n'] ?? 0);
+            $n = $k === 'mul' ? max(1, min(20, $n)) : max(0, min(999, $n));
+            $c[] = ['m' => $m, 'k' => $k, 'n' => $n];
+        }
+        if (!$c) continue;
+        $i++;
+        $name = trim(preg_replace('~\s+~u', ' ', (string) ($g['name'] ?? '')));
+        $out[] = [
+            'id'   => 'g' . $i,
+            'name' => $name !== '' ? mb_substr($name, 0, 40) : 'Группа ' . $i,
+            'lvl'  => ($g['lvl'] ?? '') === 'warn' ? 'warn' : 'bad',
+            'op'   => ($g['op'] ?? '') === 'and' ? 'and' : 'or',
+            'c'    => $c,
+        ];
+    }
+    return $out;
+}
+
+// Схема из настроек. Первый вызов на установке с уже включённым сбором переносит старые пороги, иначе схема пустая.
+function sess_anom_rules() {
+    $rules = &$GLOBALS['submw_anom_rules'];
+    if (is_array($rules)) return $rules;
+    $raw = setting('sess_anom', null);
+    if ($raw === null) return sess_anom_save(sess_enabled() ? sess_anom_legacy() : []);
+    $rules = sess_anom_norm(json_decode((string) $raw, true));
+    return $rules;
+}
+
+function sess_anom_save($raw) {
+    $rules = sess_anom_norm($raw);
+    set_setting('sess_anom', json_encode($rules, JSON_UNESCAPED_UNICODE));
+    $GLOBALS['submw_anom_rules'] = $rules;
+    return $rules;
+}
+
+// Лимиты устройств пользователей из панели: id → [свой лимит | null «как в панели», внешний сквад]. Кэш 10 минут.
+function sess_users_limits($maxAge = 600) {
+    $src = md5(remnawave_url() . "\n" . remnawave_token());
+    $c = admin_cache_get('sess_users', $maxAge);
+    if (is_array($c) && ($c['src'] ?? '') === $src && is_array($c['u'] ?? null)) return $c['u'];
+    $stale = static function () use ($src) { $o = admin_cache_get('sess_users', PHP_INT_MAX); return (is_array($o) && ($o['src'] ?? '') === $src && is_array($o['u'] ?? null)) ? $o['u'] : []; };
+    if (remnawave_url() === '' || remnawave_token() === '') return $stale();
+    $err = '';
+    $u = [];
+    remnawave_all_users($err, static function (array $page) use (&$u) {
+        foreach ($page as $x) {
+            if (!is_array($x) || !isset($x['id'])) continue;
+            $hw = (isset($x['hwidDeviceLimit']) && $x['hwidDeviceLimit'] !== '' && $x['hwidDeviceLimit'] !== null) ? (int) $x['hwidDeviceLimit'] : null;
+            $u[(string) (int) $x['id']] = [$hw, (string) ($x['externalSquadUuid'] ?? '')];
+        }
+    });
+    if ($err !== '') return $stale();
+    admin_cache_put('sess_users', ['src' => $src, 'u' => $u]);
+    return $u;
+}
+
+// «Устройства» для порогов: свой лимит → внешний сквад → общий лимит панели; без лимита — число из настроек.
+function sess_anom_devices($lim, array $exh, $glob, $nolim) {
+    $hw = $lim[0] ?? null;
+    $ex = (string) ($lim[1] ?? '');
+    if ($hw === 0) return $nolim;
+    if ($hw > 0) return $hw;
+    $s = ($ex !== '' && isset($exh[$ex])) ? $exh[$ex] : $glob;
+    if (!is_array($s) || empty($s['enabled']) || (int) ($s['limit'] ?? 0) <= 0) return $nolim;
+    return (int) $s['limit'];
+}
+
+// Значения метрик по снимку одного пользователя.
+function sess_anom_vals(array $rows) {
+    $ip = []; $as = []; $cc = []; $sub = [];
+    foreach ($rows as $r) {
+        $ip[$r['ip']] = 1;
+        $ak = $r['asn'] > 0 ? 'a' . $r['asn'] : sess_net_key($r['ip']);
+        $as[$ak] = 1;
+        if ($r['cc'] !== '') $cc[$r['cc']] = 1;
+        if ($r['asn'] > 0 && $r['sub'] !== '') $sub[$r['asn']][$r['sub']] = 1;
+    }
+    $pr = 0;
+    foreach ($sub as $v) $pr = max($pr, count($v));
+    return ['ip' => count($ip), 'asn' => count($as), 'sub' => $pr, 'cc' => count($cc)];
+}
+
+function sess_anom_thr(array $c, $dev) {
+    if ($c['k'] === 'mul') return $dev * $c['n'];
+    if ($c['k'] === 'add') return $dev + $c['n'];
+    return $c['n'];
+}
+
+// Что сработало: [[метрика, значение, порог], …] или null.
+function sess_anom_match(array $g, array $vals, $dev) {
+    $hit = [];
+    foreach ($g['c'] as $c) {
+        $thr = sess_anom_thr($c, $dev);
+        $ok = $vals[$c['m']] > $thr;
+        if ($ok) $hit[] = [$c['m'], $vals[$c['m']], $thr];
+        elseif ($g['op'] === 'and') return null;
+    }
+    return $hit ? $hit : null;
+}
+
+function sess_anom_ips(array $rows, $cap = 20) {
+    $out = [];
+    foreach ($rows as $r) {
+        if (count($out) >= $cap) break;
+        $out[$r['ip']] = ['ip' => $r['ip'], 'cc' => $r['cc'], 'asn' => $r['asn'], 'org' => mb_substr($r['org'], 0, 48), 'sub' => mb_substr($r['sub'], 0, 48), 'node' => $r['node']];
+    }
+    return array_values($out);
+}
+
+// Прогон схемы по снимку. Пишется только изменение: открылось, добавились IP, закрылось.
+// $full — опрошены все ноды: только тогда отсутствие пользователя в снимке закрывает его события.
+function sess_anom_eval(array $cur, $now, $full, $deadline = null) {
+    if ($deadline !== null && microtime(true) > $deadline - 1) return 'skip';
+    if (!sess_ensure() || !($p = db())) return 'nodb';
+    $rules = sess_anom_rules();
+    $open = [];
+    try {
+        $st = $p->query('SELECT id, uid, gid, ips FROM sess_anom WHERE end_ts = 0');
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $open[(int) $r['uid'] . '|' . $r['gid']] = $r;
+    } catch (Throwable $e) { return 'read'; }
+    $ins = []; $upd = []; $close = [];
+    if ($rules) {
+        $nolim = sess_nolim();
+        $limits = $cur ? sess_users_limits() : [];
+        $exh = [];
+        $needEx = false;
+        foreach ($cur as $uid => $rows) if ((string) ($limits[(string) $uid][1] ?? '') !== '') { $needEx = true; break; }
+        if ($needEx) foreach ((array) panel_ref('esquads', 600) as $s) if (is_array($s) && !empty($s['uuid'])) $exh[(string) $s['uuid']] = $s['hwid'] ?? null;
+        $e = '';
+        $glob = remnawave_hwid_settings($e, 600);
+        foreach ($cur as $uid => $rows) {
+            $vals = sess_anom_vals($rows);
+            $dev = sess_anom_devices($limits[(string) $uid] ?? [null, ''], $exh, $glob, $nolim);
+            foreach ($rules as $g) {
+                $hit = sess_anom_match($g, $vals, $dev);
+                if ($hit === null) continue;
+                $key = (int) $uid . '|' . $g['id'];
+                $why = ['dev' => $dev, 'h' => $hit];
+                if (isset($open[$key])) {
+                    $o = $open[$key];
+                    unset($open[$key]);
+                    $have = json_decode((string) $o['ips'], true);
+                    $have = is_array($have) ? $have : [];
+                    $known = array_column($have, 'ip');
+                    $add = [];
+                    foreach (sess_anom_ips($rows) as $x) if (!in_array($x['ip'], $known, true)) $add[] = $x;
+                    if ($add) $upd[] = [(int) $o['id'], array_slice(array_merge($have, $add), 0, 40), $why];
+                    continue;
+                }
+                $ins[] = [(int) $uid, $g['id'], $g['lvl'], $why, sess_anom_ips($rows)];
+            }
+        }
+    }
+    // Осталось открытым, но не совпало: пользователь онлайн без аномалии — закрыть; пользователя нет в снимке — только при полном опросе.
+    foreach ($open as $o) if ($full || isset($cur[(int) $o['uid']])) $close[] = (int) $o['id'];
+    if (!$ins && !$upd && !$close) return '';
+    try {
+        $p->beginTransaction();
+        if ($ins) {
+            $st = $p->prepare('INSERT INTO sess_anom (uid, gid, lvl, start_ts, last_ts, end_ts, why, ips) VALUES (?, ?, ?, ?, ?, 0, ?, ?)');
+            foreach ($ins as [$uid, $gid, $lvl, $why, $ips]) $st->execute([$uid, $gid, $lvl, $now, $now, json_encode($why, JSON_UNESCAPED_UNICODE), json_encode($ips, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
+        }
+        if ($upd) {
+            $st = $p->prepare('UPDATE sess_anom SET last_ts = ?, ips = ?, why = ? WHERE id = ?');
+            foreach ($upd as [$id, $ips, $why]) $st->execute([$now, json_encode($ips, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), json_encode($why, JSON_UNESCAPED_UNICODE), $id]);
+        }
+        if ($close) {
+            $st = $p->prepare('UPDATE sess_anom SET end_ts = ?, last_ts = ? WHERE id = ?');
+            foreach ($close as $id) $st->execute([$now, $now, $id]);
+        }
+        $p->commit();
+    } catch (Throwable $e) {
+        try { $p->rollBack(); } catch (Throwable $e2) {}
+        return 'write';
+    }
+    return '';
+}
+
+// Пересчёт по последнему снимку (после смены схемы): текущие — строки сессий, живые на момент последнего опроса.
+function sess_anom_recalc() {
+    $st = sess_state();
+    $ts = (int) ($st['ts'] ?? 0);
+    if ($ts <= 0 || !sess_ensure() || !($p = db())) return;
+    $cur = [];
+    try {
+        $q = $p->prepare('SELECT uid, node, ip, cc, asn, org, sub FROM conn_sess WHERE last_ts >= ?');
+        $q->execute([$ts]);
+        foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) $cur[(int) $r['uid']][] = ['ip' => (string) $r['ip'], 'node' => (string) $r['node'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub']];
+    } catch (Throwable $e) { return; }
+    sess_anom_eval($cur, time(), empty($st['fail']));
+}
+
+// Открытые события для списка: uid → {l: bad|warn, n, t: подсказка}.
+function sess_anom_open_map() {
+    $out = [];
+    if (!sess_ensure() || !($p = db())) return $out;
+    $names = [];
+    foreach (sess_anom_rules() as $g) $names[$g['id']] = $g['name'];
+    try {
+        foreach ($p->query('SELECT uid, gid, lvl, why FROM sess_anom WHERE end_ts = 0') as $r) {
+            $u = (string) (int) $r['uid'];
+            $t = sess_anom_why_text(json_decode((string) $r['why'], true));
+            if (!isset($out[$u])) $out[$u] = ['l' => $r['lvl'], 'n' => 0, 't' => []];
+            if ($r['lvl'] === 'bad') $out[$u]['l'] = 'bad';
+            $out[$u]['n']++;
+            $out[$u]['t'][] = ($names[$r['gid']] ?? $r['gid']) . ': ' . $t;
+        }
+    } catch (Throwable $e) {}
+    foreach ($out as $u => $v) $out[$u]['t'] = implode('; ', $v['t']);
+    return $out;
+}
+
+function sess_anom_why_text($why) {
+    if (!is_array($why)) return '';
+    $m = sess_anom_metrics();
+    $parts = [];
+    foreach ((array) ($why['h'] ?? []) as $h) {
+        if (!is_array($h) || count($h) < 3) continue;
+        $l = (string) ($m[$h[0]] ?? $h[0]);
+        if (preg_match('~^[А-ЯЁ][а-яё]~u', $l)) $l = mb_strtolower(mb_substr($l, 0, 1)) . mb_substr($l, 1);
+        $parts[] = $l . ' ' . (int) $h[1] . ' при пороге ' . (int) $h[2];
+    }
+    return implode(', ', $parts);
+}
+
+// Журнал пользователя: последние события, открытые первыми.
+function sess_anom_user($uid, $limit = 100) {
+    if (!sess_ensure() || !($p = db())) return [];
+    $names = [];
+    foreach (sess_anom_rules() as $g) $names[$g['id']] = $g['name'];
+    try {
+        $st = $p->prepare('SELECT gid, lvl, start_ts, last_ts, end_ts, why, ips FROM sess_anom WHERE uid = ? ORDER BY end_ts = 0 DESC, start_ts DESC LIMIT ' . (int) $limit);
+        $st->execute([(int) $uid]);
+        $out = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $why = json_decode((string) $r['why'], true);
+            $ips = json_decode((string) $r['ips'], true);
+            $out[] = ['g' => $names[$r['gid']] ?? $r['gid'], 'lvl' => (string) $r['lvl'], 's' => (int) $r['start_ts'], 'l' => (int) $r['last_ts'], 'e' => (int) $r['end_ts'],
+                'dev' => (int) ($why['dev'] ?? 0), 'h' => is_array($why['h'] ?? null) ? $why['h'] : [], 'ips' => is_array($ips) ? $ips : []];
+        }
+        return $out;
+    } catch (Throwable $e) { return []; }
 }
