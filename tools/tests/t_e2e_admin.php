@@ -70,6 +70,9 @@ t_eq('пользователи: пустой список — все видны'
 t_ok('пользователи: «Сессии и аномалии» по умолчанию свёрнуты', strpos($page, '<section class="coll collapsed" data-coll="users_sess"') !== false);
 $N = '11111111-1111-4111-8111-111111111111';
 file_put_contents($state, json_encode(['users' => ['AbCdEfGhIjKlMnOp' => ['status' => 'ACTIVE', 'node' => $N]], 'nodes' => [$N => ['name' => 'Amsterdam', 'cc' => 'NL']], 'hosts' => [['remark' => 'NL · WS', 'address' => 'ams.example.net', 'nodes' => [$N]]]]));
+// Вкладки выше уже сняли справочники панели без нод — снимок устарел, как через 10 минут.
+set_setting('pref_nodes', '');
+set_setting('pref_hosts', '');
 [, , $page] = t_http('GET', $mw . '/admin/index.php?tab=users', [], null, $jar);
 t_ok('пользователи: последняя нода — имя ноды и хосты панели в конфиге списка', strpos($page, '"nodes":{"' . $N . '":{"n":"Amsterdam","h":["NL · WS"]}}') !== false);
 

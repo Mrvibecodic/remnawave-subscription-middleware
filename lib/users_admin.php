@@ -343,12 +343,8 @@ function ua_history($short) {
 function ua_meta() {
     $e1 = $e2 = '';
     $nodes = [];
-    [$ok, , $nd, ] = remnawave_api_get('/api/nodes');
-    if ($ok) {
-        $nr = $nd['response'] ?? $nd;
-        $list = is_array($nr) ? ($nr['nodes'] ?? (isset($nr[0]) ? $nr : [])) : [];
-        foreach ((array) $list as $n) if (is_array($n) && !empty($n['uuid'])) $nodes[(string) $n['uuid']] = (string) ($n['name'] ?? '');
-    }
+    // Имена нод — только подпись «последняя нода», свежий список не нужен.
+    foreach ((array) panel_ref('nodes', 600) as $n) if (is_array($n) && !empty($n['uuid'])) $nodes[(string) $n['uuid']] = (string) ($n['name'] ?? '');
     $e3 = '';
     return [
         'sq'    => remnawave_internal_squads($e1),

@@ -23,13 +23,8 @@ function sess_ip_per() { return max(1, min(10, (int) setting('sess_ip_per', '2')
 
 // Общий лимит устройств панели — для порогов в списке, пока карточка не подгрузила META. Кэш 10 минут.
 function sess_hwid_cached() {
-    $c = json_decode((string) setting('sess_hwid_json', ''), true);
-    if (is_array($c) && time() - (int) ($c['ts'] ?? 0) < 600) return $c['s'] ?? null;
     $e = '';
-    $s = remnawave_hwid_settings($e);
-    if ($s === null && is_array($c)) return $c['s'] ?? null;
-    set_setting('sess_hwid_json', json_encode(['ts' => time(), 's' => $s]));
-    return $s;
+    return remnawave_hwid_settings($e, 600);
 }
 
 // Без базы ASN провайдера нет — считаем сетью /24 (IPv6 — /48), чтобы смена адреса внутри пула не выглядела новым провайдером.
@@ -170,39 +165,35 @@ function sess_ip_ok($ip) {
     return is_string($ip) && filter_var($ip, FILTER_VALIDATE_IP) !== false;
 }
 
-function sess_nodes_fetch(&$err = '') {
+// maxAge 0 — свежий список нод из панели (опрос); иначе — общий снимок не старше maxAge.
+function sess_nodes_fetch(&$err = '', $maxAge = 0) {
     $err = '';
-    [$ok, $code, $data, $e] = remnawave_api_get('/api/nodes');
-    if (!$ok) { $err = $e ?: ('HTTP ' . $code); return null; }
-    $resp = is_array($data) ? ($data['response'] ?? $data) : [];
-    $list = is_array($resp) ? ($resp['nodes'] ?? (isset($resp[0]) ? $resp : [])) : [];
+    $list = panel_ref('nodes', $maxAge, $err);
+    if (!is_array($list)) { if ($err === '') $err = 'панель недоступна'; return null; }
     $known = sess_nodes_known();
     $live = [];
     $byAddr = [];
-    foreach ((array) $list as $n) {
+    $fresh = false;
+    foreach ($list as $n) {
         if (!is_array($n) || empty($n['uuid'])) continue;
         $u = (string) $n['uuid'];
+        if (!isset($known[$u])) $fresh = true;
         $known[$u] = ['n' => mb_substr((string) ($n['name'] ?? ''), 0, 64), 'cc' => strtoupper(mb_substr((string) ($n['countryCode'] ?? ''), 0, 2)), 'h' => $known[$u]['h'] ?? []];
         $addr = strtolower(trim((string) ($n['address'] ?? '')));
         if ($addr !== '') $byAddr[$addr][] = $u;
         if (!empty($n['isConnected']) && empty($n['isDisabled']) && empty($n['isConnecting'])) $live[$u] = $known[$u];
     }
     // Хосты — то, что юзер видит в подписке; нода привязана к хосту явно (nodes) или совпадает адресом.
-    [$hok, , $hd, ] = remnawave_api_get('/api/hosts');
-    if ($hok) {
-        $hr = is_array($hd) ? ($hd['response'] ?? $hd) : [];
-        $hosts = is_array($hr) ? ($hr['hosts'] ?? (isset($hr[0]) ? $hr : [])) : [];
+    // Ремарки меняются редко — снимок на 10 минут; новая нода в списке — повод перечитать сразу.
+    $hosts = panel_ref('hosts', $fresh ? 0 : 600);
+    if (is_array($hosts)) {
         $map = [];
-        foreach ((array) $hosts as $h) {
+        foreach ($hosts as $h) {
             if (!is_array($h) || !empty($h['isDisabled'])) continue;
             $rem = trim(preg_replace('~\s+~u', ' ', (string) ($h['remark'] ?? '')));
             if ($rem === '') continue;
             $rem = mb_substr($rem, 0, 48);
-            $ids = [];
-            foreach ((array) ($h['nodes'] ?? []) as $ref) {
-                $id = is_array($ref) ? (string) ($ref['uuid'] ?? '') : (string) $ref;
-                if ($id !== '') $ids[] = $id;
-            }
+            $ids = (array) ($h['nodes'] ?? []);
             if (!$ids) $ids = $byAddr[strtolower(trim((string) ($h['address'] ?? '')))] ?? [];
             foreach ($ids as $id) if (isset($known[$id]) && !in_array($rem, $map[$id] ?? [], true) && count($map[$id] ?? []) < 4) $map[$id][] = $rem;
         }
@@ -210,15 +201,17 @@ function sess_nodes_fetch(&$err = '') {
         foreach ($live as $u => $info) $live[$u]['h'] = $map[$u] ?? [];
     }
     if (count($known) > 500) $known = array_slice($known, -500, null, true);
-    set_setting('sess_nodes', json_encode($known, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
-    set_setting('sess_nodes_ts', (string) time());
+    $json = json_encode($known, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($json !== (string) setting('sess_nodes', '')) set_setting('sess_nodes', $json);
+    // Возраст подписей считается от снимка, а не от пересборки: суммарно не старше прежних 10 минут.
+    set_setting('sess_nodes_ts', (string) (panel_ref_ts('nodes') ?: time()));
     return $live;
 }
 
 function sess_nodes_fresh() {
     if (time() - (int) setting('sess_nodes_ts', '0') < 600) return sess_nodes_known();
     $e = '';
-    sess_nodes_fetch($e);
+    sess_nodes_fetch($e, 600);
     return sess_nodes_known();
 }
 

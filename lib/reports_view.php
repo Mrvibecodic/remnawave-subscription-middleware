@@ -279,16 +279,8 @@ function rep_panel_index($maxAge = 1800) {
     if (is_array($cached) && $ts > 0 && $now - $ts <= $maxAge) return $cached;
     if (remnawave_url() === '' || remnawave_token() === '') return is_array($cached) ? $cached : [];
 
-    $list = static function ($data, $key) {
-        $r = $data['response'] ?? $data;
-        if (!is_array($r)) return [];
-        if (isset($r[$key]) && is_array($r[$key])) return $r[$key];
-
-        return isset($r[0]) ? $r : [];
-    };
-
-    [$nok, , $nd, ] = remnawave_api_get('/api/nodes');
-    if (!$nok) {
+    $nd = panel_ref('nodes', $maxAge);
+    if (!is_array($nd)) {
         set_setting('rep_panel_ts', (string) $now);
 
         return is_array($cached) ? $cached : [];
@@ -296,7 +288,7 @@ function rep_panel_index($maxAge = 1800) {
 
     $nodes = [];
     $out = [];
-    foreach ($list($nd, 'nodes') as $n) {
+    foreach ($nd as $n) {
         if (!is_array($n)) continue;
         $one = ['name' => rep_str((string) ($n['name'] ?? ''), 64), 'cc' => strtoupper(rep_str((string) ($n['countryCode'] ?? ''), 2))];
         if (!empty($n['uuid'])) $nodes[(string) $n['uuid']] = $one;
@@ -304,20 +296,18 @@ function rep_panel_index($maxAge = 1800) {
         if ($addr !== '') $out[$addr][] = $one;
     }
 
-    [$hok, , $hd, ] = remnawave_api_get('/api/hosts');
+    $hd = panel_ref('hosts', $maxAge);
+    $hok = is_array($hd);
     $tr = [];
     if ($hok) {
         $ib = [];
-        [$iok, , $id, ] = remnawave_api_get('/api/config-profiles/inbounds');
-        if ($iok) {
-            foreach ($list($id, 'inbounds') as $in) {
-                if (is_array($in) && !empty($in['uuid'])) $ib[(string) $in['uuid']] = $in;
-            }
+        foreach ((array) panel_ref('inbounds', $maxAge) as $in) {
+            if (is_array($in) && !empty($in['uuid'])) $ib[(string) $in['uuid']] = $in;
         }
-        foreach ($list($hd, 'hosts') as $host) {
+        foreach ($hd as $host) {
             if (!is_array($host)) continue;
             $addr = strtolower(trim((string) ($host['address'] ?? '')));
-            $in = $ib[(string) ($host['inbound']['configProfileInboundUuid'] ?? '')] ?? null;
+            $in = $ib[(string) ($host['inbound'] ?? '')] ?? null;
             if ($addr !== '' && is_array($in)) {
                 $sl  = strtoupper((string) ($host['securityLayer'] ?? 'DEFAULT'));
                 $sec = $sl === 'TLS' ? 'tls' : ($sl === 'NONE' ? 'none' : strtolower((string) ($in['security'] ?? '')));
@@ -326,9 +316,8 @@ function rep_panel_index($maxAge = 1800) {
                 if (!in_array($one, $tr[$tk] ?? [], true)) $tr[$tk][] = $one;
             }
             if ($addr === '' || isset($out[$addr])) continue;
-            foreach ((array) ($host['nodes'] ?? []) as $ref) {
-                $id = is_array($ref) ? (string) ($ref['uuid'] ?? $ref['nodeUuid'] ?? '') : (string) $ref;
-                if ($id !== '' && isset($nodes[$id])) $out[$addr][] = $nodes[$id];
+            foreach ((array) ($host['nodes'] ?? []) as $id) {
+                if (isset($nodes[(string) $id])) $out[$addr][] = $nodes[(string) $id];
             }
         }
     }
