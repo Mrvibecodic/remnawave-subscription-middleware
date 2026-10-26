@@ -1,74 +1,112 @@
 # Установка прослойки подписки Remnawave
 
-Прослойка встаёт между клиентами и панелью: отдаёт страницу подписки и конфиги, умеет блокировки/оверрайды, грейс, лог, вебхуки, чат, приманку и админку.
+Прослойка встаёт между клиентами и панелью на домене подписки: отдаёт подписки и страницу в браузере, умеет блокировки/оверрайды, грейс, лог, вебхуки, чат, приманку и админку.
 
-Варианты:
-- **Рядом с панелью, Docker** — основной (панель и так в Docker). Прослойка-контейнер заменяет прямой доступ к `subscription-page`.
-- **Отдельный сервер** — прослойка одна, на своём домене с TLS.
+Установка — в три действия: поднять контейнер, направить домен на прослойку, пройти **мастер установки** в админке. Мастер сам проверяет связь с панелью, права API-токена, страницу подписки, вебхук и в конце запрашивает подписку первого пользователя через ваш домен — как это сделает клиент.
 
-В варианте «рядом с панелью» контейнер `subscription-page` **остаётся работать** — прослойка проксирует страницу подписки на него (режим «внешний контейнер»), а клиентские конфиги и свои фичи обрабатывает сама.
+Образ один: `ghcr.io/mrvibecodic/remnawave-subscription-middleware` (`v1` — стабильный, `dev` — тестовый). Данные (БД, конфиг) — в volume, обновление не трогает.
 
 ---
 
-## Вариант 1. Рядом с панелью, Docker (рекомендуется)
+## Какой сценарий выбрать
 
-Условие: панель Remnawave + reverse-proxy (напр. **eGames**) уже стоят, домен подписки сейчас обслуживает контейнер `remnawave-subscription-page`.
+| | Где панель | Реверс-прокси | Файл |
+|---|---|---|---|
+| **1. Рядом с панелью** (рекомендуется) | этот же сервер | реверс панели (eGames / remnawave-reverse-proxy) | `docker-compose.panel.yml` |
+| **2. Отдельный сервер, реверс уже есть** | другой сервер | ваш nginx / Caddy / панель хостинга | `docker-compose.standalone.yml` (+ `-mysql`) |
+| **3. Отдельный чистый сервер** | другой сервер | Caddy из compose, сертификат сам | `docker-compose.standalone-caddy.yml` (+ `-mysql`) |
+| 4. Без Docker | другой сервер | nginx + php-fpm на хост, режим зеркала | `install.sh` |
 
-### Шаг 1. Поднять контейнер прослойки
-Через установщик:
+Варианты `-mysql` поднимают MariaDB в том же compose; без них — SQLite в volume (хватает большинству).
+
+Не хотите выбирать руками — скрипт спросит всё в консоли и сам скачает нужный compose:
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Mrvibecodic/remnawave-subscription-middleware/main/install.sh)
+```
+
+---
+
+## Сценарий 1. Рядом с панелью
+
+```bash
+mkdir -p /opt/submw && cd /opt/submw
+curl -fsSL https://raw.githubusercontent.com/Mrvibecodic/remnawave-subscription-middleware/main/docker/docker-compose.panel.yml -o docker-compose.yml
+docker compose up -d
+docker compose logs submw        # здесь ссылка мастера установки
+```
+В файле ничего править не нужно, если сеть панели стандартная (`remnawave-network`) и контейнеры называются `remnawave` / `remnawave-subscription-page`.
+
+**Направьте домен подписки на прослойку** в реверсе панели (`127.0.0.1:8080`):
+- Caddy (remnawave-reverse-proxy): в `/opt/remnawave/docker-compose.yml` у контейнера Caddy `SUB_BACKEND_URL=127.0.0.1:8080`, затем `docker compose up -d remnawave-caddy`;
+- nginx (eGames): в `/opt/remnawave/nginx.conf` — `upstream json { server 127.0.0.1:8080; }`, затем `docker exec remnawave-nginx nginx -t && docker exec remnawave-nginx nginx -s reload`;
+- любой другой: server-блок домена подписки → `proxy_pass http://127.0.0.1:8080` с `Host $host`, `X-Forwarded-Proto $scheme`, `X-Forwarded-For`.
+
+С этого момента и до конца мастера подписки на домене недоступны (минуты). Контейнер `remnawave-subscription-page` остаётся — прослойка показывает его страницу в браузере.
+
+Откройте ссылку мастера из логов: `https://<домен-подписки>/admin/?k…`. Мастер по умолчанию уже знает внутренние адреса панели и subpage, спросит API-токен и пароль админки.
+
+## Сценарий 2. Отдельный сервер, реверс уже есть
+
+```bash
+mkdir -p /opt/submw && cd /opt/submw
+curl -fsSL https://raw.githubusercontent.com/Mrvibecodic/remnawave-subscription-middleware/main/docker/docker-compose.standalone.yml -o docker-compose.yml
+nano docker-compose.yml          # у subpage: REMNAWAVE_PANEL_URL, REMNAWAVE_API_TOKEN, при cookie-защите панели — EGAMES_COOKIE
+docker compose up -d
+docker compose logs submw
+```
+В реверсе направьте домен подписки на `127.0.0.1:8080` (как в сценарии 1, «любой другой»). Откройте ссылку мастера, укажите публичный адрес панели и токен — мастер подскажет, если панель закрыта cookie (eGames), X-Api-Key (caddy-with-auth) или Cloudflare.
+
+Если прослойка должна стать **зеркалом** (свой домен, подписки берутся с домена подписки панели) — выберите это в мастере на шаге «Сценарий»; subpage в compose тогда не нужен.
+
+С MariaDB вместо SQLite: `docker-compose.standalone-mysql.yml` — всё то же, ничего дополнительно не настраивается.
+
+## Сценарий 3. Отдельный чистый сервер (Caddy)
+
+DNS домена подписки уже должен указывать на этот сервер, порты 80/443 свободны.
+```bash
+mkdir -p /opt/submw && cd /opt/submw
+curl -fsSL https://raw.githubusercontent.com/Mrvibecodic/remnawave-subscription-middleware/main/docker/docker-compose.standalone-caddy.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/Mrvibecodic/remnawave-subscription-middleware/main/docker/caddy/Caddyfile -o Caddyfile
+nano docker-compose.yml          # SUBMW_DOMAIN у caddy; у subpage: адрес панели, токен, EGAMES_COOKIE
+docker compose up -d
+docker compose logs submw
+```
+Caddy выпустит сертификат Let's Encrypt при первом запросе и будет продлевать сам. Дальше — ссылка мастера.
+
+## Сценарий 4. Без Docker
+
 ```bash
 git clone https://github.com/Mrvibecodic/remnawave-subscription-middleware.git
 cd remnawave-subscription-middleware
-sudo bash install.sh    # выбрать "2) Рядом с панелью — Docker"
+sudo bash install.sh             # пункт 4
 ```
-Спросит: домен подписки, имя docker-сети панели (`remnawave-network`), внутренний URL панели (`http://remnawave:3000`), URL контейнера subpage (`http://remnawave-subscription-page:3010`), локальный порт (`8080`), тег образа (`v1` по умолчанию). Поставит Docker (если нет), создаст `docker-compose.yml`, скачает образ из GHCR и поднимет контейнер.
-
-Либо вручную — положите `docker-compose.example.yml` рядом со стеком панели, поправьте env и:
-```bash
-docker compose up -d remnawave-subscription-middleware
-```
-Образ: `ghcr.io/mrvibecodic/remnawave-subscription-middleware:v1` (внутри nginx+php-fpm, код запечён; данные — в volume `submw-data`).
-
-### Шаг 2. Направить домен подписки на прослойку (правка nginx ПАНЕЛИ)
-**eGames (nginx):** в конфиге nginx панели (обычно `/opt/remnawave/nginx.conf`) — одна строка:
-```nginx
-upstream json {
-    server 127.0.0.1:8080;
-}
-```
-(было `127.0.0.1:3010`). Заголовки в server-блоке трогать не нужно. Перезагрузить nginx панели:
-```bash
-docker exec <nginx-контейнер-панели> nginx -t && docker exec <nginx-контейнер-панели> nginx -s reload
-```
-**Общий случай:** найдите server-блок домена подписки (проксирует на subscription-page :3010) и поменяйте upstream/`proxy_pass` на `http://127.0.0.1:8080`.
-
-### Шаг 3. Завершить мастер
-Откройте `https://<домен-подписки>/admin/`. Режим «панель» + адреса панели/subpage уже подставлены окружением — задайте логин/пароль админки и API-токен панели.
-
-### Обновление
-```bash
-cd /opt/remnawave-subscription-middleware
-docker compose pull && docker compose up -d
-```
-Во вкладке «Обновление» админка сама подсветит наличие новой версии и покажет эти команды. Данные (config.php, БД) в volume — не теряются.
-
+Ставит nginx + php-fpm + certbot, выпускает сертификат и печатает ссылку мастера. Это режим зеркала: subpage не нужен, страницу в браузере прослойка берёт с origin.
 
 ---
 
-## Вариант 2. Отдельный сервер (прослойка одна)
+## Мастер установки
+
+Открывается только по домену через реверс (по IP:порт — не запустится). Шаги: окружение → сценарий → панель → права токена → страница подписки / origin → вебхук → админ. На каждом — проверка с объяснением, что не так и где это чинится. Блокируют только то, без чего прослойка не отдаст подписку: БД, панель и токен, четыре обязательных права, версия панели не ниже 2.7.4. Остальное — предупреждения, их можно закрыть позже на вкладке «Подключение» → «Проверка связи».
+
+В конце мастер показывает **ссылку-ключ** вида `https://домен/admin/?k…=…`. Без неё адрес `/admin/` показывает ту же страницу-приманку, что и корень сайта. Откройте ссылку в каждом браузере и на телефоне, где нужен доступ. Потеряли — `docker compose exec submw php tools/admin-gate.php` печатает ссылку (`--new` перевыпускает, `--off` выключает); то же есть на вкладке «Подключение».
+
+Если панель на 3.2.0+, мастер сверяет `SUB_PUBLIC_DOMAIN` панели с доменом прослойки и состояние вебхуков; строки для `.env` панели даёт готовыми:
+```
+WEBHOOK_ENABLED=true
+WEBHOOK_URL=https://<домен-подписки>/webhook.php
+WEBHOOK_SECRET_HEADER=<секрет из мастера, 64 символа>
+```
+
+## Обновление
 
 ```bash
-git clone https://github.com/Mrvibecodic/remnawave-subscription-middleware.git
-cd remnawave-subscription-middleware
-sudo bash install.sh    # выбрать "1) Отдельный сервер"
+cd /opt/submw && docker compose pull && docker compose up -d
 ```
-Поставит nginx + php-fpm + certbot, выпустит сертификат и поднимет всё на `443`. Это режим **зеркала** (проксирует origin-домен подписки панели) — бандл/контейнер subpage не нужны. В конце — ссылка на мастер.
-
----
+Вкладка «Обновление» в админке подсвечивает новую версию и показывает эти команды. Без Docker — файловое обновление с GitHub оттуда же.
 
 ## Заметки
-- **`SUB_PUBLIC_DOMAIN`** в `.env` панели уже равен домену подписки (eGames его выставил) — менять не нужно.
-- Прослойка ходит к панели по внутреннему адресу (имя контейнера в Docker / `127.0.0.1:3000` на хосте) — мимо Cloudflare, так задумано.
-- Контейнер `remnawave-subscription-page` оставляем работать — прослойка отдаёт страницу через него.
-- В eGames sub-vhost есть `proxy_intercept_errors on; ... @redirect (444)` — на штатных ответах прослойки (200) это не мешает.
-- Обновление: в **Docker** — `docker compose pull` (админка подскажет); вне Docker — файловое обновление с GitHub. Docker-файлы (`Dockerfile`, `docker/`, `INSTALL.md`, `.github/`) при файловом обновлении помечены «не обновляется» и не тянутся.
+
+- Прослойка ходит к панели по внутреннему адресу, когда они на одном сервере (`http://remnawave:3000`) — мимо Cloudflare, так и задумано. С отдельного сервера — по публичному адресу; cookie eGames и X-Api-Key указываются в мастере.
+- subscription-page на отдельном сервере ходит в панель сам: `REMNAWAVE_PANEL_URL`, `REMNAWAVE_API_TOKEN`, а за cookie-защитой — `EGAMES_COOKIE` (имя=значение из ссылки входа в панель). Если он не поднимается — `docker compose logs subpage`.
+- Реверс обязан передавать `Host`, `X-Forwarded-Proto` и `X-Forwarded-For`: без `Host` мастер считает, что его открыли по IP.
+- Префикс подписки (`CUSTOM_SUB_PREFIX` у subscription-page) мастер в режиме зеркала определяет сам из ссылки подписки.

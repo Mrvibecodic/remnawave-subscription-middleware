@@ -1,0 +1,33 @@
+# Прослойка рядом с панелью (тот же сервер, docker-сеть панели).
+# Скачать как docker-compose.yml, ничего править не нужно (если сеть панели стандартная), затем:
+#   docker compose up -d
+#   docker compose logs submw      # ссылка мастера установки
+# Дальше направьте домен подписки на 127.0.0.1:8080 в реверсе панели и откройте ссылку мастера.
+services:
+  submw:
+    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:${SUBMW_IMAGE_TAG:-v1}
+    container_name: remnawave-subscription-middleware
+    hostname: remnawave-subscription-middleware
+    restart: always
+    networks:
+      - remnawave-network
+    ports:
+      - '127.0.0.1:8080:80'
+    environment:
+      - SUBMW_SCENARIO=panel
+      - SUBMW_PANEL_URL=http://remnawave:3000
+      - SUBMW_SUBPAGE_URL=http://remnawave-subscription-page:3010
+    volumes:
+      - submw-data:/var/www/html/data
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+networks:
+  remnawave-network:
+    external: true
+
+volumes:
+  submw-data:
