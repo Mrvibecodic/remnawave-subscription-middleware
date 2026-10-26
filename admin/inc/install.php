@@ -15,7 +15,9 @@ function inst_state_load() {
         if (($s['mode'] ?? '') === 'panel' && empty($s['scenario'])) $s['scenario'] = 'panel';
         if (!empty($s['target_domain'])) $s['origin'] = ['raw' => (string) $s['target_domain']];
     }
-    $s += ['key' => '', 'scenario' => '', 'mode' => 'panel', 'step' => 'env', 'panel' => [], 'scopes' => [], 'origin' => [], 'subpage' => [], 'webhook_secret' => '', 'admin' => [], 'db' => [], 'pending' => [], 'user_short' => '', 'user_name' => ''];
+    $s += ['key' => '', 'scenario' => '', 'mode' => 'panel', 'step' => 'start', 'panel' => [], 'scopes' => [], 'origin' => [], 'subpage' => [], 'webhook_secret' => '', 'admin' => [], 'db' => [], 'pending' => [], 'user_short' => '', 'user_name' => ''];
+    if ($s['step'] === 'env' || $s['step'] === 'scenario') $s['step'] = 'start';
+    if ($s['step'] === 'scopes') $s['step'] = 'panel';
     $s['panel'] += ['url' => '', 'token' => '', 'cookie' => '', 'xkey' => '', 'tls' => 1, 'version' => '', 'st' => '', 'sub_public_domain' => '', 'webhook' => null];
     $s['subpage'] += ['url' => '', 'enabled' => 1, 'st' => ''];
     $s['origin'] += ['raw' => '', 'domain' => '', 'prefix' => '', 'short' => '', 'st' => '', 'browser' => null];
@@ -40,12 +42,11 @@ function inst_key_new() {
 }
 
 function inst_steps(array $s) {
-    $sub = ($s['mode'] === 'mirror') ? 'origin' : 'subpage';
-    return ['env', 'scenario', 'panel', 'scopes', $sub, 'webhook', 'admin'];
+    return ['start', 'panel', $s['mode'] === 'mirror' ? 'origin' : 'subpage', 'webhook', 'admin'];
 }
 
 function inst_step_title($id) {
-    return ['env' => 'Окружение', 'scenario' => 'Сценарий', 'panel' => 'Панель', 'scopes' => 'Права токена', 'subpage' => 'Страница подписки', 'origin' => 'Origin', 'webhook' => 'Вебхук', 'admin' => 'Админ'][$id] ?? $id;
+    return ['start' => 'Начало', 'panel' => 'Панель', 'subpage' => 'Страница подписки', 'origin' => 'Домен подписки', 'webhook' => 'Вебхук', 'admin' => 'Пароль'][$id] ?? $id;
 }
 
 function inst_json_out($d) {
@@ -64,20 +65,42 @@ function inst_panel_conn(array $s) {
 
 function inst_post($k) { return trim((string) ($_POST[$k] ?? '')); }
 
+function inst_need_subpage(array $s) { return $s['mode'] === 'panel' && !empty($s['subpage']['enabled']); }
+
+// Панель + права одним действием: мастер показывает это на одном экране.
+function inst_panel_apply(array &$S, array $c, $scenario) {
+    $r = inst_panel_probe($c, $scenario);
+    if (!$r['ok']) return $r;
+    $changed = $S['panel']['url'] !== $c['url'] || $S['panel']['token'] !== $c['token'];
+    $S['panel'] = array_merge($S['panel'], ['url' => $c['url'], 'token' => $c['token'], 'cookie' => $c['cookie'], 'xkey' => $c['xkey'], 'tls' => $c['tls'] ? 1 : 0, 'version' => $r['version'], 'st' => 'ok']);
+    $cfg = inst_panel_config($c, $r['version']);
+    $S['panel']['sub_public_domain'] = $cfg['sub_public_domain'];
+    $S['panel']['webhook'] = $cfg['webhook'];
+    $fu = inst_first_user($c);
+    $S['user_short'] = (string) ($fu['short'] ?? '');
+    $S['user_name'] = (string) ($fu['username'] ?? '');
+    if ($changed) $S['scopes'] = [];
+    $sc = inst_scopes_probe($c, ['subpage' => inst_need_subpage($S)]);
+    $S['scopes'] = ['ok' => $sc['ok'], 'missing' => $sc['missing'], 'ts' => time()];
+    $r['scopes'] = $sc;
+    $r['ok'] = $sc['ok'];
+    return $r;
+}
+
 // ---- страница «только по домену» ----
 $self = inst_self();
 if ($self['is_local']) {
     http_response_code(403);
     header('Cache-Control: no-store');
     ?><!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Прослойка подписки</title>
-    <style>body{margin:0;font:15px/1.5 system-ui,sans-serif;background:#0f1115;color:#e6e8ee;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}main{max-width:620px}h1{font-size:1.25rem;margin:0 0 .6rem}code{background:#1b1f27;padding:.1rem .4rem;border-radius:6px}p{margin:.5rem 0}ol{padding-left:1.2rem}</style></head><body><main>
-    <h1>Прослойка работает только за реверс-прокси по домену</h1>
-    <p>Вы открыли её напрямую по адресу <code><?= h($self['host']) ?></code>. Так мастер установки не запускается: клиентам нужен HTTPS, а прослойке — настоящее имя домена.</p>
-    <p>Если вы открыли по домену, а видите это — реверс-прокси не передаёт заголовок <code>Host</code>: в nginx добавьте <code>proxy_set_header Host $host;</code> (и <code>X-Forwarded-Proto $scheme;</code>, <code>X-Forwarded-For $proxy_add_x_forwarded_for;</code>).</p>
+    <style>body{margin:0;font:15px/1.5 system-ui,sans-serif;background:#0f1115;color:#e6e8ee;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}main{max-width:620px}h1{font-size:1.25rem;margin:0 0 .6rem}code{background:#1b1f27;padding:.1rem .4rem;border-radius:6px;word-break:break-all}p{margin:.5rem 0}ol{padding-left:1.2rem}</style></head><body><main>
+    <h1>Откройте прослойку по домену</h1>
+    <p>Сейчас она открыта по адресу <code><?= h($self['host']) ?></code>. Прослойка работает только через реверс-прокси по домену подписки — клиентам нужен HTTPS.</p>
     <ol>
-        <li>Направьте домен подписки на прослойку: в реверс-прокси сделайте <code>proxy_pass</code> / <code>reverse_proxy</code> на <code>127.0.0.1:8080</code> (порт из docker-compose.yml). Для установщика панели: Caddy — <code>SUB_BACKEND_URL=127.0.0.1:8080</code>, nginx — <code>upstream json { server 127.0.0.1:8080; }</code>.</li>
-        <li>Откройте <code>https://&lt;домен&gt;/admin/?…</code> по ссылке установки из <code>docker compose logs</code> (или из <code>data/install.json</code>, поле <code>key</code>).</li>
+        <li>В реверс-прокси направьте домен подписки на <code>127.0.0.1:8080</code>. Установщик панели: Caddy — <code>SUB_BACKEND_URL=127.0.0.1:8080</code>, nginx — <code>upstream json { server 127.0.0.1:8080; }</code>.</li>
+        <li>Откройте ссылку мастера из <code>docker compose logs submw</code>.</li>
     </ol>
+    <p>Если вы уже открыли по домену и всё равно видите это — реверс-прокси не передаёт заголовок <code>Host</code>. В nginx добавьте <code>proxy_set_header Host $host;</code>.</p>
     </main></body></html><?php
     exit();
 }
@@ -100,6 +123,10 @@ if (!isset($_COOKIE[$gk]) || !hash_equals($gv, (string) $_COOKIE[$gk])) {
     exit();
 }
 $csrf_ok = isset($_POST['_g']) && hash_equals($S['key'], (string) $_POST['_g']);
+$env = inst_env_report();
+$scenario_fixed = $env['docker'] && in_array($env['scenario'], ['panel', 'standalone'], true);
+if ($scenario_fixed && $S['scenario'] === '') $S['scenario'] = $env['scenario'];
+if ($S['scenario'] === 'panel' && $S['mode'] !== 'panel') $S['mode'] = 'panel';
 
 // ---- AJAX-проверки ----
 if (isset($_GET['inst']) && $_GET['inst'] === 'probe') {
@@ -110,36 +137,19 @@ if (isset($_GET['inst']) && $_GET['inst'] === 'probe') {
         $c = ['url' => $u['ok'] ? $u['url'] : inst_post('url'), 'token' => inst_post('token'), 'cookie' => inst_post('cookie'), 'xkey' => inst_post('xkey'), 'tls' => inst_post('tls') !== '0'];
         $from_link = false;
         if ($c['cookie'] === '' && $u['ok'] && $u['cookie_hint'] !== '') { $c['cookie'] = $u['cookie_hint']; $from_link = true; }
-        $r = inst_panel_probe($c, $S['scenario'] === 'panel' ? 'panel' : 'standalone');
+        $r = inst_panel_apply($S, $c, $S['scenario'] === 'panel' ? 'panel' : 'standalone');
         $r['url_norm'] = $u['ok'] ? $u['url'] : '';
         $r['url_note'] = $u['ok'] ? $u['note'] : '';
         $r['cookie_used'] = $c['cookie'];
         $r['cookie_from_link'] = $from_link;
         $r['token_warn'] = inst_token_shape($c['token']);
-        if ($r['ok']) {
-            $S['panel'] = array_merge($S['panel'], ['url' => $c['url'], 'token' => $c['token'], 'cookie' => $c['cookie'], 'xkey' => $c['xkey'], 'tls' => $c['tls'] ? 1 : 0, 'version' => $r['version'], 'st' => 'ok']);
-            $cfg = inst_panel_config($c, $r['version']);
-            $S['panel']['sub_public_domain'] = $cfg['sub_public_domain'];
-            $S['panel']['webhook'] = $cfg['webhook'];
-            $fu = inst_first_user($c);
-            $S['user_short'] = (string) ($fu['short'] ?? '');
-            $S['user_name'] = (string) ($fu['username'] ?? '');
-            $S['scopes'] = [];
-            inst_state_save($S);
-            $r['sub_public_domain'] = $cfg['sub_public_domain'];
-            $r['self_host'] = $self['bare'];
-        }
-        inst_json_out($r);
-    }
-    if ($what === 'scopes') {
-        $r = inst_scopes_probe(inst_panel_conn($S), ['subpage' => $S['mode'] === 'panel' && !empty($S['subpage']['enabled'])]);
-        $S['scopes'] = ['ok' => $r['ok'], 'missing' => $r['missing'], 'ts' => time()];
+        $r['sub_public_domain'] = $S['panel']['sub_public_domain'];
+        $r['self_host'] = $self['bare'];
         inst_state_save($S);
         inst_json_out($r);
     }
     if ($what === 'subpage') {
         $r = inst_subpage_probe(inst_post('url'), $S['user_short']);
-        $r['user'] = $S['user_name'];
         if ($r['ok']) { $S['subpage']['url'] = $r['url']; $S['subpage']['st'] = $r['st']; inst_state_save($S); }
         inst_json_out($r);
     }
@@ -152,14 +162,13 @@ if (isset($_GET['inst']) && $_GET['inst'] === 'probe') {
         if ($r['ok']) { $S['origin'] = array_merge($S['origin'], ['raw' => inst_post('raw'), 'domain' => $o['domain'], 'prefix' => $o['prefix'], 'short' => $o['short'], 'st' => $r['st'], 'browser' => $r['browser']]); inst_state_save($S); }
         inst_json_out($r);
     }
-    if ($what === 'db') inst_json_out(inst_db_probe($S['db']));
     inst_json_out(['ok' => false, 'msg' => 'Неизвестная проверка']);
 }
 
 // ---- переходы между шагами ----
 $err = '';
 $steps = inst_steps($S);
-if (!in_array($S['step'], $steps, true)) $S['step'] = 'env';
+if (!in_array($S['step'], $steps, true)) $S['step'] = 'start';
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['act'])) {
     if (!$csrf_ok) {
         $err = 'Страница устарела — обновите её и повторите.';
@@ -176,42 +185,25 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['act'])) {
         header('Location: index.php'); exit();
     } elseif ($_POST['act'] === 'next') {
         $cur = $S['step'];
-        if ($cur === 'env') {
-            $dbr = inst_db_probe($S['db']);
-            if (!$dbr['ok']) $err = $dbr['msg'];
-        } elseif ($cur === 'scenario') {
-            $sc = inst_post('scenario');
+        if ($cur === 'start') {
+            $sc = $scenario_fixed ? $S['scenario'] : inst_post('scenario');
             $md = inst_post('mode');
-            if (!in_array($sc, ['panel', 'standalone', 'host'], true)) $err = 'Выберите сценарий.';
+            if (!in_array($sc, ['panel', 'standalone', 'host'], true)) $err = 'Выберите, как установлена прослойка.';
             else {
                 $S['scenario'] = $sc;
                 $S['mode'] = ($sc !== 'panel' && $md === 'mirror') ? 'mirror' : 'panel';
                 if ($sc === 'panel' && $S['panel']['url'] === '') $S['panel']['url'] = 'http://remnawave:3000';
-                if ($sc === 'panel' && $S['subpage']['url'] === '') $S['subpage']['url'] = 'http://remnawave-subscription-page:3010';
-                if ($sc !== 'panel' && $S['subpage']['url'] === '') $S['subpage']['url'] = 'http://remnawave-subscription-page:3010';
+                if ($S['subpage']['url'] === '') $S['subpage']['url'] = $sc === 'panel' ? 'http://remnawave-subscription-page:3010' : 'http://subpage:3010';
                 $steps = inst_steps($S);
+                $dbr = inst_db_probe($S['db']);
+                if (!$dbr['ok']) $err = $dbr['msg'];
             }
         } elseif ($cur === 'panel') {
             $u = inst_url_parse(inst_post('url'));
             $c = ['url' => $u['ok'] ? $u['url'] : '', 'token' => inst_post('token'), 'cookie' => inst_post('cookie'), 'xkey' => inst_post('xkey'), 'tls' => inst_post('tls') !== '0'];
             if ($c['cookie'] === '' && $u['ok'] && $u['cookie_hint'] !== '') $c['cookie'] = $u['cookie_hint'];
-            $r = $u['ok'] ? inst_panel_probe($c, $S['scenario'] === 'panel' ? 'panel' : 'standalone') : ['ok' => false, 'msg' => $u['err']];
-            if (!$r['ok']) $err = $r['msg'] . (!empty($r['hint']) ? ' ' . $r['hint'] : '');
-            else {
-                $changed = $S['panel']['url'] !== $c['url'] || $S['panel']['token'] !== $c['token'];
-                $S['panel'] = array_merge($S['panel'], ['url' => $c['url'], 'token' => $c['token'], 'cookie' => $c['cookie'], 'xkey' => $c['xkey'], 'tls' => $c['tls'] ? 1 : 0, 'version' => $r['version'], 'st' => 'ok']);
-                $cfg = inst_panel_config($c, $r['version']);
-                $S['panel']['sub_public_domain'] = $cfg['sub_public_domain'];
-                $S['panel']['webhook'] = $cfg['webhook'];
-                $fu = inst_first_user($c);
-                $S['user_short'] = (string) ($fu['short'] ?? '');
-                $S['user_name'] = (string) ($fu['username'] ?? '');
-                if ($changed) $S['scopes'] = [];
-            }
-        } elseif ($cur === 'scopes') {
-            $r = inst_scopes_probe(inst_panel_conn($S), ['subpage' => $S['mode'] === 'panel' && !empty($S['subpage']['enabled'])]);
-            $S['scopes'] = ['ok' => $r['ok'], 'missing' => $r['missing'], 'ts' => time()];
-            if (!$r['ok']) $err = $r['msg'];
+            $r = $u['ok'] ? inst_panel_apply($S, $c, $S['scenario'] === 'panel' ? 'panel' : 'standalone') : ['ok' => false, 'msg' => $u['err'], 'hint' => ''];
+            if (!$r['ok']) $err = isset($r['scopes']) && !$r['scopes']['ok'] ? $r['scopes']['msg'] : $r['msg'] . (!empty($r['hint']) ? ' ' . $r['hint'] : '');
         } elseif ($cur === 'subpage') {
             $S['subpage']['enabled'] = inst_post('enabled') === '1' ? 1 : 0;
             if ($S['subpage']['enabled']) {
@@ -221,8 +213,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['act'])) {
                     $r = inst_subpage_probe($u['url'], $S['user_short']);
                     $S['subpage']['url'] = $u['url'];
                     $S['subpage']['st'] = $r['st'];
-                    if (!$r['ok']) $S['pending']['subpage'] = $r['msg'];
-                    else unset($S['pending']['subpage']);
+                    if (!$r['ok']) $S['pending']['subpage'] = $r['msg']; else unset($S['pending']['subpage']);
                 }
             } else {
                 unset($S['pending']['subpage']);
@@ -241,17 +232,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['act'])) {
             }
         } elseif ($cur === 'webhook') {
             $sec = inst_post('secret');
-            if (!inst_webhook_secret_ok($sec)) $err = 'Секрет вебхука — ровно 64 символа, только латиница и цифры.';
+            if (!inst_webhook_secret_ok($sec)) $err = 'Секрет вебхука — ровно 64 символа, только латинские буквы и цифры.';
             else $S['webhook_secret'] = $sec;
-            if ($S['panel']['webhook'] === false) $S['pending']['webhook'] = 'В панели вебхуки выключены — пропишите WEBHOOK_* в .env панели.';
-            else unset($S['pending']['webhook']);
+            if ($S['panel']['webhook'] === false) $S['pending']['webhook'] = 'в панели вебхуки выключены'; else unset($S['pending']['webhook']);
         } elseif ($cur === 'admin') {
             $au = inst_post('admin_user');
             $ap = (string) ($_POST['admin_pass'] ?? '');
             $ap2 = (string) ($_POST['admin_pass2'] ?? '');
             if ($au === '' || $ap === '') $err = 'Заполните логин и пароль.';
             elseif ($ap !== $ap2) $err = 'Пароли не совпадают.';
-            elseif (strlen($ap) < 8) $err = 'Пароль слишком короткий (минимум 8 символов).';
+            elseif (strlen($ap) < 8) $err = 'Пароль короче 8 символов.';
             else {
                 $S['admin']['user'] = $au;
                 $fin = inst_finalize($S, $ap, $self);
@@ -274,7 +264,7 @@ function inst_finalize(array &$S, $pass, array $self) {
     $db = $S['db'];
     $ce = '';
     $pdo = pdo_connect($db, $ce);
-    if ($pdo === null) return ['ok' => false, 'err' => 'Не удалось подключиться к БД: ' . $ce];
+    if ($pdo === null) return ['ok' => false, 'err' => 'База данных не отвечает: ' . $ce];
     $drv = $db['driver'] ?? 'sqlite';
     try {
         foreach (install_statements($drv) as $sql) $pdo->exec($sql);
@@ -302,15 +292,17 @@ function inst_finalize(array &$S, $pass, array $self) {
         $set('admin_gate_key', $S['key']);
         $set('install_scenario', $S['scenario']);
         if (!empty($S['pending'])) $set('install_pending', json_encode($S['pending'], JSON_UNESCAPED_UNICODE));
-        if ($S['panel']['version'] !== '') $set('panelmeta_json', json_encode(['ok' => true, 'ts' => time(), 'cached' => false, 'age' => 0, 'error' => '', 'version' => $S['panel']['version'], 'build_time' => '', 'build_number' => '', 'commit' => '', 'branch' => '', 'commit_url' => ''], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        if ($S['panel']['version'] !== '') $set('panelmeta_ts', (string) time());
+        if ($S['panel']['version'] !== '') {
+            $set('panelmeta_json', json_encode(['ok' => true, 'ts' => time(), 'cached' => false, 'age' => 0, 'error' => '', 'version' => $S['panel']['version'], 'build_time' => '', 'build_number' => '', 'commit' => '', 'branch' => '', 'commit_url' => ''], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $set('panelmeta_ts', (string) time());
+        }
     } catch (Throwable $e) {
-        return ['ok' => false, 'err' => 'Ошибка создания таблиц: ' . $e->getMessage()];
+        return ['ok' => false, 'err' => 'Не удалось создать таблицы: ' . $e->getMessage()];
     }
     $conf = ['installed' => true, 'db' => $db, 'admin_user' => $S['admin']['user'], 'admin_pass_hash' => password_hash($pass, PASSWORD_DEFAULT)];
     $php = "<?php\nreturn " . var_export($conf, true) . ";\n";
     if (@file_put_contents(config_path(), $php) === false) {
-        return ['ok' => false, 'err' => 'Таблицы созданы, но не удалось записать ' . config_path() . ' — проверьте права на каталог.'];
+        return ['ok' => false, 'err' => 'Не удалось записать ' . config_path() . ' — проверьте права на папку.'];
     }
     @chmod(config_path(), 0640);
     @unlink(inst_state_path());
@@ -334,54 +326,70 @@ function inst_head($title) {
     <style>
         html[data-theme=light]{color-scheme:light}
         html[data-theme=dark],html[data-theme=black]{color-scheme:dark}
-        body{background:radial-gradient(120% 50% at 50% 0%,var(--accent-light),transparent 60%),var(--bg)}
-        .wrap{max-width:720px;margin:0 auto;padding:max(28px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(32px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+        html{background:var(--bg)}
+        body{min-height:100vh;min-height:100dvh;margin:0;background:radial-gradient(120% 50% at 50% 0%,var(--accent-light),transparent 60%),var(--bg)}
+        .wrap{max-width:680px;margin:0 auto;padding:max(24px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(32px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
         .in-h{display:flex;align-items:center;gap:.8rem;margin:0 0 1rem}
-        .in-logo{width:44px;height:44px;border-radius:12px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;flex:none}
-        .in-h h1{font-size:1.3rem;margin:0;color:var(--text-strong);line-height:1.25}
+        .in-h h1{font-size:1.25rem;margin:0;color:var(--text-strong);line-height:1.25}
         .in-h p{margin:.15rem 0 0;color:var(--muted);font-size:.86rem}
-        .in-steps{display:flex;flex-wrap:wrap;gap:.35rem;margin:0 0 1rem;padding:0;list-style:none}
-        .in-steps li{font-size:.78rem;padding:.3rem .65rem;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--card)}
+        .in-steps{display:flex;gap:.35rem;margin:0 0 1rem;padding:0 0 .2rem;list-style:none;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+        .in-steps::-webkit-scrollbar{display:none}
+        .in-steps li{flex:none;font-size:.78rem;padding:.3rem .7rem;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--card);white-space:nowrap}
         .in-steps li.done{color:var(--c-ok-fg);background:var(--c-ok-bg);border-color:transparent}
         .in-steps li.cur{color:var(--accent-text);background:var(--accent-light);border-color:var(--accent);font-weight:600}
+        .in-steps li form{display:inline}
         .in-steps li button{all:unset;cursor:pointer}
-        .card h2{font-size:1.05rem;margin:0 0 .5rem}
-        .card .muted{font-size:.84rem}
+        .card{padding:1.1rem 1.1rem 1rem}
+        .card h2{font-size:1.05rem;margin:0 0 .35rem}
+        .card .lead{font-size:.88rem;color:var(--muted);margin:0 0 .9rem;line-height:1.45}
+        .card label{margin-top:.7rem}
+        .card .fh{font-size:.8rem;color:var(--muted);margin:.3rem 0 0;line-height:1.4}
         .warn{border-radius:12px;white-space:pre-wrap}
-        .in-nav{display:flex;gap:.6rem;justify-content:space-between;align-items:center;margin-top:1rem;flex-wrap:wrap}
+        .in-nav{display:flex;gap:.6rem;justify-content:space-between;align-items:center;margin-top:1.1rem}
+        .in-nav .r{display:flex;gap:.6rem;margin-left:auto}
         .in-go{min-height:46px;font-size:1rem;border-radius:12px;padding:0 1.4rem}
         .in-go:disabled{opacity:.55;cursor:default}
-        input[type=text],input[type=password],select{min-height:44px}
-        @media(max-width:900px){input,select{font-size:16px!important}}
-        .st{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .8rem;border-radius:10px;margin:.6rem 0;font-size:.88rem;line-height:1.45;background:var(--bg2);border:1px solid var(--line)}
+        input[type=text],input[type=password]{min-height:44px}
+        @media(max-width:900px){input{font-size:16px!important}}
+        @media(max-width:560px){.in-nav{flex-wrap:wrap}.in-nav .r{width:100%;margin-left:0}.in-nav .r button{flex:1}.in-nav>button.btn{width:100%}.in-go{width:100%}}
+        .st{display:flex;gap:.6rem;align-items:flex-start;padding:.65rem .8rem;border-radius:10px;margin:.6rem 0 0;font-size:.88rem;line-height:1.45;background:var(--bg2);border:1px solid var(--line)}
         .st svg{flex:none;width:18px;height:18px;margin-top:.1rem}
+        .st>div{min-width:0;overflow-wrap:anywhere}
         .st.ok{background:var(--c-ok-bg);color:var(--c-ok-fg);border-color:transparent}
         .st.bad{background:var(--c-bad-bg);color:var(--c-bad-fg);border-color:transparent}
-        .st.warn{background:var(--c-warn-bg);color:var(--c-warn-fg);border-color:transparent;white-space:normal}
+        .st.warn{background:var(--c-warn-bg);color:var(--c-warn-fg);border-color:transparent}
         .st.info{background:var(--c-info-bg);color:var(--c-info-fg);border-color:transparent}
         .st .hint{display:block;margin-top:.25rem;font-size:.82rem;opacity:.9}
-        .sc{display:grid;gap:.6rem;grid-template-columns:1fr}
-        .sc label{display:flex;gap:.7rem;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:.8rem .9rem;cursor:pointer;background:var(--card)}
+        .sc{display:grid;gap:.55rem;grid-template-columns:1fr;margin-top:.4rem}
+        .sc label{display:flex;gap:.7rem;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:.75rem .85rem;cursor:pointer;background:var(--card);margin:0}
         .sc label:has(input:checked){border-color:var(--accent);background:var(--accent-light)}
-        .sc input{margin-top:.25rem}
-        .sc b{display:block;color:var(--text-strong)}
-        .sc span{font-size:.82rem;color:var(--muted)}
-        .env{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.5rem;margin:.6rem 0}
-        .env div{border:1px solid var(--line);border-radius:10px;padding:.55rem .7rem;font-size:.84rem;background:var(--bg2)}
-        .env div b{display:block;font-size:.76rem;color:var(--muted);font-weight:500}
-        .ts-tbl{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:.85rem}
-        .ts-tbl td{padding:.4rem .5rem;border-top:1px solid var(--line);vertical-align:top}
-        .ts-tbl .tag{white-space:nowrap}
+        .sc input{margin:.2rem 0 0;flex:none}
+        .sc b{display:block;color:var(--text-strong);font-size:.92rem}
+        .sc span{font-size:.8rem;color:var(--muted);line-height:1.4}
+        .kv{display:flex;flex-wrap:wrap;gap:.4rem .9rem;font-size:.84rem;color:var(--muted);margin:.2rem 0 .6rem}
+        .kv b{color:var(--text);font-weight:500}
+        .rights{margin-top:.5rem;border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:.84rem}
+        .rights div{display:flex;gap:.6rem;align-items:center;padding:.45rem .7rem;border-top:1px solid var(--line)}
+        .rights div:first-child{border-top:0}
+        .rights code{flex:1;min-width:0;overflow-wrap:anywhere}
+        .rights .tag{flex:none}
+        .rights .w{display:none}
+        @media(min-width:640px){.rights .w{display:block;flex:1.4;color:var(--muted)}}
+        details.more{margin-top:.8rem}
+        details.more summary{cursor:pointer;font-size:.86rem;color:var(--accent-text);font-weight:600;list-style:none}
+        details.more summary::-webkit-details-marker{display:none}
+        details.more summary::before{content:"▸ ";font-size:.8em}
+        details.more[open] summary::before{content:"▾ "}
         .row2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
-        @media(max-width:640px){.row2{grid-template-columns:1fr}}
-        .codeblk{position:relative;margin:.5rem 0}
-        .codeblk pre{margin:0;padding:.7rem .8rem;border-radius:10px;background:var(--bg2);border:1px solid var(--line);font-size:.8rem;overflow:auto;white-space:pre-wrap;word-break:break-all}
-        .copybtn{position:absolute;top:.4rem;right:.4rem;min-height:0;padding:.2rem .55rem;font-size:.74rem}
-        .in-link{font-family:ui-monospace,monospace;font-size:.9rem;word-break:break-all}
-        .chk-inline{display:flex;align-items:center;gap:.5rem;margin:.6rem 0;font-size:.88rem}
-        .chk-inline input{width:18px;height:18px;margin:0}
+        @media(max-width:560px){.row2{grid-template-columns:1fr}}
+        .codeblk{position:relative;margin:.6rem 0 0}
+        .codeblk pre{margin:0;padding:.7rem 5.2rem .7rem .8rem;border-radius:10px;background:var(--bg2);border:1px solid var(--line);font-size:.8rem;overflow:auto;white-space:pre-wrap;word-break:break-all}
+        .copybtn{position:absolute;top:.4rem;right:.4rem;min-height:0;padding:.25rem .6rem;font-size:.74rem}
+        .in-link{font-family:ui-monospace,monospace;font-size:.88rem}
+        .chk-inline{display:flex;align-items:center;gap:.55rem;margin:.7rem 0 0;font-size:.88rem;cursor:pointer}
+        .chk-inline input{width:18px;height:18px;margin:0;flex:none}
     </style></head><body><div class="wrap">
-    <div class="in-h"><div class="in-logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z"/></svg></div><div><h1>Установка прослойки подписки</h1><p>Мастер проверяет каждый шаг — дальше всё настраивается в админке</p></div></div>
+    <div class="in-h"><div><h1>Установка прослойки</h1><p>Пять шагов, каждый проверяется</p></div></div>
     <?php
 }
 
@@ -396,163 +404,155 @@ function inst_st($kind, $msg, $hint = '') {
     echo '<div class="st ' . h($kind) . '">' . inst_icon($kind) . '<div>' . h($msg) . ($hint !== '' ? '<span class="hint">' . h($hint) . '</span>' : '') . '</div></div>';
 }
 
+function inst_copy_btn() {
+    return '<button type="button" class="copybtn" onclick="var b=this;navigator.clipboard&&navigator.clipboard.writeText(b.nextElementSibling.textContent).then(function(){b.textContent=\'Готово\';setTimeout(function(){b.textContent=\'Копировать\';},1500);});">Копировать</button>';
+}
+
 function inst_render_done(array $S, array $fin, array $self) {
     $e2e = $fin['e2e'];
     $link = $self['base'] . '/admin/?' . $S['key'];
     inst_head('Установка завершена');
     ?>
     <div class="card">
-        <h2>Готово — прослойка установлена</h2>
+        <h2>Готово</h2>
+        <p class="lead">Прослойка установлена и работает на <?= h($self['host']) ?>.</p>
         <?php if ($e2e['ok']): ?>
-            <?php inst_st('ok', 'Сквозная проверка прошла: подписка пользователя ' . ($S['user_name'] !== '' ? '«' . $S['user_name'] . '» ' : '') . 'отдаётся через ' . $self['host'] . '.'); ?>
+            <?php inst_st('ok', 'Подписка пользователя ' . ($S['user_name'] !== '' ? '«' . $S['user_name'] . '» ' : '') . 'открывается через ваш домен.'); ?>
         <?php elseif ($e2e['st'] === 'nouser'): ?>
-            <?php inst_st('info', $e2e['msg'], 'Создайте пользователя в панели и проверьте его ссылку подписки в клиенте.'); ?>
+            <?php inst_st('info', 'В панели ещё нет пользователей.', 'Создайте пользователя и откройте его ссылку в VPN-клиенте.'); ?>
         <?php else: ?>
-            <?php inst_st('warn', 'Сквозная проверка не прошла: ' . $e2e['msg'], ($e2e['hint'] !== '' ? $e2e['hint'] . ' ' : '') . 'Повторить можно на вкладке «Подключение».'); ?>
+            <?php inst_st('warn', $e2e['msg'], ($e2e['hint'] !== '' ? $e2e['hint'] . ' ' : '') . 'Повторить проверку: Подключение → Проверка связи.'); ?>
         <?php endif; ?>
         <?php if (!empty($S['pending'])): ?>
-            <?php inst_st('warn', 'Остались предупреждения: ' . implode('; ', array_map(fn($k, $v) => inst_step_title($k) . ' — ' . $v, array_keys($S['pending']), $S['pending'])), 'Они будут показаны после входа, пока не закроете.'); ?>
+            <?php inst_st('warn', 'Не прошли проверки: ' . implode('; ', array_map(fn($k, $v) => mb_strtolower(inst_step_title($k)) . ' — ' . $v, array_keys($S['pending']), $S['pending'])) . '.', 'Напоминание будет в админке, пока не закроете.'); ?>
         <?php endif; ?>
     </div>
     <div class="card">
-        <h2>Ссылка для входа в админку</h2>
-        <p class="muted">Без неё адрес <code>/admin/</code> показывает ту же страницу-приманку, что и корень сайта. Сохраните ссылку — она же выдаёт доступ новому браузеру и телефону. Перевыпустить её можно на вкладке «Подключение» или командой <code>php tools/admin-gate.php</code>.</p>
-        <div class="codeblk"><button type="button" class="copybtn" onclick="var b=this;navigator.clipboard&&navigator.clipboard.writeText(b.nextElementSibling.textContent).then(function(){b.textContent='Скопировано';setTimeout(function(){b.textContent='Копировать';},1500);});">Копировать</button><pre class="in-link"><?= h($link) ?></pre></div>
-        <?php if ($S['scenario'] === 'panel' || ($S['scenario'] !== 'panel' && $S['mode'] === 'panel')): ?>
-        <p class="muted">Если домен подписки ещё не переключён на прослойку: Caddy (установщик панели) — <code>SUB_BACKEND_URL=127.0.0.1:8080</code> у контейнера Caddy и перезапуск; nginx — <code>upstream json { server 127.0.0.1:8080; }</code> и <code>nginx -s reload</code>.</p>
-        <?php endif; ?>
-        <form method="get" action="index.php"><button type="submit" class="in-go" style="width:100%">Войти в админку</button></form>
+        <h2>Ссылка для входа</h2>
+        <p class="lead">Сохраните её. Без этой ссылки адрес <code>/admin/</code> показывает страницу-заглушку — так админку не найти посторонним. Откройте ссылку один раз в каждом браузере и на телефоне.</p>
+        <div class="codeblk"><?= inst_copy_btn() ?><pre class="in-link"><?= h($link) ?></pre></div>
+        <p class="fh">Потеряли — выполните <code>docker compose exec submw php tools/admin-gate.php</code>, она напечатает ссылку.</p>
+        <form method="get" action="index.php" style="margin-top:1rem"><button type="submit" class="in-go" style="width:100%">Войти в админку</button></form>
     </div>
     <?php
     inst_foot();
 }
 
 $step = $S['step'];
-$env = inst_env_report();
 $G = $S['key'];
 inst_head('Установка прослойки');
 ?>
-<ul class="in-steps"><?php foreach ($steps as $i => $id): $ci = array_search($step, $steps, true); $cls = $i < $ci ? 'done' : ($i === $ci ? 'cur' : ''); ?><li class="<?= $cls ?>"><?php if ($i < $ci): ?><form method="post" style="display:inline"><input type="hidden" name="_g" value="<?= h($G) ?>"><input type="hidden" name="act" value="goto"><input type="hidden" name="to" value="<?= h($id) ?>"><button type="submit"><?= h(inst_step_title($id)) ?></button></form><?php else: ?><?= h(inst_step_title($id)) ?><?php endif; ?></li><?php endforeach; ?></ul>
+<ul class="in-steps"><?php foreach ($steps as $i => $id): $ci = array_search($step, $steps, true); $cls = $i < $ci ? 'done' : ($i === $ci ? 'cur' : ''); ?><li class="<?= $cls ?>"><?php if ($i < $ci): ?><form method="post"><input type="hidden" name="_g" value="<?= h($G) ?>"><input type="hidden" name="act" value="goto"><input type="hidden" name="to" value="<?= h($id) ?>"><button type="submit"><?= ($i + 1) . '. ' . h(inst_step_title($id)) ?></button></form><?php else: ?><?= ($i + 1) . '. ' . h(inst_step_title($id)) ?><?php endif; ?></li><?php endforeach; ?></ul>
 <?php if ($err !== ''): ?><div class="warn" role="alert"><?= h($err) ?></div><?php endif; ?>
 <form method="post" id="inst" autocomplete="off">
 <input type="hidden" name="_g" value="<?= h($G) ?>">
 <input type="hidden" name="act" value="next">
-<?php if ($step === 'env'): ?>
+<?php if ($step === 'start'): ?>
     <div class="card">
-        <h2>Окружение</h2>
-        <div class="env">
-            <div><b>Домен прослойки</b><?= h($self['host']) ?> <span class="muted">(<?= h($self['scheme']) ?>)</span></div>
-            <div><b>PHP</b><?= h($env['php']) ?> · <?= h($env['sapi']) ?></div>
-            <div><b>Запуск</b><?= $env['docker'] ? 'Docker' . ($env['image'] !== '' ? ', образ ' . h($env['image']) : '') : 'файлы на сервере' ?></div>
-            <div><b>База данных</b><?= ($S['db']['driver'] ?? 'sqlite') === 'mysql' ? 'MySQL · ' . h($S['db']['host'] ?? '') . ' / ' . h($S['db']['name'] ?? '') : 'SQLite · data/submw.sqlite' ?></div>
-        </div>
-        <?php foreach (['curl' => 'запросы к панели', 'pdo_sqlite' => 'SQLite', 'pdo_mysql' => 'MySQL', 'mbstring' => 'строки', 'dom' => 'разбор страниц', 'sodium' => 'защищённый канал приложения'] as $e => $why): if (empty($env['ext'][$e])): ?>
-            <?php inst_st(in_array($e, ['curl', 'mbstring'], true) || ($e === 'pdo_sqlite' && ($S['db']['driver'] ?? 'sqlite') === 'sqlite') || ($e === 'pdo_mysql' && ($S['db']['driver'] ?? '') === 'mysql') ? 'bad' : 'warn', 'Нет PHP-расширения ' . $e . ' (' . $why . ').'); ?>
+        <h2>Начало</h2>
+        <div class="kv"><span>Домен: <b><?= h($self['host']) ?></b></span><span>База данных: <b><?= ($S['db']['driver'] ?? 'sqlite') === 'mysql' ? 'MySQL' : 'SQLite' ?></b></span><span>PHP <b><?= h($env['php']) ?></b></span><?php if ($env['docker']): ?><span>Docker<?= $env['image'] !== '' ? ', образ <b>' . h(preg_match('~^[0-9a-f]{12,}$~', $env['image']) ? substr($env['image'], 0, 7) : $env['image']) . '</b>' : '' ?></span><?php endif; ?></div>
+        <?php foreach (['curl' => 'нужно для связи с панелью', 'pdo_sqlite' => 'нужно для базы SQLite', 'pdo_mysql' => 'нужно для MySQL', 'mbstring' => 'нужно для работы с текстом', 'dom' => 'нужно для страницы подписки', 'sodium' => 'нужно для приложения Clod Clash'] as $e => $why): if (empty($env['ext'][$e])): ?>
+            <?php inst_st(in_array($e, ['curl', 'mbstring'], true) || ($e === 'pdo_sqlite' && ($S['db']['driver'] ?? 'sqlite') === 'sqlite') || ($e === 'pdo_mysql' && ($S['db']['driver'] ?? '') === 'mysql') ? 'bad' : 'warn', 'В PHP нет расширения ' . $e . ' — ' . $why . '.'); ?>
         <?php endif; endforeach; ?>
-        <?php if (!$env['data_ok']): ?><?php inst_st('bad', 'Каталог data/ недоступен для записи: ' . $env['data_dir'], 'Прослойка хранит там БД, конфиг и сессии.'); ?><?php endif; ?>
-        <?php if ($self['scheme'] !== 'https'): ?><?php inst_st('warn', 'Мастер открыт по http. Клиентам подписки нужен https — проверьте, что реверс отдаёт сертификат и передаёт X-Forwarded-Proto.'); ?><?php endif; ?>
-        <div id="dbSt"></div>
-        <div class="in-nav"><span class="muted">Проверка БД выполняется при переходе дальше.</span><button type="submit" class="in-go">Далее</button></div>
-    </div>
-<?php elseif ($step === 'scenario'): ?>
-    <div class="card">
-        <h2>Как установлена прослойка</h2>
-        <?php $sc = $S['scenario'] !== '' ? $S['scenario'] : ($env['docker'] ? 'panel' : 'host'); if ($env['scenario'] !== '' && $S['scenario'] === '') $sc = $env['scenario'] === 'standalone' ? 'standalone' : 'panel'; ?>
-        <div class="sc">
-            <label><input type="radio" name="scenario" value="panel" <?= $sc === 'panel' ? 'checked' : '' ?>><div><b>Рядом с панелью</b><span>Контейнер в docker-сети панели. Прослойка сама отдаёт подписку с панели по внутреннему адресу, страницу в браузере — через subscription-page панели.</span></div></label>
-            <label><input type="radio" name="scenario" value="standalone" <?= $sc === 'standalone' ? 'checked' : '' ?>><div><b>Отдельный сервер</b><span>Панель на другом сервере, прослойка ходит к ней по публичному адресу.</span></div></label>
-            <?php if (!$env['docker']): ?><label><input type="radio" name="scenario" value="host" <?= $sc === 'host' ? 'checked' : '' ?>><div><b>Файловая установка на сервере</b><span>nginx + php-fpm без Docker (install.sh).</span></div></label><?php endif; ?>
-        </div>
-        <div id="modeBox" style="margin-top:.9rem">
-            <h2 style="font-size:.95rem">Что делает прослойка</h2>
+        <?php if (!$env['data_ok']): ?><?php inst_st('bad', 'Папка data/ недоступна для записи.', $env['data_dir']); ?><?php endif; ?>
+        <?php if ($self['scheme'] !== 'https'): ?><?php inst_st('warn', 'Мастер открыт без HTTPS.', 'Клиентам нужен https — проверьте сертификат в реверс-прокси.'); ?><?php endif; ?>
+        <?php if ($scenario_fixed): ?>
+            <p class="lead" style="margin-top:.6rem"><?= $S['scenario'] === 'panel' ? 'Прослойка стоит рядом с панелью и будет отдавать подписку с неё по внутреннему адресу.' : 'Прослойка стоит на отдельном сервере.' ?></p>
+        <?php else: ?>
+            <?php $sc = $S['scenario'] !== '' ? $S['scenario'] : ($env['docker'] ? 'panel' : 'host'); ?>
+            <label>Как установлена прослойка</label>
             <div class="sc">
-                <label><input type="radio" name="mode" value="panel" <?= $S['mode'] !== 'mirror' ? 'checked' : '' ?>><div><b>Стоит на домене подписки</b><span>Домен подписки (SUB_PUBLIC_DOMAIN панели) ведёт на прослойку; ссылки пользователей не меняются. Нужны адрес панели и API-токен.</span></div></label>
-                <label><input type="radio" name="mode" value="mirror" <?= $S['mode'] === 'mirror' ? 'checked' : '' ?>><div><b>Зеркало</b><span>У прослойки свой домен, подписки она берёт с домена подписки панели (origin). Пользователям выдаются ссылки на зеркало.</span></div></label>
+                <label><input type="radio" name="scenario" value="panel" <?= $sc === 'panel' ? 'checked' : '' ?>><div><b>Рядом с панелью</b><span>На том же сервере, в docker-сети панели.</span></div></label>
+                <label><input type="radio" name="scenario" value="standalone" <?= $sc === 'standalone' ? 'checked' : '' ?>><div><b>Отдельный сервер</b><span>Панель на другом сервере.</span></div></label>
+                <?php if (!$env['docker']): ?><label><input type="radio" name="scenario" value="host" <?= $sc === 'host' ? 'checked' : '' ?>><div><b>Без Docker</b><span>Установка скриптом install.sh.</span></div></label><?php endif; ?>
+            </div>
+        <?php endif; ?>
+        <?php if ($S['scenario'] !== 'panel'): ?>
+        <div id="modeBox">
+            <label>Какой домен у прослойки</label>
+            <div class="sc">
+                <label><input type="radio" name="mode" value="panel" <?= $S['mode'] !== 'mirror' ? 'checked' : '' ?>><div><b>Домен подписки</b><span>Тот, что указан в панели как SUB_PUBLIC_DOMAIN. Ссылки у пользователей не меняются.</span></div></label>
+                <label><input type="radio" name="mode" value="mirror" <?= $S['mode'] === 'mirror' ? 'checked' : '' ?>><div><b>Свой домен (зеркало)</b><span>Подписки берутся с домена подписки панели. Пользователям выдаются новые ссылки.</span></div></label>
             </div>
         </div>
-        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><button type="submit" class="in-go">Далее</button></div>
+        <?php endif; ?>
+        <div class="in-nav"><div class="r"><button type="submit" class="in-go">Далее</button></div></div>
     </div>
-    <script>(function(){var r=document.querySelectorAll('input[name=scenario]'),m=document.getElementById('modeBox');function s(){var v=document.querySelector('input[name=scenario]:checked');m.style.display=(v&&v.value==='panel')?'none':'';}r.forEach(function(x){x.addEventListener('change',s);});s();})();</script>
+    <?php if (!$scenario_fixed): ?><script>(function(){var r=document.querySelectorAll('input[name=scenario]'),m=document.getElementById('modeBox');if(!m)return;function s(){var v=document.querySelector('input[name=scenario]:checked');m.style.display=(v&&v.value==='panel')?'none':'';}r.forEach(function(x){x.addEventListener('change',s);});s();})();</script><?php endif; ?>
 <?php elseif ($step === 'panel'): ?>
     <div class="card">
-        <h2>Панель Remnawave</h2>
-        <p class="muted"><?= $S['scenario'] === 'panel' ? 'Внутренний адрес панели в docker-сети, обычно <code>http://remnawave:3000</code>.' : 'Публичный адрес панели со схемой. Можно вставить ссылку входа из вывода установщика панели (<code>https://panel…/auth/login?имя=значение</code>) — защитная cookie подставится сама.' ?></p>
+        <h2>Панель</h2>
+        <p class="lead"><?= $S['scenario'] === 'panel' ? 'Адрес панели внутри docker-сети уже подставлен. Осталось вставить API-токен.' : 'Вставьте адрес панели и API-токен. Если панель ставилась установщиком с защитной cookie — вставьте ссылку входа из него целиком, cookie подставится сама.' ?></p>
         <label>Адрес панели</label>
         <input name="url" id="pUrl" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($S['panel']['url']) ?>" placeholder="<?= $S['scenario'] === 'panel' ? 'http://remnawave:3000' : 'https://panel.example.com' ?>">
         <label>API-токен</label>
         <input name="token" id="pTok" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($S['panel']['token']) ?>" placeholder="eyJhbGciOi…">
-        <p class="muted">Панель → Settings → API Tokens → создать. Проще выдать все права; минимум — проверится на следующем шаге.</p>
-        <details <?= ($S['panel']['cookie'] !== '' || $S['panel']['xkey'] !== '' || empty($S['panel']['tls'])) ? 'open' : '' ?>><summary class="muted" style="cursor:pointer">Панель закрыта защитой (cookie eGames, X-Api-Key, самоподписанный сертификат)</summary>
-            <label>Cookie панели (eGames / remnawave-reverse-proxy)</label>
+        <p class="fh">Панель → Settings → API Tokens → Create. Выберите все права.</p>
+        <details class="more" <?= ($S['panel']['cookie'] !== '' || $S['panel']['xkey'] !== '' || empty($S['panel']['tls'])) ? 'open' : '' ?>><summary>Панель закрыта защитой</summary>
+            <label>Cookie панели</label>
             <input name="cookie" id="pCookie" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($S['panel']['cookie']) ?>" placeholder="имя=значение">
-            <label>X-Api-Key (caddy-with-auth / Tiny Auth)</label>
+            <p class="fh">Часть ссылки входа после «?». Нужна, если панель ставилась скриптом eGames / remnawave-reverse-proxy.</p>
+            <label>X-Api-Key</label>
             <input name="xkey" id="pXkey" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($S['panel']['xkey']) ?>">
-            <label class="chk-inline"><input type="checkbox" name="tls" id="pTls" value="1" <?= !empty($S['panel']['tls']) ? 'checked' : '' ?>>Проверять TLS-сертификат панели</label>
+            <p class="fh">Нужен, если панель закрыта авторизацией Caddy (caddy-with-auth, Tiny Auth).</p>
+            <label class="chk-inline"><input type="checkbox" name="tls" id="pTls" value="1" <?= !empty($S['panel']['tls']) ? 'checked' : '' ?>>Проверять сертификат панели</label>
             <input type="hidden" name="tls" value="0" id="pTlsOff" disabled>
         </details>
         <div id="pSt"></div>
-        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div style="display:flex;gap:.6rem"><button type="button" class="btn ghost" id="pCheck">Проверить</button><button type="submit" class="in-go" id="pNext" <?= $S['panel']['st'] === 'ok' ? '' : 'disabled' ?>>Далее</button></div></div>
-    </div>
-<?php elseif ($step === 'scopes'): ?>
-    <div class="card">
-        <h2>Права API-токена</h2>
-        <p class="muted">Панель <?= h($S['panel']['version']) ?>. Мастер спрашивает панель по каждому праву. Без отмеченных «нужно» прослойка не будет работать; остальные — для отдельных функций, их можно добавить позже.</p>
-        <div id="sSt"><div class="st info"><?= inst_icon('info') ?><div>Проверяю…</div></div></div>
-        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div style="display:flex;gap:.6rem"><button type="button" class="btn ghost" id="sCheck">Проверить снова</button><button type="submit" class="in-go" id="sNext" disabled>Далее</button></div></div>
+        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div class="r"><button type="button" class="btn ghost" id="pCheck">Проверить</button><button type="submit" class="in-go" id="pNext" <?= ($S['panel']['st'] === 'ok' && !empty($S['scopes']['ok'])) ? '' : 'disabled' ?>>Далее</button></div></div>
     </div>
 <?php elseif ($step === 'subpage'): ?>
     <div class="card">
-        <h2>Страница подписки в браузере</h2>
-        <p class="muted">Когда ссылку открывают в браузере, прослойка показывает страницу контейнера <code>subscription-page</code>. Без него по ссылке придёт текст конфига.</p>
-        <label class="chk-inline"><input type="checkbox" name="enabled" id="spOn" value="1" <?= !empty($S['subpage']['enabled']) ? 'checked' : '' ?>>Использовать subscription-page</label>
+        <h2>Страница подписки</h2>
+        <p class="lead">Когда пользователь открывает ссылку в браузере, он видит страницу подписки из контейнера subscription-page.</p>
+        <label class="chk-inline" style="margin-top:0"><input type="checkbox" name="enabled" id="spOn" value="1" <?= !empty($S['subpage']['enabled']) ? 'checked' : '' ?>>Показывать страницу подписки</label>
         <div id="spBox">
             <label>Адрес контейнера subscription-page</label>
             <input name="url" id="spUrl" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($S['subpage']['url']) ?>" placeholder="http://remnawave-subscription-page:3010">
-            <?php if ($S['scenario'] !== 'panel'): ?><p class="muted">На отдельном сервере subscription-page поднимается в том же docker-compose.yml: ему нужны <code>REMNAWAVE_PANEL_URL</code>, <code>REMNAWAVE_API_TOKEN</code> и, если панель за cookie-защитой, <code>EGAMES_COOKIE</code>.</p><?php endif; ?>
-            <?php if ($S['panel']['sub_public_domain'] !== '' && strtolower($S['panel']['sub_public_domain']) !== $self['bare'] && strpos(strtolower($S['panel']['sub_public_domain']), $self['bare'] . '/') !== 0): ?>
-                <?php inst_st('warn', 'В панели SUB_PUBLIC_DOMAIN = ' . $S['panel']['sub_public_domain'] . ', а прослойка открыта как ' . $self['bare'] . '.', 'Панель кладёт SUB_PUBLIC_DOMAIN в ссылки подписки — они должны вести на прослойку. Поправьте .env панели или откройте мастер по тому домену.'); ?>
-            <?php endif; ?>
+            <?php if ($S['scenario'] !== 'panel'): ?><p class="fh">Контейнер из вашего docker-compose.yml. Если он не запускается — в нём не заполнены адрес панели и токен.</p><?php endif; ?>
         </div>
         <div id="spSt"></div>
-        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div style="display:flex;gap:.6rem"><button type="button" class="btn ghost" id="spCheck">Проверить</button><button type="submit" class="in-go" id="spNext">Далее</button></div></div>
+        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div class="r"><button type="button" class="btn ghost" id="spCheck">Проверить</button><button type="submit" class="in-go" id="spNext">Далее</button></div></div>
     </div>
 <?php elseif ($step === 'origin'): ?>
     <div class="card">
-        <h2>Origin — откуда зеркало берёт подписки</h2>
-        <p class="muted">Вставьте ссылку подписки любого пользователя из панели (например <code>https://sub.example.com/abc123…</code>) — мастер определит домен, префикс и проверит, что origin отдаёт подписку. Можно указать и просто домен.</p>
-        <label>Ссылка подписки или домен подписки панели</label>
-        <input name="raw" id="oRaw" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($S['origin']['raw']) ?>" placeholder="https://sub.example.com/shortUuid">
-        <label class="chk-inline"><input type="checkbox" name="mirror_page" value="1" <?= (!isset($S['origin']['mirror_page']) || !empty($S['origin']['mirror_page'])) ? 'checked' : '' ?>>Страницу для браузера брать с origin (иначе в браузере придёт текст конфига)</label>
+        <h2>Домен подписки</h2>
+        <p class="lead">Откуда зеркало будет брать подписки. Вставьте ссылку подписки любого пользователя из панели — домен и префикс определятся сами.</p>
+        <label>Ссылка подписки</label>
+        <input name="raw" id="oRaw" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($S['origin']['raw']) ?>" placeholder="https://sub.example.com/abc123…">
+        <label class="chk-inline"><input type="checkbox" name="mirror_page" value="1" <?= (!isset($S['origin']['mirror_page']) || !empty($S['origin']['mirror_page'])) ? 'checked' : '' ?>>Показывать в браузере страницу подписки с этого домена</label>
         <div id="oSt"></div>
-        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div style="display:flex;gap:.6rem"><button type="button" class="btn ghost" id="oCheck">Проверить</button><button type="submit" class="in-go" id="oNext">Далее</button></div></div>
+        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div class="r"><button type="button" class="btn ghost" id="oCheck">Проверить</button><button type="submit" class="in-go" id="oNext">Далее</button></div></div>
     </div>
 <?php elseif ($step === 'webhook'): ?>
     <?php $sec = $S['webhook_secret'] !== '' ? $S['webhook_secret'] : inst_webhook_secret_new(); ?>
     <div class="card">
-        <h2>Вебхук панели</h2>
-        <p class="muted">Панель присылает события по пользователям (истечение, лимиты, устройства) — на них держатся грейс и лог. Секрет — ровно 64 символа латиницы и цифр, такое требование у панели.</p>
-        <label>Секрет вебхука</label>
-        <input name="secret" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($sec) ?>">
-        <?php if ($S['panel']['webhook'] === true): ?><?php inst_st('ok', 'В панели вебхуки включены.', 'Проверьте, что WEBHOOK_URL ведёт на ' . $self['base'] . '/webhook.php и секрет совпадает.'); ?>
-        <?php elseif ($S['panel']['webhook'] === false): ?><?php inst_st('warn', 'В панели вебхуки выключены (WEBHOOK_ENABLED=false).', 'Пропишите строки ниже в .env панели и перезапустите её. Можно сделать позже — прослойка будет работать, но без событий панели.'); ?>
-        <?php else: ?><?php inst_st('info', 'Панель старше 3.2.0 не сообщает состояние вебхуков — сверьте .env панели вручную.'); ?><?php endif; ?>
-        <div class="codeblk"><button type="button" class="copybtn" onclick="var b=this;navigator.clipboard&&navigator.clipboard.writeText(b.nextElementSibling.textContent).then(function(){b.textContent='Скопировано';setTimeout(function(){b.textContent='Копировать';},1500);});">Копировать</button><pre id="whEnv">WEBHOOK_ENABLED=true
+        <h2>Вебхук</h2>
+        <p class="lead">Панель будет сообщать прослойке об изменениях у пользователей. Скопируйте три строки в <code>.env</code> панели и перезапустите её. Можно сделать и после установки.</p>
+        <div class="codeblk"><?= inst_copy_btn() ?><pre id="whEnv">WEBHOOK_ENABLED=true
 WEBHOOK_URL=<?= h($self['base']) ?>/webhook.php
 WEBHOOK_SECRET_HEADER=<?= h($sec) ?></pre></div>
-        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><button type="submit" class="in-go">Далее</button></div>
+        <?php if ($S['panel']['webhook'] === true): ?><?php inst_st('ok', 'В панели вебхуки уже включены.', 'Проверьте, что адрес и секрет в .env совпадают с этими.'); ?>
+        <?php elseif ($S['panel']['webhook'] === false): ?><?php inst_st('warn', 'В панели вебхуки пока выключены.', 'Без них прослойка не узнает об истечении и блокировках сразу.'); ?><?php endif; ?>
+        <details class="more"><summary>Свой секрет</summary>
+            <label>Секрет вебхука</label>
+            <input name="secret" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($sec) ?>">
+            <p class="fh">Ровно 64 символа: латинские буквы и цифры.</p>
+        </details>
+        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div class="r"><button type="submit" class="in-go">Далее</button></div></div>
     </div>
     <script>document.querySelector('input[name=secret]').addEventListener('input',function(){var p=document.getElementById('whEnv');p.textContent=p.textContent.replace(/WEBHOOK_SECRET_HEADER=.*/, 'WEBHOOK_SECRET_HEADER='+this.value);});</script>
 <?php elseif ($step === 'admin'): ?>
     <div class="card">
-        <h2>Доступ в админку</h2>
-        <p class="muted">После установки адрес <code>/admin/</code> открывается только с ссылкой-ключом (она показана сейчас в адресной строке и будет на последнем экране), затем — логин и пароль.</p>
+        <h2>Пароль</h2>
+        <p class="lead">Логин и пароль для входа в админку.</p>
         <label for="admin_user">Логин</label><input id="admin_user" name="admin_user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($S['admin']['user']) ?>">
         <div class="row2">
             <div><label for="admin_pass">Пароль</label><input id="admin_pass" name="admin_pass" type="password" autocomplete="new-password"></div>
-            <div><label for="admin_pass2">Повтор пароля</label><input id="admin_pass2" name="admin_pass2" type="password" autocomplete="new-password"></div>
+            <div><label for="admin_pass2">Ещё раз</label><input id="admin_pass2" name="admin_pass2" type="password" autocomplete="new-password"></div>
         </div>
-        <p class="muted">Минимум 8 символов.</p>
-        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><button type="submit" class="in-go" id="aGo">Установить</button></div>
+        <p class="fh">Не короче 8 символов.</p>
+        <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div class="r"><button type="submit" class="in-go" id="aGo">Установить</button></div></div>
     </div>
 <?php endif; ?>
 </form>
@@ -573,44 +573,34 @@ WEBHOOK_SECRET_HEADER=<?= h($sec) ?></pre></div>
         function syncTls(){ off.disabled = tls.checked; }
         tls.addEventListener('change', syncTls); syncTls();
         var box = document.getElementById('pSt'), btn = document.getElementById('pCheck'), next = document.getElementById('pNext');
+        var ST = {ok:['есть','normal'], miss:['нет','blocked'], na:['нет в этой версии','expired'], auth:['токен отклонён','blocked'], err:['нет ответа','DISABLED']};
+        function rights(sc){
+            if (sc.msg) box.appendChild(st(sc.ok ? 'warn' : 'bad', sc.msg));
+            else box.appendChild(st('ok', 'Права токена в порядке.'));
+            var opt = (sc.rows||[]).filter(function(r){ return r.st==='miss' && !r.need; }).map(function(r){ return r.s; });
+            if (sc.ok && opt.length) box.appendChild(st('info', 'Без прав ' + opt.join(', ') + ' часть функций будет недоступна.', 'Их можно добавить токену позже.'));
+            var d=document.createElement('details'); d.className='more'; var sm=document.createElement('summary'); sm.textContent='Все права'; d.appendChild(sm);
+            var t=document.createElement('div'); t.className='rights';
+            (sc.rows||[]).forEach(function(r){ var row=document.createElement('div'); var s=ST[r.st]||[r.st,'']; var c=document.createElement('code'); c.textContent=r.s; var w=document.createElement('span'); w.className='w'; w.textContent=r.w; var tg=document.createElement('span'); tg.className='tag '+s[1]; tg.textContent=s[0]+(r.need?'':' · по желанию'); row.appendChild(c); row.appendChild(w); row.appendChild(tg); t.appendChild(row); });
+            d.appendChild(t); box.appendChild(d);
+        }
         function runPanel(){
             busy(btn, true); box.textContent='';
             probe('panel', {url: document.getElementById('pUrl').value, token: document.getElementById('pTok').value, cookie: document.getElementById('pCookie').value, xkey: document.getElementById('pXkey').value, tls: tls.checked ? '1' : '0'}).then(function(d){
                 if (d.url_norm && d.url_norm !== document.getElementById('pUrl').value) { document.getElementById('pUrl').value = d.url_norm; if (d.url_note) box.appendChild(st('info', d.url_note)); }
-                if (d.cookie_from_link) { document.getElementById('pCookie').value = d.cookie_used; document.querySelector('details').open = true; box.appendChild(st('info', 'Из ссылки взята защитная cookie: ' + d.cookie_used)); }
+                if (d.cookie_from_link) { document.getElementById('pCookie').value = d.cookie_used; document.querySelector('details.more').open = true; box.appendChild(st('info', 'Cookie взята из ссылки: ' + d.cookie_used)); }
                 if (d.token_warn) box.appendChild(st('warn', d.token_warn));
                 if (d.fix && d.fix.url) { document.getElementById('pUrl').value = d.fix.url; }
-                if (d.fix && d.fix.tls === 0) { document.querySelector('details').open = true; }
-                box.appendChild(st(d.ok ? 'ok' : 'bad', d.msg || (d.ok ? 'OK' : 'Ошибка'), d.hint || ''));
-                if (d.ok && d.sub_public_domain && d.self_host && d.sub_public_domain.toLowerCase() !== d.self_host && d.sub_public_domain.toLowerCase().indexOf(d.self_host + '/') !== 0) box.appendChild(st('warn', 'В панели SUB_PUBLIC_DOMAIN = ' + d.sub_public_domain + ', а прослойка открыта как ' + d.self_host + '.', 'Ссылки подписки панель строит по SUB_PUBLIC_DOMAIN — они должны вести на прослойку.'));
+                if (d.fix && d.fix.tls === 0) { document.querySelector('details.more').open = true; }
+                box.appendChild(st(d.st === 'ok' ? 'ok' : 'bad', d.msg || (d.ok ? 'OK' : 'Ошибка'), d.hint || ''));
+                if (d.st === 'ok' && d.sub_public_domain && d.self_host && d.sub_public_domain.toLowerCase() !== d.self_host && d.sub_public_domain.toLowerCase().indexOf(d.self_host + '/') !== 0) box.appendChild(st('warn', 'В панели домен подписки — ' + d.sub_public_domain + ', а прослойка открыта как ' + d.self_host + '.', 'Ссылки пользователей ведут на домен из панели.'));
+                if (d.scopes) rights(d.scopes);
                 next.disabled = !d.ok;
-            }).catch(function(){ box.appendChild(st('bad', 'Сеть: проверка не выполнена.')); }).then(function(){ busy(btn, false); });
+            }).catch(function(){ box.appendChild(st('bad', 'Нет связи с прослойкой — попробуйте ещё раз.')); }).then(function(){ busy(btn, false); });
         }
         btn.addEventListener('click', runPanel);
         ['pUrl','pTok','pCookie','pXkey'].forEach(function(id){ document.getElementById(id).addEventListener('input', function(){ next.disabled = true; }); });
         if (document.getElementById('pUrl').value && document.getElementById('pTok').value && next.disabled) runPanel();
-    }
-
-    var sBox = document.getElementById('sSt');
-    if (sBox) {
-        var sBtn = document.getElementById('sCheck'), sNext = document.getElementById('sNext');
-        var ST = {ok:['есть','normal'], miss:['нет','blocked'], na:['нет в этой версии','expired'], auth:['токен отклонён','blocked'], err:['нет ответа','DISABLED']};
-        function runScopes(){
-            busy(sBtn, true); sBox.textContent=''; sBox.appendChild(st('info','Проверяю…'));
-            probe('scopes', {}).then(function(d){
-                sBox.textContent='';
-                if (d.msg) sBox.appendChild(st(d.ok ? 'warn' : 'bad', d.msg)); else sBox.appendChild(st('ok', 'Все нужные права есть.'));
-                var opt = (d.rows||[]).filter(function(r){ return r.st==='miss' && !r.need; }).map(function(r){ return r.s; });
-                if (d.ok && opt.length) sBox.appendChild(st('info', 'Ещё нет (по желанию): ' + opt.join(', '), 'Нужны для отдельных функций — добавить можно потом, проверка есть на вкладке «Подключение».'));
-                if (d.missing && d.missing.length) { var cb=document.createElement('div'); cb.className='codeblk'; var pre=document.createElement('pre'); pre.textContent=JSON.stringify(d.missing); var b=document.createElement('button'); b.type='button'; b.className='copybtn'; b.textContent='Копировать'; b.addEventListener('click',function(){ navigator.clipboard&&navigator.clipboard.writeText(pre.textContent).then(function(){b.textContent='Скопировано';setTimeout(function(){b.textContent='Копировать';},1500);}); }); cb.appendChild(b); cb.appendChild(pre); sBox.appendChild(cb); }
-                var t=document.createElement('table'); t.className='ts-tbl';
-                (d.rows||[]).forEach(function(r){ var tr=document.createElement('tr'); var s=ST[r.st]||[r.st,'']; tr.innerHTML='<td><code></code></td><td></td><td class="'+(r.need?'':'muted')+'">'+(r.need?'нужно':'по желанию')+'</td><td><span class="tag '+s[1]+'"></span></td>'; tr.children[0].firstChild.textContent=r.s; tr.children[1].textContent=r.w; tr.children[3].firstChild.textContent=s[0]; t.appendChild(tr); });
-                sBox.appendChild(t);
-                sNext.disabled = !d.ok;
-            }).catch(function(){ sBox.textContent=''; sBox.appendChild(st('bad','Сеть: проверка не выполнена.')); }).then(function(){ busy(sBtn, false); });
-        }
-        sBtn.addEventListener('click', runScopes);
-        runScopes();
     }
 
     var spOn = document.getElementById('spOn');
@@ -618,7 +608,7 @@ WEBHOOK_SECRET_HEADER=<?= h($sec) ?></pre></div>
         var spBox=document.getElementById('spBox'), spSt=document.getElementById('spSt'), spBtn=document.getElementById('spCheck');
         function syncSp(){ spBox.style.display = spOn.checked ? '' : 'none'; spBtn.style.display = spOn.checked ? '' : 'none'; }
         spOn.addEventListener('change', syncSp); syncSp();
-        function runSp(){ busy(spBtn,true); spSt.textContent=''; probe('subpage',{url:document.getElementById('spUrl').value}).then(function(d){ spSt.appendChild(st(d.ok?'ok':'warn', d.msg, d.hint||'')); if(!d.ok) spSt.appendChild(st('info','Можно продолжить: проверка повторится на вкладке «Подключение».')); }).catch(function(){ spSt.appendChild(st('bad','Сеть: проверка не выполнена.')); }).then(function(){ busy(spBtn,false); }); }
+        function runSp(){ busy(spBtn,true); spSt.textContent=''; probe('subpage',{url:document.getElementById('spUrl').value}).then(function(d){ spSt.appendChild(st(d.ok?'ok':'warn', d.msg, d.hint||'')); if(!d.ok) spSt.appendChild(st('info','Можно продолжить и вернуться к этому позже: Подключение → Проверка связи.')); }).catch(function(){ spSt.appendChild(st('bad','Нет связи с прослойкой — попробуйте ещё раз.')); }).then(function(){ busy(spBtn,false); }); }
         spBtn.addEventListener('click', runSp);
         if (spOn.checked && document.getElementById('spUrl').value) runSp();
     }
@@ -627,10 +617,10 @@ WEBHOOK_SECRET_HEADER=<?= h($sec) ?></pre></div>
     if (oRaw) {
         var oSt=document.getElementById('oSt'), oBtn=document.getElementById('oCheck');
         function runO(){ busy(oBtn,true); oSt.textContent=''; probe('origin',{raw:oRaw.value}).then(function(d){
-            if (d.domain) oSt.appendChild(st('info', 'Домен: ' + d.domain + (d.prefix ? ' · префикс /' + d.prefix : '') + (d.short ? ' · shortUuid ' + d.short : '')));
+            if (d.domain) oSt.appendChild(st('info', 'Домен подписки: ' + d.domain + (d.prefix ? ', префикс /' + d.prefix : '')));
             oSt.appendChild(st(d.ok ? 'ok' : (d.st==='loop'||d.st==='panel'||d.st==='url' ? 'bad' : 'warn'), d.msg, d.hint||''));
-            if (d.ok && d.browser === false) oSt.appendChild(st('warn', 'На браузерный запрос origin не отдаёт HTML-страницу.', 'Галочку «страницу брать с origin» лучше снять — иначе в браузере будет ошибка.'));
-        }).catch(function(){ oSt.appendChild(st('bad','Сеть: проверка не выполнена.')); }).then(function(){ busy(oBtn,false); }); }
+            if (d.ok && d.browser === false) oSt.appendChild(st('warn', 'В браузере этот домен страницу не показывает.', 'Снимите галочку «Показывать в браузере страницу подписки».'));
+        }).catch(function(){ oSt.appendChild(st('bad','Нет связи с прослойкой — попробуйте ещё раз.')); }).then(function(){ busy(oBtn,false); }); }
         oBtn.addEventListener('click', runO);
         if (oRaw.value) runO();
     }
