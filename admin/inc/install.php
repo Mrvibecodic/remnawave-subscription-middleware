@@ -244,6 +244,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['act'])) {
             elseif (strlen($ap) < 8) $err = 'Пароль короче 8 символов.';
             else {
                 $S['admin']['user'] = $au;
+                $S['admin']['gate'] = inst_post('gate') === '1' ? 1 : 0;
                 $fin = inst_finalize($S, $ap, $self);
                 if ($fin['ok']) { inst_render_done($S, $fin, $self); exit(); }
                 $err = $fin['err'];
@@ -289,7 +290,7 @@ function inst_finalize(array &$S, $pass, array $self) {
             $set('subpage_mirror', !empty($S['origin']['mirror_page']) ? '1' : '0');
             if ($S['origin']['prefix'] !== '') { $set('sub_prefix_enabled', '1'); $set('sub_prefix', $S['origin']['prefix']); }
         }
-        $set('admin_gate_key', $S['key']);
+        if (!empty($S['admin']['gate'])) $set('admin_gate_key', $S['key']);
         $set('install_scenario', $S['scenario']);
         if (!empty($S['pending'])) $set('install_pending', json_encode($S['pending'], JSON_UNESCAPED_UNICODE));
         if ($S['panel']['version'] !== '') {
@@ -427,13 +428,21 @@ function inst_render_done(array $S, array $fin, array $self) {
             <?php inst_st('warn', 'Не прошли проверки: ' . implode('; ', array_map(fn($k, $v) => mb_strtolower(inst_step_title($k)) . ' — ' . $v, array_keys($S['pending']), $S['pending'])) . '.', 'Напоминание будет в админке, пока не закроете.'); ?>
         <?php endif; ?>
     </div>
+    <?php if (!empty($S['admin']['gate'])): ?>
     <div class="card">
         <h2>Ссылка для входа</h2>
         <p class="lead">Сохраните её. Без этой ссылки адрес <code>/admin/</code> показывает страницу-заглушку — так админку не найти посторонним. Откройте ссылку один раз в каждом браузере и на телефоне.</p>
         <div class="codeblk"><?= inst_copy_btn() ?><pre class="in-link"><?= h($link) ?></pre></div>
-        <p class="fh">Потеряли — выполните <code>docker compose exec submw php tools/admin-gate.php</code>, она напечатает ссылку.</p>
+        <p class="fh">Потеряли — выполните <code>docker compose exec submw php tools/admin-gate.php</code>, она напечатает ссылку. Выключить защиту: вкладка «Подключение».</p>
         <form method="get" action="index.php" style="margin-top:1rem"><button type="submit" class="in-go" style="width:100%">Войти в админку</button></form>
     </div>
+    <?php else: ?>
+    <div class="card">
+        <h2>Вход в админку</h2>
+        <p class="lead">Адрес: <code><?= h($self['base']) ?>/admin/</code>. Дополнительную защиту секретной ссылкой можно включить потом на вкладке «Подключение».</p>
+        <form method="get" action="index.php"><button type="submit" class="in-go" style="width:100%">Войти в админку</button></form>
+    </div>
+    <?php endif; ?>
     <?php
     inst_foot();
 }
@@ -552,6 +561,8 @@ WEBHOOK_SECRET_HEADER=<?= h($sec) ?></pre></div>
             <div><label for="admin_pass2">Ещё раз</label><input id="admin_pass2" name="admin_pass2" type="password" autocomplete="new-password"></div>
         </div>
         <p class="fh">Не короче 8 символов.</p>
+        <label class="chk-inline" style="margin-top:1rem"><input type="checkbox" name="gate" value="1" <?= !empty($S['admin']['gate']) ? 'checked' : '' ?>>Дополнительная защита: открывать админку только по секретной ссылке</label>
+        <p class="fh">Без ссылки адрес <code>/admin/</code> будет показывать страницу-заглушку, как корень сайта. Ссылку покажем после установки; включить или выключить можно потом на вкладке «Подключение».</p>
         <div class="in-nav"><button type="submit" class="btn ghost" name="act" value="back">Назад</button><div class="r"><button type="submit" class="in-go" id="aGo">Установить</button></div></div>
     </div>
 <?php endif; ?>
