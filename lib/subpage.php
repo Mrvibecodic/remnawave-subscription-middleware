@@ -52,6 +52,11 @@ function subpage_external_proxy($path, $query) {
         }
     }
     $headers[] = 'x-remnawave-real-ip: ' . client_ip();
+    // subscription-page рвёт соединение без обоих X-Forwarded-*; реверс пользователя их ставит не всегда.
+    $fwd = [];
+    foreach ($headers as $hl) $fwd[strtolower(trim(strtok($hl, ':')))] = true;
+    if (empty($fwd['x-forwarded-proto'])) $headers[] = 'X-Forwarded-Proto: https';
+    if (empty($fwd['x-forwarded-for'])) $headers[] = 'X-Forwarded-For: ' . client_ip();
     $headers = panel_auth_headers($headers);
 
     $grabbed = [];
