@@ -15,6 +15,12 @@ if (app_intercept() === 'web') {
     require __DIR__ . '/admin/index.php';
     exit();
 }
+// Установки через мастер работают только за реверсом по домену; по IP — приманка.
+if (setting('install_scenario', '') !== '' && submw_host_is_local()) {
+    header('X-Robots-Tag: noindex, nofollow');
+    landing_render();
+    exit();
+}
 
 $target_domain = target_domain();
 
