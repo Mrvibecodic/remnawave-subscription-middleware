@@ -18,191 +18,7 @@ if (is_installed() && app_only_closed()) {
 function h($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); }
 
 if (!is_installed()) {
-    $err = '';
-    $ok  = false;
-
-    $prefill_file = dirname(__DIR__) . '/data/install.json';
-    $prefill = is_file($prefill_file) ? json_decode((string) @file_get_contents($prefill_file), true) : null;
-    if (!is_array($prefill)) $prefill = [];
-    $pf_db = (isset($prefill['db']) && is_array($prefill['db'])) ? $prefill['db'] : ['driver' => 'sqlite', 'path' => default_db_path()];
-    $pf_mode = (($prefill['mode'] ?? '') === 'panel') ? 'panel' : 'mirror';
-    $pf_rw_url = (string) ($prefill['remnawave_url'] ?? '');
-
-    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-        $f = fn($k) => trim((string) ($_POST[$k] ?? ''));
-
-        $db = $pf_db;
-        $target   = $f('target_domain');
-        $mirror   = $f('mirror_domain');
-        $rw_url   = rtrim($f('remnawave_url'), '/');
-        $rw_key   = $f('remnawave_api_key');
-        $rw_cookie= $f('remnawave_cookie');
-        $rw_xkey  = $f('remnawave_xapikey');
-        $wh_sec   = $f('webhook_secret');
-        $au       = $f('admin_user');
-        $ap       = (string) ($_POST['admin_pass'] ?? '');
-        $ap2      = (string) ($_POST['admin_pass2'] ?? '');
-        $mode     = (($_POST['sub_source'] ?? $pf_mode) === 'panel') ? 'panel' : 'mirror';
-
-        if (($mode === 'mirror' && $target === '') || $au === '' || $ap === '') {
-            $err = 'Заполните обязательные поля (' . ($mode === 'mirror' ? 'origin-домен, ' : '') . 'логин и пароль админки).';
-        } elseif ($ap !== $ap2) {
-            $err = 'Пароли админки не совпадают.';
-        } elseif (strlen($ap) < 8) {
-            $err = 'Пароль админки слишком короткий (минимум 8 символов).';
-        } else {
-            $ce = '';
-            $pdo = pdo_connect($db, $ce);
-            if ($pdo === null) $err = 'Не удалось подключиться к БД: ' . $ce;
-
-            if ($pdo && !$err) {
-                try {
-                    $drv = $db['driver'] ?? 'sqlite';
-                    foreach (install_statements($drv) as $sql) {
-                        $pdo->exec($sql);
-                    }
-                    $set = function ($k, $v) use ($pdo, $drv) {
-                        if ($drv === 'mysql') $st = $pdo->prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
-                        else $st = $pdo->prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v');
-                        $st->execute([$k, $v]);
-                    };
-                    $set('target_domain', $target);
-                    $set('mirror_domain', $mirror !== '' ? $mirror : ($_SERVER['HTTP_HOST'] ?? ''));
-                    $set('webhook_secret', $wh_sec);
-                    $set('remnawave_url', $rw_url);
-                    $set('remnawave_api_key', $rw_key);
-                    $set('remnawave_cookie', $rw_cookie);
-                    $set('remnawave_xapikey', $rw_xkey);
-                    $set('sub_source', $mode);
-                    if (($prefill['subpage_external_url'] ?? '') !== '') {
-                        $set('subpage_external_url', rtrim((string) $prefill['subpage_external_url'], '/'));
-                    }
-                } catch (Throwable $e) {
-                    $err = 'Ошибка создания таблиц: ' . $e->getMessage();
-                }
-            }
-
-            if ($pdo && !$err) {
-                $conf = [
-                    'installed'           => true,
-                    'db'                  => $db,
-                    'admin_user'          => $au,
-                    'admin_pass_hash'     => password_hash($ap, PASSWORD_DEFAULT),
-                ];
-                $php = "<?php\nreturn "
-                     . var_export($conf, true) . ";\n";
-                if (@file_put_contents(config_path(), $php) !== false) {
-                    @chmod(config_path(), 0640);
-                    @unlink($prefill_file);
-                    $ok = true;
-                    header('Location: index.php?installed=1');
-                    exit();
-                } else {
-                    $err = 'Таблицы созданы, но не удалось записать config.php (нет прав). '
-                         . 'Создайте файл config.php в корне прослойки со следующим содержимым:';
-                    $GLOBALS['manual_config'] = $php;
-                }
-            }
-        }
-    }
-
-    $host_guess = $prefill['mirror_domain'] ?? ($_SERVER['HTTP_HOST'] ?? '');
-    ?>
-    <!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="color-scheme" content="light dark">
-    <meta name="robots" content="noindex, nofollow">
-    <title>Установка прослойки</title>
-    <script>(function(){try{var t=localStorage.getItem('submw_theme');if(!t||t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-    <script>window.rwTC=function(){var c=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();if(!c)return;var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.name='theme-color';document.head.appendChild(m);}m.content=c;};document.addEventListener('DOMContentLoaded',rwTC);</script>
-    <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="assets/fonts.css?v=<?= substr(@md5_file(__DIR__ . '/assets/fonts.css') ?: '0', 0, 10) ?>">
-    <link rel="stylesheet" href="assets/admin.css?v=<?= substr(@md5_file(__DIR__ . '/assets/admin.css') ?: '0', 0, 10) ?>">
-    <style>
-        html[data-theme=light]{color-scheme:light}
-        html[data-theme=dark],html[data-theme=black]{color-scheme:dark}
-        body{background:radial-gradient(120% 50% at 50% 0%,var(--accent-light),transparent 60%),var(--bg)}
-        .wrap{max-width:680px;margin:0 auto;padding:max(28px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(32px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
-        .in-h{display:flex;align-items:center;gap:.8rem;margin:0 0 1.2rem}
-        .in-logo{width:44px;height:44px;border-radius:12px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;flex:none}
-        .in-h h1{font-size:1.3rem;margin:0;color:var(--text-strong);line-height:1.25}
-        .in-h p{margin:.15rem 0 0;color:var(--muted);font-size:.86rem}
-        .card h2{font-size:1rem;margin:0 0 .4rem}
-        .card .muted{font-size:.82rem;margin:.4rem 0 0}
-        .warn{border-radius:12px;white-space:pre-wrap}
-        .in-go{width:100%;min-height:48px;font-size:1rem;border-radius:12px;margin-top:.2rem}
-        .in-go:disabled{opacity:.6;cursor:default}
-        input[type=text],input[type=password],select{min-height:44px}
-        @media(max-width:900px){input,select{font-size:16px!important}}
-    </style></head><body><div class="wrap">
-    <div class="in-h"><div class="in-logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z"/></svg></div><div><h1>Установка прослойки подписки</h1><p>Один раз — дальше всё настраивается в админке</p></div></div>
-    <?php if ($err): ?><div class="warn" role="alert"><?= h($err) ?></div><?php endif; ?>
-    <?php if (!empty($GLOBALS['manual_config'])): ?>
-        <div class="card"><pre><?= h($GLOBALS['manual_config']) ?></pre></div>
-    <?php endif; ?>
-    <form method="post">
-        <div class="card">
-            <h2>Режим работы</h2>
-            <label>Что делает прослойка</label>
-            <select name="sub_source" id="subSource" onchange="submwMode()">
-                <option value="mirror" <?= $pf_mode==='mirror'?'selected':'' ?>>Зеркало — проксирует origin-домен подписки</option>
-                <option value="panel" <?= $pf_mode==='panel'?'selected':'' ?>>Основная подписка (sub-сервис панели)</option>
-            </select>
-            <p class="muted">«Зеркало» — нужен origin-домен подписки панели. «Основная подписка» — прослойка сама отдаёт подписку напрямую с панели; origin не нужен, нужен URL панели + API-токен.</p>
-        </div>
-        <div class="card">
-            <h2>База данных</h2>
-            <?php if (($pf_db['driver'] ?? 'sqlite') === 'mysql'): ?>
-            <p class="muted">MySQL/MariaDB — параметры подготовлены установщиком (база <code><?= h($pf_db['name'] ?? '') ?></code>). Заполнять ничего не нужно.</p>
-            <?php else: ?>
-            <p class="muted">SQLite (по умолчанию) — отдельный сервер БД не нужен, файл создаётся автоматически в <code>data/submw.sqlite</code>. Нужна MySQL/MariaDB — выберите её при запуске установщика.</p>
-            <?php endif; ?>
-        </div>
-        <div class="card">
-            <h2>Домены</h2>
-            <div id="mirrorOrigin">
-            <label>Origin — реальный домен подписки Remnawave *</label>
-            <input name="target_domain" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['target_domain'] ?? ($prefill['target_domain'] ?? '')) ?>" placeholder="sub.example.com">
-            <p class="muted">Только домен, без <code>https://</code> и без пути. Пример: <code>sub.example.com</code></p>
-            </div>
-            <label>Домен зеркала (где стоит прослойка)</label>
-            <input name="mirror_domain" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['mirror_domain'] ?? $host_guess) ?>" placeholder="mirror.example.com">
-            <p class="muted">Тоже только домен, без <code>https://</code>. На зеркало уже указывают подписки юзеров — менять его не нужно.</p>
-        </div>
-        <div class="card">
-            <h2>API Remnawave (для списка юзеров)</h2>
-            <label>URL панели</label><input name="remnawave_url" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['remnawave_url'] ?? $pf_rw_url) ?>" placeholder="https://panel.example.com или http://127.0.0.1:3000">
-            <p class="muted">Полный адрес <b>со схемой</b> <code>https://</code> и без <code>/</code> на конце. Пример: <code>https://panel.example.com</code></p>
-            <label>Cookie панели (если защита eGames; иначе пусто)</label><input name="remnawave_cookie" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['remnawave_cookie'] ?? '') ?>" placeholder="aB3xK9pQ=Zt7mW2nR">
-            <p class="muted">Нужна, только если панель закрыта cookie-защитой eGames reverse-proxy (без верной куки панель отдаёт 404); иначе оставьте пустым. Формат <code>имя=значение</code>.<br><b>Где взять:</b> проще всего в браузере — войдите в панель, F12 → Application (Storage) → Cookies → выберите домен панели → скопируйте защитную куку (её имя и значение). Либо в конфиге вашего eGames reverse-proxy (nginx/Caddy), где проверяется кука, или в выводе установщика eGames при настройке.</p>
-            <label>X-Api-Key (если панель за caddy-with-auth; иначе пусто)</label><input name="remnawave_xapikey" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" value="<?= h($_POST['remnawave_xapikey'] ?? '') ?>">
-            <p class="muted">Нужен, только если панель закрыта по официальной схеме Remnawave «Caddy with custom path» (caddy-with-auth) — тогда без верного заголовка <code>X-Api-Key</code> Caddy не пропускает запросы к <code>/api/*</code>, и грейс/HWID работать не будут. <b>Где взять:</b> портал авторизации Caddy → <code>https://панель/&lt;REMNAWAVE_CUSTOM_LOGIN_ROUTE&gt;/auth</code> → вкладка <b>API-keys</b> → создать ключ.</p>
-            <label>API-токен (раздел API Tokens в панели)</label><input name="remnawave_api_key" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" value="<?= h($_POST['remnawave_api_key'] ?? '') ?>">
-        </div>
-        <div class="card">
-            <h2>Вебхук</h2>
-            <label>Секрет вебхука (то же значение пойдёт в .env панели)</label>
-            <input name="webhook_secret" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" value="<?= h($_POST['webhook_secret'] ?? bin2hex(random_bytes(32))) ?>">
-            <p class="muted">Минимум 32 символа, только <code>a-z A-Z 0-9</code> (требование панели). Сгенерированный подходит. После установки во вкладке «Подключение» будут готовые строки для <code>.env</code> панели.</p>
-        </div>
-        <div class="card">
-            <h2>Доступ в админку</h2>
-            <label for="admin_user">Логин *</label><input id="admin_user" name="admin_user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= h($_POST['admin_user'] ?? 'admin') ?>">
-            <div class="row">
-                <div><label for="admin_pass">Пароль *</label><input id="admin_pass" name="admin_pass" type="password" autocomplete="new-password"></div>
-                <div><label for="admin_pass2">Повтор пароля *</label><input id="admin_pass2" name="admin_pass2" type="password" autocomplete="new-password"></div>
-            </div>
-        </div>
-        <button type="submit" class="in-go">Установить</button>
-    </form>
-    </div>
-    <script>
-    function submwMode(){var m=document.getElementById('subSource').value;var o=document.getElementById('mirrorOrigin');if(o)o.style.display=(m==='panel')?'none':'';}
-    submwMode();
-    (function(){var f=document.querySelector('form'),b=f.querySelector('button[type=submit]');f.addEventListener('submit',function(){b.disabled=true;});addEventListener('pageshow',function(e){if(e.persisted)b.disabled=false;});})();
-    </script>
-    </body></html>
-    <?php
+    require __DIR__ . '/inc/install.php';
     exit();
 }
 
@@ -210,6 +26,12 @@ $C = cfg();
 
 admin_session_boot();
 session_start();
+
+// Гейт: без секретной куки /admin/ неотличим от корня сайта. Приложение входит по своему каналу.
+if (!app_tunnel() && !admin_gate_pass()) {
+    landing_render();
+    exit();
+}
 
 function csrf_token() {
     if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
@@ -283,6 +105,11 @@ if (isset($_GET['manifest'])) {
     header('Cache-Control: private, no-cache');
     echo json_encode($mf, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
     exit();
+}
+
+if (isset($_GET['inst_pending_ack']) && is_auth() && csrf_ok_get()) {
+    set_setting('install_pending', '');
+    header('Location: index.php?tab=' . preg_replace('~[^a-z_]~', '', (string) ($_GET['tab'] ?? 'users'))); exit();
 }
 
 if (isset($_GET['logout'])) {
@@ -730,6 +557,19 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'linkcheck') {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        require_once dirname(__DIR__) . '/lib/install_probe.php';
+        $lc_conn = ['url' => remnawave_url(), 'token' => remnawave_token(), 'cookie' => remnawave_cookie(), 'xkey' => remnawave_xapikey(), 'tls' => api_tls_verify()];
+        $lc_user = inst_first_user($lc_conn) ?: ['short' => '', 'username' => ''];
+        $lc = ['panel' => inst_panel_probe($lc_conn, submw_in_docker() && setting('install_scenario', '') === 'panel' ? 'panel' : 'standalone'), 'user' => $lc_user['username']];
+        if (subpage_active() && subpage_external_url() !== '') $lc['subpage'] = inst_subpage_probe(subpage_external_url(), $lc_user['short']);
+        if (sub_source() === 'mirror' && target_domain() !== '') $lc['origin'] = inst_origin_probe(['domain' => target_domain(), 'prefix' => sub_prefix(), 'short' => $lc_user['short'], 'is_panel_link' => false], api_tls_verify(), mirror_domain(), '');
+        $lc['e2e'] = inst_e2e('https://' . mirror_domain(), $lc_user['short'], sub_prefix(), api_tls_verify());
+        echo json_encode($lc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit();
+    }
+
     if ($a === 'tokscopes') {
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $r = tokscope_run();
@@ -1074,6 +914,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
                 . ($r['left'] > 0 ? '. Осталось ' . $r['left'] . ' — нажмите ещё раз' : ''));
         }
         form_saved('subst');
+    }
+
+    if ($action === 'admin_gate') {
+        $op = (string) ($_POST['op'] ?? '');
+        if ($op === 'off') { set_setting('admin_gate_key', ''); flash('Ключ-ссылка выключена: /admin/ открывается без неё.'); }
+        else {
+            $key = admin_gate_new();
+            [$gk, $gv] = explode('=', $key, 2);
+            setcookie($gk, $gv, ['expires' => time() + 86400 * 365, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => admin_gate_cookie_secure()]);
+            flash($op === 'new' ? 'Ключ перевыпущен — старая ссылка больше не работает, скопируйте новую.' : 'Ключ-ссылка включена. Скопируйте ссылку: без неё /admin/ показывает приманку.');
+        }
+        form_saved('connection');
     }
 
     if ($action === 'save_connection') {
@@ -2193,6 +2045,9 @@ navHidSync();
         <div class="rw-content">
 <?php if (!$db_ok): ?><div class="warn">Нет связи с БД. Проверьте config.php.</div><?php endif; ?>
 <?php if ($flash): ?><div id="flashMsg" data-msg="<?= h($flash) ?>" style="display:none"></div><?php endif; ?>
+<?php $inst_pend = json_decode((string) setting('install_pending', ''), true); if (is_array($inst_pend) && $inst_pend): ?>
+<div class="warn" style="display:flex;gap:.8rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap"><div><b>Установка завершена с предупреждениями:</b> <?= h(implode('; ', array_map(fn($k, $v) => (['subpage' => 'страница подписки', 'origin' => 'origin', 'webhook' => 'вебхук'][$k] ?? $k) . ' — ' . $v, array_keys($inst_pend), $inst_pend))) ?>. Проверки повторяются на вкладке <a href="?tab=connection">«Подключение»</a>.</div><a class="btn ghost" href="?tab=<?= h($tab) ?>&amp;inst_pending_ack=1&amp;csrf=<?= h(csrf_token()) ?>">Закрыть</a></div>
+<?php endif; ?>
 
 <?php if ($tab === 'users'): ?>
     <?php include __DIR__ . '/inc/tab_users.php'; ?>
