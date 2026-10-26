@@ -82,3 +82,49 @@ function login_clear($ip) {
     try { $p->prepare('DELETE FROM login_attempts WHERE ip = ?')->execute([$ip]); }
     catch (Throwable $e) {}
 }
+
+// Ключ-гейт админки: «имя=значение». Пусто — гейт выключен (установки до мастера).
+function admin_gate_key() {
+    $k = trim((string) setting('admin_gate_key', ''));
+    return preg_match('~^[a-z][a-z0-9]{3,15}=[a-f0-9]{16,64}$~', $k) ? $k : '';
+}
+
+function admin_gate_new() {
+    $a = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    $k = 'k';
+    for ($i = 0; $i < 7; $i++) $k .= $a[random_int(0, 35)];
+    $key = $k . '=' . bin2hex(random_bytes(12));
+    set_setting('admin_gate_key', $key);
+    return $key;
+}
+
+function admin_gate_link() {
+    $key = admin_gate_key();
+    if ($key === '') return '';
+    $host = mirror_domain();
+    return 'https://' . $host . '/admin/?' . $key;
+}
+
+function admin_gate_cookie_secure() { return (($_SERVER['HTTPS'] ?? '') === 'on') || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'); }
+
+function admin_gate_pass() {
+    $key = admin_gate_key();
+    if ($key === '') return true;
+    [$gk, $gv] = explode('=', $key, 2);
+    if (isset($_GET[$gk]) && is_string($_GET[$gk]) && hash_equals($gv, $_GET[$gk])) {
+        setcookie($gk, $gv, ['expires' => time() + 86400 * 365, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => admin_gate_cookie_secure()]);
+        header('Location: index.php');
+        exit();
+    }
+    return isset($_COOKIE[$gk]) && hash_equals($gv, (string) $_COOKIE[$gk]);
+}
+
+// Прослойка живёт только за реверсом по домену: по IP или localhost отдаём приманку.
+function submw_host_is_local() {
+    $host = strtolower(trim((string) ($_SERVER['HTTP_HOST'] ?? '')));
+    if ($host === '') return true;
+    $host = preg_replace('~:\d+$~', '', $host);
+    $host = trim($host, '[]');
+    if ($host === 'localhost' || substr($host, -10) === '.localhost') return true;
+    return filter_var($host, FILTER_VALIDATE_IP) !== false;
+}

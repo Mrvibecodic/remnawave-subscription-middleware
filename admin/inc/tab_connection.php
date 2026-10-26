@@ -119,6 +119,55 @@
             <div style="margin-top:1.25rem"><button type="submit">💾 Сохранить подключение</button></div>
         </form>
     </div>
+    <div class="card" id="lcCard">
+        <div class="ts-head">
+            <div>
+                <h3>Проверка связи</h3>
+                <div class="muted" style="font-size:.85rem;max-width:760px">Те же проверки, что в мастере установки: панель, страница подписки или origin, и подписка первого пользователя через домен прослойки — как её запрашивает клиент.</div>
+            </div>
+            <button type="button" class="btn ghost" id="lcRun"<?= (remnawave_url() === '' || remnawave_token() === '') ? ' disabled' : '' ?>>Проверить</button>
+        </div>
+        <div id="lcBody"></div>
+    </div>
+    <script>
+    (function(){
+        var b=document.getElementById('lcBody'), btn=document.getElementById('lcRun'); if(!b||!btn) return;
+        function row(kind, title, r){ var d=document.createElement('div'); d.className='ts-meta'; d.style.margin='.4rem 0'; var t=document.createElement('span'); t.className='tag '+(kind==='ok'?'normal':(kind==='warn'?'expired':'blocked')); t.textContent=kind==='ok'?'ок':(kind==='warn'?'внимание':'ошибка'); d.appendChild(t); d.appendChild(document.createTextNode(' '+title+': '+(r.msg||''))); if(r.hint){ var h=document.createElement('div'); h.className='muted'; h.style.marginLeft='.2rem'; h.textContent=r.hint; d.appendChild(h); } b.appendChild(d); }
+        btn.addEventListener('click', function(){
+            btn.disabled=true; var o=btn.textContent; btn.textContent='Проверяю…'; b.textContent='';
+            var fd=new FormData(); fd.append('csrf', <?= json_encode($token, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
+            fetch('?ajax=linkcheck',{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+                row(d.panel.ok?'ok':'bad','Панель',d.panel);
+                if(d.subpage) row(d.subpage.ok?'ok':'warn','Страница подписки',d.subpage);
+                if(d.origin) row(d.origin.ok?'ok':'warn','Origin',d.origin);
+                row(d.e2e.ok?'ok':(d.e2e.st==='nouser'?'warn':'bad'),'Подписка через домен'+(d.user?' («'+d.user+'»)':''),d.e2e);
+            }).catch(function(){ if(window.uiToast) uiToast('Ошибка сети — проверка не выполнена'); }).then(function(){ btn.disabled=false; btn.textContent=o; });
+        });
+    })();
+    </script>
+    <div class="card" id="gateCard">
+        <div class="ts-head">
+            <div>
+                <h3>Ключ-ссылка для входа в админку</h3>
+                <div class="muted" style="font-size:.85rem;max-width:760px">Пока ключ включён, адрес <code>/admin/</code> без секретной куки показывает ту же страницу-приманку, что и корень сайта. Куку выдаёт ссылка ниже — откройте её в каждом браузере и на телефоне, где нужен доступ. Та же защита у панели, поставленной установщиком eGames.</div>
+            </div>
+        </div>
+        <?php $gate_link = admin_gate_link(); ?>
+        <?php if ($gate_link !== ''): ?>
+            <div class="codeblk" style="margin-top:.6rem"><button type="button" class="copybtn" onclick="var b=this;navigator.clipboard&&navigator.clipboard.writeText(b.nextElementSibling.textContent).then(function(){b.textContent='Скопировано';setTimeout(function(){b.textContent='Копировать';},1500);});">Копировать</button><pre style="word-break:break-all;white-space:pre-wrap"><?= h($gate_link) ?></pre></div>
+            <form method="post" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem" onsubmit="return confirm(this.op.value==='new'?'Старая ссылка перестанет работать. Перевыпустить?':'Выключить ключ? /admin/ станет доступен по обычному адресу.');">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="admin_gate"><input type="hidden" name="op" value="new">
+                <button type="submit" class="btn ghost" onclick="this.form.op.value='new'">Перевыпустить</button>
+                <button type="submit" class="btn ghost" onclick="this.form.op.value='off'">Выключить</button>
+            </form>
+            <div class="ts-meta">Из консоли: <code>php tools/admin-gate.php</code> печатает ссылку, <code>--new</code> перевыпускает, <code>--off</code> выключает.</div>
+        <?php else: ?>
+            <form method="post" style="margin-top:.6rem">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="admin_gate"><input type="hidden" name="op" value="on">
+                <button type="submit" class="btn">Включить</button>
+            </form>
+        <?php endif; ?>
+    </div>
     <div class="card" id="tsCard">
         <div class="ts-head">
             <div>
