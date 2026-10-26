@@ -11,60 +11,88 @@ ACME_WEBROOT="/var/www/acme"
 ask()  { local p="$1" d="${2:-}" v; read -rp "$p${d:+ [$d]}: " v; printf '%s' "${v:-$d}"; }
 asks() { local p="$1" v; read -rsp "$p: " v; echo >&2; printf '%s' "$v"; }
 
+RAW="https://raw.githubusercontent.com/Mrvibecodic/remnawave-subscription-middleware/main/docker"
+
 echo "== Установка прослойки подписки Remnawave =="
 echo "Тип установки:"
-echo "  1) Отдельный сервер — пакеты на хост (nginx + php-fpm + сертификат)"
-echo "  2) Рядом с панелью — Docker-контейнером (из готового образа) — рекомендуется"
-SCENARIO="$(ask 'Выбор (1/2)' 2)"
+echo "  1) Docker — рядом с панелью (тот же сервер, docker-сеть панели) — рекомендуется"
+echo "  2) Docker — отдельный сервер, реверс-прокси уже есть (nginx/Caddy/панель хостинга)"
+echo "  3) Docker — отдельный чистый сервер: Caddy с автосертификатом + прослойка"
+echo "  4) Без Docker — nginx + php-fpm + certbot на хост (режим зеркала)"
+SCENARIO="$(ask 'Выбор (1-4)' 1)"
 
-if [ "$SCENARIO" = "2" ]; then
-  DOMAIN="$(ask 'Домен подписки (он же домен прослойки), напр. sub.example.com')"
-  NET="$(ask 'Имя docker-сети панели' 'remnawave-network')"
-  PANEL_URL="$(ask 'Внутренний URL панели (имя контейнера)' 'http://remnawave:3000')"
-  SUBPAGE_URL="$(ask 'Внутренний URL контейнера subscription-page' 'http://remnawave-subscription-page:3010')"
-  LOCAL_PORT="$(ask 'Локальный порт прослойки за nginx панели' '8080')"
+if [ "$SCENARIO" = "1" ] || [ "$SCENARIO" = "2" ] || [ "$SCENARIO" = "3" ]; then
   IMG_TAG="$(ask 'Тег образа: v1 — стабильный релиз, dev — тестовый' 'v1')"
-  [ -n "$DOMAIN" ] || { echo "Не задан домен подписки."; exit 1; }
+  WITH_DB=""
+  case "$SCENARIO" in
+    1) FILE="docker-compose.panel.yml" ;;
+    2) WITH_DB="$(ask 'Поднять MariaDB в этом же compose? (y/N, иначе SQLite)' 'N')"; case "$WITH_DB" in [yY]*) FILE="docker-compose.standalone-mysql.yml" ;; *) FILE="docker-compose.standalone.yml" ;; esac ;;
+    3) WITH_DB="$(ask 'Поднять MariaDB в этом же compose? (y/N, иначе SQLite)' 'N')"; case "$WITH_DB" in [yY]*) FILE="docker-compose.standalone-caddy-mysql.yml" ;; *) FILE="docker-compose.standalone-caddy.yml" ;; esac ;;
+  esac
+  if [ "$SCENARIO" = "1" ]; then
+    NET="$(ask 'Имя docker-сети панели' 'remnawave-network')"
+    PANEL_URL="$(ask 'Внутренний URL панели (имя контейнера)' 'http://remnawave:3000')"
+    SUBPAGE_URL="$(ask 'Внутренний URL контейнера subscription-page' 'http://remnawave-subscription-page:3010')"
+    LOCAL_PORT="$(ask 'Локальный порт прослойки за реверсом панели' '8080')"
+  else
+    DOMAIN="$(ask 'Домен подписки (на нём встанет прослойка), напр. sub.example.com')"
+    [ -n "$DOMAIN" ] || { echo "Не задан домен."; exit 1; }
+    echo "Данные панели можно ввести сейчас — они попадут в compose для страницы подписки и в мастер; пустое — спросит мастер."
+    PANEL_LINK="$(ask 'Адрес панели или ссылка входа из установщика панели (https://panel…/auth/login?имя=значение)')"
+    PANEL_URL="$(printf '%s' "$PANEL_LINK" | sed -E 's#^([a-zA-Z]+://[^/?]+).*#\1#')"
+    case "$PANEL_URL" in http://*|https://*) : ;; "") : ;; *) PANEL_URL="https://${PANEL_URL%%/*}" ;; esac
+    PANEL_COOKIE="$(printf '%s' "$PANEL_LINK" | sed -nE 's#^[^?]*\?([A-Za-z0-9_-]+=[^&#]+).*$#\1#p')"
+    [ -n "$PANEL_COOKIE" ] && echo "   Из ссылки взята cookie-защита: ${PANEL_COOKIE}"
+    PANEL_TOKEN="$(asks 'API-токен панели (Settings → API Tokens; пусто — спросит мастер)')"
+    [ "$SCENARIO" = "2" ] && LOCAL_PORT="$(ask 'Локальный порт прослойки за вашим реверсом' '8080')"
+  fi
   if ! command -v docker >/dev/null 2>&1; then
     echo "-> Docker не найден, устанавливаю..."; curl -fsSL https://get.docker.com | sh
   fi
   mkdir -p "$DEST"
-  cat > "$DEST/docker-compose.yml" <<YML
-services:
-  remnawave-subscription-middleware:
-    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:${IMG_TAG}
-    container_name: remnawave-subscription-middleware
-    hostname: remnawave-subscription-middleware
-    restart: always
-    networks:
-      - ${NET}
-    ports:
-      - '127.0.0.1:${LOCAL_PORT}:80'
-    environment:
-      - SUBMW_PANEL_URL=${PANEL_URL}
-      - SUBMW_SUBPAGE_URL=${SUBPAGE_URL}
-      - SUBMW_DOMAIN=${DOMAIN}
-    volumes:
-      - submw-data:/var/www/html/data
-networks:
-  ${NET}:
-    external: true
-volumes:
-  submw-data:
-YML
+  if [ -f "$DEST/docker-compose.yml" ]; then
+    cp "$DEST/docker-compose.yml" "$DEST/docker-compose.yml.bak-$(date +%s)"
+    echo "-> Прежний docker-compose.yml сохранён рядом как .bak"
+  fi
+  curl -fsSL "$RAW/$FILE" -o "$DEST/docker-compose.yml" || { echo "Не удалось скачать $FILE"; exit 1; }
+  if [ "$SCENARIO" = "3" ]; then
+    curl -fsSL "$RAW/caddy/Caddyfile" -o "$DEST/Caddyfile" || { echo "Не удалось скачать Caddyfile"; exit 1; }
+    sed -i "s|SUBMW_DOMAIN=sub.example.com|SUBMW_DOMAIN=${DOMAIN}|" "$DEST/docker-compose.yml"
+  fi
+  sed -i "s|:\${SUBMW_IMAGE_TAG:-v1}|:${IMG_TAG}|" "$DEST/docker-compose.yml"
+  if [ "$SCENARIO" = "1" ]; then
+    sed -i "s|remnawave-network|${NET}|g; s|SUBMW_PANEL_URL=http://remnawave:3000|SUBMW_PANEL_URL=${PANEL_URL}|; s|SUBMW_SUBPAGE_URL=http://remnawave-subscription-page:3010|SUBMW_SUBPAGE_URL=${SUBPAGE_URL}|; s|127.0.0.1:8080:80|127.0.0.1:${LOCAL_PORT}:80|" "$DEST/docker-compose.yml"
+  else
+    [ "$SCENARIO" = "2" ] && sed -i "s|127.0.0.1:8080:80|127.0.0.1:${LOCAL_PORT}:80|" "$DEST/docker-compose.yml"
+    if [ -n "$PANEL_URL" ]; then
+      sed -i "s|REMNAWAVE_PANEL_URL=https://panel.example.com|REMNAWAVE_PANEL_URL=${PANEL_URL}|; s|SUBMW_SCENARIO=standalone|SUBMW_SCENARIO=standalone\n      - SUBMW_PANEL_URL=${PANEL_URL}|" "$DEST/docker-compose.yml"
+    fi
+    if [ -n "$PANEL_TOKEN" ]; then
+      sed -i "s|REMNAWAVE_API_TOKEN=$|REMNAWAVE_API_TOKEN=${PANEL_TOKEN}|; s|SUBMW_SCENARIO=standalone|SUBMW_SCENARIO=standalone\n      - SUBMW_PANEL_TOKEN=${PANEL_TOKEN}|" "$DEST/docker-compose.yml"
+    fi
+    if [ -n "$PANEL_COOKIE" ]; then
+      sed -i "s|EGAMES_COOKIE=$|EGAMES_COOKIE=${PANEL_COOKIE}|; s|SUBMW_SCENARIO=standalone|SUBMW_SCENARIO=standalone\n      - SUBMW_PANEL_COOKIE=${PANEL_COOKIE}|" "$DEST/docker-compose.yml"
+    fi
+  fi
+  chmod 600 "$DEST/docker-compose.yml"
   ( cd "$DEST" && docker compose pull && docker compose up -d )
+  sleep 3
+  KEY="$(cd "$DEST" && docker compose logs submw 2>/dev/null | grep -o '/admin/?k[a-z0-9]*=[a-f0-9]*' | tail -1)"
   echo
-  echo "================ ГОТОВО (Docker, рядом с панелью) ================"
-  echo "Контейнер: remnawave-subscription-middleware -> 127.0.0.1:${LOCAL_PORT}"
-  echo "Compose:   ${DEST}/docker-compose.yml"
-  echo
-  echo "ОСТАЛОСЬ 2 ШАГА (подробно — в INSTALL.md):"
-  echo "  1) Направить домен подписки на прослойку — правка nginx ПАНЕЛИ:"
-  echo "       cd /opt/remnawave        # каталог панели (docker-compose.yml и nginx.conf)"
-  echo "       # в nginx.conf апстрим подписки -> server 127.0.0.1:${LOCAL_PORT};"
-  echo "       # (у eGames это блок 'upstream json', было server 127.0.0.1:3010;)"
-  echo "       docker exec remnawave-nginx nginx -t && docker exec remnawave-nginx nginx -s reload"
-  echo "  2) Открыть https://${DOMAIN}/admin/ и завершить мастер (режим/адреса уже заданы окружением)."
+  echo "================ ГОТОВО (Docker) ================"
+  echo "Compose: ${DEST}/docker-compose.yml"
+  if [ "$SCENARIO" = "1" ]; then
+    echo "1) Направьте домен подписки на прослойку в реверсе ПАНЕЛИ (подписки недоступны, пока не пройдёте мастер):"
+    echo "     Caddy (remnawave-reverse-proxy): SUB_BACKEND_URL=127.0.0.1:${LOCAL_PORT} у контейнера Caddy в /opt/remnawave/docker-compose.yml, затем docker compose up -d remnawave-caddy"
+    echo "     nginx (eGames): в /opt/remnawave/nginx.conf  upstream json { server 127.0.0.1:${LOCAL_PORT}; }  затем docker exec remnawave-nginx nginx -s reload"
+    echo "2) Откройте мастер установки:"
+  elif [ "$SCENARIO" = "2" ]; then
+    echo "1) В своём реверсе направьте https://${DOMAIN} на 127.0.0.1:${LOCAL_PORT} (proxy_set_header Host \$host; X-Forwarded-Proto \$scheme; X-Forwarded-For)."
+    echo "2) Откройте мастер установки:"
+  else
+    echo "DNS ${DOMAIN} должен указывать на этот сервер — Caddy выпустит сертификат при первом запросе. Откройте мастер установки:"
+  fi
+  echo "     https://${DOMAIN:-<домен-подписки>}${KEY:-/admin/ (ссылку с ключом смотрите в: docker compose logs submw)}"
   echo
   echo "Обновление: cd ${DEST} && docker compose pull && docker compose up -d"
   echo "Инструкция: https://github.com/Mrvibecodic/remnawave-subscription-middleware/blob/main/INSTALL.md"
@@ -229,8 +257,9 @@ else
   echo "   БД: SQLite -> ${DEST}/data/submw.sqlite (создаст мастер установки)"
 fi
 
+INSTALL_KEY="k$(head -c 64 /dev/urandom | tr -dc 'a-z0-9' | head -c 7)=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' | head -c 24)"
 cat > "${DEST}/data/install.json" <<JSON
-{"target_domain":"${ORIGIN_DOMAIN}","mirror_domain":"${DOMAIN}",${DB_JSON}}
+{"key":"${INSTALL_KEY}","scenario":"host","mode":"mirror","step":"env","origin":{"raw":"${ORIGIN_DOMAIN}"},${DB_JSON}}
 JSON
 chown www-data:www-data "${DEST}/data/install.json"
 chmod 600 "${DEST}/data/install.json"
@@ -348,11 +377,11 @@ if [ "$DB_MODE" = "2" ]; then
 else
   echo "БД:       SQLite -> ${DEST}/data/submw.sqlite (создаст мастер установки)"
 fi
-echo "Админка:  https://${DOMAIN}/admin/   — пройдите мастер установки"
+echo "Админка:  https://${DOMAIN}/admin/?${INSTALL_KEY}   — пройдите мастер установки (ссылка с ключом, сохраните её)"
 echo "Вебхук:   https://${DOMAIN}/webhook.php"
 echo "Зеркало:  https://${DOMAIN}/          — этот адрес идёт в ссылки подписки"
 echo
-echo "В мастере укажите: origin=${ORIGIN_DOMAIN}, URL панели + API-токен, секрет вебхука,"
-echo "логин/пароль админки. Поля БД заполнять не нужно — параметры БД подставит мастер."
+echo "Мастер уже знает origin=${ORIGIN_DOMAIN} и параметры БД; спросит URL панели + API-токен, секрет вебхука,"
+echo "логин/пароль админки и проверит каждый шаг."
 echo "Затем пропишите https://${DOMAIN}/webhook.php в .env панели Remnawave"
 echo "(WEBHOOK_ENABLED=true, WEBHOOK_URL=..., WEBHOOK_SECRET_HEADER=...)."

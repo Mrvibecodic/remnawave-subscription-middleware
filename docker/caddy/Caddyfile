@@ -1,0 +1,15 @@
+{
+	admin off
+}
+
+https://{$SUBMW_DOMAIN} {
+	encode
+	reverse_proxy submw:80 {
+		header_up Host {host}
+		header_up X-Real-IP {remote}
+	}
+}
+
+http://{$SUBMW_DOMAIN} {
+	redir https://{$SUBMW_DOMAIN}{uri} permanent
+}

@@ -1,0 +1,108 @@
+# Прослойка на отдельном сервере, чистом: Caddy с автосертификатом + прослойка + страница подписки + MariaDB.
+# Скачать как docker-compose.yml и Caddyfile (docker/caddy/Caddyfile) в ту же папку, задать SUBMW_DOMAIN у caddy
+# и три строки у subpage (адрес панели, API-токен, при cookie-защите — EGAMES_COOKIE), затем:
+#   docker compose up -d
+#   docker compose logs submw      # ссылка мастера установки
+# DNS домена подписки должен указывать на этот сервер до запуска — иначе Caddy не выпустит сертификат.
+services:
+  submw:
+    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:${SUBMW_IMAGE_TAG:-v1}
+    container_name: submw
+    hostname: submw
+    restart: always
+    networks:
+      - submw-net
+    environment:
+      - SUBMW_SCENARIO=standalone
+      - SUBMW_SUBPAGE_URL=http://subpage:3010
+      - SUBMW_DB_HOST=submw-db
+      - SUBMW_DB_NAME=submw
+      - SUBMW_DB_USER=submw
+      - SUBMW_DB_PASSWORD=submw-internal-7c1e9d4b
+    volumes:
+      - submw-data:/var/www/html/data
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  # Страница подписки для браузера. Ходит в панель сама — ей нужны публичный адрес панели и API-токен.
+  subpage:
+    image: remnawave/subscription-page:latest
+    container_name: subpage
+    hostname: subpage
+    restart: always
+    networks:
+      - submw-net
+    environment:
+      - APP_PORT=3010
+      - REMNAWAVE_PANEL_URL=https://panel.example.com
+      - REMNAWAVE_API_TOKEN=
+      # Панель за cookie-защитой (установщик eGames / remnawave-reverse-proxy): имя=значение из ссылки входа
+      - EGAMES_COOKIE=
+      # Панель за caddy-with-auth / Tiny Auth: ключ X-Api-Key
+      - CADDY_AUTH_API_TOKEN=
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  mariadb:
+    image: mariadb:11
+    container_name: submw-db
+    hostname: submw-db
+    restart: always
+    networks:
+      - submw-net
+    environment:
+      - MARIADB_RANDOM_ROOT_PASSWORD=yes
+      - MARIADB_DATABASE=submw
+      - MARIADB_USER=submw
+      # БД наружу не публикуется — пароль виден только внутри сети compose
+      - MARIADB_PASSWORD=submw-internal-7c1e9d4b
+    volumes:
+      - submw-mysql:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  # Caddy: сам выпускает и продлевает сертификат Let's Encrypt для домена. Порты 80/443 должны быть свободны.
+  caddy:
+    image: caddy:2
+    container_name: submw-caddy
+    restart: always
+    networks:
+      - submw-net
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      - SUBMW_DOMAIN=sub.example.com
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - submw-caddy:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+networks:
+  submw-net:
+
+volumes:
+  submw-data:
+  submw-caddy:
+  submw-mysql:

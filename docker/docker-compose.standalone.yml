@@ -1,0 +1,53 @@
+# Прослойка на отдельном сервере, реверс-прокси (nginx / Caddy / панель хостинга) уже свой.
+# Скачать как docker-compose.yml, заполнить три строки у subpage (адрес панели, API-токен, при cookie-защите — EGAMES_COOKIE), затем:
+#   docker compose up -d
+#   docker compose logs submw      # ссылка мастера установки
+# Реверс: домен подписки -> 127.0.0.1:8080 (proxy_set_header Host $host; X-Forwarded-Proto $scheme; X-Forwarded-For).
+services:
+  submw:
+    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:${SUBMW_IMAGE_TAG:-v1}
+    container_name: submw
+    hostname: submw
+    restart: always
+    networks:
+      - submw-net
+    ports:
+      - '127.0.0.1:8080:80'
+    environment:
+      - SUBMW_SCENARIO=standalone
+      - SUBMW_SUBPAGE_URL=http://subpage:3010
+    volumes:
+      - submw-data:/var/www/html/data
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  # Страница подписки для браузера. Ходит в панель сама — ей нужны публичный адрес панели и API-токен.
+  subpage:
+    image: remnawave/subscription-page:latest
+    container_name: subpage
+    hostname: subpage
+    restart: always
+    networks:
+      - submw-net
+    environment:
+      - APP_PORT=3010
+      - REMNAWAVE_PANEL_URL=https://panel.example.com
+      - REMNAWAVE_API_TOKEN=
+      # Панель за cookie-защитой (установщик eGames / remnawave-reverse-proxy): имя=значение из ссылки входа
+      - EGAMES_COOKIE=
+      # Панель за caddy-with-auth / Tiny Auth: ключ X-Api-Key
+      - CADDY_AUTH_API_TOKEN=
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+networks:
+  submw-net:
+
+volumes:
+  submw-data:
