@@ -764,7 +764,7 @@ eyeoff:'<path d="M9.9 4.2A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a13 13 0 0 1-2.2 3M6
 key:'<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2M16 7l3 3M14 9l2 2"/>',
 trash:'<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
 x:'<path d="M18 6 6 18M6 6l12 12"/>',
-shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+layers:'<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
 link:'<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
 net:'<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-2h14v2"/>',
 log:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
@@ -976,7 +976,7 @@ function act(u,a){
  if(a==='disable')return cfm({ic:'power',tone:'bad',title:'Выключить пользователя',sub:'<b>'+esc(u.un)+'</b>',rows:[['power','Статус',stInfo(u).t,'Выключен']],notes:[['ban','bad','Подписка перестанет работать','до включения']],hint:'Срок и трафик не меняются',ok:'Выключить',danger:true,onOk:function(){runOne('ua_act',one,'Выключен · '+u.un);}});
  if(a==='enable')return cfm({ic:'power',tone:'ok',title:'Включить пользователя',sub:'<b>'+esc(u.un)+'</b>',rows:[['power','Статус','Выключен',expMs(u)<now()?'Истёк':'Активен']],notes:expMs(u)<now()?[['alert','warn','Срок уже прошёл','продлите, чтобы подписка заработала']]:[],ok:'Включить',onOk:function(){runOne('ua_act',one,'Включён · '+u.un);}});
  if(a==='revoke')return cfm({ic:'key',tone:'warn',title:'Новые ключи',sub:'<b>'+esc(u.un)+'</b>',notes:[['link','info','Ссылка остаётся прежней','меняются пароли VLESS, Trojan, Shadowsocks'],['refresh','warn','Клиенту нужно обновить подписку','старые конфиги перестанут работать']],ok:'Выпустить',onOk:function(){runOne('ua_act',one,'Ключи перевыпущены · '+u.un);}});
- if(a==='del')return cfm({ic:'trash',tone:'bad',title:'Удалить пользователя',sub:'<b>'+esc(u.un)+'</b> · из панели',notes:[['alert','bad','Это необратимо','ссылка перестанет работать сразу'],['shield','info','Прослойка подчистит своё','оверрайды, доп-подписку, WG/AWG, грейс']],ok:'Удалить',danger:true,onOk:function(){busy(true);post('ua_act',{su:u.su,act:'delete'}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();U=U.filter(function(x){return x.su!==u.su;});closeCard(true);toast('Удалён · '+u.un);render();});}});
+ if(a==='del')return cfm({ic:'trash',tone:'bad',title:'Удалить пользователя',sub:'<b>'+esc(u.un)+'</b> · из панели',notes:[['alert','bad','Это необратимо','ссылка перестанет работать сразу'],['layers','info','Прослойка подчистит своё','оверрайды, доп-подписку, WG/AWG, грейс']],ok:'Удалить',danger:true,onOk:function(){busy(true);post('ua_act',{su:u.su,act:'delete'}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Панель не приняла');return;}cfClose();U=U.filter(function(x){return x.su!==u.su;});closeCard(true);toast('Удалён · '+u.un);render();});}});
 }
 function doAction(a,u){
  if(a==='open')return openCard(u,'ov');
@@ -1112,7 +1112,7 @@ function ovHtml(u){
  var wg=mw?(mw.wg.m?'Ручная привязка'+(mw.wg.a?' и из пула: '+mw.wg.a:''):(mw.wg.a?'Из пула: '+mw.wg.a:'<span class="muted" style="font-weight:400">не выдаётся</span>')):lo;
  var nov=mw?(mw.ov||[]).length:0;
  h+='<div class="ux-sect">Прослойка<span class="sp"></span></div><div class="ux-mw">'+
-  tile('shield','Что отдаётся',served,nov?'<a href="?tab=overrides" class="muted" style="font-size:.78rem">Оверрайды: '+nov+' →</a>':'')+
+  tile('layers','Что отдаётся',served,nov?'<a href="?tab=overrides" class="muted" style="font-size:.78rem">Оверрайды: '+nov+' →</a>':'')+
   tile('send','Последний запрос',mw?(lr?esc(lr.app||'клиент не распознан')+' · '+ago(lr.t*1000):'<span class="muted" style="font-weight:400">запросов не было</span>'):lo,lr?'<span class="muted" style="font-size:.78rem">'+esc(lr.os||'')+(lr.dec&&decL[lr.dec]?(lr.os?' · ':'')+decL[lr.dec]:'')+'</span>':'')+
   tile('link','Доп-подписка',as?'<span style="font-family:ui-monospace,monospace;font-size:.8rem">'+esc(as)+'</span>':'<span class="muted" style="font-weight:400">не привязана</span>','<button type="button" class="wb sm" data-a="addsub">'+(as?'Изменить':'Привязать')+'</button>')+
   tile('net','WG / AWG',wg,'<a href="?tab=wg_pool" class="muted" style="font-size:.78rem">Открыть WG / AWG →</a>')+
@@ -1313,7 +1313,7 @@ function histHtml(u){
   var ic,tn,t,s;
   if(e.k==='rq'){ic='sendh';tn='st-info';t='Запрос подписки';s=esc([e.app||'клиент не распознан',e.dev||e.os].filter(Boolean).join(' · '))+(e.dec&&e.dec!=='normal'?' <span class="ux-pill '+(e.dec==='blocked'||e.dec==='error'?'st-bad':(e.dec==='grace'?'st-vio':'st-warn'))+'" style="font-size:.66rem">'+esc(({blocked:'блок',expired:'истёк',grace:'грейс',error:'ошибка'})[e.dec]||e.dec)+'</span>':'');}
   else if(e.k==='wh'){ic='pencil';tn='st-mut';t=EVN[e.ev]||e.ev;s=(e.dev?[esc(e.dev)]:[]).concat((e.d||[]).map(function(x){return esc(x.l)+': '+dv(x.a)+' → '+dv(x.b);})).join('<br>')+(e.mw===1?' <span class="ux-pill st-ok" style="font-size:.66rem">прослойка</span>':(e.mw===0?' <span class="ux-pill st-mut" style="font-size:.66rem">извне</span>':''));}
-  else{ic='shield';tn=e.ok?'st-ok':'st-bad';t='Прослойка: '+(OPN[e.op]||e.op).toLowerCase();s=esc(srcL(e.src))+(e.f&&e.f.length?' · '+esc(e.f.join(', ')):'')+(e.ok?'':' · <span style="color:var(--c-bad-fg)">'+esc(e.err||'ошибка')+'</span>');}
+  else{ic='layers';tn=e.ok?'st-ok':'st-bad';t='Прослойка: '+(OPN[e.op]||e.op).toLowerCase();s=esc(srcL(e.src))+(e.f&&e.f.length?' · '+esc(e.f.join(', ')):'')+(e.ok?'':' · <span style="color:var(--c-bad-fg)">'+esc(e.err||'ошибка')+'</span>');}
   return '<div><span class="tm">'+fdt(e.t*1000).replace(' в ',' ')+'</span><span class="ic '+tn+'">'+ico(ic,13)+'</span><span class="tx"><b>'+esc(t)+'</b><span class="s">'+s+'</span></span></div>';
  }).join('')+'</div>'+foot;
 }
@@ -1393,7 +1393,7 @@ function formHtml(create){
   '<div class="ux-f"><label for="fEm">Email</label><input type="email" id="fEm" value="'+esc(F.email)+'" placeholder="user@example.com"><div class="ux-err" data-e="email"></div></div>'+
   '<div class="ux-f" style="grid-column:1/-1"><label for="fDesc">Описание</label><textarea id="fDesc" rows="2" placeholder="Видно только в панели и здесь">'+esc(F.desc)+'</textarea></div></div>');
  if(create){
-  h+=fsec('shield','Прослойка',
+  h+=fsec('layers','Прослойка',
    '<div class="ux-f"><label for="fAdd">Доп-подписка</label><input type="text" id="fAdd" class="mono" value="'+esc(F.addsub)+'" placeholder="https://…/sub/… — необязательно" spellcheck="false"><div class="ux-err" data-e="addsub"></div><div class="hint2">Серверы второй подписки подмешаются в ссылку.</div></div>'+
    '<label class="ux-opt" style="margin-top:.8rem"><input type="checkbox" class="ux-cbx" id="fNolog"'+(F.nolog?' checked':'')+'><span><b>Не писать запросы в лог</b><span class="d">Например, для своих тестовых пользователей.</span></span></label>');
  }

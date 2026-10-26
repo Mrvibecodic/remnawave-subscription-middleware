@@ -82,16 +82,16 @@ function inst_host_is_internal($host) {
 function inst_url_parse($raw) {
     $raw = trim((string) $raw);
     $out = ['ok' => false, 'url' => '', 'host' => '', 'scheme' => '', 'port' => 0, 'cookie_hint' => '', 'path' => '', 'internal' => false, 'err' => '', 'note' => ''];
-    if ($raw === '') { $out['err'] = 'Введите адрес панели.'; return $out; }
+    if ($raw === '') { $out['err'] = 'Укажите адрес панели.'; return $out; }
     if (!preg_match('~^[a-z][a-z0-9+.-]*://~i', $raw)) {
         $h0 = preg_replace('~[/?#].*$~', '', $raw);
         $h0 = preg_replace('~:\d+$~', '', $h0);
         $raw = (inst_host_is_internal($h0) ? 'http://' : 'https://') . $raw;
     }
     $p = parse_url($raw);
-    if (!is_array($p) || empty($p['host'])) { $out['err'] = 'Не удалось разобрать адрес. Пример: https://panel.example.com или http://remnawave:3000'; return $out; }
+    if (!is_array($p) || empty($p['host'])) { $out['err'] = 'Это не похоже на адрес. Пример: https://panel.example.com'; return $out; }
     $scheme = strtolower($p['scheme'] ?? 'https');
-    if ($scheme !== 'http' && $scheme !== 'https') { $out['err'] = 'Схема должна быть http:// или https://'; return $out; }
+    if ($scheme !== 'http' && $scheme !== 'https') { $out['err'] = 'Адрес должен начинаться с http:// или https://'; return $out; }
     $host = strtolower($p['host']);
     $port = (int) ($p['port'] ?? 0);
     $out['scheme'] = $scheme;
@@ -108,8 +108,8 @@ function inst_url_parse($raw) {
             if (is_string($v) && $v !== '' && preg_match('~^[A-Za-z0-9_-]{2,}$~', $k)) $out['cookie_hint'] = $k . '=' . $v;
         }
     }
-    if (preg_match('~/api/sub(/|$)~i', $out['path'])) $out['note'] = 'Это ссылка подписки через панель — для мастера нужен адрес самой панели; путь убран.';
-    elseif ($out['path'] !== '' && $out['path'] !== '/') $out['note'] = 'Путь из ссылки убран — нужен только адрес панели.';
+    if (preg_match('~/api/sub(/|$)~i', $out['path'])) $out['note'] = 'Из ссылки взят только адрес панели.';
+    elseif ($out['path'] !== '' && $out['path'] !== '/') $out['note'] = 'Из ссылки взят только адрес панели.';
     $out['ok'] = true;
     return $out;
 }
@@ -130,9 +130,9 @@ function inst_token_shape($t) {
     $t = trim((string) $t);
     if ($t === '') return '';
     if (preg_match('~^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$~', $t)) return '';
-    if (strpos($t, '=') !== false && strpos($t, '.') === false) return 'Похоже на cookie («имя=значение»), а не на API-токен. Cookie — отдельное поле ниже.';
-    if (strlen($t) < 40) return 'Слишком короткая строка для API-токена панели — возможно, это X-Api-Key или пароль. Токен создаётся в панели: Settings → API Tokens, начинается с «eyJ».';
-    return 'Не похоже на API-токен панели: он выглядит как JWT (три части через точку, начинается с «eyJ»).';
+    if (strpos($t, '=') !== false && strpos($t, '.') === false) return 'Это похоже на cookie, а не на API-токен. Для cookie есть отдельное поле.';
+    if (strlen($t) < 40) return 'Слишком коротко для API-токена. Токен из панели начинается с «eyJ» (Settings → API Tokens).';
+    return 'Не похоже на API-токен: он начинается с «eyJ» и состоит из трёх частей через точку.';
 }
 
 function inst_tls_errno($n) { return in_array((int) $n, [35, 51, 53, 54, 58, 59, 60, 77, 80, 82, 83, 90, 91], true); }
@@ -153,40 +153,40 @@ function inst_panel_probe(array $c, $scenario = 'standalone') {
         $n = $r['errno'];
         if ($n === 6) {
             if ($u['internal'] && $scenario === 'panel') {
-                $out['st'] = 'dns_net'; $out['msg'] = 'Имя «' . $u['host'] . '» не резолвится из контейнера прослойки.';
-                $out['hint'] = 'Контейнер не в docker-сети панели или имя контейнера панели другое. Проверьте `networks:` в docker-compose.yml (обычно `remnawave-network`) и `docker ps` — как называется контейнер панели.';
+                $out['st'] = 'dns_net'; $out['msg'] = 'Контейнер панели «' . $u['host'] . '» не найден.';
+                $out['hint'] = 'Прослойка не в одной docker-сети с панелью. Проверьте имя сети в docker-compose.yml (обычно remnawave-network) и имя контейнера панели: docker ps.';
             } elseif ($u['internal']) {
-                $out['st'] = 'dns_internal'; $out['msg'] = '«' . $u['host'] . '» — адрес внутри docker-сети панели, с отдельного сервера он недоступен.';
-                $out['hint'] = 'Укажите публичный адрес панели со схемой https://, например https://panel.example.com. Если панель закрыта cookie-защитой или X-Api-Key — заполните поля ниже.';
+                $out['st'] = 'dns_internal'; $out['msg'] = '«' . $u['host'] . '» — внутренний адрес, с другого сервера он не виден.';
+                $out['hint'] = 'Укажите адрес панели, который открывается в браузере: https://panel.example.com';
             } else {
-                $out['st'] = 'dns'; $out['msg'] = 'Домен «' . $u['host'] . '» не резолвится.';
-                $out['hint'] = 'Проверьте опечатку в домене и DNS-запись.';
+                $out['st'] = 'dns'; $out['msg'] = 'Домен «' . $u['host'] . '» не существует.';
+                $out['hint'] = 'Проверьте написание домена.';
             }
         } elseif ($n === 7) {
             if ($u['internal']) {
-                $out['st'] = 'refused_internal'; $out['msg'] = '«' . $u['host'] . '» отвечает, но порт закрыт (connection refused).';
-                $out['hint'] = 'Контейнер панели не запущен или слушает другой порт (у панели по умолчанию 3000). Проверьте `docker ps` и APP_PORT в .env панели.';
+                $out['st'] = 'refused_internal'; $out['msg'] = 'Панель «' . $u['host'] . '» не отвечает на этом порту.';
+                $out['hint'] = 'Проверьте, что контейнер панели запущен (docker ps) и порт совпадает с APP_PORT в её .env (обычно 3000).';
             } else {
-                $out['st'] = 'refused'; $out['msg'] = 'Сервер отказал в соединении.';
-                $out['hint'] = 'Реверс-прокси панели не слушает этот порт или схему. Проверьте https:// и что панель открывается в браузере.';
+                $out['st'] = 'refused'; $out['msg'] = 'Сервер не принимает соединение.';
+                $out['hint'] = 'Проверьте, что панель открывается в браузере по этому адресу, и что указано https://.';
             }
         } elseif ($n === 28) {
             $out['st'] = 'timeout'; $out['msg'] = 'Панель не ответила за 12 секунд.';
-            $out['hint'] = $u['internal'] ? 'Панель запускается или зависла — смотрите `docker logs remnawave`.' : 'Файрвол, Cloudflare-петля (с того же сервера к своему публичному домену) или панель лежит. Если панель на этом же сервере — используйте внутренний адрес http://remnawave:3000 или http://127.0.0.1:3000.';
+            $out['hint'] = $u['internal'] ? 'Панель ещё запускается или зависла: docker logs remnawave.' : 'Если панель на этом же сервере — укажите внутренний адрес http://remnawave:3000. Иначе проверьте файрвол.';
         } elseif (inst_tls_errno($n)) {
-            $out['st'] = 'tls'; $out['msg'] = 'Сертификат панели не прошёл проверку: ' . $r['err'];
-            $out['hint'] = 'Самоподписанный или внутренний сертификат. Можно продолжить без проверки TLS (переключатель ниже) — так прослойка будет доверять любому сертификату панели.';
+            $out['st'] = 'tls'; $out['msg'] = 'У панели самоподписанный сертификат.';
+            $out['hint'] = 'Снимите галочку «Проверять сертификат панели» и проверьте снова.';
             $out['fix']['tls'] = 0;
         } elseif ($n === 52 || $n === 56 || $n === 55 || $n === 92) {
             if (!$cookie_set) {
-                $out['st'] = 'dropped'; $out['msg'] = 'Соединение открылось, но сервер закрыл его без ответа.';
-                $out['hint'] = 'Так ведёт себя cookie-защита панели (установщик панели eGames / remnawave-reverse-proxy): без секретной куки запросы обрываются. Вставьте ссылку входа в панель вида https://panel.example.com/auth/login?имя=значение — кука подставится сама, либо заполните поле «Cookie панели». Если же это домен подписки, а не панели — нужен адрес панели, где вы входите как администратор.';
+                $out['st'] = 'dropped'; $out['msg'] = 'Панель закрыта защитной cookie.';
+                $out['hint'] = 'Вставьте в поле адреса ссылку входа в панель целиком — ту, что выдал установщик панели (…/auth/login?имя=значение). Cookie подставится сама.';
             } else {
-                $out['st'] = 'dropped_cookie'; $out['msg'] = 'Панель закрыла соединение, хотя cookie указана.';
-                $out['hint'] = 'Кука не подходит: проверьте «имя=значение» без пробелов и кавычек — в браузере F12 → Application → Cookies → домен панели.';
+                $out['st'] = 'dropped_cookie'; $out['msg'] = 'Cookie не подошла.';
+                $out['hint'] = 'Скопируйте ссылку входа в панель заново — часть после «?» и есть cookie (имя=значение).';
             }
         } else {
-            $out['st'] = 'err'; $out['msg'] = 'Ошибка соединения: ' . $r['err'];
+            $out['st'] = 'err'; $out['msg'] = 'Не удалось подключиться.'; $out['hint'] = $r['err'];
         }
         return $out;
     }
@@ -196,79 +196,79 @@ function inst_panel_probe(array $c, $scenario = 'standalone') {
     if ($code >= 300 && $code < 400) {
         $loc = $r['hdr']['location'] ?? '';
         if ($u['scheme'] === 'http' && stripos($loc, 'https://') === 0) {
-            $out['st'] = 'use_https'; $out['msg'] = 'Панель перенаправляет на https.';
-            $out['hint'] = 'Укажите адрес с https://';
+            $out['st'] = 'use_https'; $out['msg'] = 'Панель работает по https.';
+            $out['hint'] = 'Адрес исправлен на https:// — нажмите «Проверить» ещё раз.';
             $out['fix']['url'] = preg_replace('~^http://~', 'https://', $u['url']);
         } else {
-            $out['st'] = 'redirect'; $out['msg'] = 'Вместо ответа API пришёл редирект' . ($loc !== '' ? ' на ' . $loc : '') . '.';
-            $out['hint'] = 'Это не адрес API панели: перед панелью стоит что-то, что уводит на страницу входа. Проверьте домен и cookie-защиту.';
+            $out['st'] = 'redirect'; $out['msg'] = 'По этому адресу сервер перенаправляет на другую страницу.';
+            $out['hint'] = 'Проверьте, что это адрес панели Remnawave' . ($loc !== '' ? ' (ведёт на ' . $loc . ')' : '') . '.';
         }
         return $out;
     }
     if (isset($r['hdr']['cf-mitigated']) || ($code === 403 && stripos($r['body'], 'Just a moment') !== false)) {
-        $out['st'] = 'cf'; $out['msg'] = 'Cloudflare показывает проверку браузера (challenge) вместо ответа панели.';
-        $out['hint'] = 'Выпустите запросы прослойки из-под проверки: в Cloudflare → Security → WAF создайте правило Skip для домена панели по IP этого сервера (или по пути /api/*), либо выключите Bot Fight Mode. Другой путь — ходить к панели минуя Cloudflare, по внутреннему адресу.';
+        $out['st'] = 'cf'; $out['msg'] = 'Cloudflare не пропускает запросы к панели (проверка браузера).';
+        $out['hint'] = 'В Cloudflare → Security → WAF добавьте правило Skip для IP этого сервера или выключите Bot Fight Mode. Если панель на этом же сервере — укажите http://remnawave:3000.';
         return $out;
     }
     if ($code === 200 && $j && isset($j['response']['version'])) {
         $v = trim((string) $j['response']['version']);
         $out['version'] = $v;
         if ($v !== '' && version_compare(ltrim($v, 'vV'), inst_panel_min(), '<')) {
-            $out['st'] = 'old'; $out['msg'] = 'Панель ' . $v . ' — слишком старая, прослойке нужна ' . inst_panel_min() . ' и новее.';
-            $out['hint'] = 'Обновите панель Remnawave.';
+            $out['st'] = 'old'; $out['msg'] = 'Панель ' . $v . ' устарела: нужна ' . inst_panel_min() . ' или новее.';
+            $out['hint'] = 'Обновите панель и проверьте снова.';
             return $out;
         }
-        $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'Панель отвечает' . ($v !== '' ? ', версия ' . $v : '') . '.';
+        $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'Панель на связи' . ($v !== '' ? ', версия ' . $v : '') . '.';
         return $out;
     }
     if (inst_is_html($r)) {
         $b = substr($r['body'], 0, 4000);
         if (preg_match('~subscription|remnawave-subscription|<title>\s*Subscription~i', $b) || isset($r['hdr']['profile-title'])) {
-            $out['st'] = 'html_subpage'; $out['msg'] = 'По этому адресу отвечает страница подписки, а не панель.';
-            $out['hint'] = 'Нужен адрес самой панели (где вы входите как администратор), а не домен подписки.';
+            $out['st'] = 'html_subpage'; $out['msg'] = 'Это домен подписки, а нужен домен панели.';
+            $out['hint'] = 'Укажите адрес, по которому вы входите в панель как администратор.';
         } elseif ($code === 404 || $code === 403 || $code === 401) {
-            $out['st'] = $cookie_set ? 'cookie_bad' : 'cookie'; $out['msg'] = 'Вместо API пришла HTML-страница (HTTP ' . $code . ').';
-            $out['hint'] = $cookie_set ? 'Кука не принята — проверьте её значение.' : 'Похоже на cookie-защиту панели: без куки сервер отдаёт заглушку. Вставьте ссылку входа вида https://panel.example.com/auth/login?имя=значение или заполните «Cookie панели».';
+            $out['st'] = $cookie_set ? 'cookie_bad' : 'cookie'; $out['msg'] = $cookie_set ? 'Cookie не подошла.' : 'Панель закрыта защитной cookie.';
+            $out['hint'] = 'Вставьте в поле адреса ссылку входа в панель целиком (…/auth/login?имя=значение) — cookie подставится сама.';
         } else {
-            $out['st'] = 'html'; $out['msg'] = 'По этому адресу HTML-страница (HTTP ' . $code . '), а не API панели.';
-            $out['hint'] = 'Проверьте, что указан домен панели Remnawave. Если панель за прокси с авторизацией — заполните cookie или X-Api-Key.';
+            $out['st'] = 'html'; $out['msg'] = 'По этому адресу не панель Remnawave.';
+            $out['hint'] = 'Проверьте домен. Если панель закрыта авторизацией прокси — заполните cookie или X-Api-Key.';
         }
         return $out;
     }
     if ($code === 401) {
-        if (($c['token'] ?? '') === '') { $out['st'] = 'auth_empty'; $out['msg'] = 'Панель найдена, нужен API-токен.'; $out['hint'] = 'Создайте токен в панели: Settings → API Tokens.'; }
-        else { $out['st'] = 'auth'; $out['msg'] = 'Панель найдена, но токен не принят (HTTP 401).'; $out['hint'] = 'Проверьте токен: он копируется целиком, без пробелов. Токен из другой панели или отозванный тоже даёт 401.'; }
+        if (($c['token'] ?? '') === '') { $out['st'] = 'auth_empty'; $out['msg'] = 'Панель найдена. Теперь нужен API-токен.'; $out['hint'] = 'Панель → Settings → API Tokens → Create.'; }
+        else { $out['st'] = 'auth'; $out['msg'] = 'Панель найдена, но токен не принят.'; $out['hint'] = 'Скопируйте токен заново целиком. Если он удалён в панели — создайте новый: Settings → API Tokens.'; }
         return $out;
     }
     if ($code === 403) {
         $m = (string) ($j['message'] ?? '');
         if (stripos($m, 'API-token') !== false || stripos($m, 'api token') !== false) {
-            $out['st'] = 'auth_jwt'; $out['msg'] = 'Это токен сессии администратора, а не API-токен.';
-            $out['hint'] = 'Создайте API-токен в панели: Settings → API Tokens — и вставьте его.';
+            $out['st'] = 'auth_jwt'; $out['msg'] = 'Это не API-токен.';
+            $out['hint'] = 'Создайте токен в панели: Settings → API Tokens → Create, и вставьте его.';
         } elseif ($j !== null) {
-            $out['st'] = 'scope'; $out['msg'] = 'Токен принят, но у него нет права system:metadata.';
-            $out['hint'] = 'Выдайте токену нужные права (проще — все) в Settings → API Tokens.';
+            $out['st'] = 'scope'; $out['msg'] = 'У токена нет нужных прав.';
+            $out['hint'] = 'Создайте токен со всеми правами: Settings → API Tokens.';
         } elseif ($xkey_set) {
-            $out['st'] = 'xkey_bad'; $out['msg'] = 'Прокси перед панелью отклоняет запросы (HTTP 403) несмотря на X-Api-Key.';
-            $out['hint'] = 'Проверьте ключ: Caddy → https://панель/<REMNAWAVE_CUSTOM_LOGIN_ROUTE>/auth → API-keys.';
+            $out['st'] = 'xkey_bad'; $out['msg'] = 'X-Api-Key не подошёл.';
+            $out['hint'] = 'Ключ берётся на странице входа Caddy: https://<панель>/<ваш путь>/auth → API-keys.';
         } else {
-            $out['st'] = 'xkey'; $out['msg'] = 'Прокси перед панелью отклоняет запросы к /api (HTTP 403).';
-            $out['hint'] = 'Так работает схема «Caddy with custom path» (caddy-with-auth): нужен ключ X-Api-Key из портала авторизации Caddy. Заполните поле «X-Api-Key».';
+            $out['st'] = 'xkey'; $out['msg'] = 'Панель закрыта авторизацией Caddy — нужен X-Api-Key.';
+            $out['hint'] = 'Ключ берётся на странице входа Caddy: https://<панель>/<ваш путь>/auth → API-keys. Вставьте его в поле X-Api-Key.';
         }
         return $out;
     }
     if ($code === 404) {
         $m = (string) ($j['message'] ?? '');
-        if (preg_match('~^Cannot (GET|POST)~', $m)) { $out['st'] = 'not_panel'; $out['msg'] = 'Сервер отвечает, но это не панель Remnawave (нет /api/system/metadata).'; $out['hint'] = 'Проверьте адрес — возможно, указан домен ноды или другого сервиса.'; }
-        else { $out['st'] = $cookie_set ? 'cookie_bad' : 'cookie'; $out['msg'] = 'HTTP 404 без ответа API.'; $out['hint'] = $cookie_set ? 'Кука не принята — проверьте значение.' : 'Старые установки eGames без куки отдают 404. Заполните «Cookie панели» или вставьте ссылку входа с параметром.'; }
+        if (preg_match('~^Cannot (GET|POST)~', $m)) { $out['st'] = 'not_panel'; $out['msg'] = 'По этому адресу не панель Remnawave.'; $out['hint'] = 'Проверьте домен — возможно, это нода или другой сервис.'; }
+        else { $out['st'] = $cookie_set ? 'cookie_bad' : 'cookie'; $out['msg'] = $cookie_set ? 'Cookie не подошла.' : 'Панель закрыта защитной cookie.'; $out['hint'] = 'Вставьте в поле адреса ссылку входа в панель целиком (…/auth/login?имя=значение) — cookie подставится сама.'; }
         return $out;
     }
     if ($code >= 500) {
-        $out['st'] = 'upstream'; $out['msg'] = 'Реверс-прокси отвечает ошибкой ' . $code . ' вместо API панели.';
-        $out['hint'] = 'Либо панель за ним не работает (`docker ps`, `docker logs remnawave` на сервере панели), либо это домен подписки, а не панели: subscription-page на запросы API отвечает именно так. Нужен адрес панели, где вы входите как администратор.';
+        $out['st'] = 'upstream'; $out['msg'] = 'Сервер отвечает ошибкой ' . $code . '.';
+        $out['hint'] = 'Если это домен подписки — укажите вместо него домен панели. Если домен панели — проверьте, что панель запущена: docker logs remnawave.';
         return $out;
     }
-    $out['st'] = 'odd'; $out['msg'] = 'Неожиданный ответ HTTP ' . $code . '.';
+    $out['st'] = 'odd'; $out['msg'] = 'Непонятный ответ (HTTP ' . $code . ').';
     $out['hint'] = mb_substr(trim(strip_tags($r['body'])), 0, 160);
     return $out;
 }
@@ -351,9 +351,9 @@ function inst_scopes_probe(array $c, array $need = []) {
     curl_multi_close($mh);
     $n = count($rows);
     $msg = '';
-    if ($n && $auth === $n) $msg = 'Панель не принимает токен (HTTP 401).';
+    if ($n && $auth === $n) $msg = 'Панель не принимает токен.';
     elseif ($n && $errs === $n) $msg = 'Панель не ответила.';
-    elseif ($missing) $msg = 'Токену не хватает прав: ' . implode(', ', $missing) . '. Выдайте их в Settings → API Tokens (проще — все права) и проверьте снова.';
+    elseif ($missing) $msg = 'У токена нет прав: ' . implode(', ', $missing) . '. Добавьте их токену в панели (Settings → API Tokens) или создайте токен со всеми правами.';
     return ['ok' => $msg === '', 'rows' => $rows, 'missing' => $missing, 'msg' => $msg];
 }
 
@@ -392,10 +392,10 @@ function inst_panel_config(array $c, $version) {
 function inst_origin_parse($raw) {
     $raw = trim((string) $raw);
     $out = ['ok' => false, 'domain' => '', 'prefix' => '', 'short' => '', 'is_panel_link' => false, 'err' => ''];
-    if ($raw === '') { $out['err'] = 'Укажите домен подписки панели или ссылку подписки.'; return $out; }
+    if ($raw === '') { $out['err'] = 'Вставьте ссылку подписки.'; return $out; }
     if (!preg_match('~^[a-z][a-z0-9+.-]*://~i', $raw)) $raw = 'https://' . $raw;
     $p = parse_url($raw);
-    if (!is_array($p) || empty($p['host'])) { $out['err'] = 'Не удалось разобрать домен.'; return $out; }
+    if (!is_array($p) || empty($p['host'])) { $out['err'] = 'Это не похоже на ссылку.'; return $out; }
     $out['domain'] = strtolower($p['host']) . (!empty($p['port']) ? ':' . (int) $p['port'] : '');
     $segs = array_values(array_filter(explode('/', (string) ($p['path'] ?? '')), fn($s) => $s !== ''));
     if ($segs && strcasecmp($segs[0], 'api') === 0 && isset($segs[1]) && strcasecmp($segs[1], 'sub') === 0) {
@@ -418,31 +418,31 @@ function inst_origin_parse($raw) {
 function inst_origin_probe(array $o, $tls, $own_host, $panel_host = '') {
     $out = ['ok' => false, 'st' => 'err', 'msg' => '', 'hint' => '', 'browser' => null, 'code' => 0];
     $dom = strtolower($o['domain']);
-    if ($dom === strtolower((string) $own_host)) { $out['st'] = 'loop'; $out['msg'] = 'Origin совпадает с доменом прослойки — зеркало будет ходить само к себе.'; $out['hint'] = 'В режиме зеркала у origin другой домен (домен подписки панели). Если прослойка должна встать на сам домен подписки — выберите режим «тот же домен».'; return $out; }
-    if ($panel_host !== '' && $dom === strtolower($panel_host)) { $out['st'] = 'panel'; $out['msg'] = 'Это домен панели, а не домен подписки.'; $out['hint'] = 'Зеркалу нужен домен, где панель отдаёт подписки (SUB_PUBLIC_DOMAIN). Если прослойка должна отдавать подписку напрямую с панели — выберите режим «тот же домен» / «подписка с панели».'; return $out; }
-    if (!empty($o['is_panel_link'])) { $out['st'] = 'panel'; $out['msg'] = 'Ссылка вида /api/sub/… ведёт на панель, а не на домен подписки.'; $out['hint'] = 'Для зеркала нужна ссылка подписки с домена подписки. Или выберите режим «подписка с панели».'; return $out; }
+    if ($dom === strtolower((string) $own_host)) { $out['st'] = 'loop'; $out['msg'] = 'Это домен самой прослойки.'; $out['hint'] = 'Зеркалу нужен домен подписки панели. Если прослойка должна работать на самом домене подписки — вернитесь и выберите «На домене подписки».'; return $out; }
+    if ($panel_host !== '' && $dom === strtolower($panel_host)) { $out['st'] = 'panel'; $out['msg'] = 'Это домен панели, а нужен домен подписки.'; $out['hint'] = 'Возьмите ссылку подписки из карточки пользователя в панели.'; return $out; }
+    if (!empty($o['is_panel_link'])) { $out['st'] = 'panel'; $out['msg'] = 'Эта ссылка ведёт на панель, а не на домен подписки.'; $out['hint'] = 'Возьмите ссылку подписки из карточки пользователя в панели.'; return $out; }
     $base = 'https://' . $dom;
     $path = ($o['prefix'] !== '' ? '/' . $o['prefix'] : '') . ($o['short'] !== '' ? '/' . $o['short'] : '/');
     $r = inst_http('GET', $base . $path, ['User-Agent: Happ/2.0', 'Accept: */*'], ['tls' => $tls, 'timeout' => 15]);
     $out['code'] = $r['code'];
     if (!$r['ok']) {
-        if ($r['errno'] === 6) { $out['st'] = 'dns'; $out['msg'] = 'Домен ' . $dom . ' не резолвится.'; }
-        elseif (inst_tls_errno($r['errno'])) { $out['st'] = 'tls'; $out['msg'] = 'Сертификат origin не прошёл проверку: ' . $r['err']; $out['hint'] = 'Можно отключить проверку TLS (ниже), но для публичного домена подписки это ненормально.'; }
-        else { $out['st'] = 'err'; $out['msg'] = 'Origin не отвечает: ' . $r['err']; }
+        if ($r['errno'] === 6) { $out['st'] = 'dns'; $out['msg'] = 'Домен ' . $dom . ' не существует.'; $out['hint'] = 'Проверьте написание.'; }
+        elseif (inst_tls_errno($r['errno'])) { $out['st'] = 'tls'; $out['msg'] = 'У домена подписки плохой сертификат.'; $out['hint'] = 'Клиенты тоже не смогут его открыть — проверьте сертификат на сервере панели.'; }
+        else { $out['st'] = 'err'; $out['msg'] = 'Домен не отвечает.'; $out['hint'] = $r['err']; }
         return $out;
     }
     if ($o['short'] !== '') {
         if ($r['code'] === 200 && (isset($r['hdr']['subscription-userinfo']) || isset($r['hdr']['profile-title']))) {
-            $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'Origin отдаёт подписку Remnawave' . ($o['prefix'] !== '' ? ' с префиксом /' . $o['prefix'] : '') . '.';
+            $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'Подписка по ссылке открывается' . ($o['prefix'] !== '' ? ', префикс /' . $o['prefix'] . ' учтён' : '') . '.';
         } elseif ($r['code'] === 404 || $r['code'] >= 500) {
-            $out['st'] = 'nf'; $out['msg'] = 'Origin отвечает, но подписку по этой ссылке не отдал (HTTP ' . $r['code'] . ').'; $out['hint'] = 'Ссылка устарела (ключи перевыпущены), префикс не совпадает с CUSTOM_SUB_PREFIX у subscription-page, или это не домен подписки. Возьмите свежую ссылку из карточки пользователя в панели.';
+            $out['st'] = 'nf'; $out['msg'] = 'По этой ссылке подписка не открывается.'; $out['hint'] = 'Возьмите свежую ссылку из карточки пользователя в панели.';
         } elseif (inst_is_html($r)) {
-            $out['st'] = 'html'; $out['msg'] = 'Origin отдаёт HTML-страницу вместо подписки на клиентский запрос.'; $out['hint'] = 'Так бывает, если домен ведёт не на subscription-page, а на сайт или заглушку. Проверьте ссылку в клиенте.';
+            $out['st'] = 'html'; $out['msg'] = 'По этой ссылке сайт, а не подписка.'; $out['hint'] = 'Проверьте, что ссылка открывается в VPN-клиенте.';
         } else {
-            $out['st'] = 'odd'; $out['msg'] = 'Origin ответил HTTP ' . $r['code'] . ' без заголовков подписки.'; $out['hint'] = 'Возможно, это не Remnawave или подписка закрыта.';
+            $out['st'] = 'odd'; $out['msg'] = 'Ответ не похож на подписку Remnawave (HTTP ' . $r['code'] . ').'; $out['hint'] = 'Проверьте ссылку в VPN-клиенте.';
         }
     } else {
-        $out['ok'] = true; $out['st'] = 'alive'; $out['msg'] = 'Домен отвечает (HTTP ' . $r['code'] . '). Чтобы проверить саму подписку, вставьте полную ссылку подписки любого пользователя.';
+        $out['ok'] = true; $out['st'] = 'alive'; $out['msg'] = 'Домен отвечает. Чтобы проверить саму подписку, вставьте ссылку подписки любого пользователя.';
     }
     if ($out['ok'] && $o['short'] !== '') {
         $b = inst_http('GET', $base . $path, ['User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36', 'Accept: text/html,application/xhtml+xml'], ['tls' => $tls, 'timeout' => 15]);
@@ -459,42 +459,42 @@ function inst_subpage_probe($url, $short = '') {
     $h = ['X-Forwarded-For: 127.0.0.1', 'X-Forwarded-Proto: https', 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36', 'Accept: text/html,application/xhtml+xml'];
     $r = inst_http('GET', $u['url'] . '/' . ($short !== '' ? rawurlencode($short) : ''), $h, ['tls' => false, 'timeout' => 20]);
     if (!$r['ok']) {
-        if ($r['errno'] === 6) { $out['st'] = 'dns'; $out['msg'] = 'Имя «' . $u['host'] . '» не резолвится.'; $out['hint'] = 'Сервис subscription-page не в этой docker-сети или называется иначе — проверьте docker-compose.yml.'; }
-        elseif ($r['errno'] === 7) { $out['st'] = 'down'; $out['msg'] = 'Контейнер subscription-page не отвечает (порт закрыт).'; $out['hint'] = 'Он перезапускается по кругу, если не может достучаться до панели: смотрите `docker compose logs remnawave-subscription-page` — обычно не заданы REMNAWAVE_PANEL_URL / REMNAWAVE_API_TOKEN или нужна EGAMES_COOKIE.'; }
+        if ($r['errno'] === 6) { $out['st'] = 'dns'; $out['msg'] = 'Контейнер «' . $u['host'] . '» не найден.'; $out['hint'] = 'Проверьте имя контейнера страницы подписки: docker ps.'; }
+        elseif ($r['errno'] === 7) { $out['st'] = 'down'; $out['msg'] = 'Страница подписки не запущена.'; $out['hint'] = 'Смотрите docker compose logs subpage: обычно не заполнены адрес панели и токен (REMNAWAVE_PANEL_URL, REMNAWAVE_API_TOKEN) или не хватает EGAMES_COOKIE.'; }
         elseif ($r['errno'] === 52 || $r['errno'] === 56) {
-            if ($short === '') { $out['ok'] = true; $out['st'] = 'alive'; $out['msg'] = 'Контейнер subscription-page запущен; страницу проверю, когда в панели появится хотя бы один пользователь.'; }
-            else { $out['st'] = 'dropped'; $out['msg'] = 'subscription-page закрыл соединение без ответа.'; $out['hint'] = 'Он не нашёл пользователя в панели или панель ему недоступна — смотрите его логи.'; }
-        } else { $out['msg'] = 'Ошибка: ' . $r['err']; }
+            if ($short === '') { $out['ok'] = true; $out['st'] = 'alive'; $out['msg'] = 'Страница подписки запущена. Полная проверка — когда в панели появится первый пользователь.'; }
+            else { $out['st'] = 'dropped'; $out['msg'] = 'Страница подписки не ответила.'; $out['hint'] = 'Ей не удалось получить пользователя из панели: docker compose logs subpage.'; }
+        } else { $out['msg'] = 'Не удалось подключиться.'; $out['hint'] = $r['err']; }
         return $out;
     }
-    if ($r['code'] === 200 && inst_is_html($r)) { $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'subscription-page отдаёт страницу подписки.'; }
-    elseif ($r['code'] === 200) { $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'subscription-page отвечает.'; }
-    else { $out['st'] = 'odd'; $out['msg'] = 'subscription-page ответил HTTP ' . $r['code'] . '.'; }
+    if ($r['code'] === 200 && inst_is_html($r)) { $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'Страница подписки работает.'; }
+    elseif ($r['code'] === 200) { $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'Страница подписки отвечает.'; }
+    else { $out['st'] = 'odd'; $out['msg'] = 'Страница подписки ответила ошибкой ' . $r['code'] . '.'; }
     return $out;
 }
 
 // Сквозной тест: подписка через публичный домен прослойки, как её запрашивает клиент.
 function inst_e2e($base, $short, $prefix, $tls) {
     $out = ['ok' => false, 'st' => 'err', 'msg' => '', 'hint' => '', 'code' => 0, 'url' => ''];
-    if ($short === '') { $out['st'] = 'nouser'; $out['msg'] = 'В панели пока нет пользователей — проверить подписку не на ком.'; return $out; }
+    if ($short === '') { $out['st'] = 'nouser'; $out['msg'] = 'В панели ещё нет пользователей — проверить подписку не на ком.'; return $out; }
     $url = rtrim($base, '/') . ($prefix !== '' ? '/' . trim($prefix, '/') : '') . '/' . rawurlencode($short);
     $out['url'] = $url;
     $r = inst_http('GET', $url, ['User-Agent: Happ/2.0', 'Accept: */*'], ['tls' => $tls, 'timeout' => 25]);
     $out['code'] = $r['code'];
     if (!$r['ok']) {
-        if ($r['errno'] === 6) { $out['st'] = 'dns'; $out['msg'] = 'Домен прослойки не резолвится изнутри контейнера.'; $out['hint'] = 'DNS ещё не обновился, либо хостинг не пускает контейнер на собственный публичный адрес. Проверьте ссылку с телефона.'; }
-        elseif (inst_tls_errno($r['errno'])) { $out['st'] = 'tls'; $out['msg'] = 'Сертификат домена прослойки не прошёл проверку: ' . $r['err']; $out['hint'] = 'Реверс ещё не выпустил сертификат или отдаёт не тот. Клиенты тоже его не примут.'; }
-        elseif ($r['errno'] === 7 || $r['errno'] === 28) { $out['st'] = 'unreach'; $out['msg'] = 'Домен не отвечает: ' . $r['err']; $out['hint'] = 'Реверс-прокси не слушает 443 или файрвол. Если домен ещё не переключён на этот сервер — повторите проверку позже.'; }
-        else { $out['msg'] = 'Ошибка: ' . $r['err']; }
+        if ($r['errno'] === 6) { $out['st'] = 'dns'; $out['msg'] = 'Домен пока не ведёт на этот сервер.'; $out['hint'] = 'Если DNS только что менялся — подождите и проверьте ссылку с телефона.'; }
+        elseif (inst_tls_errno($r['errno'])) { $out['st'] = 'tls'; $out['msg'] = 'Сертификат домена не прошёл проверку.'; $out['hint'] = 'Проверьте сертификат в реверс-прокси — клиенты его тоже не примут.'; }
+        elseif ($r['errno'] === 7 || $r['errno'] === 28) { $out['st'] = 'unreach'; $out['msg'] = 'Домен не отвечает.'; $out['hint'] = 'Проверьте реверс-прокси и файрвол (порт 443). Если домен ещё не переключён — повторите позже.'; }
+        else { $out['msg'] = 'Не удалось подключиться.'; $out['hint'] = $r['err']; }
         return $out;
     }
     if ($r['code'] === 200 && (isset($r['hdr']['subscription-userinfo']) || isset($r['hdr']['profile-title']))) {
-        $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'Подписка отдаётся через домен прослойки.'; return $out;
+        $out['ok'] = true; $out['st'] = 'ok'; $out['msg'] = 'Подписка открывается через ваш домен.'; return $out;
     }
-    if ($r['code'] === 502 || $r['code'] === 504) { $out['st'] = 'gateway'; $out['msg'] = 'Реверс отвечает ' . $r['code'] . '.'; $out['hint'] = 'Реверс не достучался до прослойки (порт 8080?) или прослойка — до панели.'; return $out; }
-    if (inst_is_html($r)) { $out['st'] = 'html'; $out['msg'] = 'По ссылке подписки приходит HTML-страница, а не конфиг.'; $out['hint'] = 'Домен ведёт не на прослойку (старый upstream / другой сервер) или путь с префиксом не совпадает.'; return $out; }
-    if ($r['code'] === 404) { $out['st'] = 'nf'; $out['msg'] = 'HTTP 404 по ссылке подписки.'; $out['hint'] = 'Префикс подписки или shortUuid не совпадают с тем, что знает панель.'; return $out; }
-    $out['st'] = 'odd'; $out['msg'] = 'HTTP ' . $r['code'] . ' без заголовков подписки.';
+    if ($r['code'] === 502 || $r['code'] === 504) { $out['st'] = 'gateway'; $out['msg'] = 'Реверс-прокси не достучался до прослойки (ошибка ' . $r['code'] . ').'; $out['hint'] = 'Проверьте, что реверс ведёт на 127.0.0.1:8080.'; return $out; }
+    if (inst_is_html($r)) { $out['st'] = 'html'; $out['msg'] = 'По ссылке открывается сайт, а не подписка.'; $out['hint'] = 'Домен ведёт не на прослойку — проверьте реверс-прокси.'; return $out; }
+    if ($r['code'] === 404) { $out['st'] = 'nf'; $out['msg'] = 'Подписка не найдена (404).'; $out['hint'] = 'Проверьте префикс подписки.'; return $out; }
+    $out['st'] = 'odd'; $out['msg'] = 'Ответ не похож на подписку (HTTP ' . $r['code'] . ').';
     return $out;
 }
 
@@ -502,11 +502,11 @@ function inst_db_probe(array $db) {
     $err = '';
     if (($db['driver'] ?? 'sqlite') === 'sqlite') {
         $dir = dirname((string) ($db['path'] ?? ''));
-        if ($dir === '' || !is_dir($dir) || !is_writable($dir)) return ['ok' => false, 'msg' => 'Каталог data/ недоступен для записи: ' . $dir];
+        if ($dir === '' || !is_dir($dir) || !is_writable($dir)) return ['ok' => false, 'msg' => 'Папка data/ недоступна для записи: ' . $dir];
     }
     $pdo = pdo_connect($db, $err);
-    if ($pdo === null) return ['ok' => false, 'msg' => 'Не удалось подключиться к БД: ' . $err];
-    return ['ok' => true, 'msg' => ($db['driver'] ?? 'sqlite') === 'mysql' ? 'MySQL/MariaDB отвечает (' . ($db['host'] ?? '') . ', база ' . ($db['name'] ?? '') . ').' : 'SQLite: ' . ($db['path'] ?? '')];
+    if ($pdo === null) return ['ok' => false, 'msg' => 'База данных не отвечает: ' . $err];
+    return ['ok' => true, 'msg' => ($db['driver'] ?? 'sqlite') === 'mysql' ? 'База данных MySQL на связи (' . ($db['host'] ?? '') . ').' : 'База данных SQLite готова.'];
 }
 
 function inst_webhook_secret_ok($s) { return preg_match('~^[A-Za-z0-9]{64}$~', (string) $s) === 1; }

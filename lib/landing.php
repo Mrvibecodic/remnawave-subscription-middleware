@@ -69,7 +69,7 @@ function landing_render() {
     $fp_btn = landing_fp_pick($fp, 'bt', ['Войти', 'Вход', 'Продолжить', 'Войти в кабинет', 'Авторизоваться']);
     $fp_tc = landing_fp_pick($fp, 'tc', ['#0f9f90', '#0b1020', '#f4f7fb', '#0f766e', '#ffffff', '#111827']);
     $fp_hue = hexdec(substr(sha1($fp . 'h'), 0, 3)) % 360;
-    $fp_ico = rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="hsl(' . $fp_hue . ',58%,46%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9.5 12l1.8 1.8L15 9.8"/></svg>');
+    $fp_ico = rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="hsl(' . $fp_hue . ',58%,46%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>');
     $fp_v = substr(sha1($fp), 0, 8);
     $fp_b = substr(sha1($fp . 'b'), 0, 12);
     echo "<!DOCTYPE html>\n";
@@ -124,7 +124,7 @@ function landing_render() {
 </head>
 <body>
     <div class="lp-side">
-        <span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9.5 12l1.8 1.8L15 9.8"/></svg></span>
+        <span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></span>
         <h2><?= htmlspecialchars($fp_brand, ENT_QUOTES) ?></h2>
         <p>Управляйте вашим аккаунтом, подпиской и устройствами в одном месте.</p>
         <div class="lp-feat">
@@ -174,7 +174,7 @@ function landing_render() {
 <body>
     <div class="card js-shake">
         <div class="brand">
-            <span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9.5 12l1.8 1.8L15 9.8"/></svg></span>
+            <span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></span>
             <h1><?= htmlspecialchars($fp_brand, ENT_QUOTES) ?></h1>
             <p><?= htmlspecialchars($fp_sub, ENT_QUOTES) ?></p>
         </div>
@@ -214,7 +214,7 @@ function landing_render() {
 </head>
 <body>
     <div class="brand">
-        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9.5 12l1.8 1.8L15 9.8"/></svg></span>
+        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></span>
         <b><?= htmlspecialchars($fp_brand, ENT_QUOTES) ?></b>
     </div>
     <div class="card js-shake">
@@ -267,7 +267,7 @@ function landing_render() {
 <body>
 <div class="card js-shake">
     <div class="brand">
-        <span class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9.5 12l1.8 1.8L15 9.8"/></svg></span>
+        <span class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></span>
         <h1><?= htmlspecialchars($fp_brand, ENT_QUOTES) ?></h1>
         <p><?= htmlspecialchars($fp_sub, ENT_QUOTES) ?></p>
     </div>
