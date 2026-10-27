@@ -919,12 +919,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 
     if ($action === 'admin_gate') {
         $op = (string) ($_POST['op'] ?? '');
-        if ($op === 'off') { set_setting('admin_gate_key', ''); flash('Ключ-ссылка выключена: /admin/ открывается без неё.'); }
+        if ($op === 'off') { set_setting('admin_gate_key', ''); flash('Секретная ссылка выключена: /admin/ открывается по обычному адресу.'); }
         else {
             $key = admin_gate_new();
             [$gk, $gv] = explode('=', $key, 2);
             setcookie($gk, $gv, ['expires' => time() + 86400 * 365, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => admin_gate_cookie_secure()]);
-            flash($op === 'new' ? 'Ключ перевыпущен — старая ссылка больше не работает, скопируйте новую.' : 'Ключ-ссылка включена. Скопируйте ссылку: без неё /admin/ показывает приманку.');
+            flash($op === 'new' ? 'Ссылка перевыпущена — старая больше не работает, скопируйте новую.' : 'Вход по секретной ссылке включён. Скопируйте ссылку: без неё /admin/ показывает приманку.');
         }
         form_saved('connection');
     }
