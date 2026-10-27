@@ -160,7 +160,7 @@
                 <button type="submit" class="btn ghost" onclick="this.form.op.value='new'">Перевыпустить</button>
                 <button type="submit" class="btn ghost" onclick="this.form.op.value='off'">Выключить</button>
             </form>
-            <div class="ts-meta">Из консоли: <code>php tools/admin-gate.php</code> печатает ссылку, <code>--new</code> перевыпускает, <code>--off</code> выключает.</div>
+            <div class="ts-meta">Из консоли: <code>php tools/admin-gate.php</code> печатает ссылку, <code>--on</code> включает, <code>--new</code> перевыпускает, <code>--off</code> выключает.</div>
         <?php else: ?>
             <form method="post" style="margin-top:.6rem">
                 <input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="admin_gate"><input type="hidden" name="op" value="on">

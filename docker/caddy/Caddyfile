@@ -6,7 +6,7 @@ https://{$SUBMW_DOMAIN} {
 	encode
 	reverse_proxy submw:80 {
 		header_up Host {host}
-		header_up X-Real-IP {remote}
+		header_up X-Real-IP {remote_host}
 	}
 }
 

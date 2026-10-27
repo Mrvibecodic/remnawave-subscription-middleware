@@ -107,16 +107,41 @@ function admin_gate_link() {
 
 function admin_gate_cookie_secure() { return (($_SERVER['HTTPS'] ?? '') === 'on') || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'); }
 
+// Общий вход по ключу для мастера и админки. Ссылка с ключом ставит куку и ведёт на index.php?<имя> —
+// имя ключа без значения доступа не даёт, но отличает «кука не вернулась» от обычного захода без ссылки.
+function admin_gate_check($key) {
+    [$gk, $gv] = explode('=', $key, 2);
+    if (isset($_GET[$gk]) && is_string($_GET[$gk]) && $_GET[$gk] !== '' && hash_equals($gv, $_GET[$gk])) {
+        setcookie($gk, $gv, ['expires' => time() + 86400 * 365, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => admin_gate_cookie_secure()]);
+        header('Location: index.php?' . $gk);
+        exit();
+    }
+    $ok = isset($_COOKIE[$gk]) && hash_equals($gv, (string) $_COOKIE[$gk]);
+    if (isset($_GET[$gk]) && $_GET[$gk] === '') {
+        if ($ok) { header('Location: index.php'); exit(); }
+        admin_gate_nocookie_page();
+    }
+    return $ok;
+}
+
 function admin_gate_pass() {
     $key = admin_gate_key();
     if ($key === '') return true;
-    [$gk, $gv] = explode('=', $key, 2);
-    if (isset($_GET[$gk]) && is_string($_GET[$gk]) && hash_equals($gv, $_GET[$gk])) {
-        setcookie($gk, $gv, ['expires' => time() + 86400 * 365, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => admin_gate_cookie_secure()]);
-        header('Location: index.php');
-        exit();
-    }
-    return isset($_COOKIE[$gk]) && hash_equals($gv, (string) $_COOKIE[$gk]);
+    return admin_gate_check($key);
+}
+
+function admin_gate_nocookie_page() {
+    http_response_code(403);
+    header('Cache-Control: no-store');
+    header('X-Robots-Tag: noindex, nofollow');
+    $host = htmlspecialchars((string) ($_SERVER['HTTP_HOST'] ?? ''), ENT_QUOTES, 'UTF-8');
+    echo '<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Прослойка подписки</title>'
+        . '<style>body{margin:0;font:15px/1.5 system-ui,sans-serif;background:#0f1115;color:#e6e8ee;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}main{max-width:620px}h1{font-size:1.25rem;margin:0 0 .6rem}code{background:#1b1f27;padding:.1rem .4rem;border-radius:6px;word-break:break-all}p{margin:.5rem 0}</style></head><body><main>'
+        . '<h1>Браузер не сохранил cookie входа</h1>'
+        . '<p>Ссылка верная, но cookie помечена как «только HTTPS», а <code>' . $host . '</code> открыт без него: реверс-прокси говорит с прослойкой по http и не передаёт <code>X-Forwarded-Proto</code>.</p>'
+        . '<p>Откройте ссылку по <code>https://</code>. Если сертификата ещё нет — добавьте в реверс <code>proxy_set_header X-Forwarded-Proto $scheme;</code> и откройте ссылку снова.</p>'
+        . '</main></body></html>';
+    exit();
 }
 
 // Прослойка живёт только за реверсом по домену: по IP или localhost отдаём приманку.

@@ -8,12 +8,17 @@ function inst_state_load() {
     $f = inst_state_path();
     $s = is_file($f) ? json_decode((string) @file_get_contents($f), true) : null;
     if (!is_array($s)) $s = [];
-    // Прежний формат install.json (entrypoint до мастера).
-    if (!isset($s['panel']) && isset($s['remnawave_url'])) {
-        $s['panel'] = ['url' => (string) $s['remnawave_url']];
+    // Прежние форматы install.json: entrypoint до мастера (remnawave_url, mode) и старый install.sh на хосте (target_domain).
+    if (!isset($s['panel']) && (isset($s['remnawave_url']) || isset($s['target_domain']))) {
+        $s['panel'] = ['url' => (string) ($s['remnawave_url'] ?? '')];
         if (!empty($s['subpage_external_url'])) $s['subpage'] = ['url' => (string) $s['subpage_external_url']];
-        if (($s['mode'] ?? '') === 'panel' && empty($s['scenario'])) $s['scenario'] = 'panel';
-        if (!empty($s['target_domain'])) $s['origin'] = ['raw' => (string) $s['target_domain']];
+        if (($s['mode'] ?? '') === 'panel') {
+            if (empty($s['scenario'])) $s['scenario'] = 'panel';
+        } elseif (!empty($s['target_domain'])) {
+            $s['origin'] = ['raw' => (string) $s['target_domain']];
+            $s['mode'] = 'mirror';
+            if (empty($s['scenario']) && getenv('SUBMW_DOCKER') !== '1') $s['scenario'] = 'host';
+        }
     }
     $s += ['key' => '', 'scenario' => '', 'mode' => 'panel', 'step' => 'start', 'panel' => [], 'scopes' => [], 'origin' => [], 'subpage' => [], 'webhook_secret' => '', 'admin' => [], 'db' => [], 'pending' => [], 'user_short' => '', 'user_name' => ''];
     if ($s['step'] === 'env' || $s['step'] === 'scenario') $s['step'] = 'start';
@@ -56,8 +61,6 @@ function inst_json_out($d) {
     exit();
 }
 
-function inst_cookie_secure() { return (($_SERVER['HTTPS'] ?? '') === 'on') || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'); }
-
 function inst_panel_conn(array $s) {
     $p = $s['panel'];
     return ['url' => $p['url'], 'token' => $p['token'], 'cookie' => $p['cookie'], 'xkey' => $p['xkey'], 'tls' => !empty($p['tls'])];
@@ -65,7 +68,8 @@ function inst_panel_conn(array $s) {
 
 function inst_post($k) { return trim((string) ($_POST[$k] ?? '')); }
 
-function inst_need_subpage(array $s) { return $s['mode'] === 'panel' && !empty($s['subpage']['enabled']); }
+// Права subpage нужны токену только в standalone: там subscription-page из compose ходит в панель этим же токеном.
+function inst_need_subpage(array $s) { return $s['scenario'] === 'standalone' && $s['mode'] === 'panel' && !empty($s['subpage']['enabled']); }
 
 // Панель + права одним действием: мастер показывает это на одном экране.
 function inst_panel_apply(array &$S, array $c, $scenario) {
@@ -112,16 +116,12 @@ if ($S['key'] === '' || strpos($S['key'], '=') === false) {
     inst_state_save($S);
     error_log('submw: ссылка установки: ' . $self['base'] . '/admin/?' . $S['key']);
 }
-[$gk, $gv] = explode('=', $S['key'], 2);
-if (isset($_GET[$gk]) && is_string($_GET[$gk]) && hash_equals($gv, $_GET[$gk])) {
-    setcookie($gk, $gv, ['expires' => time() + 86400 * 365, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => inst_cookie_secure()]);
-    header('Location: index.php');
-    exit();
-}
-if (!isset($_COOKIE[$gk]) || !hash_equals($gv, (string) $_COOKIE[$gk])) {
+if (!admin_gate_check($S['key'])) {
     landing_render();
     exit();
 }
+// Проверки ходят к панели, subpage и своему домену по очереди; лимит fpm в 30 с для этого мал.
+@set_time_limit(180);
 $csrf_ok = isset($_POST['_g']) && hash_equals($S['key'], (string) $_POST['_g']);
 $env = inst_env_report();
 $scenario_fixed = $env['docker'] && in_array($env['scenario'], ['panel', 'standalone'], true);
