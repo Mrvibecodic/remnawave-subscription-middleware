@@ -381,10 +381,13 @@ function inst_panel_config(array $c, $version) {
     if (!$j || !isset($j['response'])) return $out;
     $resp = $j['response'];
     $out['have'] = true;
-    $out['sub_public_domain'] = trim((string) ($resp['misc']['subPublicDomain'] ?? ''));
+    // Разбор тот же, что у «Подключения» (lib/api.php): misc.subPublicDomain и notifications.webhook.
+    $dom = $resp['misc']['subPublicDomain'] ?? '';
+    $out['sub_public_domain'] = function_exists('panel_config_domain') ? panel_config_domain($dom) : strtolower(trim((string) $dom));
     $w = $resp['notifications']['webhook'] ?? null;
-    if (is_bool($w)) $out['webhook'] = $w;
-    elseif (is_array($w)) $out['webhook'] = !empty($w['enabled']) || !empty($w['isEnabled']);
+    if (function_exists('panel_config_bool')) $out['webhook'] = panel_config_bool($w);
+    elseif (is_bool($w)) $out['webhook'] = $w;
+    elseif (is_string($w)) $out['webhook'] = !in_array(strtolower(trim($w)), ['', 'false', '0', 'no', 'off'], true);
     return $out;
 }
 
@@ -418,7 +421,7 @@ function inst_origin_parse($raw) {
 function inst_origin_probe(array $o, $tls, $own_host, $panel_host = '') {
     $out = ['ok' => false, 'st' => 'err', 'msg' => '', 'hint' => '', 'browser' => null, 'code' => 0];
     $dom = strtolower($o['domain']);
-    if ($dom === strtolower((string) $own_host)) { $out['st'] = 'loop'; $out['msg'] = 'Это домен самой прослойки.'; $out['hint'] = 'Зеркалу нужен домен подписки панели. Если прослойка должна работать на самом домене подписки — вернитесь и выберите «На домене подписки».'; return $out; }
+    if ($dom === strtolower((string) $own_host)) { $out['st'] = 'loop'; $out['msg'] = 'Это домен самой прослойки.'; $out['hint'] = 'Зеркалу нужен домен подписки панели. Если прослойка должна работать на самом домене подписки — вернитесь на шаг «Начало» и выберите «Домен подписки».'; return $out; }
     if ($panel_host !== '' && $dom === strtolower($panel_host)) { $out['st'] = 'panel'; $out['msg'] = 'Это домен панели, а нужен домен подписки.'; $out['hint'] = 'Возьмите ссылку подписки из карточки пользователя в панели.'; return $out; }
     if (!empty($o['is_panel_link'])) { $out['st'] = 'panel'; $out['msg'] = 'Эта ссылка ведёт на панель, а не на домен подписки.'; $out['hint'] = 'Возьмите ссылку подписки из карточки пользователя в панели.'; return $out; }
     $base = 'https://' . $dom;

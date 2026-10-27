@@ -11,8 +11,6 @@ ACME_WEBROOT="/var/www/acme"
 ask()  { local p="$1" d="${2:-}" v; read -rp "$p${d:+ [$d]}: " v; printf '%s' "${v:-$d}"; }
 asks() { local p="$1" v; read -rsp "$p: " v; echo >&2; printf '%s' "$v"; }
 
-RAW="https://raw.githubusercontent.com/Mrvibecodic/remnawave-subscription-middleware/main/docker"
-
 echo "== Установка прослойки подписки Remnawave =="
 echo "Тип установки:"
 echo "  1) Docker — рядом с панелью (тот же сервер, docker-сеть панели) — рекомендуется"
@@ -23,6 +21,9 @@ SCENARIO="$(ask 'Выбор (1-4)' 1)"
 
 if [ "$SCENARIO" = "1" ] || [ "$SCENARIO" = "2" ] || [ "$SCENARIO" = "3" ]; then
   IMG_TAG="$(ask 'Тег образа: v1 — стабильный релиз, dev — тестовый' 'v1')"
+  # compose-файлы берутся из той же ветки, что и образ
+  RAW_BRANCH="main"; [ "$IMG_TAG" = "dev" ] && RAW_BRANCH="dev"
+  RAW="https://raw.githubusercontent.com/Mrvibecodic/remnawave-subscription-middleware/${RAW_BRANCH}/docker"
   WITH_DB=""
   case "$SCENARIO" in
     1) FILE="docker-compose.panel.yml" ;;
@@ -53,6 +54,8 @@ if [ "$SCENARIO" = "1" ] || [ "$SCENARIO" = "2" ] || [ "$SCENARIO" = "3" ]; then
   if [ -f "$DEST/docker-compose.yml" ]; then
     cp "$DEST/docker-compose.yml" "$DEST/docker-compose.yml.bak-$(date +%s)"
     echo "-> Прежний docker-compose.yml сохранён рядом как .bak"
+    # Имена сервисов в новых compose другие: старые контейнеры снимаем до запуска новых, данные остаются в volume.
+    ( cd "$DEST" && docker compose down --remove-orphans ) || true
   fi
   curl -fsSL "$RAW/$FILE" -o "$DEST/docker-compose.yml" || { echo "Не удалось скачать $FILE"; exit 1; }
   if [ "$SCENARIO" = "3" ]; then

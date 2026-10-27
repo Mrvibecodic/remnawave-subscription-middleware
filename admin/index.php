@@ -560,6 +560,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     if ($a === 'linkcheck') {
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         require_once dirname(__DIR__) . '/lib/install_probe.php';
+        @set_time_limit(180);
         $lc_conn = ['url' => remnawave_url(), 'token' => remnawave_token(), 'cookie' => remnawave_cookie(), 'xkey' => remnawave_xapikey(), 'tls' => api_tls_verify()];
         $lc_user = inst_first_user($lc_conn) ?: ['short' => '', 'username' => ''];
         $lc = ['panel' => inst_panel_probe($lc_conn, submw_in_docker() && setting('install_scenario', '') === 'panel' ? 'panel' : 'standalone'), 'user' => $lc_user['username']];
