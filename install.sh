@@ -80,10 +80,20 @@ if [ "$SCENARIO" = "1" ] || [ "$SCENARIO" = "2" ] || [ "$SCENARIO" = "3" ]; then
   chmod 600 "$DEST/docker-compose.yml"
   ( cd "$DEST" && docker compose pull && docker compose up -d )
   sleep 3
-  KEY="$(cd "$DEST" && docker compose logs submw 2>/dev/null | grep -o '/admin/?k[a-z0-9]*=[a-f0-9]*' | tail -1)"
+  # grep без совпадения при pipefail ронял скрипт до итога (установка уже есть — ключ не печатается)
+  KEY="$(cd "$DEST" && docker compose logs submw 2>/dev/null | grep -o '/admin/?k[a-z0-9]*=[a-f0-9]*' | tail -1 || true)"
+  INSTALLED=0
+  (cd "$DEST" && docker compose exec -T submw test -f /var/www/html/data/config.php) >/dev/null 2>&1 && INSTALLED=1
   echo
   echo "================ ГОТОВО (Docker) ================"
   echo "Compose: ${DEST}/docker-compose.yml"
+  if [ "$INSTALLED" = "1" ]; then
+    echo "Прослойка уже была установлена — данные в volume сохранены, мастер проходить не нужно."
+    echo "Админка: https://${DOMAIN:-<домен-подписки>}/admin/"
+    echo
+    echo "Обновление: cd ${DEST} && docker compose pull && docker compose up -d"
+    exit 0
+  fi
   if [ "$SCENARIO" = "1" ]; then
     echo "1) Направьте домен подписки на прослойку в реверсе ПАНЕЛИ (подписки недоступны, пока не пройдёте мастер):"
     echo "     Caddy (remnawave-reverse-proxy): SUB_BACKEND_URL=127.0.0.1:${LOCAL_PORT} у контейнера Caddy в /opt/remnawave/docker-compose.yml, затем docker compose up -d remnawave-caddy"
@@ -260,7 +270,7 @@ else
   echo "   БД: SQLite -> ${DEST}/data/submw.sqlite (создаст мастер установки)"
 fi
 
-INSTALL_KEY="k$(head -c 64 /dev/urandom | tr -dc 'a-z0-9' | head -c 7)=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' | head -c 24)"
+INSTALL_KEY="k$(head -c 256 /dev/urandom | tr -dc 'a-z0-9' | head -c 7)=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' | head -c 24)"
 cat > "${DEST}/data/install.json" <<JSON
 {"key":"${INSTALL_KEY}","scenario":"host","mode":"mirror","step":"env","origin":{"raw":"${ORIGIN_DOMAIN}"},${DB_JSON}}
 JSON
