@@ -1,0 +1,143 @@
+# Прослойка на отдельном сервере, чистом: nginx с автосертификатом (certbot) + прослойка + страница подписки + MariaDB.
+# Скачать как docker-compose.yml и nginx.conf.template (docker/nginx/nginx.conf.template) в ту же папку,
+# задать домен в x-submw-domain ниже и три строки у subpage (адрес панели, API-токен, при cookie-защите — EGAMES_COOKIE), затем:
+#   docker compose up -d
+#   docker compose logs submw      # ссылка мастера установки
+# DNS домена подписки должен указывать на этот сервер, порты 80/443 свободны — иначе certbot не выпустит сертификат.
+x-submw-domain: &submw-domain
+  SUBMW_DOMAIN: sub.example.com
+  # Почта для Let's Encrypt (необязательно): письма об истечении сертификата
+  SUBMW_EMAIL: ''
+
+services:
+  submw:
+    image: ghcr.io/mrvibecodic/remnawave-subscription-middleware:${SUBMW_IMAGE_TAG:-v1}
+    container_name: submw
+    hostname: submw
+    restart: always
+    networks:
+      - submw-net
+    environment:
+      - SUBMW_SCENARIO=standalone
+      - SUBMW_SUBPAGE_URL=http://subpage:3010
+      - SUBMW_DB_HOST=submw-db
+      - SUBMW_DB_NAME=submw
+      - SUBMW_DB_USER=submw
+      - SUBMW_DB_PASSWORD=submw-internal-7c1e9d4b
+    volumes:
+      - submw-data:/var/www/html/data
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  # Страница подписки для браузера. Ходит в панель сама — ей нужны публичный адрес панели и API-токен.
+  subpage:
+    image: remnawave/subscription-page:latest
+    container_name: subpage
+    hostname: subpage
+    restart: always
+    networks:
+      - submw-net
+    environment:
+      - APP_PORT=3010
+      - REMNAWAVE_PANEL_URL=https://panel.example.com
+      - REMNAWAVE_API_TOKEN=
+      # Панель за cookie-защитой (установщик eGames / remnawave-reverse-proxy): имя=значение из ссылки входа
+      - EGAMES_COOKIE=
+      # Панель за caddy-with-auth / Tiny Auth: ключ X-Api-Key
+      - CADDY_AUTH_API_TOKEN=
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  mariadb:
+    image: mariadb:11
+    container_name: submw-db
+    hostname: submw-db
+    restart: always
+    networks:
+      - submw-net
+    environment:
+      - MARIADB_RANDOM_ROOT_PASSWORD=yes
+      - MARIADB_DATABASE=submw
+      - MARIADB_USER=submw
+      # БД наружу не публикуется — пароль виден только внутри сети compose
+      - MARIADB_PASSWORD=submw-internal-7c1e9d4b
+    volumes:
+      - submw-mysql:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  # nginx: принимает HTTPS и отдаёт домен прослойке. Порты 80/443 должны быть свободны.
+  nginx:
+    image: nginx:stable-alpine
+    container_name: submw-nginx
+    restart: always
+    depends_on:
+      - submw
+    networks:
+      - submw-net
+    ports:
+      - '80:80'
+      - '443:443'
+    environment: *submw-domain
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - submw-certs:/etc/letsencrypt:ro
+      - submw-acme:/var/www/certbot:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  # certbot: выпускает сертификат Let's Encrypt при первом запуске и продлевает его. Повтор раз в 15 минут, пока не выйдет.
+  certbot:
+    image: certbot/certbot:latest
+    container_name: submw-certbot
+    restart: always
+    depends_on:
+      - nginx
+    environment: *submw-domain
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        if [ -n "$$SUBMW_EMAIL" ]; then E="-m $$SUBMW_EMAIL"; else E="--register-unsafely-without-email"; fi
+        # nginx читает сертификат от своего пользователя (uid 101), а certbot создаёт ключ только для root.
+        perms() { chmod 755 /etc/letsencrypt/live /etc/letsencrypt/archive; chgrp -R 101 /etc/letsencrypt/archive; chmod 640 /etc/letsencrypt/archive/*/privkey*.pem; }
+        sleep 5
+        until certbot certonly --webroot -w /var/www/certbot -d "$$SUBMW_DOMAIN" --non-interactive --agree-tos --keep-until-expiring $$E; do sleep 900; done
+        perms
+        while :; do sleep 12h; certbot renew --quiet; perms; done
+    volumes:
+      - submw-certs:/etc/letsencrypt
+      - submw-acme:/var/www/certbot
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+networks:
+  submw-net:
+
+volumes:
+  submw-data:
+  submw-certs:
+  submw-acme:
+  submw-mysql:
