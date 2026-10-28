@@ -628,7 +628,7 @@ function chan_state_hit($short, $ua = '') {
     $short = trim((string) $short);
     if ($short === '' || !chan_ensure() || !($p = db())) return;
     $now  = time();
-    $ua   = substr((string) $ua, 0, 255);
+    $ua   = mb_strcut(mb_scrub((string) $ua, 'UTF-8'), 0, 255, 'UTF-8');
     $hard = chan_hard_default() ? 1 : 0;
     try {
         if (db_driver() === 'mysql') {
@@ -698,10 +698,11 @@ function chan_stats() {
 
 
 function chan_debug_cut($value) {
-    $value = (string) $value;
-    if (strlen($value) <= CHAN_DEBUG_CUT) return $value;
+    $len   = strlen((string) $value);
+    $value = mb_scrub((string) $value, 'UTF-8');
+    if ($len <= CHAN_DEBUG_CUT) return $value;
 
-    return substr($value, 0, CHAN_DEBUG_CUT) . "\n… обрезано, всего " . strlen($value) . " байт";
+    return mb_strcut($value, 0, CHAN_DEBUG_CUT, 'UTF-8') . "\n… обрезано, всего " . $len . " байт";
 }
 
 function chan_debug_incoming_headers() {
