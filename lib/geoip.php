@@ -1,6 +1,7 @@
 <?php
 
-// Страна, регион и автономная система по IP для отчётов и сессий. Базы — файлы MaxMind DB
+// Страна, регион, город и автономная система по IP для отчётов и сессий. По умолчанию — API
+// ipinfo.io с кэшем по подсетям (ниже, geonet_*). Второй вариант — файлы MaxMind DB
 // (.mmdb) с зеркала ip-location-db: страна и города — GeoLite2 (дважды в неделю, города
 // двумя файлами: IPv4 и IPv6), AS — origin-asn (PDDL, из RIR/BGP, ежедневно); качаются раз
 // в неделю. По выбору и как запасной источник — DB-IP Lite раз в месяц. У зеркала схема
@@ -307,7 +308,13 @@ function geoip_sane(SubmwMmdb $db, $which) {
 function geoip_city_on() { return setting('geoip_city', '1') === '1'; }
 
 function geoip_city_ready() {
+    if (geoip_ipinfo()) return true;
     return geoip_city_on() && geoip_reader('city') !== null;
+}
+
+// Есть ли откуда брать страну и провайдера.
+function geoip_geo_ready() {
+    return geoip_ipinfo() || geoip_reader('asn') !== null || geoip_reader('country') !== null;
 }
 
 function geoip_city_live() {
@@ -382,16 +389,24 @@ function geoip_reader($which) {
 function geoip_reset() {
     $GLOBALS['submw_geoip_open'] = [];
     $GLOBALS['submw_geoip_lc'] = [];
+    $GLOBALS['submw_geonet_memo'] = [];
 }
 
-// Страна (ISO-код), номер AS и название AS. Пустые поля — база не знает или её нет.
-function geoip_lookup($ip) {
+// Страна (ISO-код), номер и название AS, регион, город, координаты. Пустые поля — источник не знает.
+// wait — подсеть ждёт ответа ipinfo: такие пустые поля временные, заглушкой их не закрывать.
+// $prio — очередь уточнения: 1 сессии, 2 статистика.
+function geoip_lookup($ip, $prio = 2) {
     $cache = &$GLOBALS['submw_geoip_lc'];
     if (!is_array($cache)) $cache = [];
     $ip = (string) $ip;
     if (isset($cache[$ip])) return $cache[$ip];
+    if (geoip_ipinfo()) {
+        $out = geonet_lookup($ip, $prio);
+        if (count($cache) < 4096) $cache[$ip] = $out;
+        return $out;
+    }
 
-    $out = ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => ''];
+    $out = ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => '', 'city' => '', 'wait' => false];
     foreach (['country', 'asn', 'city'] as $which) {
         if ($which === 'city' && !geoip_city_on()) continue;
         // Города с зеркала лежат двумя файлами: IPv6 — отдельно.
@@ -560,12 +575,15 @@ function geoip_update_after_response() {
         while (ob_get_level() > 0) @ob_end_flush();
         @flush();
     }
+    // Без планировщика очередь ipinfo разбирает открытая админка — понемногу и только когда ответ уже ушёл:
+    // под cgi-fcgi страница ждала бы конца скрипта, там очередь двигает опрос вкладки «Геобазы».
+    if (geoip_ipinfo() && !(function_exists('cron_alive') && cron_alive()) && (function_exists('fastcgi_finish_request') || PHP_SAPI === 'apache2handler')) geonet_step(microtime(true) + 5, 12);
     geoip_maybe_update();
     if (function_exists('rep_purge_maybe')) rep_purge_maybe();
 }
 
 function geoip_maybe_update() {
-    if (!geoip_auto()) return;
+    if (geoip_ipinfo() || !geoip_auto()) return;
     $now = time();
     if ($now - (int) setting('geoip_try', '0') < 6 * 3600) return;
     $need = [];
@@ -580,4 +598,509 @@ function geoip_maybe_update() {
     if (!$need) return;
     $err = '';
     if (!geoip_update($err, $need)) error_log('submw geoip update: ' . $err);
+}
+
+// ---------------------------------------------------------------------------------------------
+// ipinfo.io. Публичный API без токена отдаёт город и регион, но с одного IP сервера — около
+// 1000 запросов в сутки. Поэтому ответ кэшируется на подсеть (/24 IPv4, /48 IPv6) в geo_net,
+// а наружу ходит только планировщик (без него — открытая админка) в пределах суточного лимита.
+// Поиск по адресу ничего не ждёт: неизвестная подсеть встаёт в очередь, гео дописывается
+// в сессии и отчёты, когда придёт ответ. Подсеть, которая снова попалась через 30 дней, уточняется заново.
+
+const GEONET_REFRESH = 2592000;
+const GEONET_KEEP_DAYS = 180;
+
+function geoip_modes() { return ['ipinfo' => 'ipinfo.io — по API', 'local' => 'Локальные базы (MaxMind DB)']; }
+
+function geoip_mode() { return (string) setting('geoip_mode', 'ipinfo') === 'local' ? 'local' : 'ipinfo'; }
+
+function geoip_ipinfo() { return geoip_mode() === 'ipinfo'; }
+
+function ipinfo_token() { return trim((string) setting('ipinfo_token', '')); }
+
+function ipinfo_cap_max() { return ipinfo_token() !== '' ? 1000000 : 1000; }
+
+function ipinfo_cap() { return max(10, min(ipinfo_cap_max(), (int) setting('ipinfo_cap', '900'))); }
+
+// Тесты подменяют адрес на мок; вне копии tools/test.php переменная не действует.
+function ipinfo_base() {
+    $t = getenv('SUBMW_TEST_IPINFO');
+    return is_string($t) && $t !== '' && (string) getenv('SUBMW_TEST_BOX') !== '' ? $t : 'https://ipinfo.io/';
+}
+
+// Ключ подсети; частные, служебные и пустые адреса гео не имеют — ''.
+function geonet_key($ip) {
+    $ip = trim((string) $ip);
+    if (filter_var($ip, FILTER_VALIDATE_IP) === false) return '';
+    $bin = @inet_pton($ip);
+    if ($bin === false) return '';
+    if (strlen($bin) === 16 && substr($bin, 0, 12) === str_repeat("\0", 10) . "\xff\xff") {
+        $bin = substr($bin, 12);
+        $ip = (string) inet_ntop($bin);
+    }
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) return '';
+    if (strlen($bin) === 4) return 'v4:' . implode('.', array_slice(unpack('C4', $bin), 0, 3));
+
+    return 'v6:' . bin2hex(substr($bin, 0, 6));
+}
+
+// LIKE-шаблон, который заведомо покрывает текстовые адреса подсети; точное совпадение — по geonet_key.
+function geonet_like($k) {
+    if (strncmp($k, 'v4:', 3) === 0) return substr($k, 3) . '.%';
+    $h1 = ltrim(substr($k, 3, 4), '0');
+
+    return ($h1 === '' ? '' : $h1) . ':%';
+}
+
+function geonet_ddl($drv) {
+    if ($drv === 'mysql') {
+        return ["CREATE TABLE IF NOT EXISTS geo_net (
+            k VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+            ip VARCHAR(45) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT '',
+            cc CHAR(2) NOT NULL DEFAULT '', sub VARCHAR(64) NOT NULL DEFAULT '', city VARCHAR(64) NOT NULL DEFAULT '',
+            loc VARCHAR(24) NOT NULL DEFAULT '', asn INT UNSIGNED NOT NULL DEFAULT 0, org VARCHAR(128) NOT NULL DEFAULT '',
+            ts INT UNSIGNED NOT NULL DEFAULT 0, seen INT UNSIGNED NOT NULL DEFAULT 0,
+            want TINYINT UNSIGNED NOT NULL DEFAULT 0, prio TINYINT UNSIGNED NOT NULL DEFAULT 2,
+            fails TINYINT UNSIGNED NOT NULL DEFAULT 0, rq TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            PRIMARY KEY (k), KEY idx_gn_want (want, prio), KEY idx_gn_rq (rq), KEY idx_gn_seen (seen)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"];
+    }
+    return [
+        "CREATE TABLE IF NOT EXISTS geo_net (
+            k TEXT NOT NULL PRIMARY KEY, ip TEXT NOT NULL DEFAULT '',
+            cc TEXT NOT NULL DEFAULT '', sub TEXT NOT NULL DEFAULT '', city TEXT NOT NULL DEFAULT '', loc TEXT NOT NULL DEFAULT '',
+            asn INTEGER NOT NULL DEFAULT 0, org TEXT NOT NULL DEFAULT '', ts INTEGER NOT NULL DEFAULT 0, seen INTEGER NOT NULL DEFAULT 0,
+            want INTEGER NOT NULL DEFAULT 0, prio INTEGER NOT NULL DEFAULT 2, fails INTEGER NOT NULL DEFAULT 0, rq INTEGER NOT NULL DEFAULT 0
+        )",
+        'CREATE INDEX IF NOT EXISTS idx_gn_want ON geo_net(want, prio)',
+        'CREATE INDEX IF NOT EXISTS idx_gn_rq ON geo_net(rq)',
+        'CREATE INDEX IF NOT EXISTS idx_gn_seen ON geo_net(seen)',
+    ];
+}
+
+function geonet_ensure() {
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    if (!function_exists('db') || !($p = db())) return false;
+    // Поиск идёт и из запросов клиентов — DDL там не гоняем, флаг в настройках.
+    if (setting('geonet_tables', '') === '1') return $ok = true;
+    // DDL в MySQL неявно коммитит открытую транзакцию вызывающего — внутри неё таблицу не создаём.
+    if ($p->inTransaction()) return false;
+    try { foreach (geonet_ddl(db_driver()) as $sql) $p->exec($sql); set_setting('geonet_tables', '1'); $ok = true; }
+    catch (Throwable $e) { error_log('submw geo_net table: ' . $e->getMessage()); $ok = false; }
+    return $ok;
+}
+
+function geonet_ins_sql() { return (db_driver() === 'mysql' ? 'INSERT IGNORE' : 'INSERT OR IGNORE') . ' INTO geo_net (k, ip, seen, want, prio, rq) VALUES (?, ?, ?, 1, ?, ?)'; }
+
+function geonet_lookup($ip, $prio = 2) {
+    $out = ['cc' => '', 'asn' => 0, 'org' => '', 'loc' => '', 'sub' => '', 'city' => '', 'wait' => false];
+    $k = geonet_key($ip);
+    if ($k === '' || !geonet_ensure() || !($p = db())) return $out;
+    $now = time();
+    $prio = max(1, min(3, (int) $prio));
+    $memo = &$GLOBALS['submw_geonet_memo'];
+    if (!is_array($memo)) $memo = [];
+    try {
+        if (!array_key_exists($k, $memo)) {
+            $st = $p->prepare('SELECT cc, sub, city, loc, asn, org, ts, seen, want, prio FROM geo_net WHERE k = ?');
+            $st->execute([$k]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            $st->closeCursor();
+            if (count($memo) >= 4096) $memo = [];
+            $memo[$k] = $r ?: null;
+        }
+        $r = $memo[$k];
+        if ($r === null) {
+            $p->prepare(geonet_ins_sql())->execute([$k, (string) $ip, $now, $prio, 0]);
+            $memo[$k] = ['cc' => '', 'sub' => '', 'city' => '', 'loc' => '', 'asn' => 0, 'org' => '', 'ts' => 0, 'seen' => $now, 'want' => 1, 'prio' => $prio];
+            $out['wait'] = true;
+            return $out;
+        }
+        $ts = (int) $r['ts'];
+        $want = (int) $r['want'];
+        if ($want === 0 && $ts > 0 && $now - $ts >= GEONET_REFRESH) {
+            $p->prepare('UPDATE geo_net SET want = 1, prio = ?, seen = ? WHERE k = ?')->execute([$prio, $now, $k]);
+            $memo[$k]['want'] = 1; $memo[$k]['prio'] = $prio; $memo[$k]['seen'] = $now;
+        } elseif ($want === 1 && $prio < (int) $r['prio']) {
+            $p->prepare('UPDATE geo_net SET prio = ?, seen = ? WHERE k = ?')->execute([$prio, $now, $k]);
+            $memo[$k]['prio'] = $prio; $memo[$k]['seen'] = $now;
+        } elseif ($now - (int) $r['seen'] >= 86400) {
+            $p->prepare('UPDATE geo_net SET seen = ? WHERE k = ?')->execute([$now, $k]);
+            $memo[$k]['seen'] = $now;
+        }
+    } catch (Throwable $e) {
+        error_log('submw geo_net lookup: ' . $e->getMessage());
+        return $out;
+    }
+    $out['wait'] = $ts === 0;
+    foreach (['cc', 'sub', 'city', 'loc', 'org'] as $f) $out[$f] = (string) $r[$f];
+    $out['asn'] = (int) $r['asn'];
+
+    return $out;
+}
+
+// Города подсетей для показа рядом с регионом: город в таблицах сессий не хранится.
+function geonet_cities(array $ips) {
+    $out = [];
+    if (!geoip_ipinfo() || !$ips || !geonet_ensure() || !($p = db())) return $out;
+    $by = [];
+    foreach ($ips as $ip) { $k = geonet_key($ip); if ($k !== '') $by[$k][] = (string) $ip; }
+    foreach (array_chunk(array_keys($by), 200) as $chunk) {
+        try {
+            $st = $p->prepare('SELECT k, city FROM geo_net WHERE city <> \'\' AND k IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')');
+            $st->execute($chunk);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) foreach ($by[$r['k']] as $ip) $out[$ip] = (string) $r['city'];
+        } catch (Throwable $e) { break; }
+    }
+
+    return $out;
+}
+
+function ipinfo_parse(array $j) {
+    $clean = static function ($v, $n) { return mb_substr(trim((string) preg_replace('~[\x00-\x1F\x7F]~u', '', is_scalar($v) ? (string) $v : '')), 0, $n); };
+    $cc = strtoupper($clean($j['country'] ?? ($j['country_code'] ?? ''), 3));
+    if (!preg_match('~^[A-Z]{2}$~', $cc)) $cc = '';
+    $asn = 0;
+    $org = '';
+    if (preg_match('~^AS(\d{1,10})\b\s*(.*)$~i', $clean($j['org'] ?? '', 200), $m)) {
+        $asn = (int) $m[1];
+        $org = $m[2];
+    } elseif (isset($j['asn'])) {
+        $a = is_array($j['asn']) ? ($j['asn']['asn'] ?? '') : $j['asn'];
+        if (preg_match('~(\d{1,10})~', $clean($a, 20), $m)) $asn = (int) $m[1];
+        $org = is_array($j['asn']) ? ($j['asn']['name'] ?? '') : ($j['as_name'] ?? '');
+    }
+    if ($asn < 1 || $asn > 4294967295) { $asn = 0; $org = ''; }
+    $loc = '';
+    if (preg_match('~^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$~', $clean($j['loc'] ?? '', 40), $m)) $loc = geoip_loc(['latitude' => (float) $m[1], 'longitude' => (float) $m[2]]);
+
+    return ['cc' => $cc, 'sub' => $clean($j['region'] ?? '', 64), 'city' => $clean($j['city'] ?? '', 64), 'loc' => $loc, 'asn' => $asn, 'org' => $clean($org, 128)];
+}
+
+function ipinfo_stat() {
+    $s = function_exists('admin_cache_get') ? admin_cache_get('ipinfo_stat', PHP_INT_MAX) : null;
+    $s = is_array($s) ? $s : [];
+    $keep = ['block' => 0, 'last_ok' => 0, 'last_err' => '', 'err_ts' => 0, 'last_lim' => 0, 'noreg' => 0];
+    $s += $keep;
+    // Сутки — по UTC: когда именно ipinfo обнуляет свой счётчик, не документировано, отказ по лимиту ставит паузу сам.
+    if ((string) ($s['day'] ?? '') !== gmdate('Y-m-d')) $s = ['day' => gmdate('Y-m-d'), 'n' => 0, 'ok' => 0, 'fail' => 0, 'lim' => 0] + array_intersect_key($s, $keep);
+
+    return $s;
+}
+
+function ipinfo_stat_put(array $s) { if (function_exists('admin_cache_put')) admin_cache_put('ipinfo_stat', $s); }
+
+// Параллельно, по несколько адресов: [ключ => [code, body, err]].
+function ipinfo_fetch(array $ips, $timeout) {
+    $tok = ipinfo_token();
+    $mh = curl_multi_init();
+    $hs = [];
+    foreach ($ips as $k => $ip) {
+        $ch = curl_init(ipinfo_base() . $ip . '/json' . ($tok !== '' ? '?token=' . rawurlencode($tok) : ''));
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => min(4, $timeout),
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_USERAGENT      => 'remnawave-subscription-middleware',
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+        curl_multi_add_handle($mh, $ch);
+        $hs[$k] = $ch;
+    }
+    do {
+        $st = curl_multi_exec($mh, $run);
+        if ($run && curl_multi_select($mh, 1.0) === -1) usleep(20000);
+    } while ($run && $st === CURLM_OK);
+    $out = [];
+    foreach ($hs as $k => $ch) {
+        $body = curl_multi_getcontent($ch);
+        $out[$k] = ['code' => (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE), 'body' => is_string($body) ? substr($body, 0, 65536) : '', 'err' => (string) curl_error($ch)];
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+    }
+    curl_multi_close($mh);
+
+    return $out;
+}
+
+// Разбирает очередь до дедлайна и суточного лимита. Отказ по лимиту (429) или неверный токен — пауза на час;
+// ни один адрес пачки не ответил (сеть, 5xx) — пауза 10 минут без штрафа адресам; адрес, трижды
+// не ответивший при живом ipinfo, откладывается на месяц.
+function geonet_step($deadline, $max = 120) {
+    $res = ['n' => 0, 'ok' => 0, 'err' => '', 'pause' => ''];
+    if (!geoip_ipinfo() || !geonet_ensure() || !($p = db())) return $res;
+    if (!function_exists('curl_multi_init')) { $res['err'] = 'нет PHP-расширения curl'; return $res; }
+    $lock = @fopen(dirname(default_db_path()) . '/.geonet.lock', 'c');
+    if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return $res; }
+    $s = null;
+    $resolved = [];
+    try {
+        if (setting('geonet_init', '') !== '1') {
+            set_setting('geonet_init', '1');
+            geonet_recheck_start(true);
+        }
+        $s = ipinfo_stat();
+        if ((int) $s['block'] > time()) { $res['pause'] = 'block'; return $res; }
+        $tried = [];
+        $upOk = $p->prepare('UPDATE geo_net SET cc = ?, sub = ?, city = ?, loc = ?, asn = ?, org = ?, ts = ?, want = 0, fails = 0, rq = 0 WHERE k = ?');
+        $upFail = $p->prepare('UPDATE geo_net SET fails = ? WHERE k = ?');
+        $upGive = $p->prepare('UPDATE geo_net SET fails = 0, want = 0, rq = 0, ts = CASE WHEN ts = 0 THEN ? ELSE ts END WHERE k = ?');
+        while ($res['n'] < $max && microtime(true) < $deadline - 1.5) {
+            $left = ipinfo_cap() - (int) $s['n'];
+            if ($left <= 0) { $res['pause'] = 'cap'; break; }
+            $take = min(4, $left, $max - $res['n']);
+            $q = $p->query('SELECT k, ip, fails FROM geo_net WHERE want = 1 ORDER BY prio, seen DESC LIMIT ' . (int) ($take + count($tried)));
+            $rows = [];
+            foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) if (!isset($tried[$r['k']]) && count($rows) < $take) $rows[] = $r;
+            if (!$rows) break;
+            $ips = [];
+            foreach ($rows as $r) { $ips[$r['k']] = (string) $r['ip']; $tried[$r['k']] = 1; }
+            $got = ipinfo_fetch($ips, (int) max(2, min(6, floor($deadline - microtime(true) - 0.5))));
+            $res['n'] += count($got);
+            $s['n'] += count($got);
+            $stop = '';
+            $bad = [];
+            $soft = [];
+            $now = time();
+            $tok = ipinfo_token() !== '';
+            foreach ($rows as $r) {
+                $k = $r['k'];
+                $g = $got[$k] ?? ['code' => 0, 'body' => '', 'err' => 'нет ответа'];
+                $j = $g['code'] === 200 ? json_decode($g['body'], true) : null;
+                if (is_array($j) && (isset($j['ip']) || isset($j['bogon']))) {
+                    $d = empty($j['bogon']) ? ipinfo_parse($j) : ['cc' => '', 'sub' => '', 'city' => '', 'loc' => '', 'asn' => 0, 'org' => ''];
+                    // Токен тарифа без городов (Lite) отдаёт только страну: такой ответ не сохраняем, чтобы не затереть регионы на месяц.
+                    if ($tok && $d['cc'] !== '' && $d['sub'] === '' && $d['city'] === '') {
+                        $s['noreg']++;
+                        if ($s['noreg'] >= 5) { $stop = 'noreg'; continue; }
+                        $soft[] = $r;
+                        continue;
+                    }
+                    if ($d['sub'] !== '' || $d['city'] !== '') $s['noreg'] = 0;
+                    $upOk->execute([$d['cc'], $d['sub'], $d['city'], $d['loc'], $d['asn'], $d['org'], $now, $k]);
+                    $resolved[$k] = $d;
+                    $s['ok']++;
+                    $s['last_ok'] = $now;
+                    $res['ok']++;
+                    continue;
+                }
+                if ($g['code'] === 429) { $stop = 'lim'; continue; }
+                if ($g['code'] === 401 || $g['code'] === 403) { $stop = 'auth'; continue; }
+                $s['fail']++;
+                $s['err_ts'] = $now;
+                $s['last_err'] = $g['code'] > 0 ? 'HTTP ' . $g['code'] : ($g['err'] !== '' ? mb_substr($g['err'], 0, 160) : 'пустой ответ');
+                $bad[] = $r;
+            }
+            if ($stop === 'lim') {
+                $s['lim']++;
+                $s['last_lim'] = $now;
+                $s['block'] = $now + 3600;
+                $res['pause'] = 'block';
+                break;
+            }
+            if ($stop === 'noreg') {
+                $s['fail']++;
+                $s['err_ts'] = $now;
+                $s['last_err'] = 'с этим токеном ipinfo не отдаёт регион и город — удалите токен';
+                $s['block'] = $now + 3600;
+                $res['pause'] = 'block';
+                break;
+            }
+            if ($stop === 'auth') {
+                $s['fail']++;
+                $s['err_ts'] = $now;
+                $s['last_err'] = ipinfo_token() !== '' ? 'ipinfo не принял токен' : 'ipinfo отказал в доступе';
+                $s['block'] = $now + 3600;
+                $res['pause'] = 'block';
+                break;
+            }
+            if ($bad && count($bad) === count($rows)) {
+                $s['block'] = $now + 600;
+                $res['pause'] = 'block';
+                $res['err'] = 'ipinfo не отвечает: ' . $s['last_err'];
+                break;
+            }
+            foreach (array_merge($bad, $soft) as $r) {
+                $f = (int) $r['fails'] + 1;
+                if ($f >= 3) $upGive->execute([$now, $r['k']]);
+                else $upFail->execute([$f, $r['k']]);
+            }
+        }
+    } catch (Throwable $e) {
+        $res['err'] = 'гео: ' . $e->getMessage();
+        error_log('submw geo_net step: ' . $e->getMessage());
+    } finally {
+        if (is_array($s)) ipinfo_stat_put($s);
+        if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
+    }
+    if ($resolved) {
+        geoip_reset();
+        geonet_apply($resolved);
+    }
+
+    return $res;
+}
+
+// Дописывает ответы ipinfo в уже записанные сессии и адреса отчётов. Пустое у ipinfo не стирает прежнее.
+// Сводки по IP и по часам не трогаем: они большие, а сканировать их каждую минуту дорого — их чинит пересборка статистики.
+function geonet_apply(array $resolved) {
+    if (!$resolved || !($p = db())) return 0;
+    $pat = [];
+    foreach (array_keys($resolved) as $k) $pat[geonet_like($k)] = 1;
+    $pat = array_keys($pat);
+    $specs = [
+        ['conn_sess', 'ip', ['cc', 'asn', 'org', 'sub'], ''],
+        ['rep_net_ip', 'ip', ['cc', 'asn', 'org', 'loc', 'sub'], ''],
+        ['rep_state', 'ip4', ['cc', 'asn', 'org', 'loc', 'sub'], " AND ip4 <> ''"],
+        ['rep_state', 'ip6', ['cc', 'asn', 'org', 'loc', 'sub'], " AND ip4 = '' AND ip6 <> ''"],
+    ];
+    $n = 0;
+    foreach ($specs as [$t, $col, $fields, $extra]) {
+        foreach (array_chunk($pat, 40) as $chunk) {
+            $todo = [];
+            try {
+                $st = $p->prepare("SELECT id, $col AS gip, " . implode(', ', $fields) . " FROM $t WHERE (" . implode(' OR ', array_fill(0, count($chunk), "$col LIKE ?")) . ")$extra");
+                $st->execute($chunk);
+                while (($r = $st->fetch(PDO::FETCH_ASSOC)) !== false) {
+                    $d = $resolved[geonet_key($r['gip'])] ?? null;
+                    if ($d === null) continue;
+                    $set = [];
+                    foreach ($fields as $f) {
+                        if ($f === 'org' && (int) $d['asn'] === 0) continue;
+                        $v = $d[$f];
+                        if ($v === '' || $v === 0) continue;
+                        if ((string) $r[$f] !== (string) $v) $set[$f] = $v;
+                    }
+                    if ($set) $todo[] = [(int) $r['id'], $set];
+                }
+            } catch (Throwable $e) { break; }
+            if (!$todo) continue;
+            try {
+                $p->beginTransaction();
+                $prep = [];
+                foreach ($todo as [$id, $set]) {
+                    $sig = implode(',', array_keys($set));
+                    if (!isset($prep[$sig])) $prep[$sig] = $p->prepare("UPDATE $t SET " . implode(', ', array_map(static fn($f) => "$f = ?", array_keys($set))) . ' WHERE id = ?');
+                    $prep[$sig]->execute(array_merge(array_values($set), [$id]));
+                    $n++;
+                }
+                $p->commit();
+            } catch (Throwable $e) {
+                try { $p->rollBack(); } catch (Throwable $e2) {}
+                error_log('submw geo_net apply ' . $t . ': ' . $e->getMessage());
+            }
+        }
+    }
+    if ($n > 0 && function_exists('admin_cache_put')) admin_cache_put('sess_mx', []);
+
+    return $n;
+}
+
+// Ставит в очередь все подсети, что есть в сессиях, отчётах и в кэше за 30 дней.
+function geonet_recheck_start($auto = false) {
+    if (!geonet_ensure() || !($p = db())) return 0;
+    @set_time_limit(300);
+    $now = time();
+    $keys = [];
+    $srcs = [
+        ['SELECT DISTINCT ip FROM conn_sess', []],
+        ['SELECT DISTINCT ip FROM rep_net_ip', []],
+        ["SELECT DISTINCT ip4 FROM rep_state WHERE ip4 <> ''", []],
+        ["SELECT DISTINCT ip6 FROM rep_state WHERE ip6 <> ''", []],
+        ['SELECT ip FROM geo_net WHERE seen >= ?', [$now - GEONET_REFRESH]],
+    ];
+    foreach ($srcs as [$sql, $args]) {
+        try {
+            $st = $p->prepare($sql);
+            $st->execute($args);
+            while (($ip = $st->fetchColumn()) !== false) {
+                $k = geonet_key($ip);
+                if ($k !== '' && !isset($keys[$k])) $keys[$k] = (string) $ip;
+                if (count($keys) >= 200000) break 2;
+            }
+        } catch (Throwable $e) {}
+    }
+    try {
+        $ins = $p->prepare(geonet_ins_sql());
+        foreach (array_chunk($keys, 200, true) as $chunk) {
+            $p->beginTransaction();
+            foreach ($chunk as $k => $ip) $ins->execute([$k, $ip, $now, 3, 1]);
+            $up = $p->prepare('UPDATE geo_net SET rq = 1, prio = CASE WHEN want = 1 AND prio < 3 THEN prio ELSE 3 END, want = 1 WHERE k IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')');
+            $up->execute(array_keys($chunk));
+            $p->commit();
+        }
+    } catch (Throwable $e) {
+        try { $p->rollBack(); } catch (Throwable $e2) {}
+        error_log('submw geo_net recheck: ' . $e->getMessage());
+        return 0;
+    }
+    admin_cache_put('geonet_rc', ['ts' => $now, 'total' => count($keys), 'auto' => $auto ? 1 : 0, 'end' => 0]);
+
+    return count($keys);
+}
+
+// Остановка: что уже знает гео — снимается с очереди; что гео не имеет вовсе — остаётся обычной очередью.
+function geonet_recheck_stop() {
+    if (!geonet_ensure() || !($p = db())) return;
+    try { $p->exec('UPDATE geo_net SET want = CASE WHEN ts > 0 AND prio = 3 THEN 0 ELSE want END, prio = CASE WHEN prio = 3 THEN 2 ELSE prio END, rq = 0 WHERE rq = 1'); }
+    catch (Throwable $e) { error_log('submw geo_net recheck stop: ' . $e->getMessage()); }
+    admin_cache_put('geonet_rc', []);
+}
+
+function geonet_purge_maybe() {
+    if (time() - (int) setting('geonet_purge_ts', '0') < 86400) return;
+    set_setting('geonet_purge_ts', (string) time());
+    if (geonet_ensure() && function_exists('gc_purge')) gc_purge('geo_net', GEONET_KEEP_DAYS, 2.0);
+}
+
+function cron_task_geo($ctx) {
+    if (!geoip_ipinfo()) return '';
+    $r = geonet_step(min(microtime(true) + 25, $ctx['deadline'] - 2));
+    geonet_purge_maybe();
+
+    return $r['err'];
+}
+
+// Для вкладки «Геобазы»: счётчик суток, очередь, кэш и ход перепроверки.
+function geonet_view() {
+    $s = ipinfo_stat();
+    $now = time();
+    $cap = ipinfo_cap();
+    $v = [
+        'mode' => geoip_mode(), 'cap' => $cap, 'cap_max' => ipinfo_cap_max(), 'tok' => ipinfo_token() !== '',
+        'used' => (int) $s['n'], 'ok' => (int) $s['ok'], 'fail' => (int) $s['fail'], 'lim' => (int) $s['lim'],
+        'block' => max(0, (int) $s['block'] - $now), 'err' => (string) $s['last_err'],
+        'err_ago' => (int) $s['err_ts'] > 0 ? $now - (int) $s['err_ts'] : -1,
+        'lim_ago' => (int) $s['last_lim'] > 0 ? $now - (int) $s['last_lim'] : -1,
+        'ok_ago' => (int) $s['last_ok'] > 0 ? $now - (int) $s['last_ok'] : -1,
+        'reset' => 86400 - ($now % 86400),
+        'alive' => function_exists('cron_alive') && cron_alive(),
+        'q' => ['1' => 0, '2' => 0, '3' => 0], 'cached' => 0, 'rc' => null,
+    ];
+    if (!geonet_ensure() || !($p = db())) return $v;
+    try {
+        foreach ($p->query('SELECT prio, COUNT(*) AS c FROM geo_net WHERE want = 1 GROUP BY prio')->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $k = (string) max(1, min(3, (int) $r['prio']));
+            $v['q'][$k] += (int) $r['c'];
+        }
+        $v['cached'] = (int) $p->query('SELECT COUNT(*) FROM geo_net WHERE ts > 0')->fetchColumn();
+        $rc = admin_cache_get('geonet_rc', PHP_INT_MAX);
+        if (is_array($rc) && (int) ($rc['total'] ?? 0) > 0) {
+            $left = (int) $p->query('SELECT COUNT(*) FROM geo_net WHERE rq = 1')->fetchColumn();
+            if ($left === 0 && (int) ($rc['end'] ?? 0) === 0) { $rc['end'] = $now; admin_cache_put('geonet_rc', $rc); }
+            $total = max((int) $rc['total'], $left);
+            $queued = array_sum($v['q']);
+            $today = max(0, $cap - $v['used']);
+            // Перед перепроверкой в очереди стоят сессии и статистика — они тоже тратят лимит.
+            $need = $left > 0 ? $queued : 0;
+            $days = $need <= $today ? 0 : (int) ceil(($need - $today) / $cap);
+            $v['rc'] = ['total' => $total, 'left' => $left, 'done' => $total - $left, 'ago' => $now - (int) $rc['ts'],
+                        'auto' => (int) ($rc['auto'] ?? 0), 'end_ago' => (int) ($rc['end'] ?? 0) > 0 ? $now - (int) $rc['end'] : -1, 'days' => $days];
+        }
+    } catch (Throwable $e) {}
+
+    return $v;
 }

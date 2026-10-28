@@ -19,6 +19,7 @@ function gc_tables() {
         'rep_raw'        => ['title' => 'Отчёты: сырые отчёты клиентов', 'pk' => 'id', 'col' => 'ts',    'kind' => 'epoch'],
         'conn_sess'      => ['title' => 'Сессии подключений',          'pk' => 'id', 'col' => 'last_ts', 'kind' => 'epoch'],
         'sess_anom'      => ['title' => 'Журнал аномалий сессий',      'pk' => 'id', 'col' => 'last_ts', 'kind' => 'epoch'],
+        'geo_net'        => ['title' => 'Гео: кэш подсетей ipinfo',    'pk' => 'k',  'col' => 'seen',    'kind' => 'epoch'],
         'api_stat_hour'  => ['title' => 'Запросы к панели по часам',   'pk' => 'h',  'col' => 'h',       'kind' => 'epoch'],
         'panel_rules_snap' => ['title' => 'Снимки правил ответа панели', 'pk' => 'id', 'col' => 'ts',    'kind' => 'epoch'],
     ];
@@ -48,6 +49,7 @@ function gc_ensure() {
     if (function_exists('sess_ensure')) sess_ensure();
     if (function_exists('apistat_ensure')) apistat_ensure();
     if (function_exists('pr_snap_ensure')) pr_snap_ensure();
+    if (function_exists('geonet_ensure')) geonet_ensure();
 }
 
 function gc_count($table, $days) {

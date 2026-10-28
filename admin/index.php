@@ -571,6 +571,14 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'geo_stat') {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        // Без планировщика очередь двигает открытая вкладка, понемногу на каждый опрос.
+        if (geoip_ipinfo() && !(function_exists('cron_alive') && cron_alive())) { @set_time_limit(30); geonet_step(microtime(true) + 6, 16); }
+        echo json_encode(['ok' => true, 'v' => geonet_view()], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
     if ($a === 'rep_rebuild') {
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         ignore_user_abort(true);
@@ -828,6 +836,41 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         flash(isset($_POST['rep_enabled']) ? 'Приём отчётов клиентов включён' : 'Приём отчётов клиентов выключен');
         if (isset($_POST['rep_enabled'])) register_shutdown_function('geoip_update_after_response');
         form_saved('reports');
+    }
+
+    if ($action === 'save_geoip_mode') {
+        $gm = (string) ($_POST['geoip_mode'] ?? '');
+        if (isset(geoip_modes()[$gm]) && $gm !== geoip_mode()) {
+            set_setting('geoip_mode', $gm);
+            if ($gm === 'local') set_setting('geoip_try', '0');
+        }
+        if (isset($_POST['ipinfo_cap'])) set_setting('ipinfo_cap', (string) max(10, min(ipinfo_cap_max(), (int) $_POST['ipinfo_cap'])));
+        flash(geoip_ipinfo() ? 'Гео — через ipinfo.io' : 'Гео — по локальным базам');
+        register_shutdown_function('geoip_update_after_response');
+        form_saved('geoip');
+    }
+
+    if ($action === 'save_ipinfo_token') {
+        $gt = trim((string) ($_POST['ipinfo_token'] ?? ''));
+        if (!empty($_POST['del'])) { set_setting('ipinfo_token', ''); flash('Токен ipinfo удалён'); }
+        elseif ($gt !== '' && preg_match('~^[A-Za-z0-9_-]{6,64}$~', $gt)) { set_setting('ipinfo_token', $gt); flash('Токен ipinfo сохранён'); }
+        else flash('Токен не похож на токен ipinfo — не сохранён');
+        set_setting('ipinfo_cap', (string) max(10, min(ipinfo_cap_max(), ipinfo_cap())));
+        // Токен сменили — прежняя пауза из-за токена и счётчик ответов без регионов больше не про него.
+        $gs = ipinfo_stat(); $gs['block'] = 0; $gs['noreg'] = 0; ipinfo_stat_put($gs);
+        form_saved('geoip');
+    }
+
+    if ($action === 'geo_recheck') {
+        $gn = geonet_recheck_start();
+        flash($gn > 0 ? 'Перепроверка запущена: подсетей — ' . $gn : 'Адресов для перепроверки нет');
+        form_saved('geoip');
+    }
+
+    if ($action === 'geo_recheck_stop') {
+        geonet_recheck_stop();
+        flash('Перепроверка остановлена');
+        form_saved('geoip');
     }
 
     if ($action === 'save_geoip') {
@@ -1795,7 +1838,7 @@ if ($tab === 'pagekeys') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Базы GeoIP'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Геобазы'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 // function_exists: прежний апдейтер пишет admin/index.php раньше lib/branding.php.
 if ($db_ok && function_exists('brand_refresh_if_stale')) brand_refresh_if_stale();

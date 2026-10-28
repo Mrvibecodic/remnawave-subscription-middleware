@@ -307,6 +307,8 @@ function sess_store(array $seen, $now, ?array &$cur = null) {
         $st->execute([$now - sess_gap()]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $open[(int) $r['uid'] . '|' . $r['node'] . '|' . $r['ip']] = $r;
     } catch (Throwable $e) { return 'чтение сессий: ' . $e->getMessage(); }
+    // Гео ищется внутри транзакции: таблицу кэша создаём до неё.
+    if (function_exists('geonet_ensure') && geoip_ipinfo()) geonet_ensure();
     try {
         $p->beginTransaction();
         $upd = $p->prepare('UPDATE conn_sess SET last_ts = ?, n = n + 1 WHERE id = ?');
@@ -318,7 +320,7 @@ function sess_store(array $seen, $now, ?array &$cur = null) {
                 $cur[$uid][] = ['ip' => $ip, 'node' => $node, 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub']];
                 continue;
             }
-            $g = function_exists('geoip_lookup') ? geoip_lookup($ip) : [];
+            $g = function_exists('geoip_lookup') ? geoip_lookup($ip, 1) : [];
             $row = ['ip' => $ip, 'node' => $node, 'cc' => (string) ($g['cc'] ?? ''), 'asn' => (int) ($g['asn'] ?? 0), 'org' => (string) ($g['org'] ?? ''), 'sub' => (string) ($g['sub'] ?? '')];
             $ins->execute([$uid, $node, $ip, $row['cc'], $row['asn'], $row['org'], $row['sub'], $now, $now]);
             $cur[$uid][] = $row;
@@ -436,6 +438,9 @@ function sess_user_rows($uid, $days = 30, $limit = 600) {
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $out[] = ['node' => (string) $r['node'], 'ip' => (string) $r['ip'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub'], 's' => (int) $r['start_ts'], 'e' => (int) $r['last_ts'], 'n' => (int) $r['n']];
         }
+        $city = function_exists('geonet_cities') ? geonet_cities(array_unique(array_column($out, 'ip'))) : [];
+        if ($city) foreach ($out as &$o) if (isset($city[$o['ip']])) $o['city'] = $city[$o['ip']];
+        unset($o);
         return $out;
     } catch (Throwable $e) { return []; }
 }
@@ -463,6 +468,8 @@ function sess_user_data($uid) {
 // при появлении сессии, и после смены базы история и идущие сессии иначе остаются со старыми именами.
 function sess_regeo() {
     if (!sess_ensure() || !($p = db()) || !function_exists('geoip_reader')) return 0;
+    // С ipinfo гео дописывает geonet_apply по мере ответов.
+    if (function_exists('geoip_ipinfo') && geoip_ipinfo()) return 0;
     if (geoip_reader('country') === null && geoip_reader('asn') === null) return 0;
     $n = 0;
     try {
@@ -522,8 +529,8 @@ function sess_regeo() {
 }
 
 function sess_geo($ip) {
-    $g = function_exists('geoip_lookup') ? geoip_lookup($ip) : [];
-    return ['cc' => (string) ($g['cc'] ?? ''), 'asn' => (int) ($g['asn'] ?? 0), 'org' => (string) ($g['org'] ?? ''), 'sub' => (string) ($g['sub'] ?? '')];
+    $g = function_exists('geoip_lookup') ? geoip_lookup($ip, 1) : [];
+    return ['cc' => (string) ($g['cc'] ?? ''), 'asn' => (int) ($g['asn'] ?? 0), 'org' => (string) ($g['org'] ?? ''), 'sub' => (string) ($g['sub'] ?? ''), 'city' => (string) ($g['city'] ?? '')];
 }
 
 // Живой опрос нод по одному пользователю: ждём ответа до 8 секунд, частичный результат тоже отдаём.
