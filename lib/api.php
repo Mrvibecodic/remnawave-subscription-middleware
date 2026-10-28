@@ -83,7 +83,8 @@ function remnawave_all_users(&$error = '', ?callable $each = null) {
     return $all;
 }
 
-function remnawave_api_request($method, $path, $body = null) {
+// $opts['headers'] — свои заголовки «Имя: значение»; одноимённые стандартные (Accept) заменяются.
+function remnawave_api_request($method, $path, $body = null, array $opts = []) {
     $base  = remnawave_url();
     $token = remnawave_token();
     if ($base === '' || $token === '') { unset($GLOBALS['submw_apistat_expect']); return [false, 0, null, 'Не заданы URL панели или API-токен']; }
@@ -93,12 +94,19 @@ function remnawave_api_request($method, $path, $body = null) {
         $headers[] = 'x-forwarded-proto: https';
         $headers[] = 'x-forwarded-for: 127.0.0.1';
     }
-    $headers = panel_auth_headers($headers);
+    foreach ((array) ($opts['headers'] ?? []) as $hl) {
+        $hl = (string) $hl;
+        $name = strtolower(trim(strstr($hl, ':', true) ?: ''));
+        if ($name === '' || $name === 'authorization') continue;
+        foreach ($headers as $i => $h) if (strtolower(trim(strstr($h, ':', true) ?: '')) === $name) unset($headers[$i]);
+        $headers[] = $hl;
+    }
+    $headers = panel_auth_headers(array_values($headers));
 
     $opt = [
         CURLOPT_URL            => $url,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 20,
+        CURLOPT_TIMEOUT        => (int) ($opts['timeout'] ?? 20),
         CURLOPT_SSL_VERIFYPEER => api_tls_verify(),
         CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
         CURLOPT_CUSTOMREQUEST  => strtoupper($method),
@@ -239,6 +247,7 @@ function panel_ref_spec($name) {
                 if (!is_array($h)) continue;
                 $row = panel_ref_pick($h, ['uuid', 'remark', 'address', 'port', 'isDisabled', 'securityLayer']);
                 $row['inbound'] = (string) ($h['inbound']['configProfileInboundUuid'] ?? '');
+                $row['tags'] = array_values(array_filter(array_map('strval', (array) ($h['tags'] ?? [])), 'strlen'));
                 $row['nodes'] = [];
                 foreach ((array) ($h['nodes'] ?? []) as $ref) {
                     $id = is_array($ref) ? (string) ($ref['uuid'] ?? $ref['nodeUuid'] ?? '') : (string) $ref;
@@ -271,7 +280,16 @@ function panel_ref_spec($name) {
         }];
         case 'subset':  return ['/api/subscription-settings', static function ($d) {
             $r = is_array($d) ? ($d['response'] ?? $d) : null;
-            return ['hwid' => remnawave_hwid_settings_norm(is_array($r) ? ($r['hwidSettings'] ?? null) : null)];
+            if (!is_array($r)) $r = [];
+            return [
+                'hwid'  => remnawave_hwid_settings_norm($r['hwidSettings'] ?? null),
+                'uuid'  => (string) ($r['uuid'] ?? ''),
+                'upd'   => (string) ($r['updatedAt'] ?? ''),
+                'rules' => is_array($r['responseRules'] ?? null) ? $r['responseRules'] : null,
+                'serve_json'     => !empty($r['serveJsonAtBaseSubscription']),
+                'custom_remarks' => !empty($r['isShowCustomRemarks']),
+                'randomize'      => !empty($r['randomizeHosts']),
+            ];
         }];
     }
     return null;
