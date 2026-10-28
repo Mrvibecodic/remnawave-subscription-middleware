@@ -560,15 +560,21 @@ function pr_group_headers(array $g) {
     return $h;
 }
 
-// Карта клиентов: по одному запросу к тестеру панели на группу; результат — 10 минут для этого черновика.
-// $mode: '' — считать, если нет в кэше; 'force' — пересчитать; 'cached' — только из кэша (null, если нет).
+// Карта клиентов: по одному запросу к тестеру панели на группу. Ответы тестера хранятся по группам, пока не
+// изменятся правила; цифры каждый раз пересчитываются по свежему логу, группы без ответа отмечаются как непроверенные.
+// $mode: '' — считать, если ответов нет или они неполные; 'force' — пересчитать всё; 'cached' — только сохранённое (null, если нет).
 function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '') {
     $error = '';
     $send = pr_for_panel($cfg);
     $cl = pr_clients($hours);
-    $key = 'pr_map_' . $hours;
-    $sig = md5(json_encode($send, JSON_UNESCAPED_UNICODE) . '|' . $cl['ts']);
-    if ($mode !== 'force') { $c = admin_cache_get($key, 600); if (is_array($c) && ($c['sig'] ?? '') === $sig) return $c; }
+    $groups = $cl['groups'];
+    $cfgHash = md5(json_encode($send, JSON_UNESCAPED_UNICODE));
+    $mkeys = [];
+    foreach ($groups as $i => $g) $mkeys[$i] = md5($g['id'] . '|' . json_encode(pr_group_headers($g), JSON_UNESCAPED_UNICODE));
+    $c = $mode === 'force' ? null : admin_cache_get('pr_map', 86400 * 365);
+    $saved = is_array($c) && ($c['cfg_hash'] ?? '') === $cfgHash && is_array($c['match'] ?? null) ? $c : null;
+    $missing = $saved === null ? count($groups) : count(array_filter($mkeys, static fn($k) => !isset($saved['match'][$k])));
+    if ($saved !== null && ($mode === 'cached' || $missing === 0)) return pr_map_build($send, $cl, $mkeys, $saved['match'], (int) $saved['ts']);
     if ($mode === 'cached') return null;
     $base = remnawave_url(); $token = remnawave_token();
     if ($base === '' || $token === '') { $error = 'Не заданы URL панели или API-токен'; return null; }
@@ -577,7 +583,6 @@ function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '') {
     if (strpos($base, 'http://') === 0) { $common[] = 'x-forwarded-proto: https'; $common[] = 'x-forwarded-for: 127.0.0.1'; }
     $common = panel_auth_headers($common);
     $path = '/api/system/testers/srr-matcher';
-    $groups = $cl['groups'];
     $results = [];
     $batch = 8;
     for ($off = 0; $off < count($groups); $off += $batch) {
@@ -623,11 +628,22 @@ function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '') {
         }
         curl_multi_close($mh);
     }
-    $byRule = []; $none = []; $caught = 0;
-    foreach ($groups as $i => $g) {
-        $res = $results[$i] ?? ['matched' => false, 'idx' => null, 'type' => ''];
-        $gi = ['id' => $g['id'], 'name' => $g['name'], 'os' => $g['os'], 'n' => (int) $g['n'], 'vers' => $g['vers'], 'ua' => $g['ua'], 'synthetic' => !empty($g['synthetic']), 'type' => $res['type']];
-        if ($res['matched'] && $res['idx'] !== null) {
+    $match = [];
+    foreach ($results as $i => $res) $match[$mkeys[$i]] = $res;
+    $ts = time();
+    admin_cache_put('pr_map', ['ts' => $ts, 'cfg_hash' => $cfgHash, 'match' => $match]);
+    return pr_map_build($send, $cl, $mkeys, $match, $ts);
+}
+
+// Раскладка групп по ступеням из сохранённых ответов тестера и свежих счётчиков лога.
+function pr_map_build(array $send, array $cl, array $mkeys, array $match, $ts) {
+    $byRule = []; $none = []; $untested = []; $caught = 0;
+    foreach ($cl['groups'] as $i => $g) {
+        $res = $match[$mkeys[$i]] ?? null;
+        $gi = ['id' => $g['id'], 'name' => $g['name'], 'os' => $g['os'], 'n' => (int) $g['n'], 'vers' => $g['vers'], 'ua' => $g['ua'], 'synthetic' => !empty($g['synthetic']), 'type' => (string) ($res['type'] ?? '')];
+        if ($res === null) {
+            $untested[] = $gi;
+        } elseif (!empty($res['matched']) && $res['idx'] !== null) {
             if (!isset($byRule[$res['idx']])) $byRule[$res['idx']] = ['n' => 0, 'groups' => []];
             $byRule[$res['idx']]['n'] += $gi['n'];
             $byRule[$res['idx']]['groups'][] = $gi;
@@ -640,10 +656,9 @@ function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '') {
     // Сколько запросов доходит до каждой ступени: всё, что не поймали правила выше.
     $reach = []; $left = $total;
     foreach ($send['rules'] as $ri => $rule) { $reach[$ri] = $left; $left -= (int) ($byRule[$ri]['n'] ?? 0); }
-    $out = ['ts' => time(), 'hours' => (int) $cl['hours'], 'clients_ts' => (int) $cl['ts'], 'total' => $total, 'groups_n' => count($groups), 'caught' => $caught,
-            'by_rule' => $byRule, 'none' => $none, 'none_n' => array_sum(array_column($none, 'n')), 'reach' => $reach, 'cfg_hash' => md5(json_encode($send, JSON_UNESCAPED_UNICODE)), 'sig' => $sig];
-    admin_cache_put($key, $out);
-    return $out;
+    return ['ts' => (int) $ts, 'hours' => (int) $cl['hours'], 'clients_ts' => (int) $cl['ts'], 'total' => $total, 'groups_n' => count($cl['groups']), 'caught' => $caught,
+            'by_rule' => $byRule, 'none' => $none, 'none_n' => array_sum(array_column($none, 'n')), 'untested' => $untested, 'untested_n' => array_sum(array_column($untested, 'n')),
+            'reach' => $reach, 'cfg_hash' => md5(json_encode($send, JSON_UNESCAPED_UNICODE))];
 }
 
 // Запросы по прямым ссылкам /json, /mihomo и т.п. за $days дней — что сломается, если их закрыть.

@@ -160,8 +160,17 @@ t_eq('одна проверка на группу', $tester(), 6);
 $cut();
 pr_map($draft, 168, $e);
 t_eq('повтор — из кэша, без запросов', $tester(), 0);
+// Снимок клиентов обновился и появилась новая группа — карта не пропадает, новая группа отмечена непроверенной.
+$p->exec("DELETE FROM admin_cache WHERE k = 'pr_clients_168'");
+for ($i = 0; $i < 2; $i++) $ins->execute([$now, '1.2.3.4', 'AbCdEfGhIjKlMnOp', 'sub/AbCdEfGhIjKlMnOp', 'Hiddify/2.5.7', 'normal', null, null]);
+$cut();
+$map3 = pr_map($draft, 168, $e, 'cached');
+t_eq('новая группа: карта из сохранённого, без запросов', [$tester(), $map3['total'], $map3['by_rule'][0]['n'], $map3['by_rule'][1]['n'], array_column($map3['untested'], 'name'), $map3['untested_n']], [0, 12, 4, 6, ['Hiddify'], 2]);
+$map3 = pr_map($draft, 168, $e);
+t_eq('обычный вызов дотестирует всё', [$tester(), $map3['untested'], $map3['by_rule'][1]['n']], [7, [], 8]);
+$cut();
 $map2 = pr_map(pr_normalize($cfg([$R('Only', [$C('user-agent', 'STARTS_WITH', 'Happ/')], 'XRAY_JSON')]), $u), 168, $e);
-t_eq('без правила «всем» — кто получит 403', [$map2['none_n'], array_map(static fn($g) => $g['name'], $map2['none'])], [6, ['v2rayNG', 'Stash', 'v2rayN', 'Браузер']]);
+t_eq('без правила «всем» — кто получит 403', [$map2['none_n'], array_map(static fn($g) => $g['name'], $map2['none'])], [8, ['v2rayNG', 'Hiddify', 'Stash', 'v2rayN', 'Браузер']]);
 $mock(['srr_tester_forbid' => true]);
 t_eq('нет права на тестер — понятная ошибка', [pr_map($draft, 168, $e, 'force'), $e], [null, 'У API-токена нет права system:test-srr-matcher']);
 $mock();
