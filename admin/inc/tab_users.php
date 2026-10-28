@@ -34,7 +34,7 @@ $ux_cfg = [
 $ux_sess = function_exists('sess_enabled');
 if ($ux_sess) {
     $ux_an_rules = sess_anom_rules();
-    $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'win' => sess_win_days(), 'ankeep' => sess_anom_keep_days(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready(), 'glim' => sess_enabled() ? sess_hwid_cached() : null, 'geo' => geoip_reader('asn') !== null,
+    $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'win' => sess_win_days(), 'ankeep' => sess_anom_keep_days(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready(), 'glim' => sess_enabled() ? sess_hwid_cached() : null, 'geo' => function_exists('geoip_geo_ready') ? geoip_geo_ready() : geoip_reader('asn') !== null,
         'an' => $ux_an_rules, 'anm' => sess_anom_metrics(), 'ank' => sess_anom_kinds(), 'andef' => sess_anom_default()];
     if (sess_enabled()) { $ux_cfg['sx'] = (object) sess_metrics(); $ux_cfg['ano'] = (object) sess_anom_open_map(); }
     $ux_sst = sess_state();
@@ -1147,7 +1147,7 @@ function hasFlag(s){return /[\u{1F1E6}-\u{1F1FF}]{2}/u.test(s||'');}
 function sInfo(sd,id){var n=sd&&sd.nodes&&sd.nodes[id];return{n:n&&n.n?n.n:(nodeName(id)||'нода '+String(id).slice(0,8)),h:n&&n.h&&n.h.length?n.h:[],cc:n&&n.cc||''};}
 function sNode(sd,id){var i=sInfo(sd,id);return i.h.length?i.h.join(', '):i.n;}
 function sTip(sd,id){var i=sInfo(sd,id);return i.h.length?'Нода: '+i.n:'';}
-function provHtml(x){var p=[];if(x.cc)p.push(flag(x.cc)||'<span class="ux-cc">'+esc(x.cc)+'</span>');p.push(x.org?'<b>'+esc(x.org)+'</b>':(x.asn?'<b>AS'+x.asn+'</b>':'<span>провайдер неизвестен</span>'));if(x.sub)p.push(esc(x.sub));return p.join(' · ');}
+function provHtml(x){var p=[];if(x.cc)p.push(flag(x.cc)||'<span class="ux-cc">'+esc(x.cc)+'</span>');p.push(x.org?'<b>'+esc(x.org)+'</b>':(x.asn?'<b>AS'+x.asn+'</b>':'<span>провайдер неизвестен</span>'));if(x.sub)p.push(esc(x.sub));if(x.city&&x.city!==x.sub)p.push(esc(x.city));return p.join(' · ');}
 function spanTxt(s,e){var a=fdt(s*1000),b=fdt(e*1000);if(fd(s*1000)===fd(e*1000))return a.replace(' в ',' ')+'–'+b.split(' в ')[1];return a.replace(' в ',' ')+' – '+b.replace(' в ',' ');}
 function netKey(ip){return ip.indexOf(':')>-1?'n6:'+ip.split(':').slice(0,3).join(':'):'n4:'+ip.split('.').slice(0,3).join('.');}
 function sessSum(rows,days){var t=now()/1000-days*86400,ips={},as={},nd={},sec=0;rows.forEach(function(r){if(r.e<t)return;ips[r.ip]=1;as[r.asn>0?'a'+r.asn:netKey(r.ip)]=1;nd[r.node]=1;sec+=Math.max(r.e,t)-Math.max(r.s,t)+SESS.every;});return{ip:Object.keys(ips).length,as:Object.keys(as).length,nd:Object.keys(nd).length,h:Math.round(sec/360)/10};}
@@ -1156,8 +1156,8 @@ function sessGroups(rows){
  rows.forEach(function(r){
   var gk=r.asn>0?'a'+r.asn:'i'+r.ip,g=G[gk]||(G[gk]={k:gk,cc:r.cc,asn:r.asn,org:r.org,R:{},e:0,ips:{}});
   if(r.e>g.e)g.e=r.e;g.ips[r.ip]=1;if(!g.org&&r.org)g.org=r.org;if(!g.cc&&r.cc)g.cc=r.cc;
-  var rk=r.sub||'',rg=g.R[rk]||(g.R[rk]={I:{}}),x=rg.I[r.ip]||(rg.I[r.ip]={ip:r.ip,nodes:{},s:r.s,e:r.e,n:0,sec:0,live:false});
-  x.nodes[r.node]=1;x.s=Math.min(x.s,r.s);x.e=Math.max(x.e,r.e);x.n++;x.sec+=r.e-r.s+SESS.every;if(r.e>=lv)x.live=true;
+  var rk=r.sub||'',rg=g.R[rk]||(g.R[rk]={I:{},C:{}}),x=rg.I[r.ip]||(rg.I[r.ip]={ip:r.ip,nodes:{},s:r.s,e:r.e,n:0,sec:0,live:false});
+  if(r.city&&r.city!==rk)rg.C[r.city]=1;x.nodes[r.node]=1;x.s=Math.min(x.s,r.s);x.e=Math.max(x.e,r.e);x.n++;x.sec+=r.e-r.s+SESS.every;if(r.e>=lv)x.live=true;
  });
  return Object.keys(G).map(function(k){return G[k];}).sort(function(a,b){return b.e-a.e;});
 }
@@ -1189,7 +1189,7 @@ function sessHtml(u){
   var regs=Object.keys(g.R).sort(function(a,b){return(a===''?1:0)-(b===''?1:0)||a.localeCompare(b);});
   return '<details class="ux-sg"'+(open?' open':'')+'><summary>'+ico('chev',14).replace('<svg','<svg class="ch"')+(g.cc?flag(g.cc):'')+'<span class="sp">'+esc(g.org||(g.asn?'AS'+g.asn:'Провайдер неизвестен'))+(g.asn&&g.org?' <span class="muted" style="font-weight:500">AS'+g.asn+'</span>':'')+'</span><span class="st">'+Object.keys(g.ips).length+' IP · '+ago(g.e*1000)+'</span></summary>'+
    regs.map(function(rk){var ips=Object.keys(g.R[rk].I).map(function(k){return g.R[rk].I[k];}).sort(function(a,b){return b.e-a.e;});
-    return '<div class="rg">'+(regs.length>1||rk?'<div class="rt">'+(rk?esc(rk):'регион неизвестен')+'</div>':'')+ips.map(function(x){var ids=Object.keys(x.nodes),nn=ids.map(function(id){return sNode(sd,id);}).join(', '),tp=ids.map(function(id){return sTip(sd,id);}).filter(Boolean).join('; ')||nn;return '<div class="ux-sr'+(x.live?' live':'')+'"><span class="ip">'+esc(x.ip)+'</span><span class="nd"'+(tp?' data-tip="'+esc(tp)+'"':'')+'>'+esc(nn)+'</span><span class="tm"><b>'+spanTxt(x.s,x.e)+'</b><br>'+x.n+' '+plural(x.n,'сессия','сессии','сессий')+' · '+(Math.round(x.sec/360)/10)+' ч</span></div>';}).join('')+'</div>';
+    return '<div class="rg">'+(regs.length>1||rk?'<div class="rt">'+(rk?esc(rk):'регион неизвестен')+(Object.keys(g.R[rk].C).length?' <span class="muted" style="font-weight:500">· '+esc(Object.keys(g.R[rk].C).sort().join(', '))+'</span>':'')+'</div>':'')+ips.map(function(x){var ids=Object.keys(x.nodes),nn=ids.map(function(id){return sNode(sd,id);}).join(', '),tp=ids.map(function(id){return sTip(sd,id);}).filter(Boolean).join('; ')||nn;return '<div class="ux-sr'+(x.live?' live':'')+'"><span class="ip">'+esc(x.ip)+'</span><span class="nd"'+(tp?' data-tip="'+esc(tp)+'"':'')+'>'+esc(nn)+'</span><span class="tm"><b>'+spanTxt(x.s,x.e)+'</b><br>'+x.n+' '+plural(x.n,'сессия','сессии','сессий')+' · '+(Math.round(x.sec/360)/10)+' ч</span></div>';}).join('')+'</div>';
    }).join('')+'</details>';
  }).join('');
  return h;

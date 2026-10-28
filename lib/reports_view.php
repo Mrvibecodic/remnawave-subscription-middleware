@@ -387,11 +387,14 @@ function rep_geo_backfill_state($since, $cap = 3000, $short = null) {
         $by[$ip][] = $r;
     }
     $n = 0;
+    if (function_exists('geonet_ensure') && geoip_ipinfo()) geonet_ensure();
     try {
         $p->beginTransaction();
         $up = $p->prepare('UPDATE rep_state SET loc = ?, sub = ? WHERE id = ?');
         foreach ($by as $ip => $list) {
             $g   = geoip_lookup($ip);
+            // Подсеть ждёт ipinfo — не закрывать заглушкой «-», иначе строка больше не дозаполнится.
+            if (!empty($g['wait'])) continue;
             $loc = (string) ($g['loc'] ?? '') !== '' ? (string) $g['loc'] : '-';
             $sub = (string) ($g['sub'] ?? '') !== '' ? (string) $g['sub'] : '-';
             foreach ($list as $r) {
@@ -423,11 +426,13 @@ function rep_geo_backfill_ips($since, $cap = 3000, $short = null) {
         $by[(string) $r['ip']][] = $r;
     }
     $n = 0;
+    if (function_exists('geonet_ensure') && geoip_ipinfo()) geonet_ensure();
     try {
         $p->beginTransaction();
         $up = $p->prepare('UPDATE rep_net_ip SET loc = ?, sub = ? WHERE id = ?');
         foreach ($by as $ip => $list) {
             $g   = geoip_lookup((string) $ip);
+            if (!empty($g['wait'])) continue;
             $loc = (string) ($g['loc'] ?? '') !== '' ? (string) $g['loc'] : '-';
             $sub = (string) ($g['sub'] ?? '') !== '' ? (string) $g['sub'] : '-';
             foreach ($list as $r) {

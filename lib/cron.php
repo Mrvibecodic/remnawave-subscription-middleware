@@ -18,7 +18,8 @@ function cron_tasks() {
         'cleanup' => ['Чистка метрик, мусорных адресов и чата', 3600, false],
         'brand'   => ['Брендинг из панели', 3600, false],
         'update'  => ['Проверка обновлений', 3600, true],
-    ] + (function_exists('cron_task_sessions') ? ['sessions' => ['Сессии: опрос нод', sess_every(), false]] : []);
+    ] + (function_exists('cron_task_sessions') ? ['sessions' => ['Сессии: опрос нод', sess_every(), false]] : [])
+      + (function_exists('cron_task_geo') && geoip_ipinfo() ? ['geo' => ['Гео: уточнение адресов через ipinfo', 60, false]] : []);
 }
 
 // Отметка из будущего (часы сервера ушли назад) свежей не считается.
