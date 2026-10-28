@@ -530,7 +530,10 @@ function inst_self() {
     $bare = preg_replace('~:\d+$~', '', $host);
     $proto = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
     if ($proto === '') $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    return ['host' => $host, 'bare' => $bare, 'scheme' => $proto, 'base' => $proto . '://' . $host, 'is_local' => $host === '' || inst_host_is_local($bare)];
+    // «По домену» — только по Host, как у рабочего запрета по IP (submw_host_is_local): реверс,
+    // который передаёт домен лишь в X-Forwarded-Host, после установки отдавал бы клиентам приманку.
+    $local = function_exists('submw_host_is_local') ? submw_host_is_local() : ($host === '' || inst_host_is_local($bare));
+    return ['host' => $host, 'bare' => $bare, 'scheme' => $proto, 'base' => $proto . '://' . $host, 'is_local' => $local, 'real_host' => strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''))];
 }
 
 function inst_env_report() {

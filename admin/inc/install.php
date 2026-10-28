@@ -99,7 +99,7 @@ if ($self['is_local']) {
     ?><!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Прослойка подписки</title>
     <style>body{margin:0;font:15px/1.5 system-ui,sans-serif;background:#0f1115;color:#e6e8ee;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}main{max-width:620px}h1{font-size:1.25rem;margin:0 0 .6rem}code{background:#1b1f27;padding:.1rem .4rem;border-radius:6px;word-break:break-all}p{margin:.5rem 0}ol{padding-left:1.2rem}</style></head><body><main>
     <h1>Откройте прослойку по домену</h1>
-    <p>Сейчас она открыта по адресу <code><?= h($self['host']) ?></code>. Прослойка работает только через реверс-прокси по домену подписки — клиентам нужен HTTPS.</p>
+    <p>Сейчас она открыта по адресу <code><?= h($self['real_host'] !== '' ? $self['real_host'] : $self['host']) ?></code>. Прослойка работает только через реверс-прокси по домену подписки — клиентам нужен HTTPS.</p>
     <ol>
         <li>В реверс-прокси направьте домен подписки на <code>127.0.0.1:8080</code>. Установщик панели: Caddy — <code>SUB_BACKEND_URL=127.0.0.1:8080</code>, nginx — <code>upstream json { server 127.0.0.1:8080; }</code>.</li>
         <li>Откройте ссылку мастера из <code>docker compose logs submw</code>.</li>
@@ -113,7 +113,13 @@ if ($self['is_local']) {
 $S = inst_state_load();
 if ($S['key'] === '' || strpos($S['key'], '=') === false) {
     $S['key'] = inst_key_new();
-    inst_state_save($S);
+    if (!inst_state_save($S)) {
+        // Иначе ключ менялся бы на каждом запросе, а /admin/ вечно показывал приманку без объяснений.
+        $dir = h(dirname(inst_state_path()));
+        submw_plain_page('Папка data/ недоступна для записи',
+            '<p>Прослойке нужно писать в <code>' . $dir . '</code>: там база, сессии и состояние установки.</p>'
+            . '<p>Дайте пользователю веб-сервера права на запись в эту папку (например, <code>chown -R www-data:www-data data && chmod 750 data</code>) и обновите страницу.</p>', 500);
+    }
     error_log('submw: ссылка установки: ' . $self['base'] . '/admin/?' . $S['key']);
 }
 if (!admin_gate_check($S['key'])) {
@@ -290,7 +296,9 @@ function inst_finalize(array &$S, $pass, array $self) {
             $set('subpage_mirror', !empty($S['origin']['mirror_page']) ? '1' : '0');
             if ($S['origin']['prefix'] !== '') { $set('sub_prefix_enabled', '1'); $set('sub_prefix', $S['origin']['prefix']); }
         }
-        if (!empty($S['admin']['gate'])) $set('admin_gate_key', $S['key']);
+        // Постоянный ключ админки — не ключ мастера: тот напечатан в логах контейнера, install.sh и реверса.
+        $gate_key = '';
+        if (!empty($S['admin']['gate'])) { $gate_key = inst_key_new(); $set('admin_gate_key', $gate_key); }
         $set('install_scenario', $S['scenario']);
         if (!empty($S['pending'])) $set('install_pending', json_encode($S['pending'], JSON_UNESCAPED_UNICODE));
         if ($S['panel']['version'] !== '') {
@@ -307,10 +315,11 @@ function inst_finalize(array &$S, $pass, array $self) {
     }
     @chmod(config_path(), 0640);
     @unlink(inst_state_path());
+    if ($gate_key !== '') admin_gate_setcookie($gate_key);
     // Сквозной тест уже на рабочей прослойке: подписка первого пользователя через свой домен.
     $prefix = $S['mode'] === 'mirror' ? $S['origin']['prefix'] : '';
     $e2e = inst_e2e($self['base'], $S['user_short'], $prefix, !empty($S['panel']['tls']));
-    return ['ok' => true, 'e2e' => $e2e];
+    return ['ok' => true, 'e2e' => $e2e, 'gate_key' => $gate_key];
 }
 
 // ---- рендер ----
@@ -411,7 +420,7 @@ function inst_copy_btn() {
 
 function inst_render_done(array $S, array $fin, array $self) {
     $e2e = $fin['e2e'];
-    $link = $self['base'] . '/admin/?' . $S['key'];
+    $link = $self['base'] . '/admin/?' . ($fin['gate_key'] ?? $S['key']);
     inst_head('Установка завершена');
     ?>
     <div class="card">

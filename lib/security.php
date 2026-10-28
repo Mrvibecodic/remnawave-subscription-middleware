@@ -107,18 +107,29 @@ function admin_gate_link() {
 
 function admin_gate_cookie_secure() { return (($_SERVER['HTTPS'] ?? '') === 'on') || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'); }
 
+// Lax, не Strict: по ссылке из мессенджера или почты Strict-кука не уходит и на редиректе той же цепочки.
+function admin_gate_setcookie($key) {
+    [$gk, $gv] = explode('=', $key, 2);
+    setcookie($gk, $gv, ['expires' => time() + 86400 * 365, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => admin_gate_cookie_secure()]);
+}
+
 // Общий вход по ключу для мастера и админки. Ссылка с ключом ставит куку и ведёт на index.php?<имя> —
 // имя ключа без значения доступа не даёт, но отличает «кука не вернулась» от обычного захода без ссылки.
 function admin_gate_check($key) {
     [$gk, $gv] = explode('=', $key, 2);
     if (isset($_GET[$gk]) && is_string($_GET[$gk]) && $_GET[$gk] !== '' && hash_equals($gv, $_GET[$gk])) {
-        setcookie($gk, $gv, ['expires' => time() + 86400 * 365, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => admin_gate_cookie_secure()]);
+        admin_gate_setcookie($key);
         header('Location: index.php?' . $gk);
         exit();
     }
     $ok = isset($_COOKIE[$gk]) && hash_equals($gv, (string) $_COOKIE[$gk]);
     if (isset($_GET[$gk]) && $_GET[$gk] === '') {
-        if ($ok) { header('Location: index.php'); exit(); }
+        if ($ok) {
+            $rest = $_GET;
+            unset($rest[$gk]);
+            header('Location: index.php' . ($rest ? '?' . http_build_query($rest) : ''));
+            exit();
+        }
         admin_gate_nocookie_page();
     }
     return $ok;
@@ -134,12 +145,22 @@ function admin_gate_nocookie_page() {
     http_response_code(403);
     header('Cache-Control: no-store');
     header('X-Robots-Tag: noindex, nofollow');
-    $host = htmlspecialchars((string) ($_SERVER['HTTP_HOST'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $https = admin_gate_cookie_secure();
+    submw_plain_page('Браузер не вернул cookie входа',
+        '<p>Ссылка верная. Если вы открыли её из мессенджера или почты, браузер мог не отправить cookie на переходе — нажмите «Продолжить».</p>'
+        . '<p><a class="go" href="index.php">Продолжить</a></p>'
+        . ($https ? '<p>Если и так не входит — в браузере запрещены cookie для этого сайта; разрешите их и откройте ссылку снова.</p>'
+            : '<p>Если и так не входит — откройте ссылку по <code>https://</code>: без HTTPS браузер может не сохранять cookie.</p>'));
+}
+
+// Служебная страница вне admin.css: ошибки до входа и до установки.
+function submw_plain_page($title, $html, $code = 403) {
+    http_response_code($code);
+    header('Cache-Control: no-store');
+    header('X-Robots-Tag: noindex, nofollow');
     echo '<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Прослойка подписки</title>'
-        . '<style>body{margin:0;font:15px/1.5 system-ui,sans-serif;background:#0f1115;color:#e6e8ee;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}main{max-width:620px}h1{font-size:1.25rem;margin:0 0 .6rem}code{background:#1b1f27;padding:.1rem .4rem;border-radius:6px;word-break:break-all}p{margin:.5rem 0}</style></head><body><main>'
-        . '<h1>Браузер не сохранил cookie входа</h1>'
-        . '<p>Ссылка верная, но cookie помечена как «только HTTPS», а <code>' . $host . '</code> открыт без него: реверс-прокси говорит с прослойкой по http и не передаёт <code>X-Forwarded-Proto</code>.</p>'
-        . '<p>Откройте ссылку по <code>https://</code>. Если сертификата ещё нет — добавьте в реверс <code>proxy_set_header X-Forwarded-Proto $scheme;</code> и откройте ссылку снова.</p>'
+        . '<style>body{margin:0;font:15px/1.5 system-ui,sans-serif;background:#0f1115;color:#e6e8ee;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}main{max-width:620px}h1{font-size:1.25rem;margin:0 0 .6rem}code{background:#1b1f27;padding:.1rem .4rem;border-radius:6px;word-break:break-all}p{margin:.5rem 0}ol{padding-left:1.2rem}a.go{display:inline-block;background:#e6e8ee;color:#0f1115;text-decoration:none;font-weight:600;padding:.5rem 1.1rem;border-radius:8px}</style></head><body><main>'
+        . '<h1>' . htmlspecialchars((string) $title, ENT_QUOTES, 'UTF-8') . '</h1>' . $html
         . '</main></body></html>';
     exit();
 }
