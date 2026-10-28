@@ -36,7 +36,7 @@ if ($ux_sess) {
     $ux_an_rules = sess_anom_rules();
     $ux_cfg['sess'] = ['on' => sess_enabled(), 'alive' => function_exists('cron_alive') && cron_alive(), 'sc' => sess_scopes(), 'nolim' => sess_nolim(), 'win' => sess_win_days(), 'ankeep' => sess_anom_keep_days(), 'every' => sess_every(), 'gap' => sess_gap(), 'city' => geoip_city_ready(), 'glim' => sess_enabled() ? sess_hwid_cached() : null, 'geo' => function_exists('geoip_geo_ready') ? geoip_geo_ready() : geoip_reader('asn') !== null,
         'an' => $ux_an_rules, 'anm' => sess_anom_metrics(), 'ank' => sess_anom_kinds(), 'andef' => sess_anom_default()];
-    if (sess_enabled()) { $ux_cfg['sx'] = (object) sess_metrics(); $ux_cfg['ano'] = (object) sess_anom_open_map(); }
+    if (sess_enabled()) { $ux_cfg['sx'] = (object) sess_metrics(); $ux_cfg['ano'] = (object) sess_anom_open_map(); $ux_cfg['anh'] = (object) sess_anom_hist_map(); }
     $ux_sst = sess_state();
     $ux_sc = sess_scopes();
     $ux_sc_miss = array_values(array_filter([$ux_sc['node'], $ux_sc['node_res']], fn($s) => ($ux_ts[$s] ?? '') === 'miss'));
@@ -396,6 +396,15 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-an{display:inline-flex;align-items:center;gap:.4rem}
 .ux-an .n{font-size:.7rem;background:var(--c-bad-bg);color:var(--c-bad-fg);border-radius:999px;padding:.02rem .4rem;font-weight:700}
 .ux-an.on{border-color:var(--c-bad-fg);background:var(--c-bad-bg);color:var(--c-bad-fg)}
+.ux-an .pd{font-size:.72rem;font-weight:600;color:var(--muted)}
+.ux-an.on .pd{color:inherit;opacity:.8}
+.ux-an .cv{margin-left:-.1rem;opacity:.7}
+.ux-sb.h{background:transparent;box-shadow:inset 0 0 0 1.5px currentColor;opacity:.7}
+.ux-menu .ux-anr .dim{color:var(--muted);font-weight:500}
+.ux-menu .ux-anr .ck{visibility:hidden}
+.ux-menu .ux-anr.on .ck{visibility:visible;color:var(--accent)}
+.ux-menu .ux-anh{padding:.35rem .65rem .25rem;font-size:.72rem;line-height:1.4;color:var(--muted);max-width:17rem}
+@media(max-width:600px){.ux-menu .ux-anh{max-width:none;font-size:.8rem}}
 .ux-sb{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;font-size:.62rem;font-weight:800;flex:none;cursor:help}
 .ux-sb.b{background:var(--c-bad-bg);color:var(--c-bad-fg)}
 .ux-sb.w{background:var(--c-warn-bg);color:var(--c-warn-fg)}
@@ -599,7 +608,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <select id="uxSq" aria-label="Сквад"><option value="">Все сквады</option></select>
             <select id="uxTag" aria-label="Тег" hidden><option value="">Все теги</option></select>
             <span id="uxChips"></span>
-            <?php if ($ux_sess && sess_enabled()): ?><button type="button" class="wb ux-an" id="uxAn" aria-pressed="false" data-tip="Только пользователи с аномалиями по сессиям"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Аномалии<span class="n" id="uxAnN" hidden></span></button><?php endif; ?>
+            <?php if ($ux_sess && sess_enabled()): ?><button type="button" class="wb ux-an" id="uxAn" aria-pressed="false" aria-haspopup="true" aria-expanded="false" data-tip="Срез аномалий: сейчас или за период"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Аномалии<span class="pd" id="uxAnP"></span><span class="n" id="uxAnN" hidden></span><svg class="cv" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><?php endif; ?>
             <span class="sp"></span>
             <div class="ux-seg" id="uxColsSeg"><button type="button" id="uxColsBtn" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>Колонки</button></div>
             <div class="ux-seg" data-tip="Плотность строк">
@@ -695,6 +704,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
     <?php endif; ?>
 
     <div class="ux-menu" id="uxMenu" role="menu"></div>
+    <div class="ux-menu" id="uxAnM" role="menu" aria-label="Аномалии"></div>
     <div class="ux-menu" id="uxCols" aria-label="Колонки таблицы">
         <div class="ux-mt">Колонки</div>
         <?php foreach (['id' => 'ID', 'st' => 'Статус', 'tr' => 'Трафик', 'ex' => 'Истекает', 'sq' => 'Сквады', 'on' => 'Онлайн'] as $ux_k => $ux_l): ?>
@@ -737,10 +747,12 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 document.documentElement.classList.remove('lp');
 var C=window.UX_CFG,U=window.UX_USERS||[];
 var GSQ=C.gsq||'',DAY=86400000,GB=1073741824;
-var S={f:'all',q:'',sq:'',tag:'',sort:(C.sort&&C.sort.k)||'id',dir:(C.sort&&C.sort.d<0)?-1:1,page:1,size:50,dens:0,an:false};
-var SESS=C.sess||null,SX=C.sx||{},ANO=C.ano||{},USG=C.usage||null,ND=C.nodes||{},SESS_ANK=SESS?SESS.ankeep:30;
+var S={f:'all',q:'',sq:'',tag:'',sort:(C.sort&&C.sort.k)||'id',dir:(C.sort&&C.sort.d<0)?-1:1,page:1,size:50,dens:0,an:false,anp:'7'};
+var SESS=C.sess||null,SX=C.sx||{},ANO=C.ano||{},ANH=C.anh||{},USG=C.usage||null,ND=C.nodes||{},SESS_ANK=SESS?SESS.ankeep:30;
 try{var v0=parseInt(localStorage.getItem('utbl_size'),10);if([10,25,50,0].indexOf(v0)>-1)S.size=v0;}catch(e){}
 try{if(localStorage.getItem('utbl_dens')==='1')S.dens=1;}catch(e){}
+try{var a0=localStorage.getItem('utbl_anp');if(['0','1','7','a'].indexOf(a0)>-1)S.anp=a0;}catch(e){}
+if(S.anp==='a'&&SESS_ANK<=7)S.anp='7';
 var STRAT=[['NO_RESET','Без сброса'],['DAY','Каждый день'],['WEEK','Каждую неделю'],['MONTH','Каждый месяц'],['MONTH_ROLLING','Ежемесячно от даты создания']];
 var STRAT_S={NO_RESET:'',DAY:'день',WEEK:'неделя',MONTH:'мес',MONTH_ROLLING:'мес ↻'};
 var SQN={};U.forEach(function(u){u.sq.forEach(function(id,i){if(u.sqn[i])SQN[id]=u.sqn[i];});});
@@ -821,7 +833,11 @@ function winTxt(){return SESS.win===1?'за сутки':'за '+dd(SESS.win);}
 // Открытые аномалии считает планировщик; здесь только карта uid → {l, n, t}.
 function sesFlag(u){var a=SESS&&SESS.on&&u.id&&ANO[u.id];return a?{lvl:a.l,n:a.n,t:a.t}:null;}
 function lvc(l){return l==='bad'?'b':(l==='warn'?'w':'');}
-function sesBadge(u){var f=sesFlag(u);if(!f)return '';return '<span class="ux-sb '+lvc(f.lvl)+'" data-tip="'+esc(f.t)+'">!</span>';}
+function anDays(p){return p==='a'?SESS_ANK:+p;}
+function anPerTxt(p){return p==='0'?'сейчас':(p==='1'?'24 ч':anDays(p)+' дн');}
+// Срез для списка: идущая сейчас — всегда; иначе последняя закрытая в пределах периода.
+function anomAt(u,p){if(!SESS||!SESS.on||!u.id)return null;var a=ANO[u.id];if(a)return{lvl:a.l,open:1,t:'Идёт сейчас — '+a.t};if(p==='0')return null;var h=ANH[u.id];if(!h)return null;var c=now()/1000-anDays(p)*86400,b=h.b>=c?h.b:0,w=h.w>=c?h.w:0;if(!b&&!w)return null;return{lvl:b?'bad':'warn',open:0,t:'Была '+fdt(Math.max(b,w)*1000).replace(' в ',' ')+' — '+h.t};}
+function sesBadge(u){var f=anomAt(u,S.anp);if(!f)return '';return '<span class="ux-sb '+lvc(f.lvl)+(f.open?'':' h')+'" data-tip="'+esc(f.t)+'">!</span>';}
 function canW(sc){return !sc||C.ts[sc]!=='miss';}
 function roTip(sc){return 'Нет права '+sc+' у API-токена';}
 function toast(m){if(window.uiToast)uiToast(m);}
@@ -865,7 +881,7 @@ function matches(u){
  if(S.sq&&u.sq.indexOf(S.sq)<0)return false;
  if(S.tag==='-'&&u.tag)return false;
  if(S.tag&&S.tag!=='-'&&u.tag!==S.tag)return false;
- if(S.an&&!sesFlag(u))return false;
+ if(S.an&&!anomAt(u,S.anp))return false;
  if(S.q){var h=[u.un,u.su,u.desc,u.tg,u.em,u.tag].join(' ').toLowerCase();if(h.indexOf(S.q)<0)return false;}
  return true;
 }
@@ -875,6 +891,16 @@ var COLS=['id','st','tr','ex','sq','on'];
 function applyCols(){var t=$('uxTbl');COLS.forEach(function(k){t.classList.toggle('hide-'+k,S.hide.indexOf(k)>-1);});document.querySelectorAll('#uxCols [data-col]').forEach(function(i){i.checked=S.hide.indexOf(i.dataset.col)<0;});}
 function openCols(btn){var m=$('uxCols');applyCols();m.classList.add('open');btn.setAttribute('aria-expanded','true');var r=btn.getBoundingClientRect(),mw=m.offsetWidth,mh=m.offsetHeight;var left=Math.max(8,Math.min(r.right-mw,innerWidth-mw-8)),top=r.bottom+4;if(top+mh>innerHeight-8)top=Math.max(8,r.top-mh-4);m.style.left=left+'px';m.style.top=top+'px';}
 function closeCols(){$('uxCols').classList.remove('open');$('uxColsBtn').setAttribute('aria-expanded','false');}
+function openAnM(btn){
+ var m=$('uxAnM'),P=[['0','Сейчас','идут'],['1','За 24 часа',''],['7','За 7 дней','']];if(SESS_ANK>7)P.push(['a','Весь журнал',SESS_ANK+' дн']);
+ m.innerHTML='<div class="ux-mt">Срез аномалий</div>'+P.map(function(x){var n=U.filter(function(u){return !!anomAt(u,x[0]);}).length,on=S.anp===x[0];return '<button type="button" class="ux-anr'+(on?' on':'')+'" role="menuitemradio" aria-checked="'+on+'" data-anp="'+x[0]+'"><span class="ck">'+ico('check')+'</span><span>'+x[1]+(x[2]?' <span class="dim">· '+x[2]+'</span>':'')+'</span><span class="kb">'+n+'</span></button>';}).join('')+
+  (S.an?'<hr><button type="button" role="menuitem" data-anp="off">'+ico('x')+'Показать всех</button>':'')+
+  '<div class="ux-anh">Яркий «!» у имени — идёт сейчас, бледный — была за период. Подробности — в карточке, вкладка «Аномалии».</div>';
+ m.classList.add('open');btn.setAttribute('aria-expanded','true');
+ var r=btn.getBoundingClientRect(),mw=m.offsetWidth,mh=m.offsetHeight;var left=Math.max(8,Math.min(r.left,innerWidth-mw-8)),top=r.bottom+4;if(top+mh>innerHeight-8)top=Math.max(8,r.top-mh-4);m.style.left=left+'px';m.style.top=top+'px';
+}
+function closeAnM(){var m=$('uxAnM');if(!m)return;m.classList.remove('open');var b=$('uxAn');if(b)b.setAttribute('aria-expanded','false');}
+function anmOpen(){var m=$('uxAnM');return !!m&&m.classList.contains('open');}
 function setSort(k,d){S.sort=k;S.dir=d;S.page=1;render();post('users_sort',{sort:k+':'+(d>0?'asc':'desc')}).then(function(r){if(!r.ok)toast('Сортировка не сохранилась');});}
 function skey(u){switch(S.sort){
  case 'id':return parseInt(u.id,10)||0;
@@ -918,7 +944,7 @@ function render(){
  $('uxChips').innerHTML=chips.map(function(c){return '<span class="ux-chip">'+esc(c[1])+'<button type="button" data-unchip="'+c[0]+'" aria-label="Сбросить фильтр">×</button></span>';}).join(' ');
  $('uxPgr').innerHTML='<span>'+(list.length?(st+1)+'–'+Math.min(st+per,list.length)+' из '+list.length:'0')+'</span><div class="nav">'+(pages>1?'<button type="button" class="wb sm" data-pg="-1"'+(S.page<=1?' disabled':'')+' aria-label="Предыдущая страница">◀</button><span>стр. '+S.page+' / '+pages+'</span><button type="button" class="wb sm" data-pg="1"'+(S.page>=pages?' disabled':'')+' aria-label="Следующая страница">▶</button>':'')+'<label style="margin:0;display:flex;align-items:center;font-size:.82rem">На странице<select id="uxSize"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="0">Все</option></select></label></div>';
  $('uxSize').value=String(S.size);
- var ab=$('uxAn');if(ab){var an=U.filter(function(u){return !!sesFlag(u);}).length;ab.classList.toggle('on',S.an);ab.setAttribute('aria-pressed',S.an?'true':'false');$('uxAnN').hidden=!an;$('uxAnN').textContent=an;}
+ var ab=$('uxAn');if(ab){var an=U.filter(function(u){return !!anomAt(u,S.anp);}).length;ab.classList.toggle('on',S.an);$('uxAnP').textContent=anPerTxt(S.anp);$('uxAnN').hidden=!an;$('uxAnN').textContent=an;}
  applyRo(document.getElementById('ux'));
 }
 function applyRo(root){root.querySelectorAll('[data-w]').forEach(function(b){var sc=b.dataset.w;var dis=!canW(sc);if(dis){b.disabled=true;b.setAttribute('data-tip',roTip(sc));}else if((b.getAttribute('data-tip')||'').indexOf('Нет права')===0){b.removeAttribute('data-tip');}});}
@@ -1033,6 +1059,7 @@ window.addEventListener('popstate',function(){
  else if($('uxCfOv').classList.contains('open'))cfClose();
  else if($('uxMenu').classList.contains('open'))closeMenu();
  else if($('uxCols').classList.contains('open'))closeCols();
+ else if(anmOpen())closeAnM();
  else if($('uxPickOv').classList.contains('open'))closePick();
  else if($('uxQrOv').classList.contains('open'))$('uxQrOv').classList.remove('open');
  else closeCard();
@@ -1195,7 +1222,7 @@ function sessHtml(u){
  return h;
 }
 function durTxtS(sec){sec=Math.max(0,Math.round(sec));if(sec<90)return sec+' с';var m=Math.round(sec/60);if(m<90)return m+' мин';var h=Math.floor(m/60);m=m%60;if(h<48)return h+' ч'+(m?' '+m+' мин':'');return Math.round(h/24)+' дн';}
-function anomWhy(ev){var L=SESS.anm;return (ev.h||[]).map(function(h){var m=(L[h[0]]||h[0]);return m.charAt(0).toUpperCase()+m.slice(1)+' <b>'+h[1]+'</b> при пороге <b>'+h[2]+'</b>';}).join(' · ')+(ev.dev?' <span class="muted" style="font-size:.78rem">(устройств: '+ev.dev+')</span>':'');}
+function anomWhy(ev){var L=SESS.anm;return (ev.h||[]).map(function(h){var m=(L[h[0]]||h[0]);if(ev.e)m=m.replace(/ сейчас$/,'');return m.charAt(0).toUpperCase()+m.slice(1)+' <b>'+h[1]+'</b> при пороге <b>'+h[2]+'</b>';}).join(' · ')+(ev.dev?' <span class="muted" style="font-size:.78rem">(устройств: '+ev.dev+')</span>':'');}
 function anomIps(ips,sd){return ips.length?'<div class="an-ips">'+ips.map(function(x){var nd=sd?sNode(sd,x.node):'';return '<span class="an-ip">'+(x.cc?flag(x.cc):'')+'<span class="ip">'+esc(x.ip)+'</span>'+(x.org||x.sub?'<span class="as">'+esc([x.org||(x.asn?'AS'+x.asn:''),x.sub].filter(Boolean).join(' · '))+'</span>':'')+(nd?'<span class="nd">'+esc(nd)+'</span>':'')+'</span>';}).join('')+'</div>':'';}
 function anomHtml(u){
  var h='',sd=CARD.sess;
@@ -1505,6 +1532,9 @@ document.addEventListener('click',function(e){
  if($('uxMenu').classList.contains('open')&&!t.closest('#uxMenu')&&!t.closest('[data-act="menu"],[data-a="menu"]'))closeMenu();
  if($('uxCols').classList.contains('open')&&!t.closest('#uxCols')&&!t.closest('#uxColsBtn'))closeCols();
  if(t.closest('#uxColsBtn')){if($('uxCols').classList.contains('open'))closeCols();else openCols(t.closest('#uxColsBtn'));return;}
+ if(anmOpen()&&!t.closest('#uxAnM')&&!t.closest('#uxAn'))closeAnM();
+ if(t.closest('#uxAn')){if(anmOpen())closeAnM();else openAnM(t.closest('#uxAn'));return;}
+ var ap=t.closest('#uxAnM [data-anp]');if(ap){var v=ap.dataset.anp;if(v==='off')S.an=false;else{S.anp=v;S.an=true;try{localStorage.setItem('utbl_anp',v);}catch(_){}}S.page=1;closeAnM();render();return;}
  var mi=t.closest('#uxMenu [data-m]');if(mi){if(mi.disabled)return;var u0=menuFor;closeMenu();doAction(mi.dataset.m,u0);return;}
  if(!t.closest('#ux'))return;
  if(t.id==='uxCfOk'){if(CF&&CF.onOk&&!t.disabled)CF.onOk();return;}
@@ -1514,7 +1544,6 @@ document.addEventListener('click',function(e){
  if(t.id==='uxOv'){closeCard();return;}
  var k=t.closest('.ux-kpi');if(k){S.f=S.f===k.dataset.f&&k.dataset.f!=='all'?'all':k.dataset.f;S.page=1;render();return;}
  var th=t.closest('#uxTbl th.srt');if(th){var s=th.dataset.s;setSort(s,S.sort===s?-S.dir:((s==='id'||s==='tr'||s==='on')?-1:1));return;}
- if(t.closest('#uxAn')){S.an=!S.an;S.page=1;render();return;}
  var dn=t.closest('.ux-flt [data-dens]');if(dn){S.dens=+dn.dataset.dens;try{localStorage.setItem('utbl_dens',String(S.dens));}catch(_){}render();return;}
  var uc=t.closest('[data-unchip]');if(uc){S[uc.dataset.unchip]='';fillSelects();S.page=1;render();return;}
  var pg=t.closest('[data-pg]');if(pg){S.page+=+pg.dataset.pg;render();return;}
@@ -1552,7 +1581,7 @@ $('uxSq').addEventListener('change',function(){S.sq=this.value;S.page=1;render()
 $('uxTag').addEventListener('change',function(){S.tag=this.value;S.page=1;render();});
 document.addEventListener('change',function(e){var t=e.target;if(t.matches&&t.matches('#uxCols [data-col]')){var k=t.dataset.col;S.hide=S.hide.filter(function(x){return x!==k;});if(!t.checked)S.hide.push(k);applyCols();post('users_cols',{hide:S.hide.join(',')}).then(function(r){if(!r.ok)toast('Колонки не сохранились');});return;}if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
 document.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.ux-dk>.go')){e.preventDefault();e.target.closest('.ux-dk>.go').click();return;}});
-document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxCols').classList.contains('open')){closeCols();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
+document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxCols').classList.contains('open')){closeCols();return;}if(anmOpen()){closeAnM();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
 window.addEventListener('resize',closeMenu);
 document.addEventListener('mouseover',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD)return;CARD.uht=uhN(r);uhlApply();});
 document.addEventListener('mouseout',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD||CARD.uht==null)return;if(e.relatedTarget&&r.contains(e.relatedTarget))return;CARD.uht=null;uhlApply();});

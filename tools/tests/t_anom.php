@@ -87,6 +87,8 @@ $r = $rows();
 t_eq('аномалия прошла — события закрыты, но остались: id 1 онлайн без аномалии, id 3 пропал из снимка', array_map(static fn($x) => $x['uid'] . ' ' . $x['gid'] . ' ' . ($x['end_ts'] ? 'closed' : 'open'), $r), ['1 g1 closed', '1 g2 closed', '3 g2 closed']);
 t_ok('время закрытия проставлено', (int) $r[0]['end_ts'] >= (int) $r[0]['start_ts']);
 t_eq('открытых больше нет', sess_anom_open_map(), []);
+$hm = sess_anom_hist_map();
+t_ok('срез журнала: закрытые события есть у id 1 (красная и жёлтая) и id 3 (жёлтая), без «сейчас» в подсказке', array_keys($hm) === [1, 3] && $hm['1']['b'] > 0 && $hm['1']['w'] > 0 && $hm['3']['b'] === 0 && $hm['3']['w'] > 0 && mb_strpos($hm['3']['t'], 'сейчас') === false && mb_strpos($hm['3']['t'], 'Много IP: IP 3') === 0, json_encode($hm, JSON_UNESCAPED_UNICODE));
 
 // Неполный опрос: отсутствие в снимке не закрывает
 $tt_pdo->exec('UPDATE sess_anom SET end_ts = 0 WHERE uid = 3');

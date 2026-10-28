@@ -873,6 +873,26 @@ function sess_anom_open_map() {
     return $out;
 }
 
+// Закрытые события журнала для среза в списке: uid → {b, w — когда последний раз закрылась красная/жёлтая; t — что было в последней}.
+function sess_anom_hist_map() {
+    $out = [];
+    if (!sess_ensure() || !($p = db())) return $out;
+    $names = [];
+    foreach (sess_anom_rules() as $g) $names[$g['id']] = $g['name'];
+    try {
+        $st = $p->prepare('SELECT uid, gid, lvl, end_ts, why FROM sess_anom WHERE last_ts >= ? AND end_ts > 0 ORDER BY end_ts');
+        $st->execute([time() - sess_anom_keep_days() * 86400]);
+        foreach ($st as $r) {
+            $u = (string) (int) $r['uid'];
+            $k = $r['lvl'] === 'bad' ? 'b' : 'w';
+            if (!isset($out[$u])) $out[$u] = ['b' => 0, 'w' => 0, 't' => ''];
+            $out[$u][$k] = max($out[$u][$k], (int) $r['end_ts']);
+            $out[$u]['t'] = ($names[$r['gid']] ?? $r['gid']) . ': ' . str_replace(' сейчас ', ' ', sess_anom_why_text(json_decode((string) $r['why'], true)));
+        }
+    } catch (Throwable $e) {}
+    return $out;
+}
+
 function sess_anom_why_text($why) {
     if (!is_array($why)) return '';
     $m = sess_anom_metrics();
