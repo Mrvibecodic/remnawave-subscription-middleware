@@ -572,9 +572,10 @@ function geoip_maybe_update() {
     $have = geoip_have();
     foreach (geoip_wanted() as $which => $remote) {
         $f = geoip_files()[$which];
-        $max = geoip_src_of($which) === 'dbip' ? 35 * 86400 : 7 * 86400;
-        // Файл без записи об источнике скачан старой версией — тогда источник был только DB-IP.
-        if (!is_file($f) || $now - (int) @filemtime($f) >= $max || ($have[$which] ?? 'dbip') !== geoip_src_of($which)) $need[] = $which;
+        // Файл без записи об источнике — скачан старой версией или положен вручную: его не трогаем до истечения срока.
+        $src = $have[$which] ?? '';
+        $max = ($src === '' || $src === 'dbip') ? 35 * 86400 : 7 * 86400;
+        if (!is_file($f) || $now - (int) @filemtime($f) >= $max || ($src !== '' && $src !== geoip_src_of($which))) $need[] = $which;
     }
     if (!$need) return;
     $err = '';

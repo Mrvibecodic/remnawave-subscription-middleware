@@ -150,7 +150,7 @@ function cron_limit(array $ctx) {
 
 // По одному: время проверяется после каждой проверки, а не после пачки.
 function cron_task_grace($ctx) {
-    $end = min(microtime(true) + CRON_GRACE_SECONDS, $ctx['deadline'] - 2);
+    $end = min(microtime(true) + ($ctx['grace_cap'] ?? CRON_GRACE_SECONDS), $ctx['deadline'] - 2);
     $n = 0;
     $err = 0;
     do {
@@ -218,7 +218,10 @@ function cron_run($src) {
         $st['src'] = (string) $src;
         if (!is_array($st['tasks'] ?? null)) $st['tasks'] = [];
         cron_save($st);
-        foreach (cron_tasks() as $name => [$title, $every, $heavy]) {
+        $tasks = cron_tasks();
+        // Короткий бюджет «по адресу» без fpm: грейс не должен забирать его целиком, иначе опрос сессий не стартует никогда.
+        if (!$ctx['detached'] && isset($tasks['sessions']) && sess_enabled() && cron_task_due($st['tasks']['sessions'] ?? null, $tasks['sessions'][1], $now)) $ctx['grace_cap'] = 8;
+        foreach ($tasks as $name => [$title, $every, $heavy]) {
             if ($heavy && !$ctx['detached']) continue;
             if (!cron_task_due($st['tasks'][$name] ?? null, $every, $now)) continue;
             if (microtime(true) > $ctx['deadline']) break;
