@@ -6,7 +6,6 @@ error_reporting(E_ALL);
 require __DIR__ . '/../lib.php';
 
 header('X-Robots-Tag: noindex, nofollow');
-header('X-Frame-Options: DENY');
 if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) ($_GET['tab'] ?? 'users')));
 
 if (is_installed() && app_only_closed()) {
@@ -24,14 +23,16 @@ if (!is_installed()) {
 
 $C = cfg();
 
-admin_session_boot();
-session_start();
-
-// Гейт: без секретной куки /admin/ неотличим от корня сайта. Приложение входит по своему каналу.
+// Гейт — до сессии и защитных заголовков: без секретной куки /admin/ неотличим от корня сайта
+// (приманка корня не ставит cookie и не шлёт X-Frame-Options). Приложение входит по своему каналу.
 if (!app_tunnel() && !admin_gate_pass()) {
     landing_render();
     exit();
 }
+header('X-Frame-Options: DENY');
+
+admin_session_boot();
+session_start();
 
 function csrf_token() {
     if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
@@ -257,6 +258,8 @@ if (isset($_GET['ajax']) && is_auth()) {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $se = '';
         $ip = trim((string) ($_POST['ip'] ?? ''));
+        // Невалидный IP не должен молча превращаться в «сбросить все соединения пользователя».
+        if ($ip !== '' && !sess_ip_ok($ip)) { echo json_encode(['ok' => false, 'error' => 'Некорректный IP-адрес'], JSON_UNESCAPED_UNICODE); exit(); }
         $ok = sess_drop((string) ($_POST['rv'] ?? ''), $ip !== '' ? [$ip] : [], $se);
         echo json_encode(['ok' => $ok, 'error' => $se], JSON_UNESCAPED_UNICODE);
         exit();
@@ -826,8 +829,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         $anBefore = json_encode(sess_anom_rules());
         $rules = sess_anom_save(json_decode((string) ($_POST['sess_anom'] ?? '[]'), true));
         // Схема изменилась — открытые события пересчитываются по последнему снимку сразу, не дожидаясь опроса.
-        if (sess_enabled() && json_encode($rules) !== $anBefore) sess_anom_recalc();
-        flash($rules ? 'Схема аномалий сохранена' : 'Схема пуста — аномалии не отслеживаются');
+        $later = sess_enabled() && json_encode($rules) !== $anBefore && !sess_anom_recalc();
+        flash($rules ? ('Схема аномалий сохранена' . ($later ? ' — сейчас идёт опрос, события пересчитаются в нём' : '')) : 'Схема пуста — аномалии не отслеживаются');
         form_saved('users');
     }
 
@@ -922,9 +925,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         if ($op === 'off') { set_setting('admin_gate_key', ''); flash('Секретная ссылка выключена: /admin/ открывается по обычному адресу.'); }
         else {
             $key = admin_gate_new();
-            [$gk, $gv] = explode('=', $key, 2);
-            setcookie($gk, $gv, ['expires' => time() + 86400 * 365, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => admin_gate_cookie_secure()]);
-            flash($op === 'new' ? 'Ссылка перевыпущена — старая больше не работает, скопируйте новую.' : 'Вход по секретной ссылке включён. Скопируйте ссылку: без неё /admin/ показывает приманку.');
+            admin_gate_setcookie($key);
+            flash(($op === 'new' ? 'Ссылка перевыпущена — старая больше не работает, скопируйте новую: ' : 'Вход по секретной ссылке включён, без неё /admin/ показывает приманку. Ссылка: ') . admin_gate_link());
+            // Через ?<имя> — если новая кука не прижилась, вместо молчаливой приманки будет страница с подсказкой.
+            if (empty($_POST['xhr'])) { header('Location: index.php?tab=connection&' . explode('=', $key, 2)[0]); exit(); }
         }
         form_saved('connection');
     }
