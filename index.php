@@ -241,7 +241,8 @@ if ($current_hwid === '' && $ua_hwid_value !== '') $current_hwid = $ua_hwid_valu
 
 $fail_log = function ($reason) use ($skip_log, $short_ov, $segs, $ip, $path, $ua, $current_hwid, $ua_hwid_vals, $http_code) {
     $short = $short_ov ? (string) $short_ov['match_value'] : (string) ($segs[0] ?? '');
-    if ($skip_log || nolog_is_set($short) || !reqlog_known_token($short, $short_ov)) return;
+    // function_exists: прежний апдейтер пишет index.php раньше lib/.
+    if ($skip_log || nolog_is_set($short) || !function_exists('reqlog_known_token') || !reqlog_known_token($short, $short_ov)) return;
     log_request($ip, $short, $path, $ua, 'error', null, $current_hwid, [
         'er'   => ['c' => (int) $http_code, 'r' => $reason],
         'dv'   => reqlog_device($ua_hwid_vals),
@@ -264,7 +265,7 @@ if ($curl_err) {
     } else {
         http_response_code(502);
     }
-    $fail_log(reqlog_fail_reason($curl_errno));
+    $fail_log(function_exists('reqlog_fail_reason') ? reqlog_fail_reason($curl_errno) : 'curl');
     die();
 }
 
@@ -517,7 +518,7 @@ if (!$skip_log) {
     if ((int) $http_code >= 400) {
         // Ответ панели ушёл клиенту как есть, но выдачей это не было — «error», а не «normal».
         // Браузер на странице подписки пишется только вместе с остальными страницами.
-        if (!($is_page && !reqlog_pages_enabled() && is_browser_ua($ua)) && reqlog_known_token($short_uuid, $short_ov)) {
+        if (!($is_page && !reqlog_pages_enabled() && is_browser_ua($ua)) && function_exists('reqlog_known_token') && reqlog_known_token($short_uuid, $short_ov)) {
             log_request($ip, $short_uuid, $path, $ua, 'error', $expire_ts, $current_hwid, [
                 'bytes' => strlen($response),
                 'er'    => ['c' => (int) $http_code, 'r' => 'http'],

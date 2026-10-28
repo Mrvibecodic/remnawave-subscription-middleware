@@ -86,7 +86,7 @@ function remnawave_all_users(&$error = '', ?callable $each = null) {
 function remnawave_api_request($method, $path, $body = null) {
     $base  = remnawave_url();
     $token = remnawave_token();
-    if ($base === '' || $token === '') return [false, 0, null, 'Не заданы URL панели или API-токен'];
+    if ($base === '' || $token === '') { unset($GLOBALS['submw_apistat_expect']); return [false, 0, null, 'Не заданы URL панели или API-токен']; }
     $url = $base . '/' . ltrim($path, '/');
     $headers = ['Authorization: Bearer ' . $token, 'Accept: application/json'];
     if (strpos($base, 'http://') === 0) {
@@ -279,6 +279,7 @@ function panel_ref_spec($name) {
 
 // maxAge 0 — всегда свежий ответ панели (и он же обновляет снимок для остальных).
 // При сбое панели: снимок есть и maxAge > 0 — отдаём его и PANEL_REF_RETRY с не ходим снова; иначе null.
+// Снимки лежат в admin_cache: settings целиком читаются на каждом запросе подписки, а хосты — сотни КБ.
 function panel_ref($name, $maxAge, &$error = '') {
     $error = '';
     $spec = panel_ref_spec($name);
@@ -286,10 +287,10 @@ function panel_ref($name, $maxAge, &$error = '') {
     $now = time();
     $key = 'pref_' . $name;
     $memo = &$GLOBALS['submw_pref_memo'];
-    if (!is_array($memo)) $memo = [];
+    if (!is_array($memo)) { $memo = []; panel_ref_settings_cleanup(); }
     $fresh = static function ($c) use ($now, $maxAge) { return $maxAge > 0 && is_array($c) && is_array($c['d'] ?? null) && $now - (int) ($c['ts'] ?? 0) <= $maxAge; };
     $c = $memo[$name] ?? null;
-    if (!$fresh($c)) $c = json_decode((string) setting($key, ''), true);
+    if (!$fresh($c)) $c = admin_cache_get($key, PHP_INT_MAX);
     $has = is_array($c) && is_array($c['d'] ?? null);
     if ($fresh($c)) { $memo[$name] = $c; return $c['d']; }
     if ($has && $maxAge > 0 && $now - (int) ($c['e'] ?? 0) < PANEL_REF_RETRY) { $memo[$name] = $c; $error = (string) ($c['em'] ?? 'панель недоступна'); return $c['d']; }
@@ -301,17 +302,31 @@ function panel_ref($name, $maxAge, &$error = '') {
         $c['e'] = $now;
         $c['em'] = $error;
         $memo[$name] = $c;
-        set_setting($key, json_encode($c, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+        admin_cache_put($key, $c);
         return $has && $maxAge > 0 ? $c['d'] : null;
     }
     $c = ['ts' => $now, 'd' => $spec[1]($data)];
     $memo[$name] = $c;
-    set_setting($key, json_encode($c, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+    admin_cache_put($key, $c);
     return $c['d'];
 }
 
+// Снимки прежних версий лежали в settings — убираем один раз; проверка бесплатна, settings уже в памяти.
+function panel_ref_settings_cleanup() {
+    setting('sess_nodes', null);
+    $keys = [];
+    foreach (array_keys((array) ($GLOBALS['submw_settings_cache'] ?? [])) as $k) {
+        if (strpos((string) $k, 'pref_') === 0 || $k === 'sess_nodes') $keys[] = (string) $k;
+    }
+    if (!$keys || !($p = db())) return;
+    try {
+        $p->prepare('DELETE FROM settings WHERE k IN (' . implode(',', array_fill(0, count($keys), '?')) . ')')->execute($keys);
+        foreach ($keys as $k) unset($GLOBALS['submw_settings_cache'][$k]);
+    } catch (Throwable $e) {}
+}
+
 function panel_ref_ts($name) {
-    $c = $GLOBALS['submw_pref_memo'][$name] ?? json_decode((string) setting('pref_' . $name, ''), true);
+    $c = $GLOBALS['submw_pref_memo'][$name] ?? admin_cache_get('pref_' . $name, PHP_INT_MAX);
     return is_array($c) && is_array($c['d'] ?? null) ? (int) ($c['ts'] ?? 0) : 0;
 }
 
