@@ -25,7 +25,11 @@ function apistat_ep($path) {
     $p = (string) parse_url((string) $path, PHP_URL_PATH);
     if ($p === '') $p = (string) $path;
     $segs = explode('/', trim($p, '/'));
+    $prev = '';
     foreach ($segs as $i => $s) {
+        // После by-username/by-email/by-telegram-id идёт значение любого вида — имя пользователя в статистику не попадает.
+        if ($s !== '' && strpos($prev, 'by-') === 0) { $segs[$i] = '{x}'; $prev = $s; continue; }
+        $prev = $s;
         if ($s === '' || preg_match('~^[a-z][a-z-]*$~', $s)) continue;
         if (preg_match('~^[0-9a-f]{8}-[0-9a-f]{4}-~i', $s) || preg_match('~^\d+$~', $s) || (strlen($s) >= 8 && preg_match('~^[A-Za-z0-9_-]+$~', $s))) $segs[$i] = '{x}';
     }
@@ -104,6 +108,8 @@ function apistat_flush() {
         try { $p->rollBack(); } catch (Throwable $e2) {}
         error_log('submw apistat flush: ' . $e->getMessage());
     }
+    // Без планировщика таблицу чистить некому — как у метрик, изредка попутно с записью.
+    if (random_int(1, 400) === 1) apistat_prune();
 }
 
 function apistat_prune() {
@@ -111,6 +117,8 @@ function apistat_prune() {
     try {
         $st = db()->prepare('DELETE FROM api_stat_hour WHERE h < ?');
         $st->execute([intdiv(time(), 3600) * 3600 - APISTAT_KEEP_DAYS * 86400]);
+        // Строки с именами пользователей из версий, где by-username не обобщался.
+        db()->exec("DELETE FROM api_stat_hour WHERE ep LIKE '%/by-%/%' AND ep NOT LIKE '%/by-%/{x}%'");
     } catch (Throwable $e) {}
 }
 

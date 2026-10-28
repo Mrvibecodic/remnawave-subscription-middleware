@@ -789,6 +789,7 @@ function ico(n,w){return '<svg viewBox="0 0 24 24" width="'+(w||16)+'" height="'
 function now(){return Date.now();}
 function p2(n){return(n<10?'0':'')+n;}
 function fdt(ts){var d=new Date(ts);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' в '+p2(d.getHours())+':'+p2(d.getMinutes());}
+document.querySelectorAll('.ct-time[data-ts]').forEach(function(el){var d=new Date(parseInt(el.getAttribute('data-ts'),10)*1000);if(!isNaN(d.getTime()))el.textContent=d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes());});
 function fd(ts){var d=new Date(ts);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
 function dlv(ts){var d=new Date(ts);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'T'+p2(d.getHours())+':'+p2(d.getMinutes());}
 function plural(n,a,b,c){n=Math.abs(n)%100;var m=n%10;if(n>10&&n<20)return c;if(m>1&&m<5)return b;if(m===1)return a;return c;}

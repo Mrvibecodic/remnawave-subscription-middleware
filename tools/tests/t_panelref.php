@@ -73,9 +73,9 @@ t_eq('принудительное обновление — свежие нод�
 // Сбой панели: снимок остаётся, повторная попытка не раньше чем через PANEL_REF_RETRY
 $cut();
 unset($GLOBALS['submw_pref_memo']);
-$c = json_decode((string) setting('pref_nodes', ''), true);
+$c = admin_cache_get('pref_nodes', PHP_INT_MAX);
 $c['ts'] = time() - 700;
-set_setting('pref_nodes', json_encode($c));
+admin_cache_put('pref_nodes', $c);
 t_settings(['remnawave_url' => $panel . '/down']);
 t_eq('устаревший снимок при сбое панели отдаётся, ошибка — в $error', [count((array) panel_ref('nodes', 600, $e)), $e !== ''], [3, true]);
 panel_ref('nodes', 600, $e);
@@ -99,7 +99,7 @@ $cut();
 $mock(['nodes' => $base['nodes'] + [$N3 => ['name' => 'Paris', 'cc' => 'FR']], 'hosts' => $base['hosts'] + [2 => ['remark' => 'FR', 'address' => 'par.example.net', 'nodes' => [$N3]]]]);
 sess_nodes_fetch($e, 0);
 t_eq('новый хост без новой ноды — подождёт снимка', $n($hits(), '/api/hosts'), 0);
-set_setting('sess_nodes', json_encode([$N1 => ['n' => 'Amsterdam', 'cc' => 'NL', 'h' => []]]));
+admin_cache_put('sess_nodes', ['n' => [$N1 => ['n' => 'Amsterdam', 'cc' => 'NL', 'h' => []]]]);
 $live = sess_nodes_fetch($e, 0);
 t_eq('новая нода в списке — хосты перечитаны сразу', [$n($hits(), '/api/hosts'), $live[$N3]['h'] ?? null], [1, ['FR']]);
 $cut();
