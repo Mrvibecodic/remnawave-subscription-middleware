@@ -117,7 +117,7 @@ if ($path === '/api/nodes') {
 if ($path === '/api/hosts') {
     // hosts: [{"remark": "…", "address": "…", "nodes": ["<nodeUuid>"], "off": false}]
     $out = [];
-    foreach ((array) ($state['hosts'] ?? []) as $h) $out[] = ['uuid' => md5((string) ($h['remark'] ?? '')), 'remark' => (string) ($h['remark'] ?? ''), 'address' => (string) ($h['address'] ?? ''), 'port' => 443, 'isDisabled' => !empty($h['off']), 'nodes' => array_values((array) ($h['nodes'] ?? []))];
+    foreach ((array) ($state['hosts'] ?? []) as $h) $out[] = ['uuid' => md5((string) ($h['remark'] ?? '')), 'remark' => (string) ($h['remark'] ?? ''), 'address' => (string) ($h['address'] ?? ''), 'port' => 443, 'isDisabled' => !empty($h['off']), 'nodes' => array_values((array) ($h['nodes'] ?? [])), 'tags' => array_values((array) ($h['tags'] ?? []))];
     mp_json(200, ['response' => $out]);
     exit;
 }
@@ -183,9 +183,158 @@ if ($path === '/api/internal-squads' || $path === '/api/external-squads') {
     mp_json(200, ['response' => [$path === '/api/internal-squads' ? 'internalSquads' : 'externalSquads' => $out]]);
     exit;
 }
-if ($path === '/api/subscription-settings') {
+// Правила ответа: srr — конфиг как в панели (по умолчанию — дефолтные правила панели), srr_upd — updatedAt.
+function mp_srr_default(): array
+{
+    $c = static fn(string $h, string $op, string $v, bool $cs) => ['headerName' => $h, 'operator' => $op, 'value' => $v, 'caseSensitive' => $cs];
+    $r = static fn(string $n, array $cond, string $t) => ['name' => $n, 'enabled' => true, 'operator' => 'AND', 'conditions' => $cond, 'responseType' => $t];
+    return ['version' => '1', 'settings' => [], 'rules' => [
+        $r('Browser Subscription', [$c('accept', 'CONTAINS', 'text/html', true)], 'BROWSER'),
+        $r('Mihomo Clients', [$c('user-agent', 'REGEX', '^(?:flclash|rabbit|flowvy|murge|mihomo|prizrak-box|koala-clash|clash(?:-verge|-nyanpasu|x meta|[-.]?meta))', false)], 'MIHOMO'),
+        $r('Stash (iOS, macOS)', [$c('user-agent', 'REGEX', '^stash', false)], 'STASH'),
+        $r('Sing-box clients', [$c('user-agent', 'REGEX', '^sfa|sfi|sfm|sft|karing|singbox', false)], 'SINGBOX'),
+        $r('Clash Core Clients', [$c('user-agent', 'REGEX', '^clash', false)], 'CLASH'),
+        $r('Fallback Base64', [], 'XRAY_BASE64'),
+    ]];
+}
+
+// Проверка конфига как у панели (Zod): неизвестные ключи молча выкидываются, ошибка — текстом.
+function mp_srr_parse($in, ?string &$err): ?array
+{
+    $err = null;
+    if (!is_array($in)) { $err = 'responseRules: expected object'; return null; }
+    if (($in['version'] ?? null) !== '1') { $err = 'version: Invalid enum value'; return null; }
+    if (!is_array($in['rules'] ?? null)) { $err = 'rules: Required'; return null; }
+    $ops = ['EQUALS', 'NOT_EQUALS', 'CONTAINS', 'NOT_CONTAINS', 'STARTS_WITH', 'NOT_STARTS_WITH', 'ENDS_WITH', 'NOT_ENDS_WITH', 'REGEX', 'NOT_REGEX'];
+    $types = ['XRAY_BASE64', 'XRAY_JSON', 'MIHOMO', 'STASH', 'CLASH', 'SINGBOX', 'BROWSER', 'BLOCK', 'STATUS_CODE_404', 'STATUS_CODE_451', 'SOCKET_DROP'];
+    $out = ['version' => '1', 'rules' => []];
+    if (isset($in['settings']) && is_array($in['settings'])) {
+        $out['settings'] = [];
+        if (array_key_exists('disableSubscriptionAccessByPath', $in['settings'])) {
+            if (!is_bool($in['settings']['disableSubscriptionAccessByPath'])) { $err = 'settings.disableSubscriptionAccessByPath: Expected boolean'; return null; }
+            $out['settings']['disableSubscriptionAccessByPath'] = $in['settings']['disableSubscriptionAccessByPath'];
+        }
+    }
+    foreach ($in['rules'] as $i => $r) {
+        if (!is_array($r)) { $err = "rules.$i: Expected object"; return null; }
+        $n = $r['name'] ?? null;
+        if (!is_string($n) || $n === '') { $err = "rules.$i.name: Name is required"; return null; }
+        if (mb_strlen($n) > 50) { $err = "rules.$i.name: Name must be less than 50 characters"; return null; }
+        if (array_key_exists('description', $r) && (!is_string($r['description']) || $r['description'] === '' || mb_strlen($r['description']) > 250)) { $err = "rules.$i.description: invalid"; return null; }
+        if (!is_bool($r['enabled'] ?? null)) { $err = "rules.$i.enabled: Expected boolean"; return null; }
+        if (!in_array($r['operator'] ?? null, ['AND', 'OR'], true)) { $err = "rules.$i.operator: Invalid enum value"; return null; }
+        if (!is_array($r['conditions'] ?? null)) { $err = "rules.$i.conditions: Required"; return null; }
+        if (!in_array($r['responseType'] ?? null, $types, true)) { $err = "rules.$i.responseType: Invalid response type"; return null; }
+        $o = ['name' => $n, 'enabled' => $r['enabled'], 'operator' => $r['operator'], 'conditions' => [], 'responseType' => $r['responseType']];
+        if (isset($r['description'])) $o['description'] = $r['description'];
+        foreach ($r['conditions'] as $j => $c) {
+            if (!is_array($c) || !is_string($c['headerName'] ?? null) || !preg_match('/^[!#$%&\'*+.0-9A-Z^_`a-z|~-]+$/', $c['headerName'])) { $err = "rules.$i.conditions.$j.headerName: Invalid header name"; return null; }
+            if (!in_array($c['operator'] ?? null, $ops, true)) { $err = "rules.$i.conditions.$j.operator: Invalid operator"; return null; }
+            if (!is_string($c['value'] ?? null) || $c['value'] === '' || mb_strlen($c['value']) > 255) { $err = "rules.$i.conditions.$j.value: Value is required"; return null; }
+            if (!is_bool($c['caseSensitive'] ?? null)) { $err = "rules.$i.conditions.$j.caseSensitive: Expected boolean"; return null; }
+            if (in_array($c['operator'], ['REGEX', 'NOT_REGEX'], true) && @preg_match('~' . str_replace('~', '\\~', $c['value']) . '~', '') === false) { $err = 'Invalid regex in rule "' . $n . '": ' . $c['value']; return null; }
+            $o['conditions'][] = ['headerName' => $c['headerName'], 'operator' => $c['operator'], 'value' => $c['value'], 'caseSensitive' => $c['caseSensitive']];
+        }
+        if (isset($r['responseModifications']) && is_array($r['responseModifications'])) {
+            $m = $r['responseModifications']; $mo = [];
+            if (isset($m['headers'])) {
+                if (!is_array($m['headers'])) { $err = "rules.$i.responseModifications.headers: Expected array"; return null; }
+                $mo['headers'] = [];
+                foreach ($m['headers'] as $h) {
+                    if (!is_array($h) || !is_string($h['key'] ?? null) || !preg_match('/^[!#$%&\'*+.0-9A-Z^_`a-z|~-]+$/', $h['key']) || !is_string($h['value'] ?? null) || $h['value'] === '') { $err = "rules.$i.responseModifications.headers: invalid"; return null; }
+                    $mo['headers'][] = ['key' => $h['key'], 'value' => $h['value']];
+                }
+            }
+            foreach (['applyHeadersToEnd', 'ignoreHostXrayJsonTemplate', 'ignoreServeJsonAtBaseSubscription', 'disableHwidCheck'] as $k) if (isset($m[$k])) { if (!is_bool($m[$k])) { $err = "rules.$i.responseModifications.$k: Expected boolean"; return null; } $mo[$k] = $m[$k]; }
+            if (isset($m['subscriptionTemplate'])) { if (!is_string($m['subscriptionTemplate']) || $m['subscriptionTemplate'] === '') { $err = "rules.$i.responseModifications.subscriptionTemplate: required"; return null; } $mo['subscriptionTemplate'] = $m['subscriptionTemplate']; }
+            if (isset($m['additionalExtendedClientsRegex'])) { foreach ((array) $m['additionalExtendedClientsRegex'] as $re) if (!is_string($re) || $re === '' || @preg_match('~' . str_replace('~', '\\~', $re) . '~', '') === false) { $err = 'Invalid regex in rule "' . $n . '": ' . (string) $re; return null; } $mo['additionalExtendedClientsRegex'] = array_values($m['additionalExtendedClientsRegex']); }
+            if (isset($m['encryption'])) { if (!is_array($m['encryption']) || !in_array($m['encryption']['method'] ?? null, ['age1', 'age1pq1'], true) || !is_string($m['encryption']['key'] ?? null)) { $err = "rules.$i.responseModifications.encryption: invalid"; return null; } $mo['encryption'] = ['method' => $m['encryption']['method'], 'key' => $m['encryption']['key']]; }
+            if (isset($m['excludeHostsByTags'])) { if (!is_array($m['excludeHostsByTags']) || !$m['excludeHostsByTags']) { $err = "rules.$i.responseModifications.excludeHostsByTags: too small"; return null; } foreach ($m['excludeHostsByTags'] as $t) if (!is_string($t) || !preg_match('~^[A-Z0-9_:]+$~', $t) || strlen($t) > 36) { $err = 'Each tag must be less than 36 characters'; return null; } $mo['excludeHostsByTags'] = array_values($m['excludeHostsByTags']); }
+            if (isset($m['respondWithRemarks'])) { if (!is_array($m['respondWithRemarks'])) { $err = "rules.$i.responseModifications.respondWithRemarks: Expected array"; return null; } $mo['respondWithRemarks'] = array_values(array_map('strval', $m['respondWithRemarks'])); }
+            $o['responseModifications'] = $mo;
+        }
+        $out['rules'][] = $o;
+    }
+    return $out;
+}
+
+// Сопоставление как в панели: заголовок в нижнем регистре; нет заголовка — ложь при любом операторе;
+// без учёта регистра опускаются и значение, и шаблон.
+function mp_srr_match(array $cfg, array $headers): array
+{
+    foreach ($cfg['rules'] as $rule) {
+        if (empty($rule['enabled'])) continue;
+        $res = [];
+        foreach ($rule['conditions'] as $c) {
+            $hv = $headers[strtolower($c['headerName'])] ?? null;
+            if ($hv === null) { $res[] = false; continue; }
+            $v = $c['value'];
+            if (empty($c['caseSensitive'])) { $hv = strtolower($hv); $v = strtolower($v); }
+            $re = static fn() => (bool) @preg_match('~' . str_replace('~', '\\~', $v) . '~' . (empty($c['caseSensitive']) ? 'i' : ''), $hv);
+            $res[] = match ($c['operator']) {
+                'EQUALS' => $hv === $v, 'NOT_EQUALS' => $hv !== $v,
+                'CONTAINS' => str_contains($hv, $v), 'NOT_CONTAINS' => !str_contains($hv, $v),
+                'STARTS_WITH' => str_starts_with($hv, $v), 'NOT_STARTS_WITH' => !str_starts_with($hv, $v),
+                'ENDS_WITH' => str_ends_with($hv, $v), 'NOT_ENDS_WITH' => !str_ends_with($hv, $v),
+                'REGEX' => $re(), 'NOT_REGEX' => !$re(), default => false,
+            };
+        }
+        $ok = !$rule['conditions'] || ($rule['operator'] === 'OR' ? in_array(true, $res, true) : !in_array(false, $res, true));
+        if ($ok) return ['matched' => true, 'matchedRule' => $rule, 'responseType' => $rule['responseType']];
+    }
+    return ['matched' => false, 'matchedRule' => null, 'responseType' => 'BLOCK'];
+}
+
+function mp_srr_state(array $state): array
+{
+    return is_array($state['srr'] ?? null) ? $state['srr'] : mp_srr_default();
+}
+
+function mp_settings_body(array $state): array
+{
     $hw = is_array($state['hwid'] ?? null) ? ['enabled' => !empty($state['hwid']['enabled']), 'fallbackDeviceLimit' => (int) ($state['hwid']['limit'] ?? 0)] : null;
-    mp_json(200, ['response' => ['uuid' => 'sub-settings', 'hwidSettings' => $hw]]);
+    return ['uuid' => 'a1b2c3d4-0000-4000-8000-000000000001', 'serveJsonAtBaseSubscription' => !empty($state['serve_json']), 'isShowCustomRemarks' => !empty($state['custom_remarks']),
+            'customRemarks' => [], 'customResponseHeaders' => null, 'randomizeHosts' => false, 'responseRules' => mp_srr_state($state), 'hwidSettings' => $hw,
+            'createdAt' => '2026-01-01T00:00:00.000Z', 'updatedAt' => (string) ($state['srr_upd'] ?? '2026-01-01T00:00:00.000Z')];
+}
+
+if ($path === '/api/subscription-settings' && $_SERVER['REQUEST_METHOD'] === 'PATCH') {
+    $body = json_decode((string) file_get_contents('php://input'), true);
+    if (!is_array($body) || ($body['uuid'] ?? '') === '') { mp_json(400, ['message' => 'uuid: Required', 'statusCode' => 400]); exit; }
+    if (!empty($state['srr_forbid'])) { mp_json(403, ['message' => 'Forbidden', 'statusCode' => 403]); exit; }
+    if (array_key_exists('responseRules', $body)) {
+        $err = null;
+        $parsed = mp_srr_parse($body['responseRules'], $err);
+        if ($parsed === null) { mp_json(400, ['message' => 'Config validation error: ' . $err, 'statusCode' => 400]); exit; }
+        $state['srr'] = $parsed;
+        $state['srr_upd'] = gmdate('Y-m-d\TH:i:s.000\Z');
+        @file_put_contents((string) getenv('MOCK_STATE'), json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+    mp_json(200, ['response' => mp_settings_body($state)]);
+    exit;
+}
+if ($path === '/api/subscription-settings') {
+    mp_json(200, ['response' => mp_settings_body($state)]);
+    exit;
+}
+if ($path === '/api/system/testers/srr-matcher' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!empty($state['srr_tester_forbid'])) { mp_json(403, ['message' => 'Forbidden', 'statusCode' => 403]); exit; }
+    $body = json_decode((string) file_get_contents('php://input'), true);
+    $err = null;
+    $parsed = mp_srr_parse(is_array($body) ? ($body['responseRules'] ?? null) : null, $err);
+    if ($parsed === null) { mp_json(500, ['error' => 'Internal server error', 'message' => (string) $err]); exit; }
+    $hdr = [];
+    foreach ($_SERVER as $k => $v) if (strpos($k, 'HTTP_') === 0) $hdr[strtolower(str_replace('_', '-', substr($k, 5)))] = (string) $v;
+    if (isset($_SERVER['CONTENT_TYPE'])) $hdr['content-type'] = (string) $_SERVER['CONTENT_TYPE'];
+    $r = mp_srr_match($parsed, $hdr);
+    mp_json(200, ['response' => ['matched' => $r['matched'], 'matchedRule' => $r['matchedRule'], 'responseType' => $r['responseType'], 'inputHeaders' => $hdr, 'outputHeaders' => $r['matchedRule']['responseModifications']['headers'] ?? []]]);
+    exit;
+}
+if ($path === '/api/subscription-templates') {
+    $tpl = is_array($state['templates'] ?? null) ? $state['templates'] : [['name' => 'Default', 'type' => 'XRAY_JSON'], ['name' => 'Default', 'type' => 'MIHOMO'], ['name' => 'Gaming', 'type' => 'XRAY_JSON']];
+    $out = [];
+    foreach ($tpl as $i => $t) $out[] = ['uuid' => sprintf('t-%03d', $i), 'name' => (string) $t['name'], 'templateType' => (string) $t['type'], 'viewPosition' => $i];
+    mp_json(200, ['response' => ['templates' => $out]]);
     exit;
 }
 if ($path === '/api/config-profiles/inbounds') {

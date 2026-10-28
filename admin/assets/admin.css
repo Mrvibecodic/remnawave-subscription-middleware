@@ -69,6 +69,8 @@
     .rw-nav a.active svg{color:var(--accent-text)}
     .rw-nav a .nav-dot,.hbtn-dot{width:9px;height:9px;border-radius:50%;background:var(--amber);animation:navpulse 1.8s ease-out infinite}
     .rw-nav a .nav-dot{margin-left:auto;flex:0 0 auto}
+    .rw-nav a .nav-beta{margin-left:auto;flex:0 0 auto;font-size:.58rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;line-height:1.2;padding:.08rem .3rem;border-radius:5px;border:1px solid var(--c-warn-fg);color:var(--c-warn-fg);background:var(--c-warn-bg)}
+    .rw-nav a .nav-beta+.nav-dot{margin-left:.4rem}
     .rw-nav [hidden]{display:none!important}
     .navacc-h{display:flex;align-items:center;justify-content:space-between;gap:.5rem;width:100%;background:transparent;border:0;cursor:pointer;text-align:left;font-family:inherit;text-transform:uppercase;color:var(--muted);font-weight:700;opacity:.85}
     .navacc-h:hover,.navacc-h:focus{outline:none}

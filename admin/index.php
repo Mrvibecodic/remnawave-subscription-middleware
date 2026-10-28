@@ -233,6 +233,66 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if (strpos($a, 'pr_') === 0 && function_exists('pr_state')) {
+        $isPost = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST';
+        if ($isPost && !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        @set_time_limit(90);
+        $e = '';
+        $out = ['ok' => false, 'error' => 'Неизвестное действие'];
+        $cfgIn = $isPost ? json_decode((string) ($_POST['cfg'] ?? ''), true) : null;
+        $unknown = [];
+        $cfg = is_array($cfgIn) ? pr_normalize($cfgIn, $unknown) : null;
+        $ctxOf = static function () {
+            $s = panel_ref('subset', 3600);
+            return pr_ctx(is_array($s) ? $s + ['custom_remarks' => false, 'serve_json' => false] : ['custom_remarks' => false, 'serve_json' => false, 'hwid' => null]);
+        };
+        if ($a === 'pr_load') {
+            $st = pr_state($e);
+            $cl = pr_clients(168);
+            $out = ['ok' => $st !== null, 'error' => $e, 'state' => $st !== null ? pr_state_public($st) : null, 'ver' => panel_version(), 'scopes' => pr_scopes(),
+                    'tags' => pr_tags($e2), 'templates' => pr_templates($e3), 'clients' => $cl, 'presence' => pr_header_presence(168), 'paths' => pr_paths_stat(30),
+                    'snaps' => pr_snap_list(), 'pushed' => (int) setting('pr_pushed_ts', '0')];
+            if ($st !== null) { $v = pr_validate(pr_normalize($st['rules'] ?? [], $unknown), pr_ctx($st)); $out['check'] = $v + ['unknown' => $unknown]; }
+        } elseif ($a === 'pr_check' && $cfg !== null) {
+            $out = ['ok' => true] + pr_validate($cfg, $ctxOf()) + ['unknown' => $unknown];
+        } elseif ($a === 'pr_test' && $cfg !== null) {
+            $hdr = json_decode((string) ($_POST['headers'] ?? ''), true);
+            $r = pr_test($cfg, is_array($hdr) ? $hdr : [], $e);
+            $out = $r === null ? ['ok' => false, 'error' => $e] : ['ok' => true] + $r;
+        } elseif ($a === 'pr_map' && $cfg !== null) {
+            $mode = !empty($_POST['force']) ? 'force' : (!empty($_POST['cached']) ? 'cached' : '');
+            $r = pr_map($cfg, (int) ($_POST['hours'] ?? 168), $e, $mode);
+            $out = $r === null ? ['ok' => false, 'error' => $e, 'nocache' => $mode === 'cached' && $e === ''] : ['ok' => true] + $r;
+        } elseif ($a === 'pr_push' && $cfg !== null) {
+            $out = pr_push($cfg, (string) ($_POST['base_hash'] ?? ''));
+        } elseif ($a === 'pr_clients') {
+            $out = ['ok' => true] + pr_clients((int) ($_GET['hours'] ?? 168)) + ['presence' => pr_header_presence((int) ($_GET['hours'] ?? 168))];
+        } elseif ($a === 'pr_snaps') {
+            $out = ['ok' => true, 'snaps' => pr_snap_list()];
+        } elseif ($a === 'pr_snap') {
+            $sn = pr_snap_get((int) ($_GET['id'] ?? 0));
+            $out = $sn === null ? ['ok' => false, 'error' => 'Снимок не найден'] : ['ok' => true, 'snap' => $sn];
+        } elseif ($a === 'pr_snap_add' && $isPost) {
+            $st = pr_state($e);
+            if ($st === null) $out = ['ok' => false, 'error' => $e];
+            else { $id = pr_snap_add($st['rules'], 'manual', trim((string) ($_POST['note'] ?? '')), (string) $st['upd']); $out = ['ok' => $id > 0, 'error' => $id > 0 ? '' : 'Не удалось сохранить снимок', 'id' => $id, 'snaps' => pr_snap_list()]; }
+        } elseif ($a === 'pr_snap_restore' && $isPost) {
+            $sn = pr_snap_get((int) ($_POST['id'] ?? 0));
+            $out = $sn === null ? ['ok' => false, 'error' => 'Снимок не найден'] : pr_push(pr_normalize($sn['rules'], $unknown), (string) ($_POST['base_hash'] ?? ''), 'restore');
+            if (!empty($out['ok'])) $out['snaps'] = pr_snap_list();
+        } elseif ($a === 'pr_snap_del' && $isPost) {
+            $out = ['ok' => pr_snap_delete((int) ($_POST['id'] ?? 0)), 'snaps' => pr_snap_list()];
+        } elseif ($a === 'pr_user') {
+            $u = pr_user_find((string) ($_GET['q'] ?? ''), $e);
+            $out = $u === null ? ['ok' => false, 'error' => $e] : ['ok' => true, 'user' => $u];
+        } elseif ($a === 'pr_devices') {
+            $d = pr_user_devices(rw_ref('uuid', (string) ($_GET['uuid'] ?? '')), $e);
+            $out = ['ok' => $e === '', 'error' => $e, 'devices' => $d];
+        }
+        echo json_encode($out, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
     if ($a === 'sess_user' && function_exists('sess_user_data')) {
         echo json_encode(['ok' => true] + sess_user_data((int) ($_GET['id'] ?? 0)), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         exit();
@@ -1735,7 +1795,7 @@ if ($tab === 'pagekeys') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Базы GeoIP'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Базы GeoIP'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 // function_exists: прежний апдейтер пишет admin/index.php раньше lib/branding.php.
 if ($db_ok && function_exists('brand_refresh_if_stale')) brand_refresh_if_stale();
@@ -1878,6 +1938,7 @@ $nav = [
     'webhooks'  => ['Настройки', '<g transform="scale(.09375)" fill="currentColor" stroke="none"><path d="M40,88H73a32,32,0,0,0,62,0h81a8,8,0,0,0,0-16H135a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16Zm64-24A16,16,0,1,1,88,80,16,16,0,0,1,104,64ZM216,168H199a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16h97a32,32,0,0,0,62,0h17a8,8,0,0,0,0-16Zm-48,24a16,16,0,1,1,16-16A16,16,0,0,1,168,192Z"/></g>'],
     'subst'     => ['Грейс-сквад', '<path d="M5 22h14" /> <path d="M5 2h14" /> <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" /> <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />'],
     'rules'     => ['Правила ответа', '<circle cx="6" cy="19" r="3" /> <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" /> <circle cx="18" cy="5" r="3" />'],
+    'panel_rules' => ['Правила панели', '<path d="m3 16 4 4 4-4" /> <path d="M7 20V4" /> <path d="M11 4h10" /> <path d="M11 8h7" /> <path d="M11 12h4" />'],
     'hwid'      => ['HWID', '<path d="M18.9 7a8 8 0 0 1 1.1 5v1a6 6 0 0 0 .8 3" /> <path d="M8 11a4 4 0 0 1 8 0v1a10 10 0 0 0 2 6" /> <path d="M12 11v2a14 14 0 0 0 2.5 8" /> <path d="M8 15a18 18 0 0 0 1.8 6" /> <path d="M4.9 19a22 22 0 0 1 -.9 -7v-1a8 8 0 0 1 12 -6.95" />'],
     'overrides' => ['Оверрайды', '<path d="M3 4a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M15 16a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M21 11v-3a2 2 0 0 0 -2 -2h-6l3 3m0 -6l-3 3" /> <path d="M3 13v3a2 2 0 0 0 2 2h6l-3 -3m0 6l3 -3" />'],
     'squad_configs' => ['Доп. конфиги', '<path d="M11.35 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v5.35" /> <path d="M14 2v5a1 1 0 0 0 1 1h5" /> <path d="M14 19h6" /> <path d="M17 16v6" />'],
@@ -1909,7 +1970,7 @@ $nav_sections = [
     ['l' => 'Clod Clash',       'coll' => true,  'k' => 'clod',   'items' => ['clod', 'reports']],
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog'] : ['webhooks', 'whlog']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
-    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'hwid', 'overrides', 'squad_configs', 'wg_pool', 'addsub', 'pagekeys']],
+    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'panel_rules', 'hwid', 'overrides', 'squad_configs', 'wg_pool', 'addsub', 'pagekeys']],
     ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => ['sysinfo', 'update', 'migrate']],
 ];
 function submw_ui_cookie() {
@@ -1941,7 +2002,8 @@ function pager_cookie_size($store_key, $default = 25) {
 function nav_link($key, $it, $active, $badge = '', $grp = '', $off = false) {
     $svg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
     $dot = $badge !== '' ? '<span class="nav-dot" role="img" aria-label="' . h($badge) . '" data-tip="' . h($badge) . '"></span>' : '';
-    return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '" data-nk="' . h($key) . '" data-ng="' . h($grp) . '"' . ($off ? ' hidden' : '') . '>' . $svg . '<span>' . h($it[0]) . '</span>' . $dot . '</a>';
+    $beta = in_array($key, ['panel_rules'], true) ? '<span class="nav-beta" data-tip="Раздел в бете: работает, но может меняться">бета</span>' : '';
+    return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '" data-nk="' . h($key) . '" data-ng="' . h($grp) . '"' . ($off ? ' hidden' : '') . '>' . $svg . '<span>' . h($it[0]) . '</span>' . $beta . $dot . '</a>';
 }
 $nav_hid = nav_hidden_get();
 $nav_off = [];
@@ -2068,6 +2130,9 @@ navHidSync();
 
 <?php elseif ($tab === 'rules'): ?>
     <?php include __DIR__ . '/inc/tab_rules.php'; ?>
+
+<?php elseif ($tab === 'panel_rules'): ?>
+    <?php include __DIR__ . '/inc/tab_panel_rules.php'; ?>
 
 <?php elseif ($tab === 'hwid'): ?>
     <?php include __DIR__ . '/inc/tab_hwid.php'; ?>

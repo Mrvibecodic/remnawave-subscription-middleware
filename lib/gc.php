@@ -20,6 +20,7 @@ function gc_tables() {
         'conn_sess'      => ['title' => 'Сессии подключений',          'pk' => 'id', 'col' => 'last_ts', 'kind' => 'epoch'],
         'sess_anom'      => ['title' => 'Журнал аномалий сессий',      'pk' => 'id', 'col' => 'last_ts', 'kind' => 'epoch'],
         'api_stat_hour'  => ['title' => 'Запросы к панели по часам',   'pk' => 'h',  'col' => 'h',       'kind' => 'epoch'],
+        'panel_rules_snap' => ['title' => 'Снимки правил ответа панели', 'pk' => 'id', 'col' => 'ts',    'kind' => 'epoch'],
     ];
 }
 
@@ -46,6 +47,7 @@ function gc_ensure() {
     rep_ensure();
     if (function_exists('sess_ensure')) sess_ensure();
     if (function_exists('apistat_ensure')) apistat_ensure();
+    if (function_exists('pr_snap_ensure')) pr_snap_ensure();
 }
 
 function gc_count($table, $days) {
