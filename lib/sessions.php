@@ -92,9 +92,10 @@ function sess_state() {
     return is_array($s) ? $s : [];
 }
 
+// Снимок нод — в admin_cache, не в settings: settings целиком читаются на каждом запросе подписки.
 function sess_nodes_known() {
-    $s = json_decode((string) setting('sess_nodes', ''), true);
-    return is_array($s) ? $s : [];
+    $c = function_exists('admin_cache_get') ? admin_cache_get('sess_nodes', PHP_INT_MAX) : null;
+    return is_array($c) && is_array($c['n'] ?? null) ? $c['n'] : [];
 }
 
 // До 3.0 обозреватель сессий — /api/ip-control с uuid пользователя, с 3.0 — /api/connections с числовым id.
@@ -151,7 +152,8 @@ function sess_job_start($path, &$err = '') {
     return $job;
 }
 
-// Задачи опрашиваются по кругу, пока все не завершатся или не выйдет время.
+// Задачи опрашиваются по кругу, пока все не завершатся или не выйдет время; пауза между кругами
+// растёт с 0,3 до 2 с, чтобы десятки нод не превращались в сотни запросов за тик.
 // Возвращает по ключу: массив результата, false — задача упала или не успела, null — не стартовала.
 function sess_jobs_wait(array $jobs, callable $path, $deadline) {
     $out = [];
@@ -160,6 +162,7 @@ function sess_jobs_wait(array $jobs, callable $path, $deadline) {
         if ($job === '') $out[$k] = null;
         else $pending[$k] = $job;
     }
+    $pause = 300000;
     while ($pending && microtime(true) < $deadline) {
         foreach ($pending as $k => $job) {
             if (microtime(true) >= $deadline) break;
@@ -170,7 +173,7 @@ function sess_jobs_wait(array $jobs, callable $path, $deadline) {
             if (!empty($r['isFailed'])) { $out[$k] = false; unset($pending[$k]); continue; }
             if (!empty($r['isCompleted'])) { $out[$k] = is_array($r['result'] ?? null) ? $r['result'] : false; unset($pending[$k]); }
         }
-        if ($pending) usleep(300000);
+        if ($pending) { usleep($pause); $pause = min(2000000, (int) ($pause * 1.5)); }
     }
     foreach ($pending as $k => $job) $out[$k] = false;
     return $out;
@@ -216,8 +219,7 @@ function sess_nodes_fetch(&$err = '', $maxAge = 0) {
         foreach ($live as $u => $info) $live[$u]['h'] = $map[$u] ?? [];
     }
     if (count($known) > 500) $known = array_slice($known, -500, null, true);
-    $json = json_encode($known, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-    if ($json !== (string) setting('sess_nodes', '')) set_setting('sess_nodes', $json);
+    if ($known !== sess_nodes_known()) admin_cache_put('sess_nodes', ['n' => $known]);
     // Возраст подписей считается от снимка, а не от пересборки: суммарно не старше прежних 10 минут.
     set_setting('sess_nodes_ts', (string) (panel_ref_ts('nodes') ?: time()));
     return $live;
@@ -243,8 +245,11 @@ function sess_collect($deadline) {
     $jobs = [];
     $first = '';
     $flipped = false;
+    // Последние 3 с — на запись и схему аномалий: иначе одна зависшая нода съедает весь бюджет и аномалии не считаются никогда.
+    $wait_until = $deadline - 3;
     foreach ($nodes as $uuid => $info) {
-        if (microtime(true) >= $deadline) break;
+        // Не успели стартовать — это «не ответила», а не «опрошена»: иначе опрос считался бы полным.
+        if (microtime(true) >= $wait_until) { $jobs[$uuid] = ''; continue; }
         $e = '';
         $jobs[$uuid] = sess_job_start($P['node']($uuid), $e);
         if ($e === 'нет такого адреса API' && !$flipped) {
@@ -256,7 +261,7 @@ function sess_collect($deadline) {
         }
         if ($e !== '' && $first === '') $first = $e;
     }
-    $res = sess_jobs_wait($jobs, $P['node_res'], $deadline);
+    $res = sess_jobs_wait($jobs, $P['node_res'], $wait_until);
     $now = time();
     $seen = [];
     foreach ($res as $uuid => $r) {
@@ -280,6 +285,7 @@ function sess_collect($deadline) {
     // Схема аномалий — по тому же снимку; закрывать события по «пропавшим» можно только при полном опросе.
     if ($st['ok'] > 0 && $st['err'] === '') $st['an'] = sess_anom_eval($cur, $now, !$st['fail'], $deadline);
     sess_state_save($st, $t0);
+    admin_cache_put('sess_mx', []);
     if ($st['ok'] === 0) return 'ни одна нода не ответила' . ($first !== '' ? ': ' . $first : '');
     return $st['err'];
 }
@@ -333,6 +339,9 @@ function sess_purge_maybe() {
 
 function cron_task_sessions($ctx) {
     if (!sess_enabled()) return '';
+    // Список лимитов обновляется до опроса и только при запасе времени; сам опрос берёт снимок как есть.
+    $slot = min(5, $ctx['deadline'] - microtime(true) - 12);
+    if ($slot > 1 && sess_anom_rules()) sess_users_limits(1800, microtime(true) + $slot);
     $err = sess_collect(min(microtime(true) + 15, $ctx['deadline'] - 2));
     sess_purge_maybe();
     return $err;
@@ -349,7 +358,14 @@ function sess_metrics(?array $uids = null, $days = null) {
     $out = [];
     if (!sess_ensure() || !($p = db())) return $out;
     $now = time();
-    $from = $now - max(1, (int) ($days ?? sess_win_days())) * 86400;
+    $days = max(1, (int) ($days ?? sess_win_days()));
+    // Список пользователей просит метрики всех сразу на каждую отрисовку — считаем раз на опрос (сброс в sess_collect).
+    $cacheKey = $uids === null ? 'sess_mx' : '';
+    if ($cacheKey !== '') {
+        $c = admin_cache_get($cacheKey, sess_every() * 2 + 60);
+        if (is_array($c) && is_array($c['m'] ?? null) && (int) ($c['d'] ?? 0) === $days) return $c['m'];
+    }
+    $from = $now - $days * 86400;
     $every = sess_every();
     try {
         $sql = 'SELECT uid, ip, cc, asn, sub, start_ts, last_ts FROM conn_sess WHERE last_ts >= ?';
@@ -407,6 +423,7 @@ function sess_metrics(?array $uids = null, $days = null) {
         $rows[] = ['ip' => (string) $r['ip'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'sub' => (string) $r['sub'], 's' => (int) $r['start_ts'], 'e' => (int) $r['last_ts']];
     }
     $flush();
+    if ($cacheKey !== '') admin_cache_put($cacheKey, ['d' => $days, 'm' => $out]);
     return $out;
 }
 
@@ -449,25 +466,56 @@ function sess_regeo() {
     if (geoip_reader('country') === null && geoip_reader('asn') === null) return 0;
     $n = 0;
     try {
-        $st = $p->prepare('SELECT ip, cc, asn, org, sub FROM conn_sess WHERE last_ts >= ? GROUP BY ip, cc, asn, org, sub');
+        // Индекса по ip нет — обновляем по id пачками с коммитом на пачку: один длинный UPDATE на
+        // группу держал бы SQLite под write-lock минуты, и запросы подписки не могли бы писать лог.
+        // Строки читаются потоком, отсортированные по группе: гео считается раз на группу, id копятся пачкой.
+        $st = $p->prepare('SELECT id, ip, cc, asn, org, sub FROM conn_sess WHERE last_ts >= ? ORDER BY ip, cc, asn, org, sub');
         $st->execute([time() - sess_keep_days() * 86400]);
-        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
-        $upd = $p->prepare('UPDATE conn_sess SET cc = ?, asn = ?, org = ?, sub = ? WHERE ip = ? AND cc = ? AND asn = ? AND org = ? AND sub = ?');
-        $p->beginTransaction();
-        foreach ($rows as $r) {
-            $g = sess_geo((string) $r['ip']);
-            // Чего новая база не знает — не стирать: лучше старое значение, чем пустое.
-            $cc = $g['cc'] !== '' ? $g['cc'] : (string) $r['cc'];
-            $asn = $g['asn'] > 0 ? $g['asn'] : (int) $r['asn'];
-            $org = $g['asn'] > 0 ? mb_substr($g['org'], 0, 128) : (string) $r['org'];
-            $sub = $g['sub'] !== '' ? mb_substr($g['sub'], 0, 64) : (string) $r['sub'];
-            if ($cc === (string) $r['cc'] && $asn === (int) $r['asn'] && $org === (string) $r['org'] && $sub === (string) $r['sub']) continue;
-            $upd->execute([$cc, $asn, $org, $sub, $r['ip'], $r['cc'], $r['asn'], $r['org'], $r['sub']]);
-            $n += $upd->rowCount();
+        $batch = [];
+        $flush = static function () use ($p, &$batch, &$n) {
+            if (!$batch) return;
+            $p->beginTransaction();
+            try {
+                foreach ($batch as [$vals, $ids]) {
+                    foreach (array_chunk($ids, 500) as $chunk) {
+                        $q = $p->prepare('UPDATE conn_sess SET cc = ?, asn = ?, org = ?, sub = ? WHERE id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')');
+                        $q->execute(array_merge($vals, $chunk));
+                        $n += $q->rowCount();
+                    }
+                }
+                $p->commit();
+            } catch (Throwable $e) {
+                try { $p->rollBack(); } catch (Throwable $e2) {}
+                throw $e;
+            }
+            $batch = [];
+        };
+        $rowsInBatch = 0;
+        $gk = null; $vals = null; $ids = [];
+        $take = static function () use (&$batch, &$rowsInBatch, &$vals, &$ids, $flush) {
+            if ($vals !== null && $ids) { $batch[] = [$vals, $ids]; $rowsInBatch += count($ids); }
+            $ids = [];
+            if ($rowsInBatch >= 2000) { $flush(); $rowsInBatch = 0; }
+        };
+        while (($r = $st->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $k = $r['ip'] . '|' . $r['cc'] . '|' . $r['asn'] . '|' . $r['org'] . '|' . $r['sub'];
+            if ($k !== $gk) {
+                $take();
+                $gk = $k;
+                $g = sess_geo((string) $r['ip']);
+                // Чего новая база не знает — не стирать: лучше старое значение, чем пустое.
+                $cc = $g['cc'] !== '' ? $g['cc'] : (string) $r['cc'];
+                $asn = $g['asn'] > 0 ? $g['asn'] : (int) $r['asn'];
+                $org = $g['asn'] > 0 ? mb_substr($g['org'], 0, 128) : (string) $r['org'];
+                $sub = $g['sub'] !== '' ? mb_substr($g['sub'], 0, 64) : (string) $r['sub'];
+                $same = $cc === (string) $r['cc'] && $asn === (int) $r['asn'] && $org === (string) $r['org'] && $sub === (string) $r['sub'];
+                $vals = $same ? null : [$cc, $asn, $org, $sub];
+            }
+            if ($vals !== null) $ids[] = (int) $r['id'];
         }
-        $p->commit();
+        $take();
+        $flush();
     } catch (Throwable $e) {
-        try { $p->rollBack(); } catch (Throwable $e2) {}
         error_log('submw sess regeo: ' . $e->getMessage());
     }
     return $n;
@@ -515,7 +563,9 @@ function sess_live($ref, &$err = '') {
 function sess_drop($ref, array $ips = [], &$err = '') {
     $err = '';
     $P = sess_paths();
+    $want = count($ips);
     $ips = array_values(array_filter($ips, 'sess_ip_ok'));
+    if ($want > 0 && !$ips) { $err = 'Некорректный IP-адрес'; return false; }
     if ($ips) {
         $by = ['by' => 'ipAddresses', 'ipAddresses' => $ips];
     } else {
@@ -592,7 +642,8 @@ function sess_anom_rules() {
     $rules = &$GLOBALS['submw_anom_rules'];
     if (is_array($rules)) return $rules;
     $raw = setting('sess_anom', null);
-    if ($raw === null) return sess_anom_save(sess_enabled() ? sess_anom_legacy() : []);
+    // Пока сбор выключен, пустую схему не записывать: при включении первый вызов подставит типовую.
+    if ($raw === null) return sess_enabled() ? sess_anom_save(sess_anom_legacy()) : [];
     $rules = sess_anom_norm(json_decode((string) $raw, true));
     return $rules;
 }
@@ -604,25 +655,44 @@ function sess_anom_save($raw) {
     return $rules;
 }
 
-// Лимиты устройств пользователей из панели: id → [свой лимит | null «как в панели», внешний сквад]. Кэш 10 минут.
-function sess_users_limits($maxAge = 600) {
+// Лимиты устройств пользователей из панели: id → [свой лимит | null «как в панели», внешний сквад].
+// Это весь список пользователей постранично, поэтому кэш полчаса, а докачка — по страницам до
+// $deadline с продолжением в следующем тике; пока снимок не собран целиком, отдаётся прежний.
+function sess_users_limits($maxAge = 1800, $deadline = null) {
     $src = md5(remnawave_url() . "\n" . remnawave_token());
-    $c = admin_cache_get('sess_users', $maxAge);
-    if (is_array($c) && ($c['src'] ?? '') === $src && is_array($c['u'] ?? null)) return $c['u'];
-    $stale = static function () use ($src) { $o = admin_cache_get('sess_users', PHP_INT_MAX); return (is_array($o) && ($o['src'] ?? '') === $src && is_array($o['u'] ?? null)) ? $o['u'] : []; };
-    if (remnawave_url() === '' || remnawave_token() === '') return $stale();
-    $err = '';
-    $u = [];
-    remnawave_all_users($err, static function (array $page) use (&$u) {
-        foreach ($page as $x) {
+    $o = admin_cache_get('sess_users', PHP_INT_MAX);
+    if (!is_array($o) || ($o['src'] ?? '') !== $src) $o = ['src' => $src, 'u' => null, 'ts0' => 0];
+    $stale = is_array($o['u'] ?? null) ? $o['u'] : [];
+    // Возраст — по ts0 собранного снимка, а не по записи в кэше: частичный прогресс его не продлевает.
+    if (is_array($o['u'] ?? null) && time() - (int) ($o['ts0'] ?? 0) < $maxAge) return $stale;
+    // Снимка ещё не было — собрать сразу, иначе до первого свободного тика все пороги шли бы по общему лимиту.
+    if ($deadline === null && !is_array($o['u'] ?? null)) $deadline = microtime(true) + 8;
+    if ($deadline === null || remnawave_url() === '' || remnawave_token() === '') return $stale;
+    $part = is_array($o['part'] ?? null) ? $o['part'] : [];
+    $start = (int) ($o['next'] ?? 0);
+    $size = 250;
+    $done = false;
+    while (microtime(true) < $deadline) {
+        [$ok, , $data, ] = remnawave_api_get("/api/users?size={$size}&start={$start}");
+        if (!$ok) break;
+        $resp = is_array($data) ? ($data['response'] ?? $data) : [];
+        $users = is_array($resp) ? ($resp['users'] ?? $resp) : [];
+        if (!is_array($users)) $users = [];
+        $total = (int) ($resp['total'] ?? count($users));
+        foreach ($users as $x) {
             if (!is_array($x) || !isset($x['id'])) continue;
             $hw = (isset($x['hwidDeviceLimit']) && $x['hwidDeviceLimit'] !== '' && $x['hwidDeviceLimit'] !== null) ? (int) $x['hwidDeviceLimit'] : null;
-            $u[(string) (int) $x['id']] = [$hw, (string) ($x['externalSquadUuid'] ?? '')];
+            $part[(string) (int) $x['id']] = [$hw, (string) ($x['externalSquadUuid'] ?? '')];
         }
-    });
-    if ($err !== '') return $stale();
-    admin_cache_put('sess_users', ['src' => $src, 'u' => $u]);
-    return $u;
+        $start += $size;
+        if (!$users || $start >= $total || $start > 1000000) { $done = true; break; }
+    }
+    if ($done) {
+        admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => time()]);
+        return $part;
+    }
+    admin_cache_put('sess_users', ['src' => $src, 'u' => is_array($o['u'] ?? null) ? $o['u'] : null, 'ts0' => (int) ($o['ts0'] ?? 0), 'part' => $part, 'next' => $start]);
+    return $stale;
 }
 
 // «Устройства» для порогов: свой лимит → внешний сквад → общий лимит панели; без лимита — число из настроек.
@@ -685,14 +755,20 @@ function sess_anom_eval(array $cur, $now, $full, $deadline = null) {
     if (!sess_ensure() || !($p = db())) return 'nodb';
     $rules = sess_anom_rules();
     $open = [];
+    $close = [];
     try {
-        $st = $p->query('SELECT id, uid, gid, ips FROM sess_anom WHERE end_ts = 0');
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $open[(int) $r['uid'] . '|' . $r['gid']] = $r;
+        $st = $p->query('SELECT id, uid, gid, ips FROM sess_anom WHERE end_ts = 0 ORDER BY id');
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $k = (int) $r['uid'] . '|' . $r['gid'];
+            // Дубль открытого события (пересчёт шёл параллельно с опросом) — лишний закрывается, остаётся первый.
+            if (isset($open[$k])) { $close[] = (int) $r['id']; continue; }
+            $open[$k] = $r;
+        }
     } catch (Throwable $e) { return 'read'; }
-    $ins = []; $upd = []; $close = [];
+    $ins = []; $upd = [];
     if ($rules) {
         $nolim = sess_nolim();
-        $limits = $cur ? sess_users_limits() : [];
+        $limits = $cur ? sess_users_limits(1800, null) : [];
         $exh = [];
         $needEx = false;
         foreach ($cur as $uid => $rows) if ((string) ($limits[(string) $uid][1] ?? '') !== '') { $needEx = true; break; }
@@ -748,10 +824,19 @@ function sess_anom_eval(array $cur, $now, $full, $deadline = null) {
 }
 
 // Пересчёт по последнему снимку (после смены схемы): текущие — строки сессий, живые на момент последнего опроса.
+// Возвращает false, если сейчас идёт тик планировщика: тогда новую схему применит сам опрос.
 function sess_anom_recalc() {
     $st = sess_state();
     $ts = (int) ($st['ts'] ?? 0);
-    if ($ts <= 0 || !sess_ensure() || !($p = db())) return;
+    if ($ts <= 0 || !sess_ensure() || !($p = db())) return true;
+    $lock = function_exists('cron_lock_path') ? @fopen(cron_lock_path(), 'c') : false;
+    if ($lock && !flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return false; }
+    try { sess_anom_recalc_do($p, $st, $ts); }
+    finally { if ($lock) { flock($lock, LOCK_UN); fclose($lock); } }
+    return true;
+}
+
+function sess_anom_recalc_do($p, array $st, $ts) {
     $cur = [];
     try {
         $q = $p->prepare('SELECT uid, node, ip, cc, asn, org, sub FROM conn_sess WHERE last_ts >= ?');
