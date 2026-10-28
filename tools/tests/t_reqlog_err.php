@@ -130,7 +130,8 @@ $n = count($rows('AbCdEfGhIjKlMnOp'));
 [$c] = t_http('GET', $mw . $path);
 [$d, $m] = $last('AbCdEfGhIjKlMnOp');
 t_ok('c1 чужой ключ прослойки: error chan:spid', $c === 404 && count($rows('AbCdEfGhIjKlMnOp')) === $n + 1 && ($m['er']['r'] ?? '') === 'chan:spid', json_encode($m));
-t_ok('c1 чужой ключ прослойки: внешний UA не записан, строка не браузерная', db()->query("SELECT COALESCE(user_agent, '') || '|' || is_app FROM request_log ORDER BY id DESC LIMIT 1")->fetchColumn() === '|1');
+$lr = db()->query('SELECT user_agent, is_app FROM request_log ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+t_ok('c1 чужой ключ прослойки: внешний UA не записан, строка не браузерная', (string) ($lr['user_agent'] ?? '') === '' && (int) ($lr['is_app'] ?? 0) === 1, json_encode($lr));
 
 $n = $count();
 [$path] = c1_request('NotInPanelAtAll0', null, $fields);
