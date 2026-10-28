@@ -72,7 +72,7 @@ function ua_hwid_extract($ua, $key) {
     if ($ua === '' || $key === '') return '';
     if (!preg_match('/' . preg_quote($key, '/') . '=([^;)]+)/i', $ua, $m)) return '';
     $val = preg_replace('/[\x00-\x1F\x7F]/', '', trim($m[1]));
-    return strlen($val) > 256 ? substr($val, 0, 256) : $val;
+    return strlen($val) > 256 ? mb_strcut($val, 0, 256, 'UTF-8') : $val;
 }
 
 function expired_grace_days() { return max(0, (int) (setting('expired_grace_days', '7'))); }

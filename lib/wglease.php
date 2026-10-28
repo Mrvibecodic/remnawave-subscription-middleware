@@ -130,7 +130,7 @@ function wglease_dev_cap() { return max(1, (int) (setting('wgpool_dev_cap', '10'
 function wglease_select($short_uuid, $hwid, array $u_squads, array $prof) {
     $short_uuid = (string) $short_uuid;
     $hwid = (string) $hwid;
-    $ua = substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
+    $ua = mb_strcut(mb_scrub((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 'UTF-8'), 0, 255, 'UTF-8');
     $cfgs = $u_squads ? squadconf_for_squads($u_squads) : [];
     $by_squad = [];
     foreach ($cfgs as $c) {

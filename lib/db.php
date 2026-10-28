@@ -699,7 +699,12 @@ function db_migrate(array $from, array $to, &$err = '') {
                     $keep = array_flip($cols);
                     $ins = $dst->prepare("$verb INTO $t (" . implode(',', $cols) . ') VALUES (' . implode(',', array_fill(0, count($cols), '?')) . ')');
                 }
-                $ins->execute(array_values(array_intersect_key($row, $keep)));
+                $vals = array_values(array_intersect_key($row, $keep));
+                // MySQL отвергает невалидный UTF-8, который SQLite хранит молча: одна такая строка откатила бы весь перенос.
+                if ($drv === 'mysql') {
+                    foreach ($vals as $i => $v) if (is_string($v) && $v !== '' && !preg_match('//u', $v)) $vals[$i] = mb_scrub($v, 'UTF-8');
+                }
+                $ins->execute($vals);
             }
             $sel->closeCursor();
             if ($unbuf) $src->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
