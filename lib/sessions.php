@@ -445,8 +445,9 @@ function sess_user_rows($uid, $days = 30, $limit = 600) {
     } catch (Throwable $e) { return []; }
 }
 
-function sess_user_data($uid) {
+function sess_user_data($uid, $short = '') {
     $uid = (int) $uid;
+    $an = $uid > 0 ? sess_anom_user($uid) : [];
     $m = sess_metrics([$uid]);
     return [
         'on'    => sess_enabled(),
@@ -459,7 +460,7 @@ function sess_user_data($uid) {
         'nodes' => sess_nodes_fresh(),
         'rows'  => $uid > 0 ? sess_user_rows($uid) : [],
         'm'     => $m[$uid] ?? null,
-        'an'    => $uid > 0 ? sess_anom_user($uid) : [],
+        'an'    => $an ? sess_anom_subips($an, (string) $short) : $an,
         'city'  => function_exists('geoip_city_ready') && geoip_city_ready(),
     ];
 }
@@ -904,6 +905,39 @@ function sess_anom_why_text($why) {
         $parts[] = $l . ' ' . (int) $h[1] . ' при пороге ' . (int) $h[2];
     }
     return implode(', ', $parts);
+}
+
+// Совпадения IP аномалии с IP запросов подписки этого пользователя: за сутки до начала и пока аномалия шла.
+function sess_anom_subips(array $ev, $short) {
+    if ($short === '' || !($p = db())) return $ev;
+    $from = PHP_INT_MAX; $to = 0; $now = time();
+    foreach ($ev as $e) { $from = min($from, $e['s'] - 86400); $to = max($to, $e['e'] ?: $now); }
+    $by = [];
+    try {
+        $ep = sql_epoch('ts');
+        $st = $p->prepare("SELECT ip, user_agent, meta, $ep AS e FROM request_log WHERE short_uuid = ? AND decision <> 'browser' AND $ep BETWEEN ? AND ? ORDER BY id DESC LIMIT 3000");
+        $st->execute([$short, $from, $to]);
+        foreach ($st as $r) if ((string) $r['ip'] !== '') $by[(string) $r['ip']][] = $r;
+    } catch (Throwable $e) { return $ev; }
+    if (!$by) return $ev;
+    foreach ($ev as &$e) {
+        $a = $e['s'] - 86400; $b = $e['e'] ?: $now;
+        foreach ($e['ips'] as &$x) {
+            $n = 0; $last = null;
+            foreach ($by[$x['ip'] ?? ''] ?? [] as $r) {
+                $t = (int) $r['e'];
+                if ($t < $a || $t > $b) continue;
+                $n++;
+                if ($last === null || $t > (int) $last['e']) $last = $r;
+            }
+            if (!$n) continue;
+            $c = function_exists('reqlog_client') ? reqlog_client($last['user_agent'] ?? '', reqlog_meta($last)['dv'] ?? null) : ['app' => '', 'os' => ''];
+            $x['rq'] = ['n' => $n, 't' => (int) $last['e'], 'app' => trim($c['app'] . ' ' . $c['os'])];
+        }
+        unset($x);
+    }
+    unset($e);
+    return $ev;
 }
 
 // Журнал пользователя: последние события, открытые первыми.

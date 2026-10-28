@@ -461,6 +461,22 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .an-ip .ip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-strong)}
 .an-ip .as{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:11rem}
 .an-ip .nd{color:var(--muted);border-left:1px solid var(--line);padding-left:.4rem;white-space:nowrap}
+.an-pg{border:1px solid var(--line);border-radius:10px;background:var(--card);margin-top:.5rem;overflow:hidden}
+.an-ph{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;font-size:.84rem;font-weight:600;color:var(--text-strong);border-bottom:1px solid var(--line)}
+.an-ph .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-ph .nm .as{color:var(--muted);font-weight:500}
+.an-ph .c{color:var(--muted);font-weight:500;font-size:.76rem;white-space:nowrap}
+.an-rt{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;padding:.4rem .7rem .1rem}
+.an-r{display:grid;grid-template-columns:minmax(9rem,13rem) minmax(0,1fr) 8.5rem;gap:.25rem .8rem;align-items:center;padding:.35rem .7rem;font-size:.8rem}
+.an-rt+.an-r,.an-ph+.an-r{border-top:0}
+.an-r+.an-r{border-top:1px dashed var(--line)}
+.an-r .ip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-strong);overflow-wrap:anywhere}
+.an-r .nd{color:var(--muted);min-width:0;overflow-wrap:anywhere}
+.an-r .rq{justify-self:end;display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;font-weight:600;padding:.1rem .45rem;border-radius:6px;background:var(--c-ok-bg);color:var(--c-ok-fg);white-space:nowrap;cursor:help}
+.an-r .rq svg{width:12px;height:12px}
+.an-sub{font-size:.76rem;color:var(--muted);margin-top:.3rem}
+.an-sub b{color:var(--text);font-weight:600}
+@media(max-width:600px){.an-r{grid-template-columns:minmax(0,1fr) auto}.an-r .nd{grid-column:1/3;grid-row:2}}
 @media(max-width:640px){
  .an-empty{flex-wrap:wrap}.an-empty .act{margin-left:0;width:100%;flex-direction:column}.an-empty .act>*{width:100%;justify-content:center;box-sizing:border-box;white-space:nowrap}
  .an-c{grid-template-columns:minmax(0,1fr) 72px 28px;grid-template-areas:"m m d" "o o o" "k n n";row-gap:.4rem}
@@ -1167,7 +1183,7 @@ function anomTile(u){
  if(!SESS.an.length)return '<div class="go" data-tab="anom" role="button" tabindex="0" data-tip="Схема пуста — настройки внизу вкладки"><div class="k">Аномалии'+ico('chev',13)+'</div><div class="v"><span style="font-size:.9rem">не отслеживаются</span></div></div>';
  return '<div class="go'+(f?(f.lvl==='bad'?' bad':' warn'):'')+'" data-tab="anom" role="button" tabindex="0" data-tip="Журнал аномалий"><div class="k">Аномалии'+ico('chev',13)+'</div><div class="v">'+(f?f.n:0)+(tot!==null?' <span style="font-size:.85rem;color:var(--muted);font-weight:500">/ '+tot+'</span>':'')+'</div><div class="d">'+(tot!==null?'сейчас / за '+SESS_ANK+' дн':(f?'сейчас':'нет открытых'))+'</div></div>';
 }
-function loadSess(){var su=CARD.u.su,u=CARD.u;CARD.sess=false;getj('sess_user','&id='+encodeURIComponent(u.id||0)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.sess=d.ok?d:{rows:[],nodes:{},err:d.error||'Ошибка'};if(d.ok&&u.id){if(d.m)SX[u.id]=d.m;else delete SX[u.id];}if(CARD.tab==='sess'||CARD.tab==='anom'||CARD.tab==='ov')drawCard();});}
+function loadSess(){var su=CARD.u.su,u=CARD.u;CARD.sess=false;getj('sess_user','&id='+encodeURIComponent(u.id||0)+'&su='+encodeURIComponent(u.su||'')).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.sess=d.ok?d:{rows:[],nodes:{},err:d.error||'Ошибка'};if(d.ok&&u.id){if(d.m)SX[u.id]=d.m;else delete SX[u.id];}if(CARD.tab==='sess'||CARD.tab==='anom'||CARD.tab==='ov')drawCard();});}
 function loadLive(){var su=CARD.u.su,u=CARD.u;if(!canW(SESS.sc.user)||!canW(SESS.sc.user_res)){CARD.live={err:roTip(canW(SESS.sc.user)?SESS.sc.user_res:SESS.sc.user)};return;}CARD.live=false;getj('sess_live','&rv='+encodeURIComponent(u.rv)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.live=d.ok?{nodes:d.nodes||[],ts:d.ts||0}:{err:d.error||'Ошибка'};if(CARD.tab==='sess')drawCard();});}
 function flag(cc){return /^[A-Z]{2}$/.test(cc||'')?'<span class="ux-fl" data-tip="'+cc+'">'+String.fromCodePoint(0x1F1A5+cc.charCodeAt(0),0x1F1A5+cc.charCodeAt(1))+'</span>':'';}
 function hasFlag(s){return /[\u{1F1E6}-\u{1F1FF}]{2}/u.test(s||'');}
@@ -1223,7 +1239,19 @@ function sessHtml(u){
 }
 function durTxtS(sec){sec=Math.max(0,Math.round(sec));if(sec<90)return sec+' с';var m=Math.round(sec/60);if(m<90)return m+' мин';var h=Math.floor(m/60);m=m%60;if(h<48)return h+' ч'+(m?' '+m+' мин':'');return Math.round(h/24)+' дн';}
 function anomWhy(ev){var L=SESS.anm;return (ev.h||[]).map(function(h){var m=(L[h[0]]||h[0]);if(ev.e)m=m.replace(/ сейчас$/,'');return m.charAt(0).toUpperCase()+m.slice(1)+' <b>'+h[1]+'</b> при пороге <b>'+h[2]+'</b>';}).join(' · ')+(ev.dev?' <span class="muted" style="font-size:.78rem">(устройств: '+ev.dev+')</span>':'');}
-function anomIps(ips,sd){return ips.length?'<div class="an-ips">'+ips.map(function(x){var nd=sd?sNode(sd,x.node):'';return '<span class="an-ip">'+(x.cc?flag(x.cc):'')+'<span class="ip">'+esc(x.ip)+'</span>'+(x.org||x.sub?'<span class="as">'+esc([x.org||(x.asn?'AS'+x.asn:''),x.sub].filter(Boolean).join(' · '))+'</span>':'')+(nd?'<span class="nd">'+esc(nd)+'</span>':'')+'</span>';}).join('')+'</div>':'';}
+// IP события: провайдер (AS, без него — сеть /24 или /48) → регион → IP; метка — с IP обновлялась подписка.
+function anomIps(ips,sd){
+ if(!ips.length)return '';
+ var G={},ord=[];
+ ips.forEach(function(x){var k=x.asn>0?'a'+x.asn:netKey(x.ip),g=G[k];if(!g){g=G[k]={x:x,R:{},rk:[],n:0};ord.push(k);}if(!g.x.org&&x.org)g.x=x;var r=x.sub||'';if(!g.R[r]){g.R[r]=[];g.rk.push(r);}g.R[r].push(x);g.n++;});
+ return ord.map(function(k){var g=G[k],h=g.x,rk=g.rk.sort(function(a,b){return(a===''?1:0)-(b===''?1:0)||a.localeCompare(b);});
+  var nm=h.asn>0?esc(h.org||'AS'+h.asn)+(h.org?' <span class="as">AS'+h.asn+'</span>':''):'Провайдер неизвестен <span class="as">сеть '+esc(k.slice(3)+(k.charAt(1)==='4'?'.0/24':'::/48'))+'</span>';
+  return '<div class="an-pg"><div class="an-ph">'+(h.cc?flag(h.cc):'')+'<span class="nm">'+nm+'</span><span class="c">'+g.n+' IP</span></div>'+
+   rk.map(function(r){return (rk.length>1||r?'<div class="an-rt">'+(r?esc(r):'регион неизвестен')+'</div>':'')+g.R[r].map(function(x){var nd=sd?sNode(sd,x.node):'',q=x.rq;
+    return '<div class="an-r"><span class="ip">'+esc(x.ip)+'</span><span class="nd">'+esc(nd)+'</span>'+(q?'<span class="rq" data-tip="'+esc('Подписку с этого IP обновляли '+q.n+' '+plural(q.n,'раз','раза','раз')+', последний — '+fdt(q.t*1000).replace(' в ',' ')+(q.app?' · '+q.app:''))+'">'+ico('check')+'подписка '+fdt(q.t*1000).split(' в ')[1]+'</span>':'<span></span>')+'</div>';}).join('');}).join('')+'</div>';
+ }).join('');
+}
+function anomSub(ips){var n=ips.filter(function(x){return !!x.rq;}).length;return ips.length?'<div class="an-sub">Подписку обновляли с <b>'+n+'</b> из '+ips.length+' IP · за сутки до начала и во время аномалии</div>':'';}
 function anomHtml(u){
  var h='',sd=CARD.sess;
  if(!SESS.on)return '<div class="ux-gb ux-fcb"><div class="h">'+ico('info',18)+'Сбор сессий выключен</div><p>Аномалии считаются по снимкам опроса — включите сбор внизу вкладки «Пользователи».</p></div>';
@@ -1235,7 +1263,7 @@ function anomHtml(u){
  if(!ev.length)return h+'<div class="ux-empty">Аномалий не было.</div>';
  return h+ev.map(function(e){var open=!e.e,st=e.s*1000,en=(e.e||e.l)*1000;
   var t=open?'с '+fdt(st).replace(' в ',' ')+' · идёт '+durTxtS(now()/1000-e.s):fdt(st).replace(' в ',' ')+' — '+(fd(st)===fd(en)?fdt(en).split(' в ')[1]:fdt(en).replace(' в ',' '))+' · '+durTxtS(e.e-e.s);
-  return '<div class="an-ev'+(e.lvl==='warn'?' w':'')+(open?'':' closed')+'"><div class="an-evh"><span class="g">'+esc(e.g)+'</span><span class="t">'+t+'</span><span class="st'+(open?' open':'')+'">'+(open?'открыта':'закрыта')+'</span></div><div class="an-why">'+anomWhy(e)+'</div>'+anomIps(e.ips||[],sd)+'</div>';}).join('');
+  return '<div class="an-ev'+(e.lvl==='warn'?' w':'')+(open?'':' closed')+'"><div class="an-evh"><span class="g">'+esc(e.g)+'</span><span class="t">'+t+'</span><span class="st'+(open?' open':'')+'">'+(open?'открыта':'закрыта')+'</span></div><div class="an-why">'+anomWhy(e)+'</div>'+anomSub(e.ips||[])+anomIps(e.ips||[],sd)+'</div>';}).join('');
 }
 // Конструктор схемы: группы ИЛИ, внутри И/ИЛИ; состояние — в скрытом поле формы, сохраняет автосохранение формы.
 var AN=null;
