@@ -294,7 +294,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     }
 
     if ($a === 'sess_user' && function_exists('sess_user_data')) {
-        echo json_encode(['ok' => true] + sess_user_data((int) ($_GET['id'] ?? 0)), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        echo json_encode(['ok' => true] + sess_user_data((int) ($_GET['id'] ?? 0), (string) ($_GET['su'] ?? '')), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         exit();
     }
 

@@ -87,6 +87,12 @@ $r = $rows();
 t_eq('аномалия прошла — события закрыты, но остались: id 1 онлайн без аномалии, id 3 пропал из снимка', array_map(static fn($x) => $x['uid'] . ' ' . $x['gid'] . ' ' . ($x['end_ts'] ? 'closed' : 'open'), $r), ['1 g1 closed', '1 g2 closed', '3 g2 closed']);
 t_ok('время закрытия проставлено', (int) $r[0]['end_ts'] >= (int) $r[0]['start_ts']);
 t_eq('открытых больше нет', sess_anom_open_map(), []);
+$tt_pdo->exec("INSERT INTO request_log (ts, ip, short_uuid, path, user_agent, decision) VALUES (" . (db_driver() === 'mysql' ? 'CURRENT_TIMESTAMP - INTERVAL 1 MINUTE' : "datetime('now', '-1 minute')") . ", '2.2.2.2', 'AbCdEfGhIjKlMnOp', '/sub', 'Happ/3.0', 'normal'), (" . (db_driver() === 'mysql' ? 'CURRENT_TIMESTAMP - INTERVAL 1 MINUTE' : "datetime('now', '-1 minute')") . ", '9.9.9.9', 'AbCdEfGhIjKlMnOp', '/sub', 'Happ/3.0', 'normal'), (" . (db_driver() === 'mysql' ? 'CURRENT_TIMESTAMP - INTERVAL 1 MINUTE' : "datetime('now', '-1 minute')") . ", '1.1.1.1', 'AbCdEfGhIjKlMnOp', '/sub', 'Mozilla/5.0', 'browser')");
+$an = sess_anom_subips(sess_anom_user(1), 'AbCdEfGhIjKlMnOp');
+$rq = [];
+foreach ($an as $e) foreach ($e['ips'] as $x) if (isset($x['rq'])) $rq[$x['ip']] = $x['rq']['n'];
+t_eq('совпадение с IP запросов подписки: 2.2.2.2 в обоих событиях; браузер и чужой IP не считаются', $rq, ['2.2.2.2' => 1]);
+t_eq('без shortUuid журнал как есть', sess_anom_subips(sess_anom_user(1), ''), sess_anom_user(1));
 $hm = sess_anom_hist_map();
 t_ok('срез журнала: закрытые события есть у id 1 (красная и жёлтая) и id 3 (жёлтая), без «сейчас» в подсказке', array_keys($hm) === [1, 3] && $hm['1']['b'] > 0 && $hm['1']['w'] > 0 && $hm['3']['b'] === 0 && $hm['3']['w'] > 0 && mb_strpos($hm['3']['t'], 'сейчас') === false && mb_strpos($hm['3']['t'], 'Много IP: IP 3') === 0, json_encode($hm, JSON_UNESCAPED_UNICODE));
 
