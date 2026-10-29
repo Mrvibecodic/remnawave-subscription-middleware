@@ -327,7 +327,7 @@ function pr_recipes() {
                     'enabled' => true,
                     'operator' => 'AND',
                     'conditions' => [
-                        ['headerName' => 'user-agent', 'operator' => 'STARTS_WITH', 'value' => 'FlClashX/', 'caseSensitive' => true],
+                        ['headerName' => 'user-agent', 'operator' => 'STARTS_WITH', 'value' => 'FlClash X/', 'caseSensitive' => true],
                     ],
                     'responseType' => 'MIHOMO',
                 ],
@@ -486,7 +486,7 @@ function pr_recipes() {
                     'enabled' => true,
                     'operator' => 'AND',
                     'conditions' => [
-                        ['headerName' => 'user-agent', 'operator' => 'STARTS_WITH', 'value' => 'FlClashX/', 'caseSensitive' => true],
+                        ['headerName' => 'user-agent', 'operator' => 'STARTS_WITH', 'value' => 'FlClash X/', 'caseSensitive' => true],
                     ],
                     'responseType' => 'MIHOMO',
                     'responseModifications' => [
@@ -587,7 +587,7 @@ function pr_recipes() {
                     'enabled' => true,
                     'operator' => 'AND',
                     'conditions' => [
-                        ['headerName' => 'user-agent', 'operator' => 'STARTS_WITH', 'value' => 'FlClashX/', 'caseSensitive' => true],
+                        ['headerName' => 'user-agent', 'operator' => 'STARTS_WITH', 'value' => 'FlClash X/', 'caseSensitive' => true],
                     ],
                     'responseType' => 'MIHOMO',
                     'responseModifications' => ['subscriptionTemplate' => 'FlClashX'],
@@ -1001,7 +1001,7 @@ function pr_recipes() {
             'sec' => 'Кого не пускать',
             'title' => 'Пускать только свои приложения — одним правилом',
             'when' => 'То же, что «Пускать только разрешённые приложения», но короче.',
-            'how' => '<code>NOT_REGEX</code> — «не подходит под шаблон». Если подпись <b>не</b> начинается с Happ/, INCY/ или FlClashX/ — отказ. Разрешённые приложения проходят дальше к обычным правилам.',
+            'how' => '<code>NOT_REGEX</code> — «не подходит под шаблон». Если подпись <b>не</b> начинается с Happ/, INCY/ или FlClash X/ — отказ. Разрешённые приложения проходят дальше к обычным правилам.',
             'fill' => [],
             'warn' => 'Здесь «НЕ»-условие безопасно: без подписи приложения панель отказывает ещё до правил.',
             'res' => '',
@@ -1012,7 +1012,7 @@ function pr_recipes() {
                     'enabled' => true,
                     'operator' => 'AND',
                     'conditions' => [
-                        ['headerName' => 'user-agent', 'operator' => 'NOT_REGEX', 'value' => '^(?:Happ|INCY|FlClashX)/', 'caseSensitive' => true],
+                        ['headerName' => 'user-agent', 'operator' => 'NOT_REGEX', 'value' => '^(?:Happ|INCY|FlClash ?X)/', 'caseSensitive' => true],
                     ],
                     'responseType' => 'BLOCK',
                 ],
