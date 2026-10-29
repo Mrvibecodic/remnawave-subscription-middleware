@@ -2045,7 +2045,9 @@ function pager_cookie_size($store_key, $default = 25) {
 function nav_link($key, $it, $active, $badge = '', $grp = '', $off = false) {
     $svg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' . $it[1] . '</svg>';
     $dot = $badge !== '' ? '<span class="nav-dot" role="img" aria-label="' . h($badge) . '" data-tip="' . h($badge) . '"></span>' : '';
-    $beta = in_array($key, ['panel_rules'], true) ? '<span class="nav-beta" data-tip="Раздел в бете: работает, но может меняться">бета</span>' : '';
+    $beta = '';
+    if ($key === 'panel_rules') $beta = '<span class="nav-beta" data-tip="Раздел в бете: работает, но может меняться">бета</span>';
+    elseif ($key === 'rules') $beta = '<span class="nav-beta nav-dep" role="img" aria-label="Устарело" data-tip="Устарело: раздел планируется удалить в дальнейшем"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>';
     return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '" data-nk="' . h($key) . '" data-ng="' . h($grp) . '"' . ($off ? ' hidden' : '') . '>' . $svg . '<span>' . h($it[0]) . '</span>' . $beta . $dot . '</a>';
 }
 $nav_hid = nav_hidden_get();

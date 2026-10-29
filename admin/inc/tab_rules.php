@@ -28,6 +28,11 @@
         .rr-test-out code{font-size:.86em}
         @media(max-width:760px){.rr-fields{grid-template-columns:1fr}.rr-hrow{grid-template-columns:1fr 1fr 32px}}
     </style>
+    <div class="deprec" role="note">
+        <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></span>
+        <div class="tx"><div class="t">Раздел устарел</div><div class="d">Раздел планируется удалить в дальнейшем. Сейчас он работает как раньше. Новые правила лучше собирать в «Правилах ответа панели»: там тоже можно задать заголовки для отдельных приложений.</div></div>
+        <a class="btn ghost" href="?tab=panel_rules">Открыть «Правила ответа панели»</a>
+    </div>
     <div class="info">
         Отдавайте заголовки клиентам подписки. Правило <b>«Все клиенты»</b> уходит всем; правило под конкретное приложение <b>добавляет</b> свои заголовки поверх для него. Заголовки выбираются из списка с описанием — вписывать ничего не нужно.
     </div>
