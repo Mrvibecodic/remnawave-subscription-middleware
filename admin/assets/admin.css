@@ -70,8 +70,9 @@
     .rw-nav a .nav-dot,.hbtn-dot{width:9px;height:9px;border-radius:50%;background:var(--amber);animation:navpulse 1.8s ease-out infinite}
     .rw-nav a .nav-dot{margin-left:auto;flex:0 0 auto}
     .rw-nav a .nav-beta{margin-left:auto;flex:0 0 auto;font-size:.58rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;line-height:1.2;padding:.08rem .3rem;border-radius:5px;border:1px solid var(--c-warn-fg);color:var(--c-warn-fg);background:var(--c-warn-bg)}
-    .rw-nav a .nav-beta.nav-dep{border-color:var(--c-bad-fg);color:var(--c-bad-fg);background:var(--c-bad-bg);display:inline-grid;place-items:center;padding:.12rem .25rem}
-    .rw-nav a .nav-dep svg{width:12px;height:12px;color:inherit;opacity:1}
+    .rw-nav a .nav-beta.nav-ico{display:inline-grid;place-items:center;padding:.12rem .25rem}
+    .rw-nav a .nav-ico svg{width:12px;height:12px;color:inherit;opacity:1}
+    .rw-nav a .nav-beta.nav-dep{border-color:var(--c-bad-fg);color:var(--c-bad-fg);background:var(--c-bad-bg)}
     .rw-nav a .nav-beta+.nav-dot{margin-left:.4rem}
     .deprec{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;border:1px solid var(--c-bad-fg);background:var(--c-bad-bg);border-radius:12px;padding:.7rem .9rem;margin-bottom:1rem}
     .deprec .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--card);color:var(--c-bad-fg);flex:none}
