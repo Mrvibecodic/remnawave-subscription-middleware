@@ -219,6 +219,25 @@ if (isset($_GET['app_apk_dl']) && is_auth()) {
     exit();
 }
 
+if (isset($_GET['bk_dl']) && is_auth()) {
+    session_write_close();
+    $bk_q = is_string($_GET['bk_dl']) ? $_GET['bk_dl'] : '';
+    $bk_path = function_exists('backup_path') ? backup_path($bk_q) : '';
+    header('Cache-Control: private, no-store');
+    if ($bk_path === '' || !backup_dl_ok($bk_q, csrf_token(), $_GET['k'] ?? '')) { http_response_code(404); header('Content-Type: text/plain; charset=utf-8'); echo 'Файл не найден'; exit(); }
+    $bk_i = backup_info(basename($bk_path), $bk_path);
+    // Ответ туннеля приложения собирается в памяти целиком.
+    if (app_tunnel() && $bk_i['size'] > 33554432) { http_response_code(413); header('Content-Type: text/plain; charset=utf-8'); echo 'Файл слишком большой для приложения — скачайте его из браузера'; exit(); }
+    $bk_fn = $bk_i['kind'] === 'dl' ? ('submw-backup-' . gmdate('Ymd-Hi', $bk_i['ts']) . '.json.gz' . ($bk_i['enc'] ? '.enc' : '')) : basename($bk_path);
+    if ($bk_i['kind'] === 'dl') register_shutdown_function(static function () use ($bk_path) { @unlink($bk_path); });
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="' . $bk_fn . '"');
+    header('Content-Length: ' . $bk_i['size']);
+    header('X-Content-Type-Options: nosniff');
+    readfile($bk_path);
+    exit();
+}
+
 if (isset($_GET['ajax']) && is_auth()) {
     session_write_close();
     header('Content-Type: application/json; charset=utf-8');
@@ -807,6 +826,49 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if (strpos($a, 'bk_') === 0 && function_exists('backup_create')) {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'Страница устарела — обновите её']); exit(); }
+        $bk_name = is_string($_POST['name'] ?? null) ? $_POST['name'] : '';
+        $bk_pass = is_string($_POST['pass'] ?? null) ? $_POST['pass'] : '';
+        $bk_err = '';
+        if ($a === 'bk_preview') {
+            $bk_v = backup_preview($bk_name, $bk_pass, $bk_err);
+            echo json_encode($bk_v === null ? ['ok' => false, 'error' => $bk_err] : ['ok' => true] + $bk_v, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+            exit();
+        }
+        if ($a === 'bk_upload') {
+            $bk_n = backup_upload(is_array($_FILES['file'] ?? null) ? $_FILES['file'] : [], $bk_err);
+            echo json_encode($bk_n === '' ? ['ok' => false, 'error' => $bk_err] : ['ok' => true, 'name' => $bk_n], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+        if ($a === 'bk_create') {
+            backup_stream_begin();
+            $bk_kind = ($_POST['dl'] ?? '') === '1' ? 'dl' : 'manual';
+            $bk_n = backup_create($bk_kind, $bk_pass, ($_POST['lite'] ?? '') === '1', backup_ticker(), $bk_err);
+            backup_stream_out($bk_n === '' ? ['ok' => false, 'error' => $bk_err] : ['ok' => true, 'name' => $bk_n, 'dl' => $bk_kind === 'dl' ? backup_dl_url($bk_n, csrf_token()) : '']);
+            exit();
+        }
+        if ($a === 'bk_restore') {
+            if (mb_strtolower(trim(is_string($_POST['word'] ?? null) ? $_POST['word'] : '')) !== 'восстановить') { echo json_encode(['ok' => false, 'error' => 'Введите слово «восстановить»'], JSON_UNESCAPED_UNICODE) . "\n"; exit(); }
+            // Сессия снова открыта до вывода: если вход сменится, её нужно будет закрыть насовсем.
+            @session_start();
+            backup_stream_begin();
+            $bk_r = backup_restore($bk_name, $bk_pass, ['keep_login' => ($_POST['keep_login'] ?? '') === '1', 'no_logs' => ($_POST['no_logs'] ?? '') === '1'], backup_ticker(), $bk_err);
+            if ($bk_r === null) {
+                session_write_close();
+                backup_stream_out(['ok' => false, 'error' => $bk_err]);
+                exit();
+            }
+            $bk_next = '';
+            // Новая секретная ссылка ставит куку этому браузеру — иначе следующая страница покажет приманку.
+            if ((string) $bk_r['gate'] !== '') $bk_next = 'index.php?' . $bk_r['gate'];
+            if ($bk_r['relogin']) { $_SESSION = []; @session_destroy(); }
+            else session_write_close();
+            backup_stream_out(['ok' => true, 'rows' => $bk_r['rows'], 'snap' => $bk_r['snap'], 'skipped' => $bk_r['skipped'], 'relogin' => $bk_r['relogin'], 'next' => $bk_next, 'gate' => $bk_r['gate'], 'warn' => $bk_r['warn']]);
+            exit();
+        }
+    }
+
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'unknown ajax']);
     exit();
@@ -1279,6 +1341,24 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         elseif ($gc_left > 0) flash('Удалено строк: ' . $gc_done . '. Осталось ' . $gc_left . ' — нажмите «Очистить» ещё раз');
         else flash('Удалено строк: ' . $gc_done . '. Больше удалять нечего');
         header('Location: index.php?tab=migrate'); exit();
+    }
+
+    if ($action === 'bk_delete' && function_exists('backup_path')) {
+        $bk_path = backup_path(is_string($_POST['name'] ?? null) ? $_POST['name'] : '');
+        flash($bk_path !== '' && @unlink($bk_path) ? 'Бэкап удалён' : 'Не удалось удалить файл');
+        header('Location: index.php?tab=backup'); exit();
+    }
+
+    if ($action === 'save_backup_auto') {
+        set_setting('backup_auto', isset($_POST['backup_auto']) ? '1' : '0');
+        flash(isset($_POST['backup_auto']) ? 'Бэкап по расписанию включён' : 'Бэкап по расписанию выключен');
+        form_saved('backup');
+    }
+
+    if ($action === 'save_backup_pass') {
+        if (!empty($_POST['del'])) { set_setting('backup_auto_pass', ''); flash('Пароль для бэкапов по расписанию удалён'); }
+        elseif (is_string($_POST['backup_auto_pass'] ?? null) && $_POST['backup_auto_pass'] !== '' && function_exists('backup_crypto_ok') && backup_crypto_ok()) { set_setting('backup_auto_pass', $_POST['backup_auto_pass']); flash('Пароль для бэкапов по расписанию сохранён'); }
+        header('Location: index.php?tab=backup'); exit();
     }
 
     if ($action === 'gc_compact') {
@@ -1838,7 +1918,7 @@ if ($tab === 'pagekeys') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Геобазы'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'backup' => 'Бэкап и восстановление', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Геобазы'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 // function_exists: прежний апдейтер пишет admin/index.php раньше lib/branding.php.
 if ($db_ok && function_exists('brand_refresh_if_stale')) brand_refresh_if_stale();
@@ -1872,6 +1952,7 @@ $lp_map = [
     'whlog_other' => ['pg_whlog_other', 25],
     'fwdlog'      => ['pg_fwdlog', 25],
     'grace_users' => ['pg_grace', 25],
+    'backup'      => ['pg_backup', 25],
 ];
 $lp_cfg = $lp_map[$tab] ?? null;
 ?>
@@ -1999,6 +2080,7 @@ $nav = [
     'sysinfo'   => ['О системе', '<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /> <path d="M12 9h.01" /> <path d="M11 12h1v4h1" />'],
     'update'    => ['Обновление', '<path d="M12 13v8l-4-4" /> <path d="m12 21 4-4" /> <path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284" />'],
     'migrate'   => ['База данных', '<ellipse cx="12" cy="5" rx="9" ry="3" /> <path d="M3 5V19A9 3 0 0 0 21 19V5" /> <path d="M3 12A9 3 0 0 0 21 12" />'],
+    'backup'    => ['Бэкап', '<rect width="20" height="5" x="2" y="3" rx="1" /> <path d="M4 8v11a2 2 0 0 0 2 2h2" /> <path d="M20 8v11a2 2 0 0 1-2 2h-2" /> <path d="m9 15 3-3 3 3" /> <path d="M12 12v9" />'],
     'chat'      => ['Чат поддержки', '<path d="M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /> <path d="M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1" />'],
 ];
 ?>
@@ -2014,7 +2096,7 @@ $nav_sections = [
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog'] : ['webhooks', 'whlog']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
     ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'panel_rules', 'hwid', 'overrides', 'squad_configs', 'wg_pool', 'addsub', 'pagekeys']],
-    ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => ['sysinfo', 'update', 'migrate']],
+    ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => array_merge(['sysinfo', 'update', 'migrate'], function_exists('backup_create') ? ['backup'] : [])],
 ];
 function submw_ui_cookie() {
     static $m = null;
@@ -2215,6 +2297,8 @@ navHidSync();
     <?php include __DIR__ . '/inc/tab_grace_users.php'; ?>
 <?php elseif ($tab === 'migrate'): ?>
     <?php include __DIR__ . '/inc/tab_migrate.php'; ?>
+<?php elseif ($tab === 'backup' && function_exists('backup_create')): ?>
+    <?php include __DIR__ . '/inc/tab_backup.php'; ?>
 
 <?php elseif ($tab === 'sysinfo'): ?>
     <?php include __DIR__ . '/inc/tab_sysinfo.php'; ?>
