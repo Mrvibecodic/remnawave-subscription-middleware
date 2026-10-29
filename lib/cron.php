@@ -19,7 +19,8 @@ function cron_tasks() {
         'brand'   => ['Брендинг из панели', 3600, false],
         'update'  => ['Проверка обновлений', 3600, true],
     ] + (function_exists('cron_task_sessions') ? ['sessions' => ['Сессии: опрос нод', sess_every(), false]] : [])
-      + (function_exists('cron_task_geo') && geoip_ipinfo() ? ['geo' => ['Гео: уточнение адресов через ipinfo', 60, false]] : []);
+      + (function_exists('cron_task_geo') && geoip_ipinfo() ? ['geo' => ['Гео: уточнение адресов через ipinfo', 60, false]] : [])
+      + (function_exists('cron_task_backup') && backup_auto_on() ? ['backup' => ['Бэкап по расписанию', 86400, true]] : []);
 }
 
 // Отметка из будущего (часы сервера ушли назад) свежей не считается.
@@ -266,7 +267,7 @@ function cron_view($now = null) {
     foreach (cron_tasks() as $name => [$title, $every, $heavy]) {
         $t = $st['tasks'][$name] ?? null;
         if (!is_array($t) || (int) ($t['start'] ?? 0) <= 0) {
-            $rows[] = ['title' => $title, 'state' => ($heavy && $src === 'url') ? 'admin' : 'never', 'ts' => 0, 'err' => ''];
+            $rows[] = ['title' => $title, 'state' => ($heavy && $src === 'url') ? ($name === 'update' ? 'admin' : 'nofpm') : 'never', 'ts' => 0, 'err' => ''];
         } elseif (cron_task_ok($t)) {
             $rows[] = ['title' => $title, 'state' => 'ok', 'ts' => (int) $t['ok_at'], 'err' => ''];
         } elseif ((string) ($t['err'] ?? '') === '' && cron_fresh($t['start'], $now, 300)) {
