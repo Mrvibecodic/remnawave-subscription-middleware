@@ -42,6 +42,8 @@ function csrf_ok() { return isset($_POST['csrf'], $_SESSION['csrf']) && is_strin
 function csrf_ok_get() { return isset($_GET['csrf'], $_SESSION['csrf']) && is_string($_GET['csrf']) && hash_equals((string) $_SESSION['csrf'], $_GET['csrf']); }
 function is_auth() {
     if (empty($_SESSION['auth'])) return false;
+    // Восстановление бэкапа с другим входом поднимает эпоху — сессии, открытые раньше, закрываются.
+    if ((int) ($_SESSION['ae'] ?? 0) < (int) setting('admin_sess_epoch', '0')) { unset($_SESSION['auth']); return false; }
     $did = (string) ($_SESSION['app_did'] ?? '');
     if ($did === '') return true;
     $alive = app_dev_alive($did);
@@ -136,6 +138,7 @@ if (!is_auth()) {
                 session_regenerate_id(true);
                 unset($_SESSION['csrf']);
                 $_SESSION['auth'] = true;
+                $_SESSION['ae'] = (int) setting('admin_sess_epoch', '0');
                 header('Location: index.php'); exit();
             }
             login_record_fail($lip);

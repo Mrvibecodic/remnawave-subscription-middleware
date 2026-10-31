@@ -243,4 +243,11 @@ tc_state([], time() - 4000);
 [, , $page] = t_http('GET', $mw . '/admin/index.php?tab=sysinfo', [], null, $jar);
 t_ok('«О системе»: планировщик остановился', strpos($page, '<span class="tag blocked">остановился</span>') !== false);
 
+// Пауза после сбоев растёт: 5 мин, 15 мин, час — но не дольше обычного интервала
+$f = static fn(int $fails, int $ago, int $every = 86400) => cron_task_due(['start' => $now - $ago, 'ok_at' => 0, 'err' => 'x', 'fails' => $fails], $every, $now);
+t_eq('первый сбой — повтор через 5 минут', [$f(1, 200), $f(1, 400)], [false, true]);
+t_eq('второй подряд — через 15', [$f(2, 400), $f(2, 1000)], [false, true]);
+t_eq('третий и дальше — через час', [$f(3, 1000), $f(7, 3700)], [false, true]);
+t_eq('частая задача ждёт не дольше своего интервала', $f(5, 70, 60), true);
+
 t_done();

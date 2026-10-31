@@ -7,7 +7,7 @@
 const BK_FMT     = 1;
 const BK_MAGIC   = 'SUBMWBK1';
 const BK_CHUNK   = 1048576;
-const BK_ITER    = 300000;
+const BK_ITER    = 600000;
 const BK_MAXLINE = 25165824;
 const BK_JSON    = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION;
 const BK_KEEP    = ['auto' => 7, 'pre' => 3];
@@ -122,6 +122,7 @@ function backup_info($name, $path) {
 function backup_list() {
     $d = backup_dir();
     $out = [];
+    foreach (glob(dirname(config_path()) . '/.config-*.php') ?: [] as $f) if ((int) @filemtime($f) < time() - 3600) @unlink($f);
     foreach (is_dir($d) ? (scandir($d) ?: []) : [] as $n) {
         if (strncmp($n, '.part-', 6) === 0 && (int) @filemtime($d . '/' . $n) < time() - 86400) { @unlink($d . '/' . $n); continue; }
         if ($n === '' || $n[0] === '.' || !backup_name_ok($n) || !is_file($d . '/' . $n)) continue;
@@ -252,7 +253,7 @@ function bk_r_open($path, $pass, &$err) {
     $fh = @fopen($path, 'rb');
     if (!$fh) { $err = 'Не удалось открыть файл: нет прав на чтение'; return null; }
     $head = (string) fread($fh, 8);
-    $r = ['fh' => $fh, 'z' => inflate_init(ZLIB_ENCODING_GZIP), 'key' => '', 'hdr' => '', 'np' => '', 'n' => 0, 'buf' => '', 'off' => 0, 'eof' => false, 'enc' => false];
+    $r = ['fh' => $fh, 'z' => inflate_init(ZLIB_ENCODING_GZIP), 'key' => '', 'hdr' => '', 'np' => '', 'n' => 0, 'buf' => '', 'off' => 0, 'eof' => false, 'enc' => false, 'pend' => '', 'last' => false];
     if (strncmp($head, "\x1f\x8b", 2) === 0) { rewind($fh); return $r; }
     if ($head !== BK_MAGIC) { fclose($fh); $err = 'Это не файл бэкапа прослойки'; return null; }
     $r['enc'] = true;
@@ -277,16 +278,31 @@ function bk_read_exact($fh, $len) {
     return $out;
 }
 
+// Сжатое подаётся распаковщику по 4 КБ, пока не появится целая строка: файл-«бомба» не раздует память за один вызов.
 function bk_r_more(array &$r, &$err) {
-    if ($r['eof']) return false;
+    while (!$r['eof']) {
+        if ($r['pend'] === '' && !$r['last'] && !bk_r_fill($r, $err)) return false;
+        $slice = (string) substr($r['pend'], 0, 4096);
+        $r['pend'] = (string) substr($r['pend'], 4096);
+        $fin = $r['last'] && $r['pend'] === '';
+        $out = @inflate_add($r['z'], $slice, $fin ? ZLIB_FINISH : ZLIB_SYNC_FLUSH);
+        if ($out === false) { $err = 'Файл повреждён'; return false; }
+        if ($fin) $r['eof'] = true;
+        if ($r['off'] > 0) { $r['buf'] = (string) substr($r['buf'], $r['off']); $r['off'] = 0; }
+        $r['buf'] .= $out;
+        if ($r['eof'] || strpos($out, "\n") !== false) return true;
+        if (strlen($r['buf']) > BK_MAXLINE) { $err = 'Файл повреждён'; return false; }
+    }
+    return false;
+}
+
+// Следующая порция сжатых данных файла в pend; last — это последняя.
+function bk_r_fill(array &$r, &$err) {
     if ($r['key'] === '') {
         $raw = fread($r['fh'], 262144);
-        if ($raw === false || $raw === '') {
-            $r['eof'] = true;
-            $out = @inflate_add($r['z'], '', ZLIB_FINISH);
-        } else {
-            $out = @inflate_add($r['z'], $raw, ZLIB_SYNC_FLUSH);
-        }
+        if ($raw === false || $raw === '') $r['last'] = true;
+        else $r['pend'] = $raw;
+        return true;
     } else {
         $h = bk_read_exact($r['fh'], 5);
         if (strlen($h) !== 5) { $err = 'Файл неполный — похоже, он скачался или загрузился не до конца'; return false; }
@@ -300,14 +316,11 @@ function bk_r_more(array &$r, &$err) {
         $r['n']++;
         if ($flag === 1) {
             if (fread($r['fh'], 1) !== '') { $err = 'Файл повреждён'; return false; }
-            $r['eof'] = true;
+            $r['last'] = true;
         }
-        $out = @inflate_add($r['z'], $pt, $flag === 1 ? ZLIB_FINISH : ZLIB_SYNC_FLUSH);
+        $r['pend'] = $pt;
+        return true;
     }
-    if ($out === false) { $err = 'Файл повреждён'; return false; }
-    if ($r['off'] > 0) { $r['buf'] = (string) substr($r['buf'], $r['off']); $r['off'] = 0; }
-    $r['buf'] .= $out;
-    return true;
 }
 
 function bk_r_line(array &$r, &$err) {
@@ -453,7 +466,7 @@ function bk_create($kind, $pass, $lite, ?callable $tick, &$err) {
     $part = $w['path'];
     if (!bk_w_close($w, $err)) return '';
     if (!@rename($part, $dir . '/' . $name)) { @unlink($part); $err = 'Не удалось сохранить файл в папке ' . $dir; return ''; }
-    backup_prune($kind);
+    if ($kind !== 'pre') backup_prune($kind);
     return $name;
 }
 
@@ -501,6 +514,8 @@ function backup_preview($name, $pass, &$err) {
         $tables++;
         $rows += $n;
     }
+    $inFile = array_map(static function ($m) { return is_array($m) ? (string) ($m['t'] ?? '') : ''; }, $h['tables']);
+    $keepT = array_values(array_diff($cur, $inFile, $logs, backup_cache_tables(), ['login_attempts']));
     $phonesNow = 0;
     if (in_array('app_dev', $cur, true)) {
         try { $phonesNow = (int) $p->query('SELECT COUNT(*) FROM app_dev')->fetchColumn(); } catch (Throwable $e) {}
@@ -524,6 +539,7 @@ function backup_preview($name, $pass, &$err) {
         'same_login' => $login !== null && $login['user'] === (string) ($C['admin_user'] ?? '') && $login['hash'] === (string) ($C['admin_pass_hash'] ?? ''),
         'skip_tables' => $skipT,
         'skip_cols'  => $skipC,
+        'keep_tables' => $keepT,
         'phones'     => $phonesFile,
         'phones_now' => $phonesNow,
         'gate'       => isset($h['gate']) ? (bool) $h['gate'] : null,
@@ -634,7 +650,10 @@ function bk_restore($name, $pass, array $opt, ?callable $tick, &$err) {
     }
     $total = 0;
     foreach ($plan as $pl) if ($pl) $total += $pl['n'];
-    $wipe = array_values(array_filter($cur, static function ($t) use ($no_logs, $logs) { return $t !== 'login_attempts' && !($no_logs && in_array($t, $logs, true)); }));
+    // Таблицы, которых нет в файле (бэкап от версии без этой функции), остаются как есть; кэши чистятся всегда.
+    $wipe = array_values(array_filter($cur, static function ($t) use ($no_logs, $logs, $plan, $caches) {
+        return $t !== 'login_attempts' && !($no_logs && in_array($t, $logs, true)) && (array_key_exists($t, $plan) || in_array($t, $caches, true));
+    }));
 
     if ($tick) $tick('snap', '', 0, 0);
     $snapTick = $tick ? static function ($s, $t = '', $d = 0, $n = 0) use ($tick) { $tick('snap', $t, $d, $n); } : null;
@@ -746,6 +765,7 @@ function bk_restore($name, $pass, array $opt, ?callable $tick, &$err) {
         else $p->exec('COMMIT');
         $tx = false;
         $modeBack();
+        backup_prune('pre');
     } catch (Throwable $e) {
         if ($tx) {
             try {
@@ -758,6 +778,11 @@ function bk_restore($name, $pass, array $opt, ?callable $tick, &$err) {
         if ($cfgTmp !== '') @unlink($cfgTmp);
         @unlink(backup_dir() . '/' . $snap);
         $err = ($e instanceof PDOException ? 'Ошибка базы данных: ' : '') . $e->getMessage();
+        if (stripos($e->getMessage(), 'max_allowed_packet') !== false) {
+            $mb = 0;
+            try { $mb = (int) ceil((int) $p->query('SELECT @@max_allowed_packet')->fetchColumn() / 1048576); } catch (Throwable $e5) {}
+            $err = 'В бэкапе есть запись больше, чем принимает сервер MySQL (max_allowed_packet' . ($mb ? ' = ' . $mb . ' МБ' : '') . '). Поднимите max_allowed_packet до 32 МБ и повторите — данные не изменились.';
+        }
         return null;
     }
     bk_r_close($r);
@@ -766,6 +791,7 @@ function bk_restore($name, $pass, array $opt, ?callable $tick, &$err) {
     if ($cfgTmp !== '') {
         if (@rename($cfgTmp, config_path())) {
             if (function_exists('opcache_invalidate')) @opcache_invalidate(config_path(), true);
+            set_setting('admin_sess_epoch', (string) max(time(), (int) setting('admin_sess_epoch', '0') + 1));
         } else {
             @unlink($cfgTmp);
             $relogin = false;

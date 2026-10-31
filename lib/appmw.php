@@ -543,7 +543,7 @@ function admin_session_open($did = '') {
     if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
     session_id(session_create_id());
     if (!@session_start()) return '';
-    $_SESSION = ['auth' => true];
+    $_SESSION = ['auth' => true, 'ae' => (int) setting('admin_sess_epoch', '0')];
     if ((string) $did !== '') $_SESSION['app_did'] = (string) $did;
     $id = session_id();
     session_write_close();

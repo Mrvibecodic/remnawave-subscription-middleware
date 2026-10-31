@@ -378,7 +378,9 @@ function set_setting($key, $value) {
     } else {
         $stmt = $p->prepare('INSERT INTO settings (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, updated_at = CURRENT_TIMESTAMP');
     }
-    $ok = $stmt->execute([$key, (string) $value]);
+    // База может быть занята (восстановление бэкапа держит запись на SQLite): запрос подписки не должен падать из-за настройки.
+    try { $ok = $stmt->execute([$key, (string) $value]); }
+    catch (PDOException $e) { error_log('submw set_setting ' . $key . ': ' . $e->getMessage()); return false; }
     if ($ok && isset($GLOBALS['submw_settings_cache'])) $GLOBALS['submw_settings_cache'][$key] = (string) $value;
     return $ok;
 }
