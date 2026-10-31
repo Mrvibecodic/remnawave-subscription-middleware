@@ -117,6 +117,7 @@ $pr_scopes = pr_scopes();
     .pr-pipe{display:flex;align-items:center;gap:.6rem;min-height:30px;padding:.1rem 0 .1rem .2rem;font-size:.76rem;color:var(--muted)}
     .pr-pipe b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
     .pr-pipe .ins,.pr-pipe .ins:hover,.pr-pipe .ins:active{margin-left:auto;display:inline-flex;align-items:center;gap:.3rem;background:none;color:var(--accent-text);font:inherit;font-size:.76rem;font-weight:600;opacity:0;transition:opacity .12s;cursor:pointer;border:1px dashed transparent;border-radius:6px;padding:.05rem .45rem;min-height:0;filter:none;transform:none}
+    @media(pointer:coarse){.pr-pipe .ins{min-height:32px}}
     .pr-pipe:hover .ins{opacity:1;border-color:var(--line)}
     .pr-pipe .ins:hover{border-color:var(--accent)}
     .pr-pipe.stop b{color:var(--c-bad-fg)}
@@ -291,7 +292,7 @@ $pr_scopes = pr_scopes();
     .pr-rc .act .sm{font-size:.74rem;color:var(--muted)}
     .pr-rc .warn{margin-top:.4rem;border:0;padding:.35rem .55rem;font-size:.76rem;background:var(--c-warn-bg);color:var(--c-warn-fg)}
     .pr-empty{padding:1.2rem;text-align:center;color:var(--muted);font-size:.86rem}
-    @media(max-width:760px){.pr-help{grid-template-columns:1fr}.pr-tst{grid-template-columns:1fr}.pr-lib{grid-template-columns:1fr}.pr-libl{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}.pr-libl button{white-space:nowrap}.pr-in{grid-template-columns:1fr}.pr-in .r{flex-direction:row;align-items:center;justify-content:space-between}}
+    @media(max-width:760px){.pr-help{grid-template-columns:1fr}.pr-tst{grid-template-columns:1fr}.pr-lib{grid-template-columns:1fr}.pr-libl{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}.pr-libl button{white-space:nowrap}.pr-in{grid-template-columns:1fr}.pr-in .r{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.4rem .8rem}.pr-in .r .pr-seg{flex:0 0 auto}.pr-in .r .pr-seg button{white-space:nowrap}}
     @media(max-width:640px){
       .pr-wf{grid-template-columns:30px minmax(0,1fr);column-gap:.4rem}
       .pr-rail .num{width:22px;height:22px;font-size:.66rem}

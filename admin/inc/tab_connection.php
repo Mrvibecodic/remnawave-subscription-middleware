@@ -50,7 +50,7 @@
                 <div><label>Секрет вебхука <button type="button" class="qh" onclick="help('whsecret')" aria-label="Справка">?</button></label><input type="password" name="webhook_secret" value="" placeholder="<?= webhook_secret() ? '•••••• задан' : 'не задан' ?>"></div>
             </div>
             <div class="row">
-                <div><label>X-Api-Key (caddy-with-auth) <button type="button" class="qh" onclick="help('xapikey')" aria-label="Справка">?</button></label><input type="text" name="remnawave_xapikey" value="<?= h(remnawave_xapikey()) ?>" placeholder="если панель за Caddy with custom path; иначе пусто"></div>
+                <div><label>X-Api-Key (caddy-with-auth) <button type="button" class="qh" onclick="help('xapikey')" aria-label="Справка">?</button></label><input type="text" name="remnawave_xapikey" value="<?= h(remnawave_xapikey()) ?>" placeholder="только для Caddy with custom path"></div>
             </div>
             <div class="set-row">
                 <div class="set-info"><div class="set-t">Таймаут проксирования, сек <button type="button" class="qh" onclick="help('timeout')" aria-label="Справка">?</button></div><div class="set-d">Сколько ждать ответа origin при запросе подписки.</div></div>
@@ -79,7 +79,7 @@
                 <label class="switch"><input type="checkbox" name="subpage_mirror" id="subpageMirrorChk" <?= subpage_mirror_active()?'checked':'' ?>><span class="sl"></span></label>
             </div>
             <div class="row" id="rowSubpageUrl"<?= $show_url_row ? '' : ' style="display:none"' ?>>
-                <div><label>Адрес subscription-page (режимы «Панель» / «Зеркало»)</label><input type="text" name="subpage_external_url" value="<?= h(subpage_external_url()) ?>" placeholder="https://panel.example.com или http://127.0.0.1:3010"><div class="muted" style="font-size:.8rem;margin-top:.3rem">Рядом с панелью — адрес контейнера/loopback; на отдельном сервере — публичный https-адрес панели. Используется как источник страницы подписки для браузера в обоих режимах.</div></div>
+                <div><label>Адрес subscription-page (режимы «Панель» / «Зеркало»)</label><input type="text" name="subpage_external_url" value="<?= h(subpage_external_url()) ?>" placeholder="http://127.0.0.1:3010"><div class="muted" style="font-size:.8rem;margin-top:.3rem">Рядом с панелью — адрес контейнера/loopback; на отдельном сервере — публичный https-адрес панели. Используется как источник страницы подписки для браузера в обоих режимах.</div></div>
                 <div></div>
             </div>
             <div class="set-row">

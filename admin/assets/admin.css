@@ -375,6 +375,7 @@ html.lp .pgr-bot{min-height:36px}
 .rw-out:hover{color:var(--text-strong);border-color:var(--accent)}
 .set-more{display:none}
 .qh.mh-b{display:none}
+@media(max-width:600px){.rw-content .card.mh-only{background:transparent;border:0;box-shadow:none;padding:.35rem .25rem .1rem;margin-bottom:.15rem}}
 @media(max-width:900px){
     .rw-app{min-height:100vh;min-height:100dvh}
     .rw-main{overflow:visible;overflow-x:clip}
@@ -413,23 +414,29 @@ html.lp .pgr-bot{min-height:36px}
     .seg button,.seg a{min-height:38px}
     .theme-seg button{min-height:38px}
     input[type=checkbox]:not(.ux-cbx):not(.switch input),input[type=radio]{width:20px;height:20px}
+    .switch.sm::after{content:"";position:absolute;inset:-10px}
 }
 @media(max-width:900px){
-    table.logtbl:has(th),table.tcards{display:block;white-space:normal;overflow:visible;border-radius:0;font-size:.88rem;min-width:0!important;width:100%}
+    table.logtbl:has(th),table.tcards{display:block;white-space:normal;overflow:visible;border-radius:0;font-size:.86rem;min-width:0!important;width:100%}
     table.logtbl:has(th)>thead,table.tcards>thead,table.logtbl:has(th)>colgroup,table.tcards>colgroup,table.logtbl:has(th)>tbody>tr:has(>th),table.tcards>tbody>tr:has(>th){display:none}
     table.logtbl:has(th)>tbody,table.tcards>tbody{display:block}
-    table.logtbl:has(th)>tbody>tr,table.tcards>tbody>tr{display:block;border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:.45rem .8rem;margin-bottom:.55rem}
-    table.logtbl:has(th)>tbody>tr>td,table.tcards>tbody>tr>td{display:flow-root;padding:.3rem 0;border:0;box-shadow:none;background:transparent;text-align:right;min-width:0;width:auto;height:auto;overflow-wrap:anywhere;white-space:normal}
-    table.logtbl:has(th)>tbody>tr>td::before,table.tcards>tbody>tr>td::before{content:attr(data-label);float:left;max-width:45%;margin-right:.9rem;padding-top:.1em;color:var(--muted);font-size:.76rem;font-weight:500;text-align:left;text-transform:none;letter-spacing:0}
-    table.logtbl:has(th)>tbody>tr>td:has(>input,>select),table.tcards>tbody>tr>td:has(>input,>select){display:flex;justify-content:space-between;align-items:center;gap:.9rem}
+    table.logtbl:has(th)>tbody>tr,table.tcards>tbody>tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:.9rem;row-gap:.1rem;align-items:start;border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:.65rem .8rem .7rem;margin-bottom:.65rem}
+    table.logtbl:has(th)>tbody>tr>td,table.tcards>tbody>tr>td{display:block;padding:.28rem 0;border:0;box-shadow:none;background:transparent;text-align:left;min-width:0;width:auto;height:auto;overflow-wrap:anywhere;white-space:normal;line-height:1.4;font-size:inherit}
+    table.logtbl:has(th)>tbody>tr>td::before,table.tcards>tbody>tr>td::before{content:attr(data-label);display:block;margin:0 0 .12rem;color:var(--muted);font-size:.72rem;font-weight:500;line-height:1.25;text-align:left;text-transform:none;letter-spacing:0}
+    table.logtbl:has(th)>tbody>tr>td[data-wide],table.tcards>tbody>tr>td[data-wide]{grid-column:1/-1}
+    @media(min-width:380px){table.logtbl:has(th)>tbody>tr>td[data-nw],table.tcards>tbody>tr>td[data-nw]{white-space:nowrap;overflow-wrap:normal}}
+    table.logtbl:has(th)>tbody>tr>td[data-acts],table.tcards>tbody>tr>td[data-acts]{grid-column:2;grid-row:1;justify-self:end;display:flex;gap:.4rem;padding-top:0}
+    table.logtbl:has(th)>tbody>tr>td[data-acts]::before,table.tcards>tbody>tr>td[data-acts]::before{content:none}
+    table.logtbl:has(th)>tbody>tr>td:has(>input,>select),table.tcards>tbody>tr>td:has(>input,>select){grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:.9rem}
     table.logtbl:has(th)>tbody>tr>td:has(>input,>select)::before,table.tcards>tbody>tr>td:has(>input,>select)::before{float:none;flex:0 0 auto;margin:0;padding:0}
     table.logtbl:has(th)>tbody>tr>td[data-label=""]::before,table.tcards>tbody>tr>td[data-label=""]::before,table.logtbl:has(th)>tbody>tr>td:not([data-label])::before,table.tcards>tbody>tr>td:not([data-label])::before{content:none}
-    table.logtbl:has(th)>tbody>tr>td:not([data-label]),table.tcards>tbody>tr>td:not([data-label]),table.logtbl:has(th)>tbody>tr>td[data-label=""],table.tcards>tbody>tr>td[data-label=""]{text-align:left}
+    table.logtbl:has(th)>tbody>tr>td:where(:not([data-label]),[data-label=""]):where(:not([data-acts])),table.tcards>tbody>tr>td:where(:not([data-label]),[data-label=""]):where(:not([data-acts])){grid-column:1/-1}
     table.logtbl:has(th)>tbody>tr:hover>td,table.tcards>tbody>tr:hover>td{background:transparent}
     table.logtbl:has(th)>tbody>tr>td[data-empty],table.tcards>tbody>tr>td[data-empty]{display:none}
     table.logtbl:has(th)>tbody>tr>td>input:not([type=checkbox]):not([type=radio]),table.tcards>tbody>tr>td>input:not([type=checkbox]):not([type=radio]),table.logtbl:has(th)>tbody>tr>td>select,table.tcards>tbody>tr>td>select{flex:1 1 auto;min-width:0;width:auto;max-width:60%}
     table.logtbl:has(th)>tbody>tr>td>label.chk,table.tcards>tbody>tr>td>label.chk{display:inline-flex;vertical-align:middle}
     table.logtbl:not(:has(th)){white-space:normal}
+    .rw-content pre{white-space:pre-wrap;overflow-wrap:anywhere}
     div.cv-wrap{overflow:visible;border:0;border-radius:0}
     table.gctbl>tbody>tr>td:first-child{width:auto;text-align:left}
     table.logtbl>tbody>tr:has(+tr.wh-det.open){margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0}

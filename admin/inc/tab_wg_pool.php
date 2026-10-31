@@ -108,6 +108,7 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
         .wgx .wb.pri{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
         .wgx .wb.pri:hover{background:var(--accent-h)}
         .wgx .wb.sm{padding:.26rem .55rem;font-size:.76rem}
+        @media(pointer:coarse){.wgx .wb.sm,.wgx-chf button{min-height:32px}}
         .wgx .wb.bad{color:var(--c-bad-fg)}
         .wgx .wb svg{width:15px;height:15px;flex:none}
         .wgx-note{display:flex;gap:.6rem;align-items:flex-start;font-size:.82rem;padding:.55rem .8rem;border-radius:8px;margin-top:.7rem;background:var(--c-info-bg)}
@@ -382,7 +383,7 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
                         <?php foreach ($wgx_filled as $pk): ?><option value="<?= h($pk) ?>"><?= h($wgx_pname($pk)) ?></option><?php endforeach; ?>
                         <?php if ($wgx_man_cfgs): ?><option value="__manual__">Ручная привязка</option><?php endif; ?>
                     </select>
-                    <input type="search" id="wgxQ" placeholder="метка, адрес, пользователь" aria-label="Поиск">
+                    <input type="search" id="wgxQ" placeholder="метка, адрес, юзер" aria-label="Поиск">
             </div>
             <?php if (!$sqcfg_wg): ?>
                 <p class="wgx-empty">Здесь будут конфиги. Загрузите .conf-файлы — можно сразу пачкой.</p>

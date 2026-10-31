@@ -477,7 +477,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 
         <div class="rv-kpis">
             <div class="rv-kpi"><span class="k">Устройств</span><span class="v"><?= $rv_num($rv_tot['devices']) ?></span><span class="d">прислали отчёт за период</span></div>
-            <div class="rv-kpi"><span class="k">Не отвечает узел</span><span class="v<?= $rv_dead_cl ? ' bad' : '' ?>"><?= $rv_num(count($rv_dead_cl)) ?></span><span class="d" data-tip="По последним (до 6) часам с замерами в каждой сети устройства, приславшего отчёт за период: узел не ответил ни на один пинг. Сеть, в которой устройство давно не было, тоже учитывается, пока её последний отчёт попадает в период.">клиентов, у кого узел молчит — <b>по последним часам с замерами</b></span></div>
+            <div class="rv-kpi"><span class="k">Не отвечает узел</span><span class="v<?= $rv_dead_cl ? ' bad' : '' ?>"><?= $rv_num(count($rv_dead_cl)) ?></span><span class="d" data-tip="По последним (до 6) часам с замерами в каждой сети устройства, приславшего отчёт за период: узел не ответил ни на один пинг. Сеть, в которой устройство давно не было, тоже учитывается, пока её последний отчёт попадает в период.">клиентов, у кого узел молчит</span></div>
             <div class="rv-kpi"><span class="k">Пинги</span><span class="v"><?= $rv_num($rv_tot['pn']) ?></span><span class="d">неудачных <span class="rq <?= $rv_qfail($rv_tot['fail']) ?>"><?= h($rv_pct($rv_tot['fail'])) ?></span></span></div>
             <div class="rv-kpi"><span class="k">Медианный пинг</span><span class="v" style="font-size:1.15rem"><?= h($rv_med($rv_tot['med'])) ?></span><span class="d">по <?= $rv_num($rv_tot['nodes']) ?> узлам</span></div>
             <div class="rv-kpi"><span class="k">Проверка 16–20</span><span class="v" style="font-size:1.05rem"><?= $rv_frzb($rv_tot) ?></span><span class="d" data-tip="Сколько проверок за период закончились так. Это число проверок, а не устройств. Нажмите на число — у каких устройств, в какой сети и до какого узла.">проверок за период: режется · работает</span></div>
@@ -535,6 +535,9 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         $W = 1000; $H = 150; $bw = $W / $cnt;
         $rv_dt = static fn($fmt, $t) => $rv_series['step'] === 3600 ? date($fmt, $t) : gmdate($fmt, $t + $rv_series['tz']);
         ?>
+        <?php $rv_any = array_sum(array_column($pts, 'pn')) > 0; ?>
+        <?php if (!$rv_any): ?><p class="muted" style="margin:.4rem 0 0">Нет пингов за период.</p><?php endif; ?>
+        <div<?= $rv_any ? '' : ' hidden' ?>>
         <svg class="rv-chart" viewBox="0 0 <?= $W ?> <?= $H ?>" preserveAspectRatio="none" data-n="<?= $cnt ?>">
             <line class="gl" x1="0" y1="<?= $H ?>" x2="<?= $W ?>" y2="<?= $H ?>"/>
             <?php foreach ($pts as $i => $pt):
@@ -563,6 +566,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         </div>
         <div class="rv-csel" id="rvCsel" aria-live="polite"></div>
         <div class="rv-legend"><span><i style="background:var(--accent);opacity:.55"></i>удачные</span><span><i style="background:var(--rq5)"></i>неудачные</span><span class="rv-hint-m">Наведите на столбец — подробности.</span><span class="rv-hint-t">Нажмите на столбец или проведите пальцем — подробности над легендой.</span></div>
+        </div>
     </div>
 
     <div class="card">

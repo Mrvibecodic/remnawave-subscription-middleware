@@ -29,12 +29,13 @@
 .gi-st.is-b{background:var(--c-bad-bg);color:var(--c-bad-fg)}
 .gi-act{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem}
 @media(max-width:900px){.gi-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.gi-keep{font-size:.85rem}}
 </style>
 <div class="card">
     <h2 style="margin-top:0;font-size:1rem">Геобазы</h2>
     <p class="muted">По ним прослойка определяет страну, провайдера, регион и город адреса: в сессиях и аномалиях пользователей и в статистике Clod Clash.</p>
     <?php if (!$gi_ip && setting('geoip_mode', '') === ''): ?>
-    <form method="post" class="info" style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:.6rem 0">
+    <form method="post" class="info gi-keep" style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:.6rem 0">
         <input type="hidden" name="csrf" value="<?= h($token) ?>">
         <input type="hidden" name="action" value="save_geoip_mode">
         <input type="hidden" name="geoip_mode" value="local">

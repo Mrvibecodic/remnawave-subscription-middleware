@@ -55,6 +55,7 @@ if (backup_path($bk_open) === '') $bk_open = '';
 .bk-ib svg{width:16px;height:16px}
 .bk-tbl form{display:inline}
 .bk-empty{padding:.9rem 0 .2rem;color:var(--muted);font-size:.88rem}
+@media(max-width:900px){.loghead-r:has(>#bk_pgrTop:empty){display:none}}
 .bk-foot{display:flex;gap:.6rem 1rem;flex-wrap:wrap;align-items:center;margin-top:1rem}
 .bk-foot .muted{font-size:.8rem;flex:1 1 20rem;min-width:0}
 .bk-foot .btn svg{width:16px;height:16px;vertical-align:-3px;margin-right:.35rem}
@@ -169,7 +170,7 @@ if (backup_path($bk_open) === '') $bk_open = '';
     <form method="post" class="bk-tok">
         <input type="hidden" name="csrf" value="<?= h($token) ?>">
         <input type="hidden" name="action" value="save_backup_pass">
-        <input type="password" name="backup_auto_pass" autocomplete="off" aria-label="Пароль для бэкапов по расписанию" placeholder="<?= $bk_apass ? 'Пароль задан — введите новый, чтобы заменить' : 'Пароль на бэкапы по расписанию — по желанию' ?>">
+        <input type="password" name="backup_auto_pass" autocomplete="off" aria-label="Пароль для бэкапов по расписанию" placeholder="<?= $bk_apass ? 'Пароль задан — введите новый' : 'Пароль на бэкапы — по желанию' ?>">
         <button type="submit" class="btn ghost">Сохранить пароль</button>
         <?php if ($bk_apass): ?><button type="submit" class="btn ghost" name="del" value="1">Убрать пароль</button><?php endif; ?>
     </form>
