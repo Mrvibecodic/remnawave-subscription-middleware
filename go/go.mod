@@ -1,3 +1,3 @@
 module github.com/Mrvibecodic/remnawave-subscription-middleware/go
 
-go 1.24
+go 1.27

@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine3.22 AS build
+FROM golang:1.27.3-alpine3.24 AS build
 ARG SUBMW_GO_VERSION=dev
 ARG SUBMW_GO_COMMIT=
 WORKDIR /src

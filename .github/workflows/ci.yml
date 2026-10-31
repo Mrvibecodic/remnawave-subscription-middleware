@@ -1,0 +1,52 @@
+name: Проверки
+on:
+  pull_request:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    name: Тесты Go и PHP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache: false
+      - name: Go — формат, vet, тесты
+        working-directory: go
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+          go vet ./...
+          go test -race -count=1 ./...
+          go build -o "$RUNNER_TEMP/submw-go" .
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, pdo_mysql, curl, mbstring, dom, sodium
+          coverage: none
+      - name: PHP — тесты с живым Go
+        env:
+          SUBMW_TEST_GO_BIN: ${{ runner.temp }}/submw-go
+        run: php tools/test.php
+  images:
+    name: Сборка образов
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Образ Go
+        uses: docker/build-push-action@v7
+        with:
+          context: go
+          push: false
+          cache-from: type=gha,scope=go
+      - name: Образ прослойки
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
