@@ -57,6 +57,19 @@ t_eq('журнал: PHP, все ноды', [$r['eng'] ?? '', (int) $r['nodes'], 
 t_ok('журнал: запросы к панели посчитаны', (int) $r['reqs'] >= 6, (string) ($r['reqs'] ?? ''));
 t_eq('бейдж без Go — PHP, не тревога', go_view()['mode'], 'none');
 t_eq('Go, которого нет, интервал не трогает', sess_every(), 120);
+// Без Go список пользователей — как раньше: PHP, без проверок Go и без записей о нём
+$t0 = microtime(true);
+$l = remnawave_all_users($e1);
+t_ok('без Go список собирает PHP, полный объект', count($l) === 1 && $e1 === '' && ($l[0]['shortUuid'] ?? '') === 'AbCdEfGhIjKlMnOp' && isset($l[0]['status']), $e1);
+t_eq('без Go: поля места вызова не мешают PHP', count(remnawave_all_users($e1, null, ['shortUuid'])[0] ?? []) > 1, true);
+admin_cache_put('sess_users', ['src' => '', 'u' => null, 'ts0' => 0]);
+t_eq('без Go: лимиты для «Сессий» — PHP', array_keys(sess_users_limits(1800, microtime(true) + 5)), [1]);
+unset($GLOBALS['submw_settings_cache']);
+t_eq('без Go: о Go ничего не записано', [setting('go_state', ''), setting('go_users', ''), go_users_view()['eng']], ['', '', '']);
+apistat_flush();
+t_eq('без Go: в «Запросах к панели» строк Go нет', (int) $tt_pdo->query("SELECT COUNT(*) FROM api_stat_hour WHERE src LIKE 'go:%'")->fetchColumn(), 0);
+t_ok('без Go: список не ждёт Go', microtime(true) - $t0 < 3, (string) (microtime(true) - $t0));
+t_eq('без Go: сверки в планировщике нет', isset(cron_tasks()['gocheck']), false);
 
 // Адрес задан, а Go молчит — «PHP вместо Go», опрос не теряется
 set_setting('go_url', 'http://127.0.0.1:' . $closed);
@@ -170,6 +183,7 @@ sess_collect(microtime(true) + 10);
 t_eq('включили обратно — снова Go', $plog()['eng'], 'go');
 
 // Список пользователей через Go
+t_eq('Go рассказал, что умеет', [go_can('sessions'), go_can('users')], [true, true]);
 $noexp = static function (array $l) { foreach ($l as &$u) unset($u['expireAt']); return $l; };
 $users_reset = static function () {
     foreach (['go_users', 'go_users_block', 'go_users_check'] as $k) set_setting($k, '');
@@ -231,6 +245,20 @@ $mock(['version' => '3.4.7']);
 t_eq('панель снова в порядке — сверка снимает блок', go_users_compare($d), true);
 t_eq('Go снова собирает список', is_array(go_users_list(['shortUuid'], $e)), true);
 
+// Go упал и поднялся — без «Сессий» список сам проверяет Go, не чаще раза в 5 минут
+go_mark_fail('down', 'тест');
+$s = go_state(); $s['probe'] = 0; go_state_put($s);
+unset($GLOBALS['submw_settings_cache']);
+$mock(['version' => '3.4.7', 'users_n' => 3]);
+remnawave_all_users($e1, null, ['shortUuid']);
+t_eq('Go снова отвечает — список вернулся на Go сам', [go_view()['mode'], go_users_view()['eng'], go_users_view()['n']], ['go', 'go', 3]);
+go_mark_fail('down', 'тест');
+unset($GLOBALS['submw_settings_cache']);
+go_users_note(['eng' => '']);
+remnawave_all_users($e1, null, ['shortUuid']);
+t_eq('проверка не чаще раза в 5 минут — пока список собирает PHP', [go_view()['mode'], go_users_view()['eng']], ['warn', '']);
+go_hello($e);
+
 // «Не использовать Go» выключает и список
 set_setting('go_off', '1');
 unset($GLOBALS['submw_settings_cache']);
@@ -285,6 +313,30 @@ $tt_pdo->exec('DELETE FROM sess_poll');
 $tt_pdo->exec("INSERT INTO sess_poll (ts, eng, nodes, ok, ms, reqs, conns) VALUES (" . time() . ", 'go', 3, 3, 1000, 10, 5), (" . time() . ", 'go', 0, 0, 1, 0, 0)");
 $sum = sess_plog_summary(24);
 t_eq('сводка: опрос без списка нод — только в числе опросов', [$sum['go']['n'], $sum['go']['ms'], $sum['go']['reqs'], $sum['go']['full']], [2, 1000, 10, 100.0]);
+
+// Go старой версии (без списка) и Go, не видящий панель: список — PHP, опрос нод Go не теряет
+$fmode = $tt_root . '/data/fakego.mode';
+file_put_contents($tt_root . '/data/fakego.php', '<?php $m = trim((string) @file_get_contents(' . var_export($fmode, true) . ')); header("Content-Type: application/json"); $u = parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH);'
+    . ' if ($u === "/v1/hello") { echo json_encode(["ok" => true, "v" => "old", "bridge" => 1] + ($m === "old" ? [] : ["caps" => ["sessions", "users"]])); exit; }'
+    . ' if ($u === "/v1/users/list" && $m === "pdown") { echo json_encode(["ok" => true, "bridge" => 1, "v" => "x", "hits" => [["m" => "GET", "p" => "/api/users?size=250&start=0", "c" => 0, "ms" => 1]], "users" => null, "panel_down" => "dial tcp: lookup remnawave: no such host"]); exit; }'
+    . ' http_response_code(404); header("Content-Type: text/plain"); echo "404 page not found";');
+$fake = t_serve($tt_root . '/data', $tt_root . '/data/fakego.php');
+set_setting('go_off', '0');
+set_setting('go_url', $fake);
+foreach (['go_state', 'go_users', 'go_users_block', 'go_users_check'] as $k) set_setting($k, '');
+unset($GLOBALS['submw_settings_cache']);
+file_put_contents($fmode, 'old');
+go_hello($e);
+t_eq('старый Go: опрос нод умеет, список — нет', [go_view()['mode'], go_can('sessions'), go_can('users')], ['go', false, false]);
+t_eq('старый Go: список собирает PHP, Go не тревога', [count(remnawave_all_users($e1, null, ['shortUuid'])), go_view()['mode'], go_users_view()['cap']], [3, 'go', false]);
+t_eq('старый Go: сверки в планировщике нет', isset(cron_tasks()['gocheck']), false);
+$s = go_state(); $s['caps'] = ['sessions', 'users']; go_state_put($s);
+unset($GLOBALS['submw_settings_cache']);
+t_eq('Go заменили старым без проверки — список PHP, Go не тревога, умение снято', [count(remnawave_all_users($e1, null, ['shortUuid'])), go_view()['mode'], go_can('users'), go_users_view()['err']], [3, 'go', false, go_err_text('nocap')]);
+file_put_contents($fmode, 'pdown');
+go_hello($e);
+t_eq('Go не видит панель: список PHP, причина видна, Go ждёт проверки', [count(remnawave_all_users($e1, null, ['shortUuid'])), go_view()['mode'], go_view()['kind'], strpos(go_users_view()['err'], 'не достучался до панели') === 0], [3, 'warn', 'panel', true]);
+$mock(['version' => '3.4.7']);
 
 // Чужая программа на адресе Go: токен панели ей не уходит
 $flog = $tt_root . '/data/foreign.log';

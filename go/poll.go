@@ -236,8 +236,11 @@ func (p *panel) wait(ctx context.Context, path string) nodeOut {
 					return nodeOut{St: "fail", Err: "задача на панели не выполнилась", again: true}
 				}
 				if c, _ := r["isCompleted"].(bool); c {
-					res, isObj := r["result"].(map[string]any)
-					if !isObj {
+					// Как у PHP: годится любой объект или массив.
+					res := r["result"]
+					switch res.(type) {
+					case map[string]any, []any:
+					default:
 						return nodeOut{St: "fail", Err: "панель не вернула результат", again: true}
 					}
 					raw, merr := json.Marshal(res)
