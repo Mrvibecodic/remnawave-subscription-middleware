@@ -118,3 +118,103 @@ func TestUsersEmpty(t *testing.T) {
 		t.Errorf("пустой список должен уходить массивом: %s", b)
 	}
 }
+
+// Пользователя удалили посреди обхода: страницы сдвинулись. drifts — сколько первых обходов сдвинуты.
+func driftMock(n int, drifts int32, passes *int32) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start, _ := strconv.Atoi(r.URL.Query().Get("start"))
+		pass := atomic.LoadInt32(passes)
+		if start == 0 {
+			pass = atomic.AddInt32(passes, 1)
+		}
+		ids := make([]int, 0, n)
+		for i := 0; i < n; i++ {
+			ids = append(ids, i)
+		}
+		total := n
+		if pass <= drifts && start > 0 {
+			ids = append(ids[:10], ids[11:]...)
+			total = n - 1
+		}
+		var us []string
+		for i := start; i < len(ids) && i < start+usersPage; i++ {
+			us = append(us, fmt.Sprintf(`{"uuid":"u-%d","shortUuid":"s%d"}`, ids[i], ids[i]))
+		}
+		_, _ = fmt.Fprintf(w, `{"response":{"users":[%s],"total":%d}}`, strings.Join(us, ","), total)
+	}))
+}
+
+func TestUsersDriftRetried(t *testing.T) {
+	var passes int32
+	srv := driftMock(600, 1, &passes)
+	defer srv.Close()
+	out, err := listUsers(context.Background(), ureq(srv.URL, "shortUuid"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.Retry || passes != 2 || len(out.Users) != 600 || out.Total != 600 {
+		t.Fatalf("retry=%v passes=%d users=%d", out.Retry, passes, len(out.Users))
+	}
+	if string(out.Users[250]) != `{"shortUuid":"s250"}` {
+		t.Errorf("после повтора список не тот: %s", out.Users[250])
+	}
+	if len(out.Hits) != 6 {
+		t.Errorf("запросов учтено %d, ожидалось 6", len(out.Hits))
+	}
+}
+
+func TestUsersDriftTwiceRefused(t *testing.T) {
+	var passes int32
+	srv := driftMock(600, 2, &passes)
+	defer srv.Close()
+	out, err := listUsers(context.Background(), ureq(srv.URL))
+	if err == nil || out.Users != nil || passes != 2 {
+		t.Fatalf("сдвиг дважды — должен быть отказ: err=%v users=%d passes=%d", err, len(out.Users), passes)
+	}
+	if err.Error() != "список менялся во время обхода" {
+		t.Errorf("текст: %v", err)
+	}
+}
+
+func TestUsersBogusTotal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"response":{"users":[],"total":999999999999}}`))
+	}))
+	defer srv.Close()
+	if _, err := listUsers(context.Background(), ureq(srv.URL)); err == nil {
+		t.Fatal("пустая страница при огромном total принята")
+	}
+}
+
+func TestUsersDuplicate(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"response":{"users":[{"uuid":"a","shortUuid":"x"},{"uuid":"a","shortUuid":"x"}],"total":2}}`))
+	}))
+	defer srv.Close()
+	if _, err := listUsers(context.Background(), ureq(srv.URL)); err == nil {
+		t.Fatal("повтор пользователя принят")
+	}
+}
+
+func TestUsersPanelDown(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	base := srv.URL
+	srv.Close()
+	out, err := listUsers(context.Background(), ureq(base))
+	if err != nil || out.PanelDown == "" || out.Users != nil {
+		t.Fatalf("панель недоступна из сети Go: err=%v down=%q", err, out.PanelDown)
+	}
+}
+
+func TestUsersBudgetText(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+	in := ureq(srv.URL)
+	in.BudgetMs = 1000
+	_, err := listUsers(context.Background(), in)
+	if err == nil || err.Error() != "не уложился в 1 с" {
+		t.Fatalf("текст таймаута: %v", err)
+	}
+}

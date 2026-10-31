@@ -1,7 +1,7 @@
 <?php
 
-// Go-сервис рядом с прослойкой: опрашивает ноды для «Сессий» параллельно. Всё остальное остаётся в PHP;
-// не ответил Go — опрос делает PHP, как раньше.
+// Go-сервис рядом с прослойкой: опрашивает ноды для «Сессий» и собирает список пользователей панели.
+// Всё остальное остаётся в PHP; не справился Go — его работу делает PHP, как раньше.
 
 const GO_BRIDGE = 1;
 const GO_FORGET = 7 * 86400;
@@ -73,7 +73,9 @@ function go_mark_ok(array $info, ?array $fail = null) {
     $first = (int) ($p['seen'] ?? 0) === 0;
     $s = ['ok' => $fail === null, 'ts' => $now, 'ok_ts' => $now, 'seen' => $first ? $now : (int) $p['seen'], 'url' => go_url(),
           'v' => mb_substr((string) ($info['v'] ?? ''), 0, 40), 'commit' => substr((string) ($info['commit'] ?? ''), 0, 40),
-          'bridge' => (int) ($info['bridge'] ?? 0), 'err' => '', 'detail' => '', 'fail_since' => 0];
+          'bridge' => (int) ($info['bridge'] ?? 0), 'err' => '', 'detail' => '', 'fail_since' => 0, 'probe' => (int) ($p['probe'] ?? 0),
+          // Что умеет Go — из его hello (в ответах на работу, у которых есть hits, этого нет — остаётся прежнее).
+          'caps' => array_key_exists('hits', $info) ? (array) ($p['caps'] ?? []) : array_values(array_filter(array_map('strval', (array) ($info['caps'] ?? []))))];
     if ($fail !== null) {
         $s['err'] = (string) $fail[0];
         $s['detail'] = mb_substr((string) $fail[1], 0, 200);
@@ -85,6 +87,22 @@ function go_mark_ok(array $info, ?array $fail = null) {
         if (in_array((string) setting('sess_every', ''), ['', '120'], true)) set_setting('sess_every', '60');
         set_setting('go_every_done', '1');
     }
+}
+
+// Умеет ли этот Go задачу. Go до списка пользователей о себе не рассказывал — он умеет только опрос нод.
+function go_can($cap) {
+    return in_array((string) $cap, (array) (go_state()['caps'] ?? []), true);
+}
+
+// Без «Сессий» Go больше никто не проверяет: список пользователей сам спрашивает, не вернулся ли он, — не чаще раза
+// в 5 минут. Только Go, который уже отвечал или задан руками: без Go прослойка работает как раньше, без лишних запросов.
+function go_probe() {
+    if (!go_known()) return;
+    $s = go_state();
+    if (time() - (int) ($s['probe'] ?? 0) < 300) return;
+    $s['probe'] = time();
+    go_state_put($s);
+    go_hello($e);
 }
 
 function go_mark_fail($kind, $detail) {
@@ -108,6 +126,7 @@ function go_err_text($kind, $detail = '') {
         case 'bridge':   return 'версия Go-сервиса не подходит к прослойке — обновите образ Go';
         case 'panel':    return 'не достучался до панели' . ($d !== '' ? ': ' . $d : '');
         case 'bad':      return 'Go вернул ошибку' . ($d !== '' ? ': ' . $d : '');
+        case 'nocap':    return 'Go-сервис старой версии этого не умеет — обновите образ Go';
     }
     return $d !== '' ? $d : 'ещё не проверялся';
 }
@@ -146,6 +165,8 @@ function go_call($method, $path, ?array $body, $timeout, &$kind = '', &$detail =
         return null;
     }
     $j = json_decode((string) $raw, true);
+    // Свой адрес Go не знает: образ старше прослойки. Сам Go при этом исправен.
+    if ($code === 404 && !is_array($j) && $path !== '/v1/hello') { $kind = 'nocap'; return null; }
     if ($code === 401 && is_array($j) && ($j['err'] ?? '') === 'secret') { $kind = 'secret'; return null; }
     if ($code === 503 && is_array($j) && ($j['err'] ?? '') === 'nosecret') { $kind = 'nosecret'; return null; }
     // Свой ответ Go всегда несёт версию моста: без неё по адресу отвечает что-то другое.
@@ -271,7 +292,10 @@ function go_view() {
 // собирает PHP. $fields — какие поля пользователя нужны месту вызова; null — объект целиком.
 function go_users_list(?array $fields, &$err = '', $budget = 60, $force = false) {
     $err = '';
-    if (!go_wanted() || empty(go_state()['ok'])) return null;
+    if (!go_wanted()) return null;
+    if (empty(go_state()['ok'])) go_probe();
+    if (empty(go_state()['ok'])) return null;
+    if (!go_can('users')) { $err = go_err_text('nocap'); return null; }
     if (!$force && go_users_blocked()) { $err = 'сверка с Go не совпала'; return null; }
     if (remnawave_url() === '' || remnawave_token() === '') return null;
     $body = [
@@ -282,7 +306,11 @@ function go_users_list(?array $fields, &$err = '', $budget = 60, $force = false)
     $t0 = microtime(true);
     $j = go_call('POST', '/v1/users/list', $body, max(2, $budget) + 5, $kind, $detail);
     if ($j === null) {
-        if (in_array($kind, ['down', 'secret', 'nosecret', 'bridge'], true)) go_mark_fail($kind, $detail);
+        if ($kind === 'nocap') {
+            $s = go_state();
+            $s['caps'] = array_values(array_diff((array) ($s['caps'] ?? []), ['users']));
+            go_state_put($s);
+        } elseif (in_array($kind, ['down', 'secret', 'nosecret', 'bridge'], true)) go_mark_fail($kind, $detail);
         $err = go_err_text($kind, $detail);
         if (!$force) go_users_note(['eng' => 'fb', 'err' => $err]);
         return null;
@@ -290,13 +318,20 @@ function go_users_list(?array $fields, &$err = '', $budget = 60, $force = false)
     foreach ((array) ($j['hits'] ?? []) as $h) {
         if (is_array($h) && function_exists('apistat_hit')) apistat_hit((string) ($h['m'] ?? 'GET'), (string) ($h['p'] ?? ''), (int) ($h['c'] ?? 0), (float) ($h['ms'] ?? 0), 'go:users');
     }
+    // Go жив, но панель из его сети не открывается — до следующей проверки Go список собирает PHP.
+    if ((string) ($j['panel_down'] ?? '') !== '') {
+        go_mark_ok($j, ['panel', (string) $j['panel_down']]);
+        $err = go_err_text('panel', (string) $j['panel_down']);
+        if (!$force) go_users_note(['eng' => 'fb', 'err' => $err]);
+        return null;
+    }
     $users = $j['users'] ?? null;
     if (!is_array($users)) {
         $err = go_err_text('bad', 'нет списка');
         if (!$force) go_users_note(['eng' => 'fb', 'err' => $err]);
         return null;
     }
-    if (!$force) go_users_note(['eng' => 'go', 'ms' => (int) round((microtime(true) - $t0) * 1000), 'pages' => (int) ($j['pages'] ?? 0), 'n' => count($users)]);
+    if (!$force) go_users_note(['eng' => 'go', 'ms' => (int) round((microtime(true) - $t0) * 1000), 'pages' => (int) ($j['pages'] ?? 0), 'n' => count($users), 'rt' => !empty($j['rt']) ? 1 : 0]);
     return $users;
 }
 
@@ -360,6 +395,8 @@ function go_users_view() {
         'pages' => (int) ($s['pages'] ?? 0),
         'n'     => (int) ($s['n'] ?? 0),
         'err'   => (string) ($s['err'] ?? ''),
+        'rt'    => !empty($s['rt']),
+        'cap'   => go_can('users'),
         'check' => is_array($c) ? ['ts' => (int) ($c['ts'] ?? 0), 'ok' => !empty($c['ok'])] : null,
         'block' => $b ? ['ts' => (int) $b['ts'], 'detail' => (string) ($b['detail'] ?? '')] : null,
     ];

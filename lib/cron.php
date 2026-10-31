@@ -21,7 +21,7 @@ function cron_tasks() {
     ] + (function_exists('cron_task_sessions') ? ['sessions' => ['Сессии: опрос нод', sess_every(), false]] : [])
       + (function_exists('cron_task_geo') && geoip_ipinfo() ? ['geo' => ['Гео: уточнение адресов через ipinfo', 60, false]] : [])
       + (function_exists('cron_task_backup') && backup_auto_on() ? ['backup' => ['Бэкап по расписанию', 86400, true]] : [])
-      + (function_exists('go_users_compare') && go_wanted() && !empty(go_state()['ok']) ? ['gocheck' => ['Go-сервис: сверка списка пользователей', 86400, true]] : []);
+      + (function_exists('go_users_compare') && go_wanted() && !empty(go_state()['ok']) && go_can('users') ? ['gocheck' => ['Go-сервис: сверка списка пользователей', 86400, true]] : []);
 }
 
 // Отметка из будущего (часы сервера ушли назад) свежей не считается.

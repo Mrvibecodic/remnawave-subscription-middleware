@@ -226,6 +226,9 @@ func TestAuth(t *testing.T) {
 		if rr.Code != c.code {
 			t.Errorf("%q/%q: %d, ожидалось %d", c.secret, c.header, rr.Code, c.code)
 		}
+		if rr.Code == 200 && !strings.Contains(rr.Body.String(), `"caps":["sessions","users"]`) {
+			t.Errorf("hello не перечисляет, что умеет Go: %s", rr.Body.String())
+		}
 	}
 	rr := httptest.NewRecorder()
 	handler("").ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/healthz", nil))

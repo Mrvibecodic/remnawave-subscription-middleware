@@ -19,6 +19,9 @@ import (
 // Меняется, только когда меняется формат запросов прослойки к сервису.
 const bridgeVersion = 1
 
+// Что умеет этот Go: прослойка просит у него только перечисленное, остальное делает сама.
+var caps = []string{"sessions", "users"}
+
 var (
 	version = "dev"
 	commit  = ""
@@ -62,7 +65,7 @@ func handler(secret string) http.Handler {
 		_, _ = w.Write([]byte("ok\n"))
 	})
 	mux.HandleFunc("GET /v1/hello", authed(secret, func(w http.ResponseWriter, _ *http.Request) {
-		reply(w, http.StatusOK, map[string]any{"ok": true, "v": version, "commit": commit, "bridge": bridgeVersion})
+		reply(w, http.StatusOK, map[string]any{"ok": true, "v": version, "commit": commit, "bridge": bridgeVersion, "caps": caps})
 	}))
 	mux.HandleFunc("POST /v1/sessions/poll", authed(secret, func(w http.ResponseWriter, r *http.Request) {
 		var in pollReq
@@ -89,6 +92,9 @@ func handler(secret string) http.Handler {
 			return
 		}
 		out, err := listUsers(r.Context(), in)
+		if out.PanelDown != "" {
+			slog.Warn("панель недоступна", "err", out.PanelDown)
+		}
 		if err != nil {
 			reply(w, http.StatusBadGateway, map[string]any{"ok": false, "err": err.Error(), "v": version, "bridge": bridgeVersion, "hits": out.Hits})
 			return
