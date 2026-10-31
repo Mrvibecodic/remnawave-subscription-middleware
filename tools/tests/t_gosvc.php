@@ -184,6 +184,22 @@ t_eq('включили обратно — снова Go', $plog()['eng'], 'go');
 
 // Список пользователей через Go
 t_eq('Go рассказал, что умеет', [go_can('sessions'), go_can('users')], [true, true]);
+// Образ Go обновили, прослойка его ещё не спрашивала (опрос нод hello не делает) — список узнаёт сам, без «Проверить»
+$mock(['version' => '3.4.7', 'users_n' => 5]);
+foreach ([null, 'old|abc'] as $case) {
+    $s = go_state();
+    if ($case === null) unset($s['caps'], $s['caps_of']); else $s['caps_of'] = $case;
+    go_state_put($s);
+    unset($GLOBALS['submw_settings_cache']);
+    sess_collect(microtime(true) + 10);
+    t_eq('после опроса нод умение Go неизвестно' . ($case === null ? ' (состояние до обновления)' : ' (сменился образ)'), [go_view()['mode'], go_users_view()['cap']], ['go', null]);
+    $l = remnawave_all_users($e1, null, ['shortUuid']);
+    t_eq('список сам спросил Go и пошёл через него', [count($l), go_can('users'), go_users_view()['eng'], go_users_view()['cap']], [5, true, 'go', true]);
+}
+sess_collect(microtime(true) + 10);
+t_eq('опрос нод тем же Go умение не сбрасывает', go_can('users'), true);
+apistat_flush();
+$go_hits0 = (int) $tt_pdo->query("SELECT COALESCE(SUM(n), 0) FROM api_stat_hour WHERE src = 'go:users'")->fetchColumn();
 $noexp = static function (array $l) { foreach ($l as &$u) unset($u['expireAt']); return $l; };
 $users_reset = static function () {
     foreach (['go_users', 'go_users_block', 'go_users_check'] as $k) set_setting($k, '');
@@ -199,7 +215,7 @@ $uv = go_users_view();
 t_eq('строка «Список пользователей»: Go, 3 страницы, 600', [$uv['eng'], $uv['pages'], $uv['n']], ['go', 3, 600]);
 apistat_flush();
 $n = (int) $tt_pdo->query("SELECT COALESCE(SUM(n), 0) FROM api_stat_hour WHERE src = 'go:users'")->fetchColumn();
-t_eq('«Запросы к панели»: строка Go — список пользователей', $n, 3);
+t_eq('«Запросы к панели»: строка Go — список пользователей', $n - $go_hits0, 3);
 t_eq('подпись группы списка', apistat_src_label('go:users'), 'Go-сервис: список пользователей');
 $e1 = $e2 = '';
 $full_go = remnawave_all_users($e1);

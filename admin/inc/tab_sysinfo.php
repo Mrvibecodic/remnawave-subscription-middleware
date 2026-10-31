@@ -306,7 +306,7 @@ if ($cr_on) {
                     <div class="si-go-task"><span class="nm">Список пользователей панели</span>
                     <?php if ($gu['eng'] === 'block'): ?>
                         <?= $go_eng('wn', 'PHP') ?><span class="tx">сверка с панелью не совпала <?= $go_ts($gu['block']['ts']) ?>: <?= h($gu['block']['detail']) ?>. Список собирает PHP; сверка повторится через сутки или по «Проверить».</span>
-                    <?php elseif ($go_v['mode'] === 'go' && !$gu['cap']): ?>
+                    <?php elseif ($go_v['mode'] === 'go' && $gu['cap'] === false): ?>
                         <?= $go_eng('wn', 'PHP') ?><span class="tx">Go-сервис старой версии не умеет собирать список — обновите образ Go: <code>docker compose pull submw-go &amp;&amp; docker compose up -d submw-go</code>. До тех пор список собирает PHP.</span>
                     <?php elseif ($gu['eng'] === 'go' && $go_v['mode'] === 'go'): ?>
                         <?= $go_eng('go', 'Go') ?><span class="tx">последний раз <?= $go_ts($gu['ts']) ?> · <b><?= number_format($gu['n'], 0, ',', ' ') ?></b> польз., <?= (int) $gu['pages'] ?> стр. за <?= $gu['ms'] < 1000 ? (int) $gu['ms'] . '&nbsp;мс' : number_format($gu['ms'] / 1000, 1, ',', '') . '&nbsp;с' ?><?php if ($gu['rt']): ?> · с повтором: список менялся во время обхода<?php endif; ?><?php if ($gu['check']): ?> · сверка <?= $go_ts($gu['check']['ts']) ?> — <?= $gu['check']['ok'] ? 'совпало' : 'не совпало' ?><?php endif; ?></span>
