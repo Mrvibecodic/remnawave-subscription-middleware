@@ -384,20 +384,23 @@ function set_setting($key, $value) {
 }
 
 // Кэш админки и планировщика — отдельная таблица, не settings: settings целиком читаются на каждом запросе подписки.
-function admin_cache_ensure($p) {
-    static $done = false;
-    if ($done) return true;
-    try {
-        if (db_driver() === 'mysql') {
-            $p->exec("CREATE TABLE IF NOT EXISTS admin_cache (
+function admin_cache_ddl($drv) {
+    if ($drv === 'mysql') {
+        return "CREATE TABLE IF NOT EXISTS admin_cache (
                 k VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
                 v LONGTEXT NOT NULL,
                 ts INT UNSIGNED NOT NULL DEFAULT 0,
                 PRIMARY KEY (k)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        } else {
-            $p->exec("CREATE TABLE IF NOT EXISTS admin_cache (k TEXT NOT NULL PRIMARY KEY, v TEXT NOT NULL, ts INTEGER NOT NULL DEFAULT 0)");
-        }
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    }
+    return "CREATE TABLE IF NOT EXISTS admin_cache (k TEXT NOT NULL PRIMARY KEY, v TEXT NOT NULL, ts INTEGER NOT NULL DEFAULT 0)";
+}
+
+function admin_cache_ensure($p) {
+    static $done = false;
+    if ($done) return true;
+    try {
+        $p->exec(admin_cache_ddl(db_driver()));
         return $done = true;
     } catch (Throwable $e) { error_log('submw admin_cache ensure: ' . $e->getMessage()); return false; }
 }
@@ -441,6 +444,38 @@ function db_table_columns($pdo, $drv, $table) {
             foreach ($pdo->query('SHOW COLUMNS FROM ' . $table) as $r) $out[] = (string) $r['Field'];
         } else {
             foreach ($pdo->query('PRAGMA table_info(' . $table . ')') as $r) $out[] = (string) $r['name'];
+        }
+    } catch (Throwable $e) { return []; }
+    return $out;
+}
+
+// Вся схема прослойки одним списком, без заполнения настроек: перенос базы, восстановление бэкапа и выбор
+// «своих» таблиц берут её отсюда, чтобы таблица новой функции не потерялась ни в одном из них.
+function db_schema_ddl($drv) {
+    if (function_exists('submw_load_admin_libs')) submw_load_admin_libs();
+    $ddl = array_merge(install_statements($drv), [ddl_metrics_minute($drv), ddl_metrics_peak($drv), admin_cache_ddl($drv)], migrate_extra_ddl($drv), rep_ddl($drv));
+    foreach (['app_ddl', 'fc_ddl', 'addsub_swap_ddl', 'sess_ddl', 'apistat_ddl', 'geonet_ddl', 'pr_snap_ddl'] as $f) {
+        if (function_exists($f)) $ddl = array_merge($ddl, (array) $f($drv));
+    }
+    return array_values(array_filter($ddl, static function ($sql) { return !preg_match('~^\s*INSERT\b~i', (string) $sql); }));
+}
+
+function db_schema_tables($drv) {
+    $out = [];
+    foreach (db_schema_ddl($drv) as $sql) {
+        if (preg_match('~CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`?(\w+)~i', (string) $sql, $m)) $out[$m[1]] = true;
+    }
+    return array_keys($out);
+}
+
+// Колонки с двоичными данными (сжатые отчёты): их байты переносятся как есть, правка кодировки их бы испортила.
+function db_bin_cols($pdo, $drv, $table) {
+    $out = [];
+    try {
+        if ($drv === 'mysql') {
+            foreach ($pdo->query('SHOW COLUMNS FROM ' . $table) as $r) if (preg_match('~blob|binary~i', (string) $r['Type'])) $out[] = (string) $r['Field'];
+        } else {
+            foreach ($pdo->query('PRAGMA table_info(' . $table . ')') as $r) if (preg_match('~blob~i', (string) $r['type'])) $out[] = (string) $r['name'];
         }
     } catch (Throwable $e) { return []; }
     return $out;
@@ -641,35 +676,12 @@ function db_migrate(array $from, array $to, &$err = '') {
     $sdrv = $from['driver'] ?? 'sqlite';
     try {
         foreach (install_statements($drv) as $sql) $dst->exec($sql);
-        $dst->exec(ddl_metrics_minute($drv));
-        $dst->exec(ddl_metrics_peak($drv));
-        foreach (array_merge(migrate_extra_ddl($drv), rep_ddl($drv), function_exists('app_ddl') ? app_ddl($drv) : []) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
+        // Флаги «таблица создана» переезжают вместе с settings, поэтому приёмник получает всю схему, а не только то, что есть в источнике.
+        foreach (db_schema_ddl($drv) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
     } catch (Throwable $e) { $err = 'подготовка приёмника: ' . $e->getMessage(); return false; }
 
     $tables = db_list_tables($src, $sdrv);
-    if (!$tables) {
-        $ddl = array_merge(install_statements($sdrv), [ddl_metrics_minute($sdrv), ddl_metrics_peak($sdrv)], migrate_extra_ddl($sdrv), rep_ddl($sdrv),
-            function_exists('app_ddl') ? app_ddl($sdrv) : [], function_exists('fc_ddl') ? [fc_ddl($sdrv)] : [], function_exists('addsub_swap_ddl') ? [addsub_swap_ddl($sdrv)] : [],
-            function_exists('sess_ddl') ? sess_ddl($sdrv) : [], function_exists('apistat_ddl') ? apistat_ddl($sdrv) : [],
-            function_exists('geonet_ddl') ? geonet_ddl($sdrv) : []);
-        foreach ($ddl as $sql) if (preg_match('~CREATE TABLE IF NOT EXISTS\s+(\w+)~i', $sql, $m)) $tables[] = $m[1];
-        $tables = array_values(array_unique($tables));
-    }
-    if (in_array('addsub_swap', $tables, true) && function_exists('addsub_swap_ddl')) {
-        try { $dst->exec(addsub_swap_ddl($drv)); } catch (Throwable $e) {}
-    }
-    if (in_array('first_conn', $tables, true) && function_exists('fc_ddl')) {
-        try { $dst->exec(fc_ddl($drv)); } catch (Throwable $e) {}
-    }
-    if (in_array('conn_sess', $tables, true) && function_exists('sess_ddl')) {
-        foreach (sess_ddl($drv) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
-    }
-    if (in_array('api_stat_hour', $tables, true) && function_exists('apistat_ddl')) {
-        foreach (apistat_ddl($drv) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
-    }
-    if (in_array('geo_net', $tables, true) && function_exists('geonet_ddl')) {
-        foreach (geonet_ddl($drv) as $sql) { try { $dst->exec($sql); } catch (Throwable $e) {} }
-    }
+    if (!$tables) $tables = db_schema_tables($sdrv);
     $verb = ($drv === 'mysql') ? 'REPLACE' : 'INSERT OR REPLACE';
     $dst_cols = [];
     foreach ($tables as $t) {
@@ -695,6 +707,7 @@ function db_migrate(array $from, array $to, &$err = '') {
             catch (Throwable $e) { if ($unbuf) $src->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true); continue; }
             $ins = null;
             $keep = null;
+            $text = [];
             while (($row = $sel->fetch(PDO::FETCH_ASSOC)) !== false) {
                 if ($ins === null) {
                     $cols = array_keys($row);
@@ -702,11 +715,14 @@ function db_migrate(array $from, array $to, &$err = '') {
                     if (!$cols) break;
                     $keep = array_flip($cols);
                     $ins = $dst->prepare("$verb INTO $t (" . implode(',', $cols) . ') VALUES (' . implode(',', array_fill(0, count($cols), '?')) . ')');
+                    $bin = $drv === 'mysql' ? db_bin_cols($dst, $drv, $t) : $cols;
+                    foreach (array_values($cols) as $i => $c) if (!in_array($c, $bin, true)) $text[] = $i;
                 }
                 $vals = array_values(array_intersect_key($row, $keep));
-                // MySQL отвергает невалидный UTF-8, который SQLite хранит молча: одна такая строка откатила бы весь перенос.
-                if ($drv === 'mysql') {
-                    foreach ($vals as $i => $v) if (is_string($v) && $v !== '' && !preg_match('//u', $v)) $vals[$i] = mb_scrub($v, 'UTF-8');
+                // MySQL отвергает невалидный UTF-8 в текстовых колонках, который SQLite хранит молча: одна такая строка откатила бы весь перенос.
+                foreach ($text as $i) {
+                    $v = $vals[$i];
+                    if (is_string($v) && $v !== '' && !preg_match('//u', $v)) $vals[$i] = mb_scrub($v, 'UTF-8');
                 }
                 $ins->execute($vals);
             }

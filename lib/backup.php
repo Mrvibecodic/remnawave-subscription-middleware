@@ -40,14 +40,7 @@ function backup_kinds() {
 // Только свои таблицы: в общей базе MySQL могут лежать чужие — их не выгружаем и не стираем.
 function backup_known_tables() {
     static $k = null;
-    if ($k !== null) return $k;
-    $k = [];
-    foreach (glob(__DIR__ . '/*.php') ?: [] as $f) {
-        if (preg_match_all('~CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)~i', (string) @file_get_contents($f), $m)) {
-            foreach ($m[1] as $t) $k[$t] = true;
-        }
-    }
-    $k = array_keys($k);
+    if ($k === null) $k = db_schema_tables(db_driver());
     return $k;
 }
 
@@ -542,14 +535,7 @@ function backup_preview($name, $pass, &$err) {
 function backup_ensure_schema() {
     $p = db();
     if (!$p) return;
-    $drv = db_driver();
-    $ddl = array_merge(install_statements($drv), [ddl_metrics_minute($drv), ddl_metrics_peak($drv)], migrate_extra_ddl($drv), rep_ddl($drv));
-    foreach (['app_ddl', 'fc_ddl', 'addsub_swap_ddl', 'sess_ddl', 'apistat_ddl', 'geonet_ddl', 'pr_snap_ddl'] as $f) {
-        if (function_exists($f)) $ddl = array_merge($ddl, (array) $f($drv));
-    }
-    foreach ($ddl as $sql) {
-        // В install_statements есть и заполнение настроек по умолчанию: на рабочей базе оно дописало бы ключи, которых у старых установок нет.
-        if (preg_match('~^\s*INSERT\b~i', (string) $sql)) continue;
+    foreach (db_schema_ddl(db_driver()) as $sql) {
         try { $p->exec($sql); } catch (Throwable $e) {}
     }
     foreach (['ensure_metrics_tables', 'ensure_forward_log', 'ensure_panel_write_log', 'ensure_grace_table', 'ensure_chat_tables', 'ensure_wg_user_cache',
@@ -644,7 +630,7 @@ function bk_restore($name, $pass, array $opt, ?callable $tick, &$err) {
         foreach (array_values((array) ($m['c'] ?? [])) as $i => $c) {
             if (in_array((string) $c, $have, true)) $idx[$i] = (string) $c;
         }
-        if ($idx) $plan[$t] = ['idx' => $idx, 'n' => (int) ($m['n'] ?? 0)];
+        if ($idx) $plan[$t] = ['idx' => $idx, 'n' => (int) ($m['n'] ?? 0), 'bin' => $drv === 'mysql' ? db_bin_cols($p, $drv, $t) : array_values($idx)];
     }
     $total = 0;
     foreach ($plan as $pl) if ($pl) $total += $pl['n'];
@@ -733,7 +719,7 @@ function bk_restore($name, $pass, array $opt, ?callable $tick, &$err) {
                     $x = base64_decode((string) ($x['b'] ?? ''), true);
                     if ($x === false) throw new RuntimeException('Файл повреждён: таблица ' . $t);
                 }
-                if ($drv === 'mysql' && is_string($x) && $x !== '' && !preg_match('//u', $x)) $x = mb_scrub($x, 'UTF-8');
+                if (is_string($x) && $x !== '' && !in_array($c, $plan[$t]['bin'], true) && !preg_match('//u', $x)) $x = mb_scrub($x, 'UTF-8');
                 $row[] = $x;
             }
             if ($isSet && $ki !== false && backup_keep_setting($row[$ki], $keep_login)) continue;
