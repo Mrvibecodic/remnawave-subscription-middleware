@@ -347,6 +347,9 @@ html.lp .pgr-bot{min-height:36px}
     .switch{width:48px;height:27px}
     .switch .sl::before{width:21px;height:21px}
     .switch input:checked+.sl::before{transform:translateX(21px)}
+    .switch.sm{width:34px;height:20px}
+    .switch.sm .sl::before{width:14px;height:14px}
+    .switch.sm input:checked+.sl::before{transform:translateX(14px)}
     table{border-spacing:0}
     th{background:var(--bg2)}
     th:first-child{border-top-left-radius:var(--radius)}

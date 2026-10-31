@@ -21,7 +21,6 @@ function gc_tables() {
         'sess_anom'      => ['title' => 'Журнал аномалий сессий',      'pk' => 'id', 'col' => 'last_ts', 'kind' => 'epoch'],
         'geo_net'        => ['title' => 'Гео: кэш подсетей ipinfo',    'pk' => 'k',  'col' => 'seen',    'kind' => 'epoch'],
         'api_stat_hour'  => ['title' => 'Запросы к панели по часам',   'pk' => 'h',  'col' => 'h',       'kind' => 'epoch'],
-        'panel_rules_snap' => ['title' => 'Снимки правил ответа панели', 'pk' => 'id', 'col' => 'ts',    'kind' => 'epoch'],
     ];
 }
 

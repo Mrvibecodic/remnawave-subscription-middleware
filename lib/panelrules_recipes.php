@@ -327,7 +327,7 @@ function pr_recipes() {
                     'enabled' => true,
                     'operator' => 'AND',
                     'conditions' => [
-                        ['headerName' => 'user-agent', 'operator' => 'STARTS_WITH', 'value' => 'FlClash X/', 'caseSensitive' => true],
+                        ['headerName' => 'user-agent', 'operator' => 'REGEX', 'value' => '^FlClash ?X/', 'caseSensitive' => true],
                     ],
                     'responseType' => 'MIHOMO',
                 ],
@@ -486,7 +486,7 @@ function pr_recipes() {
                     'enabled' => true,
                     'operator' => 'AND',
                     'conditions' => [
-                        ['headerName' => 'user-agent', 'operator' => 'STARTS_WITH', 'value' => 'FlClash X/', 'caseSensitive' => true],
+                        ['headerName' => 'user-agent', 'operator' => 'REGEX', 'value' => '^FlClash ?X/', 'caseSensitive' => true],
                     ],
                     'responseType' => 'MIHOMO',
                     'responseModifications' => [
@@ -587,7 +587,7 @@ function pr_recipes() {
                     'enabled' => true,
                     'operator' => 'AND',
                     'conditions' => [
-                        ['headerName' => 'user-agent', 'operator' => 'STARTS_WITH', 'value' => 'FlClash X/', 'caseSensitive' => true],
+                        ['headerName' => 'user-agent', 'operator' => 'REGEX', 'value' => '^FlClash ?X/', 'caseSensitive' => true],
                     ],
                     'responseType' => 'MIHOMO',
                     'responseModifications' => ['subscriptionTemplate' => 'FlClashX'],
