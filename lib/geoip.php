@@ -624,8 +624,9 @@ const GEONET_KEEP_DAYS = 180;
 
 function geoip_modes() { return ['ipinfo' => 'ipinfo.io — по API', 'local' => 'Локальные базы (MaxMind DB)']; }
 
-// Без явного выбора — локальные базы: обновившиеся установки не начинают молча отправлять адреса клиентов наружу. Новым ставит ipinfo мастер установки.
-function geoip_mode() { return (string) setting('geoip_mode', 'local') === 'ipinfo' ? 'ipinfo' : 'local'; }
+// Без явного выбора — локальные базы: обновившиеся установки не начинают молча отправлять адреса клиентов наружу.
+// Новым ставит ipinfo мастер установки; где очередь ipinfo уже работала (geonet_init), остаётся ipinfo.
+function geoip_mode() { return (string) setting('geoip_mode', setting('geonet_init', '') === '1' ? 'ipinfo' : 'local') === 'ipinfo' ? 'ipinfo' : 'local'; }
 
 function geoip_ipinfo() { return geoip_mode() === 'ipinfo'; }
 
@@ -975,7 +976,7 @@ function geonet_step($deadline, $max = 120) {
 }
 
 // Дописывает ответы ipinfo в уже записанные сессии и адреса отчётов. Пустое у ipinfo не стирает прежнее.
-// Сводки по IP и по часам не трогаем: они большие, а сканировать их каждую минуту дорого — их чинит пересборка статистики.
+// Сводки по IP и по часам не трогаем: страну и провайдера в них уже записала локальная база, регион уточнит пересборка статистики.
 function geonet_apply(array $resolved) {
     if (!$resolved || !($p = db())) return 0;
     $rng = [];
