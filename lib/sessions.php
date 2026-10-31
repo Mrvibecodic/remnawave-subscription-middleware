@@ -881,14 +881,15 @@ function sess_anom_hist_map() {
     $names = [];
     foreach (sess_anom_rules() as $g) $names[$g['id']] = $g['name'];
     try {
-        $st = $p->prepare('SELECT uid, gid, lvl, end_ts, why FROM sess_anom WHERE last_ts >= ? AND end_ts > 0 ORDER BY end_ts');
+        // По одному последнему закрытому событию каждого цвета у пользователя — подсказка у значка берёт текст события того же цвета.
+        $st = $p->prepare('SELECT a.uid, a.gid, a.lvl, a.end_ts, a.why FROM sess_anom a JOIN (SELECT uid, lvl, MAX(end_ts) m FROM sess_anom WHERE last_ts >= ? AND end_ts > 0 GROUP BY uid, lvl) b ON a.uid = b.uid AND a.lvl = b.lvl AND a.end_ts = b.m');
         $st->execute([time() - sess_anom_keep_days() * 86400]);
         foreach ($st as $r) {
             $u = (string) (int) $r['uid'];
             $k = $r['lvl'] === 'bad' ? 'b' : 'w';
-            if (!isset($out[$u])) $out[$u] = ['b' => 0, 'w' => 0, 't' => ''];
-            $out[$u][$k] = max($out[$u][$k], (int) $r['end_ts']);
-            $out[$u]['t'] = ($names[$r['gid']] ?? $r['gid']) . ': ' . str_replace(' сейчас ', ' ', sess_anom_why_text(json_decode((string) $r['why'], true)));
+            if (!isset($out[$u])) $out[$u] = ['b' => 0, 'w' => 0, 'tb' => '', 'tw' => ''];
+            $out[$u][$k] = (int) $r['end_ts'];
+            $out[$u]['t' . $k] = ($names[$r['gid']] ?? $r['gid']) . ': ' . str_replace(' сейчас ', ' ', sess_anom_why_text(json_decode((string) $r['why'], true)));
         }
     } catch (Throwable $e) {}
     return $out;
@@ -911,12 +912,18 @@ function sess_anom_why_text($why) {
 function sess_anom_subips(array $ev, $short) {
     if ($short === '' || !($p = db())) return $ev;
     $from = PHP_INT_MAX; $to = 0; $now = time();
-    foreach ($ev as $e) { $from = min($from, $e['s'] - 86400); $to = max($to, $e['e'] ?: $now); }
+    $ips = [];
+    foreach ($ev as $e) {
+        $from = min($from, $e['s'] - 86400); $to = max($to, $e['e'] ?: $now);
+        foreach ($e['ips'] as $x) if (($x['ip'] ?? '') !== '') $ips[(string) $x['ip']] = 1;
+    }
+    if (!$ips) return $ev;
+    $ips = array_slice(array_keys($ips), 0, 500);
     $by = [];
     try {
         $ep = sql_epoch('ts');
-        $st = $p->prepare("SELECT ip, user_agent, meta, $ep AS e FROM request_log WHERE short_uuid = ? AND decision <> 'browser' AND $ep BETWEEN ? AND ? ORDER BY id DESC LIMIT 3000");
-        $st->execute([$short, $from, $to]);
+        $st = $p->prepare("SELECT ip, user_agent, meta, $ep AS e FROM request_log WHERE short_uuid = ? AND ip IN (" . implode(',', array_fill(0, count($ips), '?')) . ") AND decision <> 'browser' AND $ep BETWEEN ? AND ? ORDER BY id DESC LIMIT 20000");
+        $st->execute(array_merge([$short], $ips, [$from, $to]));
         foreach ($st as $r) if ((string) $r['ip'] !== '') $by[(string) $r['ip']][] = $r;
     } catch (Throwable $e) { return $ev; }
     if (!$by) return $ev;

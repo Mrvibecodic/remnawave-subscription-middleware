@@ -902,9 +902,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 
     if ($action === 'save_geoip_mode') {
         $gm = (string) ($_POST['geoip_mode'] ?? '');
-        if (isset(geoip_modes()[$gm]) && $gm !== geoip_mode()) {
+        if (isset(geoip_modes()[$gm]) && ($gm !== geoip_mode() || setting('geoip_mode', '') === '')) {
             set_setting('geoip_mode', $gm);
-            if ($gm === 'local') set_setting('geoip_try', '0');
+            set_setting('geoip_try', '0');
         }
         if (isset($_POST['ipinfo_cap'])) set_setting('ipinfo_cap', (string) max(10, min(ipinfo_cap_max(), (int) $_POST['ipinfo_cap'])));
         flash(geoip_ipinfo() ? 'Гео — через ipinfo.io' : 'Гео — по локальным базам');

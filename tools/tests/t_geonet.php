@@ -21,10 +21,14 @@ t_eq('IPv4 — /24', geonet_key('1.2.3.4'), 'v4:1.2.3');
 t_eq('IPv6 — /48, адреса одной /48 дают один ключ', [geonet_key('2a02:6b8:a::1'), geonet_key('2a02:06b8:000a:ffff::2')], ['v6:2a0206b8000a', 'v6:2a0206b8000a']);
 t_eq('IPv4 внутри IPv6 — как IPv4', geonet_key('::ffff:1.2.3.9'), 'v4:1.2.3');
 t_eq('частные, служебные и мусор — без ключа', [geonet_key('10.1.2.3'), geonet_key('127.0.0.1'), geonet_key('192.168.0.1'), geonet_key('fd00::1'), geonet_key('x'), geonet_key('')], ['', '', '', '', '', '']);
-t_eq('шаблон LIKE подсети', [geonet_like('v4:1.2.3'), geonet_like('v6:2a0206b8000a')], ['1.2.3.%', '2a02:%']);
+t_eq('диапазон адресов подсети', [geonet_range('v4:1.2.3'), geonet_range('v6:2a0206b8000a'), geonet_range('v6:2a0200000000')], [['1.2.3.', '1.2.3/'], ['2a02:6b8:', '2a02:6b8;'], ['2a02:', '2a02;']]);
+t_ok('диапазон /24 не задевает соседей', '1.2.30.4' >= '1.2.3/' && '1.2.3.255' < '1.2.3/' && '1.2.3.0' >= '1.2.3.');
 
-// По умолчанию — ipinfo; неизвестная подсеть встаёт в очередь, поиск ничего не ждёт
-t_eq('источник по умолчанию — ipinfo', geoip_mode(), 'ipinfo');
+// Без явного выбора — локальные базы (обновившиеся установки ничего не отправляют наружу); ipinfo ставит мастер установки
+t_eq('источник по умолчанию — локальные базы', geoip_mode(), 'local');
+t_settings(['geoip_mode' => 'ipinfo']);
+$fresh();
+// Неизвестная подсеть встаёт в очередь, поиск ничего не ждёт
 t_ok('в ipinfo регионы считаются доступными', geoip_city_ready() && geoip_geo_ready());
 $t0 = microtime(true);
 $g = geoip_lookup('1.2.3.4');
@@ -150,6 +154,8 @@ t_eq('перепроверка — в своей очереди', $v['q']['3'] >
 $step(10.0, 2);
 $v = geonet_view();
 t_eq('ход перепроверки', [$v['rc']['done'], $v['rc']['left']], [2, $n - 2]);
+$ixs = db_driver() === 'mysql' ? $tt_pdo->query("SHOW INDEX FROM conn_sess WHERE Key_name = 'idx_cs_ip'")->fetchAll() : $tt_pdo->query("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_cs_ip'")->fetchAll();
+t_ok('индекс по адресу в сессиях создан шагом очереди', count($ixs) > 0);
 geonet_recheck_stop();
 $v = geonet_view();
 t_eq('остановка: очередь перепроверки снята, отчёт о ходе убран', [$v['rc'], (int) $tt_pdo->query('SELECT COUNT(*) FROM geo_net WHERE rq = 1')->fetchColumn(), $v['q']['3']], [null, 0, 0]);
@@ -157,6 +163,10 @@ geonet_recheck_start();
 $step(15.0);
 $v = geonet_view();
 t_eq('перепроверка до конца', [$v['rc']['left'], $v['rc']['done'] === $v['rc']['total'], $v['rc']['end_ago'] >= 0], [0, true, true]);
+
+geonet_recheck_stop();
+t_eq('перепроверка с истёкшим дедлайном ничего не ставит', geonet_recheck_start(false, microtime(true) - 1), 0);
+geonet_recheck_stop();
 
 // Первый запуск после обновления ставит перепроверку сам
 admin_cache_put('geonet_rc', []);
@@ -178,10 +188,18 @@ t_ok('локальный режим: задачи ipinfo нет', !isset(cron_ta
 t_eq('локальный режим: шаг ipinfo ничего не делает', geonet_step(microtime(true) + 5)['n'], 0);
 
 // Вкладка «Геобазы»: счётчик, ход перепроверки на лету, кнопки, переключение источника, токен
-t_settings(['geoip_mode' => 'ipinfo']);
 set_setting('update_state', json_encode(['checked_at' => time()]));
 $mw  = t_serve($tt_root, $tt_root . '/tools/tests/_router.php', [], ['opcache.enable' => '0']);
 $jar = t_admin_login($mw);
+$tt_pdo->exec("DELETE FROM settings WHERE k = 'geoip_mode'");
+[$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=geoip', [], null, $jar);
+t_ok('без явного выбора — подсказка про ipinfo и кнопка «Оставить локальные базы»', strpos($page, 'Оставить локальные базы') !== false);
+preg_match('~name="csrf" value="([^"]+)"~', $page, $m);
+t_http('POST', $mw . '/admin/index.php', [], http_build_query(['csrf' => $m[1] ?? '', 'action' => 'save_geoip_mode', 'geoip_mode' => 'local', 'xhr' => '1']), $jar);
+unset($GLOBALS['submw_settings_cache']);
+[, , $page] = t_http('GET', $mw . '/admin/index.php?tab=geoip', [], null, $jar);
+t_ok('«Оставить локальные базы» запоминает выбор', setting('geoip_mode', '') === 'local' && strpos($page, 'Оставить локальные базы') === false);
+t_settings(['geoip_mode' => 'ipinfo']);
 [$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=geoip', [], null, $jar);
 t_ok('вкладка в режиме ipinfo: счётчик и перепроверка', $c === 200 && strpos($page, 'id="giLive"') !== false && strpos($page, 'Запросов в сутки') !== false && strpos($page, 'Скачать базы сейчас') === false);
 preg_match('~name="csrf" value="([^"]+)"~', $page, $m);

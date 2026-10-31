@@ -94,7 +94,7 @@ foreach ($an as $e) foreach ($e['ips'] as $x) if (isset($x['rq'])) $rq[$x['ip']]
 t_eq('совпадение с IP запросов подписки: 2.2.2.2 в обоих событиях; браузер и чужой IP не считаются', $rq, ['2.2.2.2' => 1]);
 t_eq('без shortUuid журнал как есть', sess_anom_subips(sess_anom_user(1), ''), sess_anom_user(1));
 $hm = sess_anom_hist_map();
-t_ok('срез журнала: закрытые события есть у id 1 (красная и жёлтая) и id 3 (жёлтая), без «сейчас» в подсказке', array_keys($hm) === [1, 3] && $hm['1']['b'] > 0 && $hm['1']['w'] > 0 && $hm['3']['b'] === 0 && $hm['3']['w'] > 0 && mb_strpos($hm['3']['t'], 'сейчас') === false && mb_strpos($hm['3']['t'], 'Много IP: IP 3') === 0, json_encode($hm, JSON_UNESCAPED_UNICODE));
+t_ok('срез журнала: закрытые события есть у id 1 (красная и жёлтая) и id 3 (жёлтая), без «сейчас» в подсказке', array_keys($hm) === [1, 3] && $hm['1']['b'] > 0 && $hm['1']['w'] > 0 && $hm['3']['b'] === 0 && $hm['3']['w'] > 0 && mb_strpos($hm['3']['tw'], 'сейчас') === false && mb_strpos($hm['3']['tw'], 'Много IP: IP 3') === 0 && $hm['1']['tb'] !== '' && $hm['1']['tw'] !== '', json_encode($hm, JSON_UNESCAPED_UNICODE));
 
 // Неполный опрос: отсутствие в снимке не закрывает
 $tt_pdo->exec('UPDATE sess_anom SET end_ts = 0 WHERE uid = 3');

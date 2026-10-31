@@ -291,6 +291,7 @@ function inst_finalize(array &$S, $pass, array $self) {
         $set('remnawave_xapikey', $S['panel']['xkey']);
         $set('tls_verify', !empty($S['panel']['tls']) ? '1' : '0');
         $set('webhook_secret', $S['webhook_secret']);
+        $set('geoip_mode', 'ipinfo');
         if (!$mirror && !empty($S['subpage']['enabled']) && $S['subpage']['url'] !== '') $set('subpage_external_url', rtrim($S['subpage']['url'], '/'));
         if ($mirror) {
             $set('subpage_mirror', !empty($S['origin']['mirror_page']) ? '1' : '0');
