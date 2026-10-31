@@ -42,6 +42,7 @@ t_eq('адрес: схема, хост и порт', go_url_norm(' http://submw-
 t_eq('адрес: пустой — по умолчанию', go_url_norm(''), '');
 foreach (['submw-go:8090', 'ftp://x', 'http://u:p@x', 'http://x/path', 'http://x?a=1'] as $bad) t_eq('адрес отклонён: ' . $bad, go_url_norm($bad), null);
 t_eq('по умолчанию вне Docker — 127.0.0.1:8090', go_url_default(), 'http://127.0.0.1:8090');
+t_eq('локальный адрес Go: localhost, 127.*, имя контейнера', array_map('go_url_local', ['http://127.0.0.1:8090', 'http://localhost:8090', 'http://submw-go:8090', 'http://go.example.com:8090', 'http://10.0.0.5:8090']), [true, true, true, false, false]);
 $sec = go_secret();
 t_ok('секрет — 32 знака, создаётся один раз', (bool) preg_match('~^[A-Za-z0-9]{32}$~', $sec) && go_secret() === $sec);
 
@@ -183,6 +184,7 @@ $jar = t_admin_login($mw);
 [$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=users', [], null, $jar);
 t_ok('вкладка: бейдж, блок Go-сервиса и журнал', $c === 200 && strpos($page, 'ux-eng wn') !== false && strpos($page, 'id="uxGo"') !== false && strpos($page, 'id="uxPlog"') !== false && strpos($page, GO_DOC_URL) !== false);
 t_ok('секрет передан только в данные страницы админки', strpos($page, go_secret()) !== false);
+t_ok('предупреждение про чужой сервер скрыто для локального адреса', (bool) preg_match('~id="uxGoRemote" hidden~', $page));
 [$c, , $b] = t_http('GET', $mw . '/admin/index.php?ajax=sess_plog&f=fb&p=1&h=72', [], null, $jar);
 $j = json_decode($b, true);
 t_ok('ajax журнала: фильтр и сводка', $c === 200 && !empty($j['ok']) && count($j['rows']) >= 2 && $j['rows'][0]['eng'] === 'fb' && $j['sum']['hours'] === 72, substr($b, 0, 300));

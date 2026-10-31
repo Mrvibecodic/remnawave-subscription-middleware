@@ -238,6 +238,12 @@ function go_sess_poll(array $nodes, $until, &$err = '', &$first = '', &$reqs = 0
     }
 }
 
+// Связь с Go не шифруется: годится только внутри сервера — localhost или имя контейнера Docker без точки.
+function go_url_local($u) {
+    $h = strtolower(trim((string) parse_url((string) $u, PHP_URL_HOST), '[]'));
+    return $h === '' || $h === 'localhost' || $h === '::1' || strpos($h, '127.') === 0 || (strpos($h, '.') === false && strpos($h, ':') === false);
+}
+
 // Для бейджа и блока «Go-сервис»: всё уже разобрано, шаблону и JS остаётся вывести.
 function go_view() {
     $s = go_state();
@@ -257,5 +263,6 @@ function go_view() {
         'kind'    => !empty($s['ok']) ? '' : (string) ($s['err'] ?? ''),
         'err'     => !empty($s['ok']) ? '' : go_err_text((string) ($s['err'] ?? ''), (string) ($s['detail'] ?? '')),
         'docker'  => function_exists('submw_in_docker') && submw_in_docker(),
+        'remote'  => !go_url_local(go_url()),
     ];
 }
