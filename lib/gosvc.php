@@ -74,8 +74,17 @@ function go_mark_ok(array $info, ?array $fail = null) {
     $s = ['ok' => $fail === null, 'ts' => $now, 'ok_ts' => $now, 'seen' => $first ? $now : (int) $p['seen'], 'url' => go_url(),
           'v' => mb_substr((string) ($info['v'] ?? ''), 0, 40), 'commit' => substr((string) ($info['commit'] ?? ''), 0, 40),
           'bridge' => (int) ($info['bridge'] ?? 0), 'err' => '', 'detail' => '', 'fail_since' => 0, 'probe' => (int) ($p['probe'] ?? 0),
-          // Что умеет Go — из его hello (в ответах на работу, у которых есть hits, этого нет — остаётся прежнее).
-          'caps' => array_key_exists('hits', $info) ? (array) ($p['caps'] ?? []) : array_values(array_filter(array_map('strval', (array) ($info['caps'] ?? []))))];
+          'caps' => null, 'caps_of' => ''];
+    // Что умеет Go — знает только его hello. Ответ на работу (в нём есть hits) оставляет прежнее, если Go тот же;
+    // сменился образ — неизвестно, пока Go не спросят снова.
+    $ver = $s['v'] . '|' . $s['commit'];
+    if (!array_key_exists('hits', $info)) {
+        $s['caps'] = array_values(array_filter(array_map('strval', (array) ($info['caps'] ?? []))));
+        $s['caps_of'] = $ver;
+    } elseif (is_array($p['caps'] ?? null) && (string) ($p['caps_of'] ?? '') === $ver) {
+        $s['caps'] = $p['caps'];
+        $s['caps_of'] = $ver;
+    }
     if ($fail !== null) {
         $s['err'] = (string) $fail[0];
         $s['detail'] = mb_substr((string) $fail[1], 0, 200);
@@ -90,8 +99,10 @@ function go_mark_ok(array $info, ?array $fail = null) {
 }
 
 // Умеет ли этот Go задачу. Go до списка пользователей о себе не рассказывал — он умеет только опрос нод.
+// Пока неизвестно (Go обновили, а hello ещё не было), — не умеет; список спросит Go сам.
 function go_can($cap) {
-    return in_array((string) $cap, (array) (go_state()['caps'] ?? []), true);
+    $c = go_state()['caps'] ?? null;
+    return is_array($c) && in_array((string) $cap, $c, true);
 }
 
 // Без «Сессий» Go больше никто не проверяет: список пользователей сам спрашивает, не вернулся ли он, — не чаще раза
@@ -295,7 +306,8 @@ function go_users_list(?array $fields, &$err = '', $budget = 60, $force = false)
     if (!go_wanted()) return null;
     if (empty(go_state()['ok'])) go_probe();
     if (empty(go_state()['ok'])) return null;
-    if (!go_can('users')) { $err = go_err_text('nocap'); return null; }
+    if (!is_array(go_state()['caps'] ?? null)) go_hello($e);
+    if (!go_can('users')) { $err = empty(go_state()['ok']) ? go_err_text((string) (go_state()['err'] ?? ''), (string) (go_state()['detail'] ?? '')) : go_err_text('nocap'); return null; }
     if (!$force && go_users_blocked()) { $err = 'сверка с Go не совпала'; return null; }
     if (remnawave_url() === '' || remnawave_token() === '') return null;
     $body = [
@@ -396,7 +408,7 @@ function go_users_view() {
         'n'     => (int) ($s['n'] ?? 0),
         'err'   => (string) ($s['err'] ?? ''),
         'rt'    => !empty($s['rt']),
-        'cap'   => go_can('users'),
+        'cap'   => is_array(go_state()['caps'] ?? null) ? go_can('users') : null,
         'check' => is_array($c) ? ['ts' => (int) ($c['ts'] ?? 0), 'ok' => !empty($c['ok'])] : null,
         'block' => $b ? ['ts' => (int) $b['ts'], 'detail' => (string) ($b['detail'] ?? '')] : null,
     ];
