@@ -1,0 +1,55 @@
+# Проверка зависимостей: Dependabot раз в неделю ищет новые версии и открывает PR в dev.
+# Compose-файлы из docker/ сюда не входят намеренно: там плавающие теги (mariadb:11, caddy:2)
+# и мажорное обновление базы у пользователей не должно приходить пулл-реквестом.
+version: 2
+updates:
+  # Go: базовый образ сборки go/Dockerfile — по нему видно новые версии Go, в том числе исправления безопасности.
+  - package-ecosystem: docker
+    directory: /go
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Moscow
+    commit-message:
+      prefix: "deps(go)"
+
+  # Go-модули: сейчас только стандартная библиотека; сработает, как только появятся зависимости.
+  - package-ecosystem: gomod
+    directory: /go
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Moscow
+    commit-message:
+      prefix: "deps(go)"
+
+  # Образ прослойки: базовый php-fpm из Dockerfile.
+  - package-ecosystem: docker
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Moscow
+    commit-message:
+      prefix: "deps(docker)"
+
+  # GitHub Actions в workflows — одним PR.
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Moscow
+    commit-message:
+      prefix: "deps(ci)"
+    groups:
+      actions:
+        patterns: ["*"]
