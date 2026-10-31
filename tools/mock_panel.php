@@ -82,7 +82,19 @@ if ($path === '/api/users') {
     $start = max(0, (int) ($_GET['start'] ?? 0));
     $all   = [];
     $i = 0;
-    foreach ($users as $short => $u) $all[] = mp_user((string) $short, (array) $u, $i++);
+    $once = dirname((string) getenv('MOCK_STATE')) . '/mock_once_';
+    // users_n: N — сгенерировать N пользователей вместо users (для многостраничного списка).
+    $list = isset($state['users_n']) ? array_fill_keys(array_map(static fn($k) => sprintf('U%015d', $k), range(0, max(0, (int) $state['users_n'] - 1))), []) : $users;
+    if ((int) ($state['users_n'] ?? 1) === 0) $list = [];
+    foreach ($list as $short => $u) $all[] = mp_user((string) $short, (array) $u, $i++);
+    // users_fail_once: [<start>] — первая выдача страницы с этим start отвечает 502.
+    if (in_array($start, (array) ($state['users_fail_once'] ?? []), true) && !is_file($once . 'users_' . $start)) { touch($once . 'users_' . $start); mp_json(502, ['message' => 'Bad Gateway']); exit; }
+    // users_extra_on: [<n>] — n-я по счёту выдача первой страницы добавляет лишнего пользователя (расхождение снимков).
+    if ($start === 0 && !empty($state['users_extra_on'])) {
+        $n = (int) @file_get_contents($once . 'users_cnt') + 1;
+        file_put_contents($once . 'users_cnt', (string) $n);
+        if (in_array($n, (array) $state['users_extra_on'], true)) array_unshift($all, mp_user('ExtraUserXXXXXXX', [], 9999));
+    }
     mp_json(200, ['response' => ['users' => array_slice($all, $start, $size), 'total' => count($all)]]);
     exit;
 }

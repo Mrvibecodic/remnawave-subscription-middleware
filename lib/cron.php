@@ -20,7 +20,8 @@ function cron_tasks() {
         'update'  => ['Проверка обновлений', 3600, true],
     ] + (function_exists('cron_task_sessions') ? ['sessions' => ['Сессии: опрос нод', sess_every(), false]] : [])
       + (function_exists('cron_task_geo') && geoip_ipinfo() ? ['geo' => ['Гео: уточнение адресов через ipinfo', 60, false]] : [])
-      + (function_exists('cron_task_backup') && backup_auto_on() ? ['backup' => ['Бэкап по расписанию', 86400, true]] : []);
+      + (function_exists('cron_task_backup') && backup_auto_on() ? ['backup' => ['Бэкап по расписанию', 86400, true]] : [])
+      + (function_exists('go_users_compare') && go_wanted() && !empty(go_state()['ok']) ? ['gocheck' => ['Go-сервис: сверка списка пользователей', 86400, true]] : []);
 }
 
 // Отметка из будущего (часы сервера ушли назад) свежей не считается.
@@ -183,6 +184,11 @@ function cron_task_cleanup($ctx) {
     // Уборка папки бэкапов: файлы «скачать сейчас», недописанные куски и брошенный временный конфиг.
     if (function_exists('backup_list')) backup_list();
     return '';
+}
+
+function cron_task_gocheck($ctx) {
+    $r = go_users_compare($d);
+    return $r === false ? 'список пользователей от Go не совпал с панелью (' . $d . ') — список собирает PHP' : '';
 }
 
 function cron_task_brand($ctx) {

@@ -341,7 +341,9 @@ if (isset($_GET['ajax']) && is_auth()) {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $ge = '';
         $gh = go_hello($ge);
-        echo json_encode(['ok' => true, 'alive' => $gh !== null, 'err' => $ge, 'go' => go_view()], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        // Список пользователей отключён после неудачной сверки — по кнопке сверяем снова, не дожидаясь суток.
+        if ($gh !== null && function_exists('go_users_blocked') && go_users_blocked()) { @set_time_limit(200); go_users_compare($gd); }
+        echo json_encode(['ok' => true, 'alive' => $gh !== null, 'err' => $ge, 'go' => go_view(), 'users' => function_exists('go_users_view') ? go_users_view() : null], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         exit();
     }
 
@@ -1044,9 +1046,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
             if ($gchanged) { $gs = go_state(); $gs['ok'] = false; go_state_put($gs); }
             $gm = 'Настройки Go-сервиса сохранены';
             if (!go_off() && $gchanged) $gm = go_hello($ge) !== null ? 'Go-сервис отвечает' : 'Сохранено, но Go не ответил: ' . $ge;
-            flash(go_off() ? 'Опрос нод — из PHP, Go не используется' : $gm);
+            flash(go_off() ? 'Go-сервис не используется — всё делает PHP' : $gm);
         }
-        form_saved('users');
+        form_saved('sysinfo');
     }
 
     if ($action === 'save_anom' && function_exists('sess_anom_save')) {
@@ -1755,7 +1757,7 @@ $ov_need_exp = false;
 foreach ($overrides as $o) if (($o['reason'] ?? '') === 'expired' && ($o['match_type'] ?? '') === 'shortuuid') { $ov_need_exp = true; break; }
 if ($tab === 'overrides' && $ov_need_exp && remnawave_url() !== '' && remnawave_token() !== '') {
     $ov_e = '';
-    foreach (remnawave_all_users($ov_e) as $u) {
+    foreach (remnawave_all_users($ov_e, null, ['shortUuid', 'expireAt']) as $u) {
         if (!empty($u['shortUuid']) && !empty($u['expireAt'])) {
             $ov_ts = strtotime((string) $u['expireAt']);
             if ($ov_ts !== false) $ov_expire[(string) $u['shortUuid']] = $ov_ts;

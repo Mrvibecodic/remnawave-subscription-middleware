@@ -286,7 +286,7 @@ function chan_index_rebuild($force = false) {
                 if ($short !== '') $shorts[] = $short;
             }
         };
-        if (function_exists('remnawave_all_users')) $take(remnawave_all_users($err, $take));
+        if (function_exists('remnawave_all_users')) $take(remnawave_all_users($err, $take, ['shortUuid']));
         if (!$shorts) {
             if ($err !== '') error_log('submw chan index: ' . $err);
             $grow();
@@ -577,7 +577,7 @@ function chan_names_refresh($force = false) {
     $c['try'] = $now;
     set_setting('chan_names', json_encode($c, JSON_UNESCAPED_UNICODE));
     $err   = '';
-    $users = remnawave_all_users($err);
+    $users = remnawave_all_users($err, null, ['shortUuid', 'username']);
     if ($err !== '') {
         error_log('submw chan names: ' . $err);
         return chan_names_map($c);

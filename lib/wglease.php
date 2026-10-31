@@ -464,7 +464,7 @@ function wglease_sizing(&$err = '', &$warn = '', &$totals = null) {
     $warn = '';
     $totals = ['records' => 0, 'unique' => 0];
     if (remnawave_url() === '' || remnawave_token() === '') { $err = 'Нет подключения к панели'; return []; }
-    $users = remnawave_all_users($err);
+    $users = remnawave_all_users($err, null, ['id', 'uuid', 'status', 'hwidDeviceLimit', 'activeInternalSquads']);
     if ($err !== '') return [];
     $te = '';
     $devices = remnawave_hwid_all_devices($te);

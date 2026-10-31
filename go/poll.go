@@ -98,8 +98,19 @@ func newPanel(c panelConf) (*panel, error) {
 	}, nil
 }
 
-// Заголовки — те же, что шлёт PHP-часть (remnawave_api_request): панель и её реверс не должны видеть разницы.
 func (p *panel) do(ctx context.Context, method, path string) (int, map[string]any, error) {
+	code, body, err := p.raw(ctx, method, path)
+	var data map[string]any
+	if err == nil {
+		dec := json.NewDecoder(bytes.NewReader(body))
+		dec.UseNumber()
+		_ = dec.Decode(&data)
+	}
+	return code, data, err
+}
+
+// Заголовки — те же, что шлёт PHP-часть (remnawave_api_request): панель и её реверс не должны видеть разницы.
+func (p *panel) raw(ctx context.Context, method, path string) (int, []byte, error) {
 	select {
 	case p.sem <- struct{}{}:
 	case <-ctx.Done():
@@ -131,24 +142,21 @@ func (p *panel) do(ctx context.Context, method, path string) (int, map[string]an
 	t0 := time.Now()
 	resp, err := p.client.Do(req)
 	code := 0
-	var data map[string]any
+	var body []byte
 	if err == nil {
 		code = resp.StatusCode
-		body, rerr := io.ReadAll(io.LimitReader(resp.Body, panelBodyLimit))
+		var rerr error
+		body, rerr = io.ReadAll(io.LimitReader(resp.Body, panelBodyLimit))
 		resp.Body.Close()
 		if rerr != nil {
 			err = fmt.Errorf("ответ панели: %w", rerr)
 			code = 0
-		} else {
-			dec := json.NewDecoder(bytes.NewReader(body))
-			dec.UseNumber()
-			_ = dec.Decode(&data)
 		}
 	}
 	p.mu.Lock()
 	p.hits = append(p.hits, hit{M: method, P: path, C: code, Ms: float64(time.Since(t0).Microseconds()) / 1000})
 	p.mu.Unlock()
-	return code, data, err
+	return code, body, err
 }
 
 func fill(tpl, id string) string {

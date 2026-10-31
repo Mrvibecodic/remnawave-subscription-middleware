@@ -112,6 +112,47 @@ if ($cr_on) {
         @media(max-width:460px){#siSeg{display:grid;grid-template-columns:1fr 1fr;width:100%}#siSeg button{text-align:center}}
         @media(max-width:640px){.api-g .nm span{white-space:normal;overflow:visible;overflow-wrap:anywhere;line-height:1.25}.api-g>summary,.api-e,.api-hd{grid-template-columns:minmax(0,1fr) 3.6rem 3rem;gap:.4rem}.api-hd{padding:0 .7rem .3rem;font-size:.64rem;letter-spacing:0}.api-g>summary{padding:.45rem .7rem;font-size:.82rem}}
         @media(max-width:520px){.si-stat,.si-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}.si-stat>:last-child:nth-child(odd),.si-kpi>:last-child:nth-child(odd){grid-column:1/-1}}
+    .si-go-gs{display:flex;gap:.85rem;align-items:flex-start;border:1px solid var(--line);background:var(--bg2);border-radius:12px;padding:.8rem .9rem;margin-top:.7rem}
+    .si-go-gs>.ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:none}
+    .si-go-gs.ok>.ic{background:var(--accent-light);color:var(--accent-text)}
+    .si-go-gs.w{border-color:color-mix(in srgb,var(--c-warn-fg) 45%,var(--line))}
+    .si-go-gs.w>.ic{background:var(--c-warn-bg);color:var(--c-warn-fg)}
+    .si-go-gs.off>.ic{background:var(--hover);color:var(--muted)}
+    .si-go-gs>.tx{min-width:0;flex:1}
+    .si-go-gs .t{font-weight:700;color:var(--text-strong);font-size:.9rem}
+    .si-go-gs .d{font-size:.8rem;color:var(--muted);margin-top:.2rem;line-height:1.45}
+    .si-go-gs .d code{font-size:.78rem}
+    .si-go-gs .act{margin-left:auto;flex:none}
+    .si-go-gs .act button{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
+    .si-go-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
+    .si-go-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.74rem;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:.14rem .55rem;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+    .si-go-chip .k{color:var(--muted)}
+    .si-go-chip.ok{color:var(--c-ok-fg)}
+    .si-go-chip.bad{color:var(--c-bad-fg)}
+    @media(max-width:640px){.si-go-gs{flex-wrap:wrap}.si-go-gs .act{margin-left:0;width:100%}.si-go-gs .act button{width:100%;justify-content:center}}
+    .si-go-tasks{margin-top:.7rem;border:1px solid var(--line);border-radius:12px;background:var(--bg2)}
+    .si-go-task{display:flex;align-items:baseline;gap:.6rem;padding:.6rem .85rem;font-size:.84rem;flex-wrap:wrap}
+    .si-go-task+.si-go-task{border-top:1px solid var(--line)}
+    .si-go-task .nm{font-weight:600;color:var(--text-strong);min-width:11rem}
+    .si-go-task .tx{color:var(--muted);flex:1;min-width:12rem}
+    .si-go-task .tx b{color:var(--text);font-weight:600}
+    .si-go-eng{display:inline-flex;align-items:center;font-size:.74rem;font-weight:700;line-height:1;padding:.28rem .5rem;border-radius:var(--radius);white-space:nowrap}
+    .si-go-eng.go{background:var(--accent-light);color:var(--accent-text)}
+    .si-go-eng.php{background:var(--hover);color:var(--muted)}
+    .si-go-eng.wn{background:var(--c-warn-bg);color:var(--c-warn-fg)}
+    .si-go-form{display:grid;grid-template-columns:minmax(0,1fr);gap:.55rem;margin-top:.7rem}
+    .si-go-form .set-row{margin:0;padding:.55rem .8rem}
+    .si-go-form .set-d code{white-space:nowrap}
+    .si-go-form .set-row>input.si-go-addr{flex:0 1 19rem;width:19rem;min-height:36px;padding:.4rem .6rem;font-size:.84rem;margin:0}
+    .si-go-sec{display:flex;align-items:center;gap:.4rem;flex:0 0 auto;min-width:0}
+    .si-go-sec code{font-size:.8rem;padding:.4rem .55rem;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+    .si-go-ib{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;min-height:34px;padding:0!important;border:1px solid var(--line);background:var(--bg2);color:var(--muted);border-radius:var(--radius);cursor:pointer;flex:none}
+    .si-go-ib:hover{color:var(--text-strong);border-color:var(--accent);background:var(--bg2);filter:none}
+    .si-go-warn{color:var(--c-warn-fg);margin-top:.25rem}
+    .si-go-warn[hidden]{display:none}
+    .si-go-doc{display:inline-flex;align-items:center;gap:.4rem;font-size:.84rem;font-weight:600;color:var(--accent-text);text-decoration:none;margin-top:.8rem}
+    .si-go-doc:hover{text-decoration:underline}
+    @media(max-width:900px){.si-go-form .set-row>input.si-go-addr,.si-go-sec{width:100%;max-width:100%;box-sizing:border-box;flex:1 1 auto}.si-go-sec code{flex:1}.si-go-form .set-d code{white-space:normal;overflow-wrap:anywhere}.si-go-task .nm{min-width:0}}
     </style>
 
     <?php if (!$sys_info['opcache']): ?>
@@ -236,6 +277,106 @@ if ($cr_on) {
                 <?php endif; ?>
             </div>
         </section>
+        <?php endif; ?>
+        <?php if (function_exists('go_view')):
+            $go_v = go_view();
+            $go_u = function_exists('go_users_view') ? go_users_view() : null;
+            $go_s = function_exists('sess_state') ? sess_state() : [];
+            $go_se = function_exists('sess_enabled') && sess_enabled();
+            $go_tag = ['go' => ['normal', 'работает'], 'warn' => ['expired', 'не справляется'], 'off' => ['expired', 'выключен'], 'none' => ['expired', 'не установлен']][$go_v['mode']];
+            $go_ts = static fn($ts) => '<span class="si-go-t" data-ts="' . (int) $ts . '"></span>';
+            $go_eng = static fn($k, $t) => '<span class="si-go-eng ' . $k . '">' . h($t) . '</span>';
+        ?>
+        <section class="<?= coll_cls('sysinfo_go', $go_v['mode'] !== 'warn') ?>" data-coll="sysinfo_go" id="siGo">
+            <button type="button" class="coll-head" onclick="collToggle(this)"><span>Go-сервис <span class="tag <?= $go_tag[0] ?>"><?= $go_tag[1] ?></span></span>
+                <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </button>
+            <div class="coll-body">
+                <p class="muted" style="margin-top:0">Отдельный контейнер рядом с прослойкой: опрашивает ноды для «Сессий» и собирает список пользователей панели быстрее PHP. Если он перестанет справляться, всё сделает PHP — данные не прервутся.</p>
+                <div id="siGoState"></div>
+                <div class="si-go-tasks">
+                    <div class="si-go-task"><span class="nm">Опрос нод для «Сессий»</span>
+                    <?php if (!$go_se): ?><span class="tx">сбор сессий выключен</span>
+                    <?php else: $go_se_eng = (string) ($go_s['eng'] ?? ''); ?>
+                        <?= $go_se_eng === 'go' ? $go_eng('go', 'Go') : ($go_se_eng === 'fb' ? $go_eng('wn', 'PHP вместо Go') : $go_eng('php', 'PHP')) ?>
+                        <span class="tx"><?php if (!empty($go_s['ts'])): ?>последний опрос <?= $go_ts($go_s['ts']) ?> · <b><?= (int) ($go_s['ok'] ?? 0) ?> из <?= (int) ($go_s['nodes'] ?? 0) ?></b> нод<?php else: ?>опроса ещё не было<?php endif; ?> · журнал — <a href="?tab=users">«Пользователи» → «Сессии»</a></span>
+                    <?php endif; ?>
+                    </div>
+                    <?php if ($go_u !== null): $gu = $go_u; ?>
+                    <div class="si-go-task"><span class="nm">Список пользователей панели</span>
+                    <?php if ($gu['eng'] === 'block'): ?>
+                        <?= $go_eng('wn', 'PHP') ?><span class="tx">сверка с панелью не совпала <?= $go_ts($gu['block']['ts']) ?>: <?= h($gu['block']['detail']) ?>. Список собирает PHP; сверка повторится через сутки или по «Проверить».</span>
+                    <?php elseif ($gu['eng'] === 'go' && $go_v['mode'] === 'go'): ?>
+                        <?= $go_eng('go', 'Go') ?><span class="tx">последний раз <?= $go_ts($gu['ts']) ?> · <b><?= number_format($gu['n'], 0, ',', ' ') ?></b> польз., <?= (int) $gu['pages'] ?> стр. за <?= $gu['ms'] < 1000 ? (int) $gu['ms'] . '&nbsp;мс' : number_format($gu['ms'] / 1000, 1, ',', '') . '&nbsp;с' ?><?php if ($gu['check']): ?> · сверка <?= $go_ts($gu['check']['ts']) ?> — <?= $gu['check']['ok'] ? 'совпало' : 'не совпало' ?><?php endif; ?></span>
+                    <?php elseif ($gu['eng'] === 'fb' && $go_v['mode'] !== 'off'): ?>
+                        <?= $go_eng('wn', 'PHP вместо Go') ?><span class="tx"><?= $go_ts($gu['ts']) ?>: <?= h($gu['err']) ?></span>
+                    <?php else: ?>
+                        <?= $go_eng('php', 'PHP') ?><span class="tx"><?= $go_v['mode'] === 'go' ? 'через Go — со следующего обращения к списку' : 'собирает PHP' ?></span>
+                    <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                <form method="post" data-autosave class="si-go-form">
+                    <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                    <input type="hidden" name="action" value="save_go">
+                    <div class="set-row">
+                        <div class="set-info"><div class="set-t">Адрес Go-сервиса</div><div class="set-d">Пусто — прослойка пробует сама: <code><?= h($go_v['url_def']) ?></code>.</div><div class="set-d si-go-warn" id="siGoRemote"<?= empty($go_v['remote']) ? ' hidden' : '' ?>>Если Go не на этом сервере — токен панели пойдёт по сети открытым текстом. Ставьте Go рядом с прослойкой.</div></div>
+                        <input type="text" name="go_url" class="si-go-addr" value="<?= h($go_v['url_set']) ?>" placeholder="определяется сам" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="set-row">
+                        <div class="set-info"><div class="set-t">Секрет</div><div class="set-d">Впишите его в Go-контейнер как <code>SUBMW_GO_SECRET</code> — без него Go не примет запрос.</div></div>
+                        <div class="si-go-sec"><code id="siGoSec">••••••••••••••••••••••••••••••••</code><button type="button" class="si-go-ib" data-gs="show" data-tip="Показать" aria-label="Показать секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="si-go-ib" data-gs="copy" data-tip="Копировать" aria-label="Копировать секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button type="button" class="si-go-ib" data-gs="rotate" data-tip="Сменить секрет" aria-label="Сменить секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button></div>
+                    </div>
+                    <div class="set-row">
+                        <div class="set-info"><div class="set-t">Не использовать Go</div><div class="set-d">Всё делает PHP, даже когда Go отвечает. Для отката и сравнения.</div></div>
+                        <label class="switch"><input type="checkbox" name="go_off" <?= go_off() ? 'checked' : '' ?>><span class="sl"></span></label>
+                    </div>
+                </form>
+                <a class="si-go-doc" href="<?= h(GO_DOC_URL) ?>" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>Как поднять Go-сервис — инструкция в документации<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+            </div>
+        </section>
+        <script>
+        (function(){
+        var G=<?= json_encode($go_v + ['secret' => go_secret()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        var box=document.getElementById('siGoState'),root=document.getElementById('siGo');if(!box||!root)return;
+        var csrf=(root.querySelector('input[name=csrf]')||{}).value||'';
+        function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+        function p2(x){return (x<10?'0':'')+x;}
+        function tm(ts){if(!ts)return '';var d=new Date(ts*1000),n=new Date(),hm=p2(d.getHours())+':'+p2(d.getMinutes());return d.toDateString()===n.toDateString()?hm:p2(d.getDate())+'.'+p2(d.getMonth()+1)+' '+hm;}
+        function dur(s){s=Math.max(0,Math.round(s/60));if(s<60)return s+' мин';var h=Math.floor(s/60);if(h<48)return h+' ч'+(s%60?' '+(s%60)+' мин':'');return Math.round(h/24)+' дн';}
+        var I={bolt:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',boltx:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/><path d="m3 3 18 18"/>',code:'<path d="m8 7-5 5 5 5M16 7l5 5-5 5"/>',plug:'<path d="M12 22v-5M9 8V2M15 8V2M18 8v5a6 6 0 0 1-12 0V8z"/>',ref:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>'};
+        function ic(n,w){return '<svg viewBox="0 0 24 24" width="'+w+'" height="'+w+'" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+I[n]+'</svg>';}
+        function draw(){
+         var m=G.mode,u='<code>'+esc(G.url)+'</code>',cls,i,t,d,ch=[],k=G.kind;
+         if(m==='go'){cls='ok';i='bolt';t='Go-сервис работает';d='Отвечает по адресу '+u+'. Если перестанет отвечать, всё сделает PHP — данные не прервутся.';
+          if(G.v)ch.push('<span class="si-go-chip"><span class="k">версия</span>'+esc(G.v)+(G.commit&&G.v!==G.commit?' · '+esc(G.commit.slice(0,7)):'')+'</span>');
+          if(G.bridge)ch.push('<span class="si-go-chip ok">мост совпадает</span>');}
+         else if(m==='warn'){cls='w';i='boltx';
+          t=k==='panel'?'Go не достучался до панели — работу делает PHP':(k==='secret'||k==='nosecret'?'Go не принял запрос — работу делает PHP':(k==='bridge'?'Версия Go не подходит — работу делает PHP':'Go не отвечает — работу делает PHP'));
+          d=k==='panel'?'Go по адресу '+u+' работает, но адрес панели из его сети не открывается: '+esc(G.err)+'. В Docker подключите Go к тем же сетям, что и прослойку; при установке файлами — <code>network_mode: host</code>.'
+           :(k==='secret'||k==='nosecret'||k==='bridge'?'Адрес '+u+': '+esc(G.err)+'.'
+           :'Адрес '+u+': '+esc(G.err||'нет ответа')+'.'+(G.ok_ts?' Последний ответ Go — '+tm(G.ok_ts)+'.':'')+' Проверьте, запущен ли контейнер: <code>'+(G.docker?'docker compose ps':'docker ps')+'</code>.')+' Как только Go справится, работа вернётся на него сама.';
+          if(G.since)ch.push('<span class="si-go-chip bad">не справляется '+dur(Date.now()/1000-G.since)+'</span>');}
+         else if(m==='off'){cls='off';i='code';t='Go выключен — всё делает PHP';d='Выключено вручную. Чтобы вернуть Go, снимите «Не использовать Go».';}
+         else{cls='off';i='plug';t='Go-сервис не найден — всё делает PHP';d='Go опрашивает ноды для «Сессий» все сразу и собирает список пользователей панели параллельно — при десятке нод и тысячах пользователей это заметно быстрее. Ставится отдельным контейнером рядом с прослойкой — в Docker и при установке файлами. Всё остальное работает и без него.';}
+         box.innerHTML='<div class="si-go-gs '+cls+'"><div class="ic">'+ic(i,19)+'</div><div class="tx"><div class="t">'+t+'</div><div class="d">'+d+'</div>'+(ch.length?'<div class="si-go-chips">'+ch.join('')+'</div>':'')+'</div><div class="act"><button type="button" class="btn ghost" data-gs="check">'+ic('ref',15)+'Проверить</button></div></div>';
+        }
+        draw();
+        root.querySelectorAll('.si-go-t').forEach(function(e){e.textContent=tm(+e.getAttribute('data-ts'));});
+        function post(a){var f=new FormData();f.append('csrf',csrf);return fetch('?ajax='+a,{method:'POST',body:f,credentials:'same-origin'}).then(function(r){return r.json();}).catch(function(){return{ok:false,error:'Сетевая ошибка'};});}
+        function toast(m){if(window.uiToast)uiToast(m);}
+        var sv=false,sec=document.getElementById('siGoSec');
+        var addr=root.querySelector('input.si-go-addr'),warn=document.getElementById('siGoRemote');
+        if(addr&&warn)addr.addEventListener('input',function(){var v=addr.value.trim(),h='';try{h=v?new URL(v).hostname.replace(/^\[|\]$/g,'').toLowerCase():'';}catch(e){}warn.hidden=!(h&&h!=='localhost'&&h!=='::1'&&h.indexOf('127.')!==0&&(h.indexOf('.')>-1||h.indexOf(':')>-1));});
+        root.addEventListener('click',function(e){
+         var b=e.target.closest('[data-gs]');if(!b)return;var a=b.getAttribute('data-gs');
+         if(a==='check'){b.disabled=true;post('go_check').then(function(d){b.disabled=false;if(!d.ok){toast(d.error||'Ошибка');return;}var s=G.secret;G=d.go;G.secret=s;draw();toast(d.alive?'Go отвечает':'Go не ответил: '+(d.err||G.err));});}
+         else if(a==='show'){sv=!sv;sec.textContent=sv?G.secret:'••••••••••••••••••••••••••••••••';b.setAttribute('data-tip',sv?'Скрыть':'Показать');}
+         else if(a==='copy'){if(window.uiCopy)uiCopy(G.secret);toast('Секрет скопирован');}
+         else if(a==='rotate'&&window.uiConfirm){uiConfirm('Сменить секрет Go-сервиса? Go перестанет принимать запросы, пока вы не впишете новый секрет в контейнер; до этого всё делает PHP.',function(){post('go_rotate').then(function(d){if(!d.ok){toast(d.error||'Ошибка');return;}G.secret=d.secret;sv=true;sec.textContent=G.secret;if(window.uiDlgClose)uiDlgClose();toast('Новый секрет — впишите его в Go-контейнер');});},'Сменить',false);}
+        });
+        })();
+        </script>
         <?php endif; ?>
         <?php if (function_exists('apistat_view')):
             $as_h = (int) ($_GET['api_h'] ?? 72);

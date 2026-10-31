@@ -27,7 +27,7 @@ function reqlog_users($fresh = true) {
     }
     $names = []; $users = []; $total_users = 0;
     $err = '';
-    foreach (remnawave_all_users($err) as $u) {
+    foreach (remnawave_all_users($err, null, ['shortUuid', 'username', 'status', 'hwidDeviceLimit']) as $u) {
         $su = (string) ($u['shortUuid'] ?? '');
         $total_users++;
         if ($su === '') continue;
