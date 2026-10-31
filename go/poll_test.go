@@ -18,6 +18,7 @@ type mockPanel struct {
 	slow    map[string]bool
 	failed  map[string]bool
 	v2Only  bool
+	starts  map[string]int
 }
 
 func (m *mockPanel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +35,20 @@ func (m *mockPanel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodPost && strings.HasPrefix(p, "/api/connections/by-node/"):
 		id := strings.TrimPrefix(p, "/api/connections/by-node/")
+		m.mu.Lock()
+		m.starts[id]++
+		ns := m.starts[id]
+		m.mu.Unlock()
+		if id == "flaky" && ns == 1 {
+			w.WriteHeader(502)
+			_, _ = w.Write([]byte(`{"message":"Bad Gateway"}`))
+			return
+		}
+		if id == "jobfail" && ns == 1 {
+			w.WriteHeader(201)
+			_, _ = w.Write([]byte(`{"response":{"jobId":"j-failonce"}}`))
+			return
+		}
 		if id == "missing" {
 			w.WriteHeader(404)
 			_, _ = w.Write([]byte(`{"message":"Node not found","errorCode":"A011"}`))
@@ -48,6 +63,10 @@ func (m *mockPanel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && strings.HasPrefix(p, "/api/connections/by-node/"):
 		job := strings.TrimPrefix(p, "/api/connections/by-node/")
 		id := strings.TrimPrefix(job, "j-")
+		if id == "failonce" {
+			_, _ = w.Write([]byte(`{"response":{"isCompleted":false,"isFailed":true,"result":null}}`))
+			return
+		}
 		m.mu.Lock()
 		m.polls[id]++
 		n := m.polls[id]
@@ -66,7 +85,7 @@ func (m *mockPanel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func newMock() *mockPanel {
-	return &mockPanel{polls: map[string]int{}, slow: map[string]bool{}, failed: map[string]bool{}}
+	return &mockPanel{polls: map[string]int{}, slow: map[string]bool{}, failed: map[string]bool{}, starts: map[string]int{}}
 }
 
 func req(base string, nodes ...string) pollReq {
@@ -87,7 +106,7 @@ func TestPollParallelAndHeaders(t *testing.T) {
 	defer srv.Close()
 
 	t0 := time.Now()
-	out, err := poll(context.Background(), req(srv.URL, "a", "b", "s", "f", "missing", "num", "a"))
+	out, err := poll(context.Background(), req(srv.URL, "a", "b", "s", "f", "missing", "num", "flaky", "jobfail", "a"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +119,7 @@ func TestPollParallelAndHeaders(t *testing.T) {
 		{"a", "ok", ""}, {"b", "ok", ""}, {"num", "ok", ""},
 		{"s", "timeout", "не успела"},
 		{"f", "fail", "задача на панели не выполнилась"},
+		{"flaky", "ok", ""}, {"jobfail", "ok", ""},
 		{"missing", "fail", "Node not found"},
 	}
 	for _, c := range cases {
@@ -108,7 +128,17 @@ func TestPollParallelAndHeaders(t *testing.T) {
 			t.Errorf("%s: %+v, ожидалось %s/%s", c.id, got, c.st, c.err)
 		}
 	}
-	if len(out.Nodes) != 6 {
+	for id, want := range map[string]bool{"flaky": true, "jobfail": true, "f": true, "a": false, "missing": false, "s": false} {
+		if out.Nodes[id].RT != want {
+			t.Errorf("%s: повтор %v, ожидалось %v", id, out.Nodes[id].RT, want)
+		}
+	}
+	m.mu.Lock()
+	if m.starts["missing"] != 1 || m.starts["flaky"] != 2 || m.starts["f"] != 2 || m.starts["a"] != 1 {
+		t.Errorf("число стартов: %v", m.starts)
+	}
+	m.mu.Unlock()
+	if len(out.Nodes) != 8 {
 		t.Errorf("дубль ноды не схлопнулся: %d", len(out.Nodes))
 	}
 	var res map[string]any

@@ -217,11 +217,11 @@ if (isset($_GET['sess_plog_csv']) && is_auth() && function_exists('sess_plog_row
     header('Cache-Control: private, no-store');
     $pl_out = fopen('php://output', 'w');
     fwrite($pl_out, "\xEF\xBB\xBF");
-    fputcsv($pl_out, ['ts', 'time_utc', 'engine', 'nodes', 'nodes_ok', 'poll_ms', 'panel_requests', 'connections', 'error', 'not_answered'], ';', '"', '\\');
+    fputcsv($pl_out, ['ts', 'time_utc', 'engine', 'nodes', 'nodes_ok', 'poll_ms', 'panel_requests', 'connections', 'error', 'not_answered', 'retried'], ';', '"', '\\');
     $pl_eng = ['go' => 'go', 'php' => 'php', 'fb' => 'php_instead_of_go'];
     for ($pl_off = 0; ; $pl_off += 2000) {
         $pl_rows = sess_plog_rows('all', $pl_off, 2000);
-        foreach ($pl_rows as $r) fputcsv($pl_out, [$r['ts'], gmdate('Y-m-d H:i:s', $r['ts']), $pl_eng[$r['eng']] ?? $r['eng'], $r['nodes'], $r['ok'], $r['ms'], $r['reqs'], $r['conns'], $r['err'], implode(', ', $r['fail'])], ';', '"', '\\');
+        foreach ($pl_rows as $r) fputcsv($pl_out, [$r['ts'], gmdate('Y-m-d H:i:s', $r['ts']), $pl_eng[$r['eng']] ?? $r['eng'], $r['nodes'], $r['ok'], $r['ms'], $r['reqs'], $r['conns'], $r['err'], implode(', ', $r['fail']), implode(', ', $r['retry'])], ';', '"', '\\');
         if (count($pl_rows) < 2000) break;
     }
     exit();

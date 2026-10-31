@@ -665,6 +665,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-plt td.e b{color:var(--c-bad-fg);font-weight:600}
 .ux-plt .nd.part{color:var(--c-warn-fg);font-weight:600}
 .ux-plt .nd.zero{color:var(--c-bad-fg);font-weight:600}
+.ux-rt{display:inline-flex;align-items:center;margin-left:.35rem;font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:6px;background:var(--c-info-bg);color:var(--c-info-fg);white-space:nowrap;cursor:help;vertical-align:middle}
 .ux-plt .ux-eng,.ux-psc .ux-eng{cursor:default}
 @media(min-width:901px){.ux-plt tr.fb>td{background:color-mix(in srgb,var(--c-warn-bg) 55%,transparent)}}
 @media(max-width:900px){table.ux-plt>tbody>tr.fb{border-color:color-mix(in srgb,var(--c-warn-fg) 50%,var(--line))}}
@@ -1763,8 +1764,8 @@ function card(k,s,fb){
 function plDraw(){
  var d=PL,S=d.sum||{},c=d.counts||{},h='';
  h+='<div class="ux-psm">'+card('go',S.go,0)+card('php',S.php,S.fb)+'</div>';
- h+='<p class="ux-psf">'+(S.fb?'Переходов на PHP — <b>'+num(S.fb)+'</b>'+(S.fb_last?', последний <b>'+tm(S.fb_last.ts)+'</b>'+(S.fb_last.err?': <span class="wn">'+esc(S.fb_last.err)+'</span>':''):'')+'. ':'')+'Здесь и опросы PHP до установки Go — с ними и сравнивать. Хранится '+7+' дней.</p>';
- var F=[['all','Все'],['go','Go'],['php','PHP'],['fb','PHP вместо Go'],['part','С пропусками']];
+ h+='<p class="ux-psf">'+(S.fb?'Переходов на PHP — <b>'+num(S.fb)+'</b>'+(S.fb_last?', последний <b>'+tm(S.fb_last.ts)+'</b>'+(S.fb_last.err?': <span class="wn">'+esc(S.fb_last.err)+'</span>':''):'')+'. ':'')+(S.rt?'Опросов, где Go повторял ноду, — <b>'+num(S.rt)+'</b>. ':'')+'Здесь и опросы PHP до установки Go — с ними и сравнивать. Хранится '+7+' дней.</p>';
+ var F=[['all','Все'],['go','Go'],['php','PHP'],['fb','PHP вместо Go'],['part','С пропусками'],['rt','С повтором']];
  h+='<div class="ux-plb"><span class="ux-plf" role="group" aria-label="Фильтр журнала">'+F.map(function(f){return '<button type="button" data-pf="'+f[0]+'" class="'+(PS.f===f[0]?'on':'')+'">'+f[1]+' <span class="c">'+num(c[f[0]]||0)+'</span></button>';}).join('')+'</span><span class="sp"></span><a class="wb" href="?sess_plog_csv=1" download>'+gi('dl',15)+'CSV за 7 дней</a></div>';
  if(!d.rows.length){h+='<p class="muted" style="font-size:.82rem;margin:.8rem 0 0">'+(c.all?'Под фильтр ничего не попало.':'Опросов ещё не было — планировщик сделает первый в ближайшую минуту.')+'</p>';pl.innerHTML=h;return;}
  h+='<table class="logtbl ux-plt"><thead><tr><th>Время</th><th>Кто</th><th>Ноды</th><th>Длился</th><th>Запросов</th><th>Подключений</th><th>Не ответили / ошибка</th></tr></thead><tbody>';
@@ -1772,7 +1773,7 @@ function plDraw(){
   var nc=r.nodes>0&&r.ok===r.nodes?'':(r.ok===0?' zero':' part'),e=[];
   if(r.err){var i=r.err.indexOf(' · ');e.push(r.eng==='fb'||r.ok===0?'<b>'+esc(i>0?r.err.slice(0,i):r.err)+'</b>'+(i>0?esc(r.err.slice(i)):''):esc(r.err));}
   if(r.fail.length)e.push((e.length?'не ответили: ':'')+esc(r.fail.join(', ')));
-  h+='<tr class="'+(r.eng==='fb'?'fb':'')+'"><td data-label="Время">'+tm(r.ts)+'</td><td data-label="Кто">'+eng(r.eng)+'</td><td data-label="Ноды" class="nd'+nc+'">'+r.ok+' / '+r.nodes+'</td><td data-label="Длился">'+sec(r.ms)+'</td><td data-label="Запросов">'+num(r.reqs)+'</td><td data-label="Подключений">'+num(r.conns)+'</td><td data-label="'+(r.err?'Ошибка':'Не ответили')+'" class="e"'+(e.length?'':' data-empty')+'>'+(e.length?e.join(' · '):'—')+'</td></tr>';
+  h+='<tr class="'+(r.eng==='fb'?'fb':'')+'"><td data-label="Время">'+tm(r.ts)+'</td><td data-label="Кто">'+eng(r.eng)+'</td><td data-label="Ноды" class="nd'+nc+'">'+r.ok+' / '+r.nodes+(r.retry.length?' <span class="ux-rt" data-tip="'+esc('Повтор: '+r.retry.join(', '))+'">повтор'+(r.retry.length>1?' ×'+r.retry.length:'')+'</span>':'')+'</td><td data-label="Длился">'+sec(r.ms)+'</td><td data-label="Запросов">'+num(r.reqs)+'</td><td data-label="Подключений">'+num(r.conns)+'</td><td data-label="'+(r.err?'Ошибка':'Не ответили')+'" class="e"'+(e.length?'':' data-empty')+'>'+(e.length?e.join(' · '):'—')+'</td></tr>';
  });
  h+='</tbody></table>';
  var pages=Math.max(1,Math.ceil(d.total/d.per));

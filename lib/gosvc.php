@@ -174,7 +174,7 @@ function go_sess_tpl(callable $f) {
 
 // Опрос нод через Go. null — Go не справился (причина в $err), иначе результаты по нодам в том же виде,
 // что у sess_jobs_wait: массив результата, false — не ответила, null — не стартовала.
-function go_sess_poll(array $nodes, $until, &$err = '', &$first = '', &$reqs = 0) {
+function go_sess_poll(array $nodes, $until, &$err = '', &$first = '', &$reqs = 0, &$retried = []) {
     $err = '';
     $first = '';
     $reqs = 0;
@@ -216,9 +216,11 @@ function go_sess_poll(array $nodes, $until, &$err = '', &$first = '', &$reqs = 0
         }
         $out = [];
         $nf = false;
+        $retried = [];
         foreach ($ids as $id) {
             $r = is_array($j['nodes'][$id] ?? null) ? $j['nodes'][$id] : ['st' => 'timeout'];
             $st = (string) ($r['st'] ?? '');
+            if (!empty($r['rt'])) $retried[] = (string) ($nodes[$id]['n'] ?? $id);
             if ($st === 'ok' && is_array($r['result'] ?? null)) { $out[$id] = $r['result']; continue; }
             $out[$id] = false;
             if (!empty($r['nf'])) $nf = true;

@@ -125,6 +125,11 @@ if ($path === '/api/hosts') {
 if (!empty($state['only_v2']) && strpos($path, '/api/connections/') === 0) { mp_json(404, ['message' => 'Cannot ' . $_SERVER['REQUEST_METHOD'] . ' ' . $path, 'error' => 'Not Found', 'statusCode' => 404]); exit; }
 if (preg_match('~^/api/(connections/by-node|ip-control/fetch-users-ips)/([^/]+)$~', $path, $m) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($nodes[$m[2]])) { mp_json(404, ['message' => 'Node not found', 'errorCode' => 'A011']); exit; }
+    // start_fail_once: [<nodeUuid>] — первый старт задания по ноде отвечает 502, следующие — как обычно.
+    if (in_array($m[2], (array) ($state['start_fail_once'] ?? []), true)) {
+        $once = dirname((string) getenv('MOCK_STATE')) . '/mock_once_' . md5($m[2]);
+        if (!is_file($once)) { touch($once); mp_json(502, ['message' => 'Bad Gateway']); exit; }
+    }
     mp_json(201, ['response' => ['jobId' => 'n-' . $m[2]]]);
     exit;
 }

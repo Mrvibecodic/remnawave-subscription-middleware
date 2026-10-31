@@ -56,7 +56,7 @@ function sess_ddl($drv) {
             eng VARCHAR(4) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'php',
             nodes INT UNSIGNED NOT NULL DEFAULT 0, ok INT UNSIGNED NOT NULL DEFAULT 0, ms INT UNSIGNED NOT NULL DEFAULT 0,
             reqs INT UNSIGNED NOT NULL DEFAULT 0, conns INT UNSIGNED NOT NULL DEFAULT 0,
-            err VARCHAR(255) NOT NULL DEFAULT '', fail TEXT NULL,
+            err VARCHAR(255) NOT NULL DEFAULT '', fail TEXT NULL, retry TEXT NULL,
             PRIMARY KEY (id), KEY idx_sp_ts (ts)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE IF NOT EXISTS sess_anom (
@@ -79,7 +79,7 @@ function sess_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS sess_poll (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, eng TEXT NOT NULL DEFAULT 'php',
             nodes INTEGER NOT NULL DEFAULT 0, ok INTEGER NOT NULL DEFAULT 0, ms INTEGER NOT NULL DEFAULT 0,
-            reqs INTEGER NOT NULL DEFAULT 0, conns INTEGER NOT NULL DEFAULT 0, err TEXT NOT NULL DEFAULT '', fail TEXT NULL
+            reqs INTEGER NOT NULL DEFAULT 0, conns INTEGER NOT NULL DEFAULT 0, err TEXT NOT NULL DEFAULT '', fail TEXT NULL, retry TEXT NULL
         )",
         'CREATE INDEX IF NOT EXISTS idx_sp_ts ON sess_poll(ts)',
         "CREATE TABLE IF NOT EXISTS sess_anom (
@@ -98,6 +98,11 @@ function sess_ensure() {
     if (!($p = db())) return false;
     try { foreach (sess_ddl(db_driver()) as $sql) $p->exec($sql); $ok = true; }
     catch (Throwable $e) { error_log('submw conn_sess table: ' . $e->getMessage()); $ok = false; }
+    // Журнал опросов из первых сборок dev — без колонки повторов.
+    try {
+        $cols = $ok ? db_table_columns($p, db_driver(), 'sess_poll') : [];
+        if ($cols && !in_array('retry', $cols, true)) $p->exec('ALTER TABLE sess_poll ADD COLUMN retry TEXT NULL');
+    } catch (Throwable $e) { error_log('submw sess_poll retry column: ' . $e->getMessage()); }
     return $ok;
 }
 
@@ -267,12 +272,13 @@ function sess_collect($deadline) {
     $res = null;
     $eng = 'php';
     $gerr = '';
+    $retried = [];
     $tp = microtime(true);
     if (function_exists('go_wanted') && go_wanted()) {
-        $res = go_sess_poll($nodes, $wait_until, $gerr, $first, $reqs);
+        $res = go_sess_poll($nodes, $wait_until, $gerr, $first, $reqs, $retried);
         // Не ответил Go, который уже работал или задан руками, — это «PHP вместо Go»; у кого Go нет — просто PHP.
         $eng = $res !== null ? 'go' : (go_known() ? 'fb' : 'php');
-        if ($res === null) { $first = ''; $reqs = 0; }
+        if ($res === null) { $first = ''; $reqs = 0; $retried = []; }
     }
     if ($res === null) {
         if ($eng === 'fb' && $wait_until - microtime(true) < 2) $res = array_fill_keys(array_keys($nodes), false);
@@ -297,6 +303,7 @@ function sess_collect($deadline) {
     }
     $st['rows'] = count($seen);
     $st['eng'] = $eng;
+    $st['retry'] = array_slice($retried, 0, 50);
     $cur = [];
     if ($seen) $st['err'] = sess_store($seen, $now, $cur);
     elseif ($first !== '' && $st['ok'] === 0) $st['err'] = $first;
@@ -318,10 +325,12 @@ function sess_plog_add(array $st, $reqs) {
     $err = (string) ($st['err'] ?? '');
     if (($st['eng'] ?? '') === 'fb') $err = 'Go: ' . (string) ($st['go_err'] ?? '') . ($err !== '' ? ' · ' . $err : '');
     $fail = array_slice(array_map('strval', (array) ($st['fail'] ?? [])), 0, 50);
+    $retry = array_slice(array_map('strval', (array) ($st['retry'] ?? [])), 0, 50);
+    $jf = JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE;
     try {
-        $p->prepare('INSERT INTO sess_poll (ts, eng, nodes, ok, ms, reqs, conns, err, fail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        $p->prepare('INSERT INTO sess_poll (ts, eng, nodes, ok, ms, reqs, conns, err, fail, retry) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
           ->execute([time(), (string) ($st['eng'] ?? 'php'), (int) ($st['nodes'] ?? 0), (int) ($st['ok'] ?? 0), (int) ($st['ms'] ?? 0), (int) $reqs, (int) ($st['rows'] ?? 0),
-                     mb_substr($err, 0, 250), $fail ? json_encode($fail, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) : null]);
+                     mb_substr($err, 0, 250), $fail ? json_encode($fail, $jf) : null, $retry ? json_encode($retry, $jf) : null]);
     } catch (Throwable $e) { error_log('submw sess_poll: ' . $e->getMessage()); }
 }
 
@@ -332,6 +341,7 @@ function sess_plog_filter($f, &$args) {
         case 'php':  return "eng = 'php'";
         case 'fb':   return "eng = 'fb'";
         case 'part': return "(ok < nodes OR nodes = 0 OR err <> '')";
+        case 'rt':   return 'retry IS NOT NULL';
     }
     return '1 = 1';
 }
@@ -340,7 +350,7 @@ function sess_plog_filter($f, &$args) {
 // входят только в число опросов: до нод они не дошли, и время с запросами исказили бы сравнение.
 function sess_plog_summary($hours) {
     $hours = max(1, min(SESS_PLOG_DAYS * 24, (int) $hours));
-    $out = ['hours' => $hours, 'go' => null, 'php' => null, 'fb' => 0, 'fb_last' => null];
+    $out = ['hours' => $hours, 'go' => null, 'php' => null, 'fb' => 0, 'fb_last' => null, 'rt' => 0];
     if (!sess_ensure() || !($p = db())) return $out;
     $since = time() - $hours * 3600;
     try {
@@ -366,6 +376,9 @@ function sess_plog_summary($hours) {
         $out['go'] = $mk([$by['go'] ?? null]);
         $out['php'] = $mk([$by['php'] ?? null, $by['fb'] ?? null]);
         $out['fb'] = (int) ($by['fb']['n'] ?? 0);
+        $st = $p->prepare('SELECT COUNT(*) FROM sess_poll WHERE ts >= ? AND retry IS NOT NULL');
+        $st->execute([$since]);
+        $out['rt'] = (int) $st->fetchColumn();
         if ($out['fb'] > 0) {
             $st = $p->prepare("SELECT ts, err FROM sess_poll WHERE eng = 'fb' AND ts >= ? ORDER BY id DESC LIMIT 1");
             $st->execute([$since]);
@@ -377,12 +390,13 @@ function sess_plog_summary($hours) {
 }
 
 function sess_plog_counts() {
-    $out = ['all' => 0, 'go' => 0, 'php' => 0, 'fb' => 0, 'part' => 0];
+    $out = ['all' => 0, 'go' => 0, 'php' => 0, 'fb' => 0, 'part' => 0, 'rt' => 0];
     if (!sess_ensure() || !($p = db())) return $out;
     try {
         $r = $p->query("SELECT COUNT(*) a, SUM(CASE WHEN eng = 'go' THEN 1 ELSE 0 END) g, SUM(CASE WHEN eng = 'php' THEN 1 ELSE 0 END) p,
-            SUM(CASE WHEN eng = 'fb' THEN 1 ELSE 0 END) f, SUM(CASE WHEN ok < nodes OR nodes = 0 OR err <> '' THEN 1 ELSE 0 END) x FROM sess_poll")->fetch(PDO::FETCH_ASSOC);
-        $out = ['all' => (int) $r['a'], 'go' => (int) $r['g'], 'php' => (int) $r['p'], 'fb' => (int) $r['f'], 'part' => (int) $r['x']];
+            SUM(CASE WHEN eng = 'fb' THEN 1 ELSE 0 END) f, SUM(CASE WHEN ok < nodes OR nodes = 0 OR err <> '' THEN 1 ELSE 0 END) x,
+            SUM(CASE WHEN retry IS NOT NULL THEN 1 ELSE 0 END) r FROM sess_poll")->fetch(PDO::FETCH_ASSOC);
+        $out = ['all' => (int) $r['a'], 'go' => (int) $r['g'], 'php' => (int) $r['p'], 'fb' => (int) $r['f'], 'part' => (int) $r['x'], 'rt' => (int) $r['r']];
     } catch (Throwable $e) {}
     return $out;
 }
@@ -391,13 +405,15 @@ function sess_plog_rows($f, $offset, $limit) {
     if (!sess_ensure() || !($p = db())) return [];
     $where = sess_plog_filter($f, $args);
     try {
-        $st = $p->prepare("SELECT id, ts, eng, nodes, ok, ms, reqs, conns, err, fail FROM sess_poll WHERE $where ORDER BY ts DESC, id DESC LIMIT " . max(1, min(5000, (int) $limit)) . ' OFFSET ' . max(0, (int) $offset));
+        $st = $p->prepare("SELECT id, ts, eng, nodes, ok, ms, reqs, conns, err, fail, retry FROM sess_poll WHERE $where ORDER BY ts DESC, id DESC LIMIT " . max(1, min(5000, (int) $limit)) . ' OFFSET ' . max(0, (int) $offset));
         $st->execute($args);
         $out = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $fail = json_decode((string) ($r['fail'] ?? ''), true);
+            $rt = json_decode((string) ($r['retry'] ?? ''), true);
             $out[] = ['ts' => (int) $r['ts'], 'eng' => (string) $r['eng'], 'nodes' => (int) $r['nodes'], 'ok' => (int) $r['ok'], 'ms' => (int) $r['ms'],
-                      'reqs' => (int) $r['reqs'], 'conns' => (int) $r['conns'], 'err' => (string) $r['err'], 'fail' => is_array($fail) ? array_map('strval', $fail) : []];
+                      'reqs' => (int) $r['reqs'], 'conns' => (int) $r['conns'], 'err' => (string) $r['err'], 'fail' => is_array($fail) ? array_map('strval', $fail) : [],
+                      'retry' => is_array($rt) ? array_map('strval', $rt) : []];
         }
         return $out;
     } catch (Throwable $e) { return []; }
