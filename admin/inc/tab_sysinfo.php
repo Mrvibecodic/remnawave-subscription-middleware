@@ -110,6 +110,8 @@ if ($cr_on) {
         .nh-grp.off .nh-items{opacity:.45;pointer-events:none}
         .switch input:focus-visible+.sl{box-shadow:var(--focus)}
         @media(max-width:460px){#siSeg{display:grid;grid-template-columns:1fr 1fr;width:100%}#siSeg button{text-align:center}}
+        @media(max-width:640px){.api-g .nm span{white-space:normal;overflow:visible;overflow-wrap:anywhere;line-height:1.25}.api-g>summary,.api-e,.api-hd{grid-template-columns:minmax(0,1fr) 3.6rem 3rem;gap:.4rem}.api-hd{padding:0 .7rem .3rem;font-size:.64rem;letter-spacing:0}.api-g>summary{padding:.45rem .7rem;font-size:.82rem}}
+        @media(max-width:520px){.si-stat,.si-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}.si-stat>:last-child:nth-child(odd),.si-kpi>:last-child:nth-child(odd){grid-column:1/-1}}
     </style>
 
     <?php if (!$sys_info['opcache']): ?>

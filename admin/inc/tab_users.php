@@ -165,7 +165,7 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-sl{display:flex;flex-wrap:wrap;gap:.3rem 1.4rem;margin:.7rem 0 .2rem;font-size:.8rem;color:var(--muted)}
 .ux-sl b{color:var(--text);font-weight:600;margin-right:.35rem}
 @media(max-width:900px){.ux-dk.ux-dk5{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:520px){.ux-dk.ux-dk5{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.ux-dk.ux-dk5{grid-template-columns:repeat(2,minmax(0,1fr))}.ux-dk.ux-dk5>:last-child:nth-child(odd){grid-column:1/-1}}
 .ux-dv{font-variant-numeric:tabular-nums;white-space:nowrap}
 .ux-dv.full{color:var(--c-warn-fg);font-weight:600}
 .ux-pgr{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-top:.75rem;flex-wrap:wrap;font-size:.82rem;color:var(--muted);min-height:36px}
@@ -579,7 +579,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-tbl td.c-on .ux-on{font-size:.76rem}
 .ux-tbl.compact td.c-sq,.ux-tbl.compact td.c-on,.ux-tbl.compact td.c-tr{display:none}
 .ux-tbl .acts{display:flex;gap:.15rem}
-.ux-tbl .acts .ux-ib{width:38px;height:38px}
+.ux-tbl .acts .ux-ib{width:38px;height:38px;flex:0 0 auto}
 .u-sub{max-width:100%}
 .ux-dh .r1{gap:.65rem}
 .ux-av{width:36px;height:36px;border-radius:10px;font-size:.9rem}
@@ -620,7 +620,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             </div>
         </div>
         <div class="ux-flt">
-            <input type="text" id="uxQ" role="searchbox" placeholder="Имя, shortUuid, описание, Telegram, email" autocomplete="off" spellcheck="false">
+            <input type="text" id="uxQ" role="searchbox" placeholder="Имя, shortUuid, Telegram, email…" autocomplete="off" spellcheck="false">
             <select id="uxSq" aria-label="Сквад"><option value="">Все сквады</option></select>
             <select id="uxTag" aria-label="Тег" hidden><option value="">Все теги</option></select>
             <span id="uxChips"></span>
