@@ -454,7 +454,6 @@ function db_table_columns($pdo, $drv, $table) {
 // Вся схема прослойки одним списком, без заполнения настроек: перенос базы, восстановление бэкапа и выбор
 // «своих» таблиц берут её отсюда, чтобы таблица новой функции не потерялась ни в одном из них.
 function db_schema_ddl($drv) {
-    if (function_exists('submw_load_admin_libs')) submw_load_admin_libs();
     $ddl = array_merge(install_statements($drv), [ddl_metrics_minute($drv), ddl_metrics_peak($drv), admin_cache_ddl($drv)], migrate_extra_ddl($drv), rep_ddl($drv));
     foreach (['app_ddl', 'fc_ddl', 'addsub_swap_ddl', 'sess_ddl', 'apistat_ddl', 'geonet_ddl', 'pr_snap_ddl'] as $f) {
         if (function_exists($f)) $ddl = array_merge($ddl, (array) $f($drv));

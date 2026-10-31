@@ -38,7 +38,6 @@ if (is_file(__DIR__ . '/lib/sessions.php')) require_once __DIR__ . '/lib/session
 if (is_file(__DIR__ . '/lib/usage.php')) require_once __DIR__ . '/lib/usage.php';
 if (is_file(__DIR__ . '/lib/apistat.php')) require_once __DIR__ . '/lib/apistat.php';
 if (is_file(__DIR__ . '/lib/panelrules.php')) require_once __DIR__ . '/lib/panelrules.php';
-if (is_file(__DIR__ . '/lib/panelrules_recipes.php')) require_once __DIR__ . '/lib/panelrules_recipes.php';
 if (is_file(__DIR__ . '/lib/backup.php')) require_once __DIR__ . '/lib/backup.php';
 // Прежний апдейтер пишет lib.php раньше lib/cron.php.
 if (is_file(__DIR__ . '/lib/cron.php')) require_once __DIR__ . '/lib/cron.php';

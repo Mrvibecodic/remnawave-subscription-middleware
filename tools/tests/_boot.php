@@ -78,9 +78,19 @@ function t_port(): int
 }
 
 // Встроенный сервер PHP в фоне; гасится при выходе теста, его ошибки PHP валят тест.
+// Свободный порт выбирается заранее: если его успел занять параллельный прогон, наш сервер не поднимется — пробуем другой.
 function t_serve(string $docroot, string $router, array $env = [], array $ini = [], int $port = 0): string
 {
-    $port = $port ?: t_port();
+    for ($try = 0; $try < 5; $try++) {
+        $url = t_serve_once($docroot, $router, $env, $ini, $port ?: t_port());
+        if ($url !== '' || $port) break;
+    }
+    if ($url === '') throw new RuntimeException('сервер не поднялся');
+    return $url;
+}
+
+function t_serve_once(string $docroot, string $router, array $env, array $ini, int $port): string
+{
     $e = getenv();
     foreach ($env as $k => $v) $e[$k] = (string) $v;
     $log  = dirname(__DIR__, 2) . '/data/serve-' . $port . '.log';
@@ -91,11 +101,12 @@ function t_serve(string $docroot, string $router, array $env = [], array $ini = 
     register_shutdown_function(static function () use ($proc) { @proc_terminate($proc); @proc_close($proc); });
     $url = 'http://127.0.0.1:' . $port;
     for ($i = 0; $i < 100; $i++) {
+        if (!(proc_get_status($proc)['running'] ?? false)) return '';
         $c = @fsockopen('127.0.0.1', $port, $no, $er, 0.1);
-        if ($c) { fclose($c); return $url; }
+        if ($c) { fclose($c); usleep(50000); return (proc_get_status($proc)['running'] ?? false) ? $url : ''; }
         usleep(50000);
     }
-    throw new RuntimeException('сервер не поднялся на ' . $url);
+    return '';
 }
 
 function t_http(string $method, string $url, array $headers = [], ?string $body = null, string $jar = ''): array
