@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-// Go-сервис для «Сессий». Живой Go — если задан SUBMW_TEST_GO_BIN (cd go && go build -o /tmp/submw-go .), иначе только PHP-часть.
+// Go-сервис: опрос нод для «Сессий» и список пользователей. Живой Go — если задан SUBMW_TEST_GO_BIN (cd go && go build -o /tmp/submw-go .), иначе только PHP-часть.
 require __DIR__ . '/_boot.php';
 
 $state = $tt_root . '/data/mock_state.json';
@@ -169,6 +169,76 @@ unset($GLOBALS['submw_settings_cache']);
 sess_collect(microtime(true) + 10);
 t_eq('включили обратно — снова Go', $plog()['eng'], 'go');
 
+// Список пользователей через Go
+$noexp = static function (array $l) { foreach ($l as &$u) unset($u['expireAt']); return $l; };
+$users_reset = static function () {
+    foreach (['go_users', 'go_users_block', 'go_users_check'] as $k) set_setting($k, '');
+    unset($GLOBALS['submw_settings_cache']);
+};
+$users_reset();
+$mock(['version' => '3.4.7', 'users_n' => 600]);
+$e = '';
+$gl = go_users_list(['shortUuid'], $e);
+t_ok('Go отдал весь список', is_array($gl) && count($gl) === 600, $e);
+t_eq('Go: только запрошенные поля, порядок панели', [$gl[0] ?? null, $gl[599] ?? null], [['shortUuid' => 'U000000000000000'], ['shortUuid' => 'U000000000000599']]);
+$uv = go_users_view();
+t_eq('строка «Список пользователей»: Go, 3 страницы, 600', [$uv['eng'], $uv['pages'], $uv['n']], ['go', 3, 600]);
+apistat_flush();
+$n = (int) $tt_pdo->query("SELECT COALESCE(SUM(n), 0) FROM api_stat_hour WHERE src = 'go:users'")->fetchColumn();
+t_eq('«Запросы к панели»: строка Go — список пользователей', $n, 3);
+t_eq('подпись группы списка', apistat_src_label('go:users'), 'Go-сервис: список пользователей');
+$e1 = $e2 = '';
+$full_go = remnawave_all_users($e1);
+$full_php = remnawave_all_users_php($e2);
+t_ok('полный объект через Go совпадает с PHP', $e1 === '' && $e2 === '' && count($full_go) === 600 && $noexp($full_go) === $noexp($full_php), $e1 . ' ' . $e2);
+$f = remnawave_all_users($e1, null, ['shortUuid', 'username']);
+t_eq('обёртка: поля места вызова', $f[5] ?? null, ['shortUuid' => 'U000000000000005', 'username' => 'user5']);
+$chunks = [];
+t_eq('обёртка с $each: ничего не копит', remnawave_all_users($e1, static function (array $c) use (&$chunks) { $chunks[] = count($c); }, ['shortUuid']), []);
+t_eq('обёртка с $each: страницы по 250', $chunks, [250, 250, 100]);
+admin_cache_put('sess_users', ['src' => '', 'u' => null, 'ts0' => 0]);
+$lim = sess_users_limits(1800, microtime(true) + 10);
+t_ok('лимиты для «Сессий» через Go — весь список за раз', count($lim) === 600 && array_key_exists('1', $lim), (string) count($lim));
+
+// Сбой страницы — Go ничего не отдаёт, список собирает PHP
+foreach (glob($tt_root . '/data/mock_once_*') ?: [] as $f) unlink($f);
+$mock(['version' => '3.4.7', 'users_n' => 600, 'users_fail_once' => [250]]);
+$l = remnawave_all_users($e1, null, ['shortUuid']);
+$uv = go_users_view();
+t_ok('сбой страницы у Go — полный список от PHP', count($l) === 600 && $e1 === '' && $uv['eng'] === 'fb' && strpos($uv['err'], 'HTTP 502') !== false, $uv['err']);
+t_eq('сбой панели — не тревога Go', go_view()['mode'], 'go');
+t_ok('PHP отдал полный объект, а не только поля', isset($l[0]['status']));
+
+// Сверка
+$mock(['version' => '3.4.7', 'users_n' => 600]);
+t_eq('сверка: совпало', go_users_compare($d), true);
+t_eq('сверка записана', [go_users_view()['check']['ok'] ?? null, go_users_blocked()], [true, null]);
+foreach (glob($tt_root . '/data/mock_once_*') ?: [] as $f) unlink($f);
+$mock(['version' => '3.4.7', 'users_extra_on' => [1, 3]]);
+t_eq('сверка: Go дважды отдал не то — не совпало', go_users_compare($d), false);
+t_eq('причина расхождения', $d, 'у Go 2, у PHP 1 пользователей');
+t_eq('после несовпадения Go списком не пользуются', [go_users_list(['shortUuid'], $e), $e], [null, 'сверка с Go не совпала']);
+t_eq('список собирает PHP', count(remnawave_all_users($e1, null, ['shortUuid'])), 1);
+t_eq('строка в блоке: PHP, причина', [go_users_view()['eng'], go_users_view()['block']['detail']], ['block', 'у Go 2, у PHP 1 пользователей']);
+foreach (glob($tt_root . '/data/mock_once_*') ?: [] as $f) unlink($f);
+$mock(['version' => '3.4.7', 'users_extra_on' => [1]]);
+t_eq('пользователя добавили между обходами — второй ответ Go совпал', go_users_compare($d), true);
+$mock(['version' => '3.4.7', 'users_extra_on' => [1, 3]]);
+foreach (glob($tt_root . '/data/mock_once_*') ?: [] as $f) unlink($f);
+t_ok('задача планировщика сообщает о расхождении', strpos(cron_task_gocheck([]), 'не совпал') !== false);
+t_ok('сверка есть в планировщике', isset(cron_tasks()['gocheck']));
+$mock(['version' => '3.4.7']);
+t_eq('панель снова в порядке — сверка снимает блок', go_users_compare($d), true);
+t_eq('Go снова собирает список', is_array(go_users_list(['shortUuid'], $e)), true);
+
+// «Не использовать Go» выключает и список
+set_setting('go_off', '1');
+unset($GLOBALS['submw_settings_cache']);
+t_eq('«Не использовать Go» — список без Go', go_users_list(['shortUuid'], $e), null);
+set_setting('go_off', '0');
+unset($GLOBALS['submw_settings_cache']);
+$users_reset();
+
 // Go упал посреди работы — следующий опрос делает PHP
 $gstop($go);
 $go = null;
@@ -182,9 +252,12 @@ t_eq('фильтр «С пропусками» находит медленный
 $mw = t_serve($tt_root, $tt_root . '/tools/tests/_router.php');
 $jar = t_admin_login($mw);
 [$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=users', [], null, $jar);
-t_ok('вкладка: бейдж, блок Go-сервиса и журнал', $c === 200 && strpos($page, 'ux-eng wn') !== false && strpos($page, 'id="uxGo"') !== false && strpos($page, 'id="uxPlog"') !== false && strpos($page, GO_DOC_URL) !== false);
+t_ok('«Пользователи»: бейдж, журнал и ссылка на блок Go', $c === 200 && strpos($page, 'ux-eng wn') !== false && strpos($page, 'id="uxPlog"') !== false && strpos($page, '?tab=sysinfo#siGo') !== false && strpos($page, 'id="uxGo"') === false);
+t_ok('на «Пользователях» секрета нет', strpos($page, go_secret()) === false);
+[$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=sysinfo', [], null, $jar);
+t_ok('«О системе»: блок Go-сервиса со строками задач', $c === 200 && strpos($page, 'id="siGo"') !== false && strpos($page, 'Опрос нод для «Сессий»') !== false && strpos($page, 'Список пользователей панели') !== false && strpos($page, GO_DOC_URL) !== false);
 t_ok('секрет передан только в данные страницы админки', strpos($page, go_secret()) !== false);
-t_ok('предупреждение про чужой сервер скрыто для локального адреса', (bool) preg_match('~id="uxGoRemote" hidden~', $page));
+t_ok('предупреждение про чужой сервер скрыто для локального адреса', (bool) preg_match('~id="siGoRemote" hidden~', $page));
 [$c, , $b] = t_http('GET', $mw . '/admin/index.php?ajax=sess_plog&f=fb&p=1&h=72', [], null, $jar);
 $j = json_decode($b, true);
 t_ok('ajax журнала: фильтр и сводка', $c === 200 && !empty($j['ok']) && count($j['rows']) >= 2 && $j['rows'][0]['eng'] === 'fb' && $j['sum']['hours'] === 72, substr($b, 0, 300));
@@ -197,7 +270,7 @@ preg_match('~name="csrf" value="([0-9a-f]+)"~', $page, $cm);
 t_ok('проверка Go без POST и CSRF не выполняется', strpos($b, '"go"') === false);
 [$c, , $b] = t_http('POST', $mw . '/admin/index.php?ajax=go_check', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $cm[1]]), $jar);
 $j = json_decode($b, true);
-t_ok('ajax проверки Go: состояние и настоящая причина', $c === 200 && !empty($j['ok']) && $j['alive'] === false && $j['go']['mode'] === 'warn' && strpos((string) $j['err'], 'соединение отклонено') !== false, $b);
+t_ok('ajax проверки Go: состояние и настоящая причина', $c === 200 && !empty($j['ok']) && $j['alive'] === false && $j['go']['mode'] === 'warn' && strpos((string) $j['err'], 'соединение отклонено') !== false && is_array($j['users']), $b);
 [$c, , $b] = t_http('POST', $mw . '/admin/index.php', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $cm[1], 'action' => 'save_go', 'go_url' => 'http://x/path', 'xhr' => '1']), $jar);
 unset($GLOBALS['submw_settings_cache']);
 t_ok('неверный адрес не сохраняется', go_url_set() === 'http://127.0.0.1:' . $gport, go_url_set());

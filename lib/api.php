@@ -59,9 +59,22 @@ function remnawave_api_get($path, $assoc = true) {
     return [true, $code, $json, ''];
 }
 
-// $each — получать пользователей по страницам, не копя их: тогда функция
-// возвращает пустой список.
-function remnawave_all_users(&$error = '', ?callable $each = null) {
+// $each — получать пользователей по страницам, не копя их: тогда функция возвращает пустой список.
+// $fields — какие поля нужны месту вызова (через Go приходят только они; PHP отдаёт объект целиком).
+function remnawave_all_users(&$error = '', ?callable $each = null, ?array $fields = null) {
+    $error = '';
+    if (function_exists('go_users_list')) {
+        $gl = go_users_list($fields, $ge);
+        if ($gl !== null) {
+            if ($each === null) return $gl;
+            foreach (array_chunk($gl, 250) as $chunk) $each($chunk);
+            return [];
+        }
+    }
+    return remnawave_all_users_php($error, $each);
+}
+
+function remnawave_all_users_php(&$error = '', ?callable $each = null) {
     $error = '';
     $all = [];
     $seen = 0;

@@ -81,6 +81,20 @@ func handler(secret string) http.Handler {
 		}
 		reply(w, http.StatusOK, out)
 	}))
+	mux.HandleFunc("POST /v1/users/list", authed(secret, func(w http.ResponseWriter, r *http.Request) {
+		var in usersReq
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+		if err := dec.Decode(&in); err != nil {
+			reply(w, http.StatusBadRequest, map[string]any{"ok": false, "err": "запрос не разобрался"})
+			return
+		}
+		out, err := listUsers(r.Context(), in)
+		if err != nil {
+			reply(w, http.StatusBadGateway, map[string]any{"ok": false, "err": err.Error(), "v": version, "bridge": bridgeVersion, "hits": out.Hits})
+			return
+		}
+		reply(w, http.StatusOK, out)
+	}))
 	return mux
 }
 
@@ -108,14 +122,14 @@ func health() int {
 func run() error {
 	secret := strings.TrimSpace(os.Getenv("SUBMW_GO_SECRET"))
 	if secret == "" {
-		slog.Warn("SUBMW_GO_SECRET не задан — запросы прослойки отклоняются; секрет показан в админке, блок «Сессии» → «Go-сервис»")
+		slog.Warn("SUBMW_GO_SECRET не задан — запросы прослойки отклоняются; секрет показан в админке: «О системе» → «Go-сервис»")
 	}
 	srv := &http.Server{
 		Addr:              listenAddr(),
 		Handler:           handler(secret),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      90 * time.Second,
+		WriteTimeout:      150 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

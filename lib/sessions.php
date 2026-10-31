@@ -829,6 +829,20 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
     // Снимка ещё не было — собрать сразу, иначе до первого свободного тика все пороги шли бы по общему лимиту.
     if ($deadline === null && !is_array($o['u'] ?? null)) $deadline = microtime(true) + 8;
     if ($deadline === null || remnawave_url() === '' || remnawave_token() === '') return $stale;
+    // Через Go — весь список за один заход, без докачки по тикам.
+    if (function_exists('go_users_list')) {
+        $gl = go_users_list(['id', 'hwidDeviceLimit', 'externalSquadUuid'], $ge, max(2, $deadline - microtime(true)));
+        if ($gl !== null) {
+            $part = [];
+            foreach ($gl as $x) {
+                if (!is_array($x) || !isset($x['id'])) continue;
+                $hw = (isset($x['hwidDeviceLimit']) && $x['hwidDeviceLimit'] !== '' && $x['hwidDeviceLimit'] !== null) ? (int) $x['hwidDeviceLimit'] : null;
+                $part[(string) (int) $x['id']] = [$hw, (string) ($x['externalSquadUuid'] ?? '')];
+            }
+            admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => time()]);
+            return $part;
+        }
+    }
     $part = is_array($o['part'] ?? null) ? $o['part'] : [];
     $start = (int) ($o['next'] ?? 0);
     $size = 250;

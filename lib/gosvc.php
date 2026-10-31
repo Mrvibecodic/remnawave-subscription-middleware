@@ -266,3 +266,101 @@ function go_view() {
         'remote'  => !go_url_local(go_url()),
     ];
 }
+
+// Список пользователей панели через Go. null — Go не используется или не справился (причина в $err), тогда список
+// собирает PHP. $fields — какие поля пользователя нужны месту вызова; null — объект целиком.
+function go_users_list(?array $fields, &$err = '', $budget = 60, $force = false) {
+    $err = '';
+    if (!go_wanted() || empty(go_state()['ok'])) return null;
+    if (!$force && go_users_blocked()) { $err = 'сверка с Go не совпала'; return null; }
+    if (remnawave_url() === '' || remnawave_token() === '') return null;
+    $body = [
+        'panel'     => ['url' => remnawave_url(), 'token' => remnawave_token(), 'cookie' => remnawave_cookie(), 'xkey' => remnawave_xapikey(), 'tls' => api_tls_verify()],
+        'fields'    => $fields === null ? null : array_values(array_map('strval', $fields)),
+        'budget_ms' => (int) (max(2, $budget) * 1000),
+    ];
+    $t0 = microtime(true);
+    $j = go_call('POST', '/v1/users/list', $body, max(2, $budget) + 5, $kind, $detail);
+    if ($j === null) {
+        if (in_array($kind, ['down', 'secret', 'nosecret', 'bridge'], true)) go_mark_fail($kind, $detail);
+        $err = go_err_text($kind, $detail);
+        if (!$force) go_users_note(['eng' => 'fb', 'err' => $err]);
+        return null;
+    }
+    foreach ((array) ($j['hits'] ?? []) as $h) {
+        if (is_array($h) && function_exists('apistat_hit')) apistat_hit((string) ($h['m'] ?? 'GET'), (string) ($h['p'] ?? ''), (int) ($h['c'] ?? 0), (float) ($h['ms'] ?? 0), 'go:users');
+    }
+    $users = $j['users'] ?? null;
+    if (!is_array($users)) {
+        $err = go_err_text('bad', 'нет списка');
+        if (!$force) go_users_note(['eng' => 'fb', 'err' => $err]);
+        return null;
+    }
+    if (!$force) go_users_note(['eng' => 'go', 'ms' => (int) round((microtime(true) - $t0) * 1000), 'pages' => (int) ($j['pages'] ?? 0), 'n' => count($users)]);
+    return $users;
+}
+
+function go_users_state() {
+    $s = json_decode((string) setting('go_users', ''), true);
+    return is_array($s) ? $s : [];
+}
+
+function go_users_note(array $s) {
+    set_setting('go_users', json_encode(['ts' => time()] + $s, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+}
+
+function go_users_blocked() {
+    $b = json_decode((string) setting('go_users_block', ''), true);
+    return is_array($b) && (int) ($b['ts'] ?? 0) > 0 ? $b : null;
+}
+
+// Сверка: тот же список адресов подписок от Go и от PHP. Пользователя могли создать между обходами — тогда
+// Go спрашивается ещё раз, и совпадение с любым из двух его ответов засчитывается.
+// true — совпало, false — не совпало (Go отключается для списка), null — сверить не удалось.
+function go_users_compare(&$detail = '') {
+    $detail = '';
+    $sig = static function (array $su) { sort($su, SORT_STRING); return count($su) . ':' . sha1(implode("\n", $su)); };
+    $go = static function () {
+        $l = go_users_list(['shortUuid'], $e, 90, true);
+        if ($l === null) return [null, $e];
+        $su = [];
+        foreach ($l as $u) $su[] = is_array($u) ? (string) ($u['shortUuid'] ?? '') : '';
+        return [$su, ''];
+    };
+    [$a, $e1] = $go();
+    if ($a === null) { $detail = 'Go: ' . $e1; return null; }
+    $p = [];
+    $e2 = '';
+    remnawave_all_users_php($e2, static function (array $page) use (&$p) {
+        foreach ($page as $u) $p[] = is_array($u) ? (string) ($u['shortUuid'] ?? '') : '';
+    });
+    if ($e2 !== '') { $detail = 'PHP: ' . $e2; return null; }
+    $ok = $sig($a) === $sig($p);
+    if (!$ok) {
+        [$b] = $go();
+        $ok = $b !== null && $sig($b) === $sig($p);
+    }
+    $now = time();
+    set_setting('go_users_check', json_encode(['ts' => $now, 'ok' => $ok ? 1 : 0, 'go' => count($a), 'php' => count($p)]));
+    if ($ok) { set_setting('go_users_block', ''); return true; }
+    $detail = 'у Go ' . count($a) . ', у PHP ' . count($p) . ' пользователей';
+    set_setting('go_users_block', json_encode(['ts' => $now, 'detail' => $detail], JSON_UNESCAPED_UNICODE));
+    return false;
+}
+
+// Для строки «Список пользователей» в блоке «Go-сервис».
+function go_users_view() {
+    $s = go_users_state();
+    $c = json_decode((string) setting('go_users_check', ''), true);
+    $b = go_users_blocked();
+    return [
+        'eng'   => $b ? 'block' : (string) ($s['eng'] ?? ''),
+        'ts'    => (int) ($s['ts'] ?? 0),
+        'ms'    => (int) ($s['ms'] ?? 0),
+        'pages' => (int) ($s['pages'] ?? 0),
+        'n'     => (int) ($s['n'] ?? 0),
+        'err'   => (string) ($s['err'] ?? ''),
+        'check' => is_array($c) ? ['ts' => (int) ($c['ts'] ?? 0), 'ok' => !empty($c['ok'])] : null,
+        'block' => $b ? ['ts' => (int) $b['ts'], 'detail' => (string) ($b['detail'] ?? '')] : null,
+    ];
+}
