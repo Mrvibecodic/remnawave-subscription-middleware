@@ -28,7 +28,7 @@ function update_web_user() {
 }
 
 function update_protected_paths() {
-    return ['config.php', 'config.example.php', '.git', 'backups', '.backups', 'docs', 'README.md', 'INSTALL.md', 'install.sh', 'Dockerfile', '.dockerignore', 'docker', 'docker-compose.example.yml', '.github'];
+    return ['config.php', 'config.example.php', '.git', 'backups', '.backups', 'docs', 'README.md', 'INSTALL.md', 'install.sh', 'Dockerfile', '.dockerignore', 'docker', 'go', 'docker-compose.example.yml', '.github'];
 }
 
 function update_path_ok($rel) {

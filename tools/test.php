@@ -16,7 +16,7 @@ foreach (array_slice($argv, 1) as $a) {
 }
 
 $box = rtrim(sys_get_temp_dir(), '/\\') . '/submw-test-' . bin2hex(random_bytes(4));
-$skip = ['.git', '.github', 'data', 'backups', '.backups', 'docs', 'config.php', 'install.json'];
+$skip = ['.git', '.github', 'data', 'backups', '.backups', 'docs', 'go', 'config.php', 'install.json'];
 
 function tt_copy(string $from, string $to, array $skip, bool $top = true): void
 {
