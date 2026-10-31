@@ -1,0 +1,259 @@
+<?php
+
+// Go-сервис рядом с прослойкой: опрашивает ноды для «Сессий» параллельно. Всё остальное остаётся в PHP;
+// не ответил Go — опрос делает PHP, как раньше.
+
+const GO_BRIDGE = 1;
+const GO_FORGET = 7 * 86400;
+const GO_DOC_URL = 'https://mrvibecodic.github.io/subm/ru/docs/go-service/';
+
+function go_off() { return setting('go_off', '0') === '1'; }
+
+function go_url_set() { return rtrim(trim((string) setting('go_url', '')), '/'); }
+
+function go_url_default() {
+    return (function_exists('submw_in_docker') ? submw_in_docker() : getenv('SUBMW_DOCKER') === '1') ? 'http://submw-go:8090' : 'http://127.0.0.1:8090';
+}
+
+function go_url() {
+    $u = go_url_set();
+    return $u !== '' ? $u : go_url_default();
+}
+
+// Только схема, хост и порт: путь, логин в адресе и запрос — ошибка, а не молча отброшенная часть.
+function go_url_norm($u, &$err = '') {
+    $err = '';
+    $u = rtrim(trim((string) $u), '/');
+    if ($u === '') return '';
+    $p = parse_url($u);
+    if (!is_array($p) || !in_array(strtolower((string) ($p['scheme'] ?? '')), ['http', 'https'], true) || (string) ($p['host'] ?? '') === ''
+        || isset($p['user']) || isset($p['pass']) || isset($p['query']) || isset($p['fragment']) || trim((string) ($p['path'] ?? ''), '/') !== '') {
+        $err = 'Адрес Go-сервиса — вида http://хост:порт';
+        return null;
+    }
+    return strtolower($p['scheme']) . '://' . $p['host'] . (isset($p['port']) ? ':' . (int) $p['port'] : '');
+}
+
+function go_secret() {
+    $s = (string) setting('go_secret', '');
+    return preg_match('~^[A-Za-z0-9]{32}$~', $s) ? $s : go_secret_rotate();
+}
+
+function go_secret_rotate() {
+    $a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    $s = '';
+    for ($i = 0; $i < 32; $i++) $s .= $a[random_int(0, 61)];
+    set_setting('go_secret', $s);
+    return $s;
+}
+
+function go_state() {
+    $s = json_decode((string) setting('go_state', ''), true);
+    return is_array($s) ? $s : [];
+}
+
+function go_state_put(array $s) {
+    set_setting('go_state', json_encode($s, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE));
+}
+
+// Go «знаком», если адрес задан руками или сервис уже отвечал: тогда его молчание — тревога, а не норма.
+// Не отвечает неделю при пустом адресе — считаем, что его убрали.
+function go_known(?array $s = null) {
+    if (go_url_set() !== '') return true;
+    $s = $s ?? go_state();
+    return (int) ($s['seen'] ?? 0) > 0 && time() - (int) ($s['ok_ts'] ?? 0) < GO_FORGET;
+}
+
+function go_wanted() { return !go_off(); }
+
+// $fail — Go ответил, но дело не сделал (панель из его сети не открывается): сервис есть, опрос всё равно за PHP.
+function go_mark_ok(array $info, ?array $fail = null) {
+    $p = go_state();
+    $now = time();
+    $first = (int) ($p['seen'] ?? 0) === 0;
+    $s = ['ok' => $fail === null, 'ts' => $now, 'ok_ts' => $now, 'seen' => $first ? $now : (int) $p['seen'], 'url' => go_url(),
+          'v' => mb_substr((string) ($info['v'] ?? ''), 0, 40), 'commit' => substr((string) ($info['commit'] ?? ''), 0, 40),
+          'bridge' => (int) ($info['bridge'] ?? 0), 'err' => '', 'detail' => '', 'fail_since' => 0];
+    if ($fail !== null) {
+        $s['err'] = (string) $fail[0];
+        $s['detail'] = mb_substr((string) $fail[1], 0, 200);
+        $s['fail_since'] = empty($p['ok']) && (int) ($p['fail_since'] ?? 0) > 0 ? (int) $p['fail_since'] : $now;
+    }
+    go_state_put($s);
+    // Первое появление Go: интервал по умолчанию — минута. Один раз, дальше настройка за админом.
+    if ($first && setting('go_every_done', '') !== '1') {
+        if (in_array((string) setting('sess_every', ''), ['', '120'], true)) set_setting('sess_every', '60');
+        set_setting('go_every_done', '1');
+    }
+}
+
+function go_mark_fail($kind, $detail) {
+    $s = go_state();
+    $now = time();
+    $s['fail_since'] = !empty($s['ok']) || (int) ($s['fail_since'] ?? 0) === 0 ? $now : (int) $s['fail_since'];
+    $s['ok'] = false;
+    $s['ts'] = $now;
+    $s['url'] = go_url();
+    $s['err'] = (string) $kind;
+    $s['detail'] = mb_substr((string) $detail, 0, 200);
+    go_state_put($s);
+}
+
+function go_err_text($kind, $detail = '') {
+    $d = (string) $detail;
+    switch ((string) $kind) {
+        case 'down':     return 'не отвечает' . ($d !== '' ? ': ' . $d : '');
+        case 'secret':   return 'секрет не подходит — впишите текущий в Go-контейнер';
+        case 'nosecret': return 'в Go-контейнере не задан секрет (SUBMW_GO_SECRET)';
+        case 'bridge':   return 'версия Go-сервиса не подходит к прослойке — обновите образ Go';
+        case 'panel':    return 'не достучался до панели' . ($d !== '' ? ': ' . $d : '');
+        case 'bad':      return 'Go вернул ошибку' . ($d !== '' ? ': ' . $d : '');
+    }
+    return $d !== '' ? $d : 'ещё не проверялся';
+}
+
+// Запрос к Go. Прокси из окружения не используется: сервис всегда локальный.
+function go_call($method, $path, ?array $body, $timeout, &$kind = '', &$detail = '') {
+    $kind = '';
+    $detail = '';
+    if (!function_exists('curl_init')) { $kind = 'down'; $detail = 'нет curl'; return null; }
+    $h = ['Authorization: Bearer ' . go_secret(), 'Accept: application/json'];
+    $opt = [
+        CURLOPT_URL               => go_url() . $path,
+        CURLOPT_RETURNTRANSFER    => true,
+        CURLOPT_CONNECTTIMEOUT_MS => 1500,
+        CURLOPT_TIMEOUT_MS        => (int) max(2000, $timeout * 1000),
+        CURLOPT_CUSTOMREQUEST     => $method,
+        CURLOPT_FOLLOWLOCATION    => false,
+        CURLOPT_PROXY             => '',
+        CURLOPT_NOPROXY           => '*',
+    ];
+    if ($body !== null) {
+        $h[] = 'Content-Type: application/json';
+        $opt[CURLOPT_POSTFIELDS] = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    }
+    $opt[CURLOPT_HTTPHEADER] = $h;
+    $ch = curl_init();
+    curl_setopt_array($ch, $opt);
+    $raw = curl_exec($ch);
+    $err = curl_error($ch);
+    $errno = curl_errno($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($raw === false || $errno) {
+        $kind = 'down';
+        $detail = [28 => 'нет ответа за ' . (int) round($timeout) . ' с', 6 => 'адрес не найден', 7 => 'соединение отклонено'][$errno] ?? $err;
+        return null;
+    }
+    $j = json_decode((string) $raw, true);
+    if ($code === 401 && is_array($j) && ($j['err'] ?? '') === 'secret') { $kind = 'secret'; return null; }
+    if ($code === 503 && is_array($j) && ($j['err'] ?? '') === 'nosecret') { $kind = 'nosecret'; return null; }
+    // Свой ответ Go всегда несёт версию моста: без неё по адресу отвечает что-то другое.
+    if (!is_array($j) || !isset($j['bridge'])) { $kind = 'down'; $detail = 'по адресу отвечает не Go-сервис (HTTP ' . $code . ')'; return null; }
+    if ((int) $j['bridge'] !== GO_BRIDGE) { $kind = 'bridge'; return null; }
+    if ($code < 200 || $code >= 300 || empty($j['ok'])) { $kind = 'bad'; $detail = (string) ($j['err'] ?? ('HTTP ' . $code)); return null; }
+    return $j;
+}
+
+function go_hello(&$err = '') {
+    $err = '';
+    $j = go_call('GET', '/v1/hello', null, 3, $kind, $detail);
+    if ($j === null) {
+        if ($kind !== 'down' || go_known()) go_mark_fail($kind, $detail);
+        $err = go_err_text($kind, $detail);
+        return null;
+    }
+    go_mark_ok($j);
+    return $j;
+}
+
+// Адреса опроса ноды с местом под идентификатор: их подставляет Go.
+function go_sess_tpl(callable $f) {
+    return str_replace('__ID__', '{id}', (string) $f('__ID__'));
+}
+
+// Опрос нод через Go. null — Go не справился (причина в $err), иначе результаты по нодам в том же виде,
+// что у sess_jobs_wait: массив результата, false — не ответила, null — не стартовала.
+function go_sess_poll(array $nodes, $until, &$err = '', &$first = '', &$reqs = 0) {
+    $err = '';
+    $first = '';
+    $reqs = 0;
+    $flipped = false;
+    $ids = array_map('strval', array_keys($nodes));
+    // Токен панели уходит только сервису, который уже назвался Go-сервисом: по адресу по умолчанию может слушать чужая программа.
+    if (empty(go_state()['ok']) && go_call('GET', '/v1/hello', null, 3, $kind, $detail) === null) {
+        if ($kind !== 'down' || go_known()) go_mark_fail($kind, $detail);
+        $err = go_err_text($kind, $detail);
+        return null;
+    }
+    while (true) {
+        $left = $until - microtime(true);
+        if ($left < 1.5) { $err = go_err_text('down', 'не хватило времени'); return null; }
+        $P = sess_paths();
+        $body = [
+            'panel'     => ['url' => remnawave_url(), 'token' => remnawave_token(), 'cookie' => remnawave_cookie(), 'xkey' => remnawave_xapikey(), 'tls' => api_tls_verify()],
+            'start'     => go_sess_tpl($P['node']),
+            'result'    => go_sess_tpl($P['node_res']),
+            'nodes'     => $ids,
+            'budget_ms' => (int) (($left - 0.5) * 1000),
+        ];
+        $j = go_call('POST', '/v1/sessions/poll', $body, $left + 1, $kind, $detail);
+        if ($j === null) {
+            if ($kind !== 'down' || go_known()) go_mark_fail($kind, $detail);
+            $err = go_err_text($kind, $detail);
+            return null;
+        }
+        foreach ((array) ($j['hits'] ?? []) as $h) {
+            if (!is_array($h)) continue;
+            $reqs++;
+            if (function_exists('apistat_hit')) apistat_hit((string) ($h['m'] ?? 'GET'), (string) ($h['p'] ?? ''), (int) ($h['c'] ?? 0), (float) ($h['ms'] ?? 0), 'go:sessions');
+        }
+        // Go жив, но панель из его сети не открывается — PHP попробует сам; это настройка сети, а не сбой Go.
+        if ((string) ($j['panel_down'] ?? '') !== '') {
+            go_mark_ok($j, ['panel', (string) $j['panel_down']]);
+            $err = go_err_text('panel', (string) $j['panel_down']);
+            return null;
+        }
+        $out = [];
+        $nf = false;
+        foreach ($ids as $id) {
+            $r = is_array($j['nodes'][$id] ?? null) ? $j['nodes'][$id] : ['st' => 'timeout'];
+            $st = (string) ($r['st'] ?? '');
+            if ($st === 'ok' && is_array($r['result'] ?? null)) { $out[$id] = $r['result']; continue; }
+            $out[$id] = false;
+            if (!empty($r['nf'])) $nf = true;
+            if ($st === 'fail' && $first === '' && (string) ($r['err'] ?? '') !== '') $first = (string) $r['err'];
+        }
+        go_mark_ok($j);
+        // Семейство адресов угадано неверно (версия панели в кэше устарела) — второе пробуем один раз, как PHP.
+        if ($nf && !$flipped) {
+            $flipped = true;
+            sess_api_flip();
+            $first = '';
+            continue;
+        }
+        return $out;
+    }
+}
+
+// Для бейджа и блока «Go-сервис»: всё уже разобрано, шаблону и JS остаётся вывести.
+function go_view() {
+    $s = go_state();
+    $known = go_known($s);
+    $mode = go_off() ? 'off' : (!empty($s['ok']) ? 'go' : ($known ? 'warn' : 'none'));
+    return [
+        'mode'    => $mode,
+        'url'     => go_url(),
+        'url_set' => go_url_set(),
+        'url_def' => go_url_default(),
+        'v'       => (string) ($s['v'] ?? ''),
+        'commit'  => substr((string) ($s['commit'] ?? ''), 0, 12),
+        'bridge'  => (int) ($s['bridge'] ?? 0) === GO_BRIDGE,
+        'ts'      => (int) ($s['ts'] ?? 0),
+        'ok_ts'   => (int) ($s['ok_ts'] ?? 0),
+        'since'   => (int) ($s['fail_since'] ?? 0),
+        'kind'    => !empty($s['ok']) ? '' : (string) ($s['err'] ?? ''),
+        'err'     => !empty($s['ok']) ? '' : go_err_text((string) ($s['err'] ?? ''), (string) ($s['detail'] ?? '')),
+        'docker'  => function_exists('submw_in_docker') && submw_in_docker(),
+    ];
+}
