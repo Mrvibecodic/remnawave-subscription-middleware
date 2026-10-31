@@ -127,6 +127,18 @@ $mock(['version' => '3.4.7']);
 set_setting('sess_api_v3', '1');
 unset($GLOBALS['submw_sess_v3'], $GLOBALS['submw_settings_cache']);
 
+// Сбой старта задания по ноде — Go повторяет её один раз, в журнале отметка повтора
+foreach (glob($tt_root . '/data/mock_once_*') ?: [] as $f) unlink($f);
+$mock(['version' => '3.4.7', 'start_fail_once' => [$N2]]);
+@unlink($mlog);
+t_eq('сбой старта по ноде — опрос всё равно полный', sess_collect(microtime(true) + 10), '');
+$r = $plog();
+t_eq('журнал: Go, все ноды, повтор отмечен по имени ноды', [$r['eng'], (int) $r['ok'], json_decode((string) $r['retry'], true)], ['go', 3, ['Frankfurt']]);
+t_eq('повторно стартовала только сбойная нода', substr_count((string) file_get_contents($mlog), 'POST /api/connections/by-node/' . $N2), 2);
+t_eq('фильтр «С повтором»', count(sess_plog_rows('rt', 0, 50)), 1);
+t_eq('сводка считает опросы с повтором', sess_plog_summary(24)['rt'], 1);
+$mock(['version' => '3.4.7']);
+
 // Нода не отвечает — частичный снимок, ошибка с именем
 $mock(['version' => '3.4.7', 'job_slow' => 1]);
 $t0 = microtime(true);
@@ -175,7 +187,7 @@ t_ok('секрет передан только в данные страницы 
 $j = json_decode($b, true);
 t_ok('ajax журнала: фильтр и сводка', $c === 200 && !empty($j['ok']) && count($j['rows']) >= 2 && $j['rows'][0]['eng'] === 'fb' && $j['sum']['hours'] === 72, substr($b, 0, 300));
 [$c, $hd, $b] = t_http('GET', $mw . '/admin/index.php?sess_plog_csv=1', [], null, $jar);
-t_ok('CSV: заголовок и строки', $c === 200 && strpos($hd['content-type'] ?? '', 'text/csv') === 0 && strpos($b, 'ts;time_utc;engine') !== false && substr_count($b, "\n") > 5);
+t_ok('CSV: заголовок и строки, колонка повторов', $c === 200 && strpos($hd['content-type'] ?? '', 'text/csv') === 0 && strpos($b, 'ts;time_utc;engine') !== false && strpos($b, ';retried') !== false && strpos($b, ';Frankfurt') !== false && substr_count($b, "\n") > 5);
 [$c, , $b] = t_http('GET', $mw . '/admin/index.php?sess_plog_csv=1');
 t_ok('CSV без входа не отдаётся', strpos($b, 'time_utc') === false);
 preg_match('~name="csrf" value="([0-9a-f]+)"~', $page, $cm);

@@ -21,6 +21,8 @@ const (
 	firstPause     = 300 * time.Millisecond
 	maxPause       = 2 * time.Second
 	panelReqLimit  = 20 * time.Second
+	retryPause     = 500 * time.Millisecond
+	retryRoom      = 2 * time.Second
 	panelBodyLimit = 32 << 20
 )
 
@@ -44,8 +46,10 @@ type nodeOut struct {
 	St     string          `json:"st"`
 	Err    string          `json:"err,omitempty"`
 	NF     bool            `json:"nf,omitempty"`
+	RT     bool            `json:"rt,omitempty"`
 	Result json.RawMessage `json:"result,omitempty"`
 	net    bool
+	again  bool
 }
 
 type hit struct {
@@ -159,34 +163,40 @@ func respObj(data map[string]any) map[string]any {
 }
 
 // Текст ошибки старта — как у sess_job_start: сообщение панели, иначе ошибка сети, иначе код.
-func (p *panel) start(ctx context.Context, path string) (job string, errText string, notFound bool, netErr bool) {
+// again — сбой, который имеет смысл повторить: сеть или 5xx; отказ 4xx (нода не найдена, нет прав) — нет.
+func (p *panel) start(ctx context.Context, path string) (job string, errText string, notFound bool, netErr bool, again bool) {
 	code, data, err := p.do(ctx, http.MethodPost, path)
 	if err != nil {
 		var ue *url.Error
 		if errors.As(err, &ue) {
 			err = ue.Err
 		}
-		return "", err.Error(), false, true
+		return "", err.Error(), false, true, true
 	}
 	if !ok2xx(code) {
 		msg, _ := data["message"].(string)
 		if code == 404 && strings.HasPrefix(msg, "Cannot POST") {
-			return "", "нет такого адреса API", true, false
+			return "", "нет такого адреса API", true, false, false
 		}
-		if msg != "" {
-			return "", msg, false, false
+		if msg == "" {
+			msg = fmt.Sprintf("HTTP %d", code)
 		}
-		return "", fmt.Sprintf("HTTP %d", code), false, false
+		return "", msg, false, false, code >= 500
 	}
 	if r := respObj(data); r != nil {
 		if j, ok := r["jobId"].(string); ok && j != "" {
-			return j, "", false, false
+			return j, "", false, false, false
 		}
 		if j, ok := r["jobId"].(json.Number); ok {
-			return j.String(), "", false, false
+			return j.String(), "", false, false, false
 		}
 	}
-	return "", "панель не вернула jobId", false, false
+	return "", "панель не вернула jobId", false, false, true
+}
+
+func roomFor(ctx context.Context, d time.Duration) bool {
+	dl, ok := ctx.Deadline()
+	return !ok || time.Until(dl) >= d
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {
@@ -215,12 +225,12 @@ func (p *panel) wait(ctx context.Context, path string) nodeOut {
 		if err == nil && ok2xx(code) {
 			if r := respObj(data); r != nil {
 				if f, _ := r["isFailed"].(bool); f {
-					return nodeOut{St: "fail", Err: "задача на панели не выполнилась"}
+					return nodeOut{St: "fail", Err: "задача на панели не выполнилась", again: true}
 				}
 				if c, _ := r["isCompleted"].(bool); c {
 					res, isObj := r["result"].(map[string]any)
 					if !isObj {
-						return nodeOut{St: "fail", Err: "панель не вернула результат"}
+						return nodeOut{St: "fail", Err: "панель не вернула результат", again: true}
 					}
 					raw, merr := json.Marshal(res)
 					if merr != nil {
@@ -266,15 +276,21 @@ func poll(ctx context.Context, in pollReq) (pollResp, error) {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-			var r nodeOut
-			job, e, nf, ne := p.start(ctx, fill(in.Start, id))
-			switch {
-			case ctx.Err() != nil:
-				r = nodeOut{St: "timeout", Err: "не успела"}
-			case e != "":
-				r = nodeOut{St: "fail", Err: e, NF: nf, net: ne}
-			default:
-				r = p.wait(ctx, fill(in.Result, job))
+			attempt := func() nodeOut {
+				job, e, nf, ne, ag := p.start(ctx, fill(in.Start, id))
+				switch {
+				case ctx.Err() != nil:
+					return nodeOut{St: "timeout", Err: "не успела"}
+				case e != "":
+					return nodeOut{St: "fail", Err: e, NF: nf, net: ne, again: ag}
+				}
+				return p.wait(ctx, fill(in.Result, job))
+			}
+			r := attempt()
+			// Одна повторная попытка, только если после паузы останется время дождаться ответа.
+			if r.again && roomFor(ctx, retryRoom+retryPause) && sleepCtx(ctx, retryPause) {
+				r = attempt()
+				r.RT = true
 			}
 			mu.Lock()
 			out.Nodes[id] = r
