@@ -292,6 +292,7 @@ function summary(d){
     var sk=[];(d.skip_tables||[]).forEach(function(t){sk.push(esc(t));});
     Object.keys(d.skip_cols||{}).forEach(function(t){sk.push(esc(t)+': '+d.skip_cols[t].map(esc).join(', '));});
     if(sk.length)h+='<div class="bk-box amber">'+IC.warn+'<span>Этих данных текущая версия прослойки не знает, они не загрузятся: '+sk.join('; ')+'</span></div>';
+    if((d.keep_tables||[]).length)h+='<div class="bk-box info">'+IC.info+'<span>Этих данных в файле нет — они останутся как сейчас: '+d.keep_tables.map(esc).join(', ')+'</span></div>';
     if(d.gate===false&&d.gate_now)h+='<div class="bk-box amber">'+IC.warn+'<span>В бэкапе вход по секретной ссылке выключен. Если не оставить текущий вход, админка будет открываться по обычному адресу.</span></div>';
     if(d.phones||d.phones_now)h+='<div class="bk-box amber">'+IC.warn+'<span>Список телефонов станет как в бэкапе: телефоны, привязанные позже, придётся привязать заново, а отвязанные позже снова получат доступ к админке.</span></div>';
     if(d.chan_new)h+='<div class="bk-box info">'+IC.info+'<span>Ключ защищённого канала станет как в бэкапе. Clod Clash сам переключится на него при следующем обновлении подписки — делать ничего не нужно.</span></div>';

@@ -155,6 +155,46 @@ file_put_contents(backup_dir() . '/lost.json.gz', gzencode(implode("\n", $l2) . 
 $names0 = array_column(backup_list(), 'name');
 t_ok('пропала строка: отказ уже после очистки — всё откатилось', backup_restore('lost.json.gz', '', [], null, $err) === null && bt_state() === $before && strpos($err, 'не хватает записей') !== false, $err);
 t_eq('пропала строка: лишний снимок убран', array_column(backup_list(), 'name'), $names0);
+// Снимки «перед восстановлением»: неудачное восстановление не съедает самый старый из трёх.
+while ($preN() < 3) backup_restore($name, '', [], null, $err);
+$pre3 = array_column(array_values(array_filter(backup_list(), static function ($b) { return $b['kind'] === 'pre'; })), 'name');
+backup_restore('lost.json.gz', '', [], null, $err);
+t_eq('неудачное восстановление: три прежних снимка на месте', array_column(array_values(array_filter(backup_list(), static function ($b) { return $b['kind'] === 'pre'; })), 'name'), $pre3);
+backup_restore($name, '', [], null, $err);
+t_eq('удачное: снимков по-прежнему три', $preN(), 3);
+// Файл старой версии без таблицы: её данные остаются как есть.
+$l3 = explode("\n", rtrim(gzdecode($plain), "\n"));
+$h3 = json_decode($l3[0], true);
+$h3['tables'] = array_values(array_filter($h3['tables'], static fn($m) => $m['t'] !== 'overrides'));
+$in = false; $out3 = [json_encode($h3, BK_JSON)]; $endN = 0;
+foreach (array_slice($l3, 1) as $l) {
+    if ($l !== '' && $l[0] === '{') { $o = json_decode($l, true); if (isset($o['end'])) { $nn = (array) $o['n']; $endN = (int) ($nn['overrides'] ?? 0); unset($nn['overrides']); $o['n'] = (object) $nn; $o['rows'] -= $endN; $out3[] = json_encode($o, BK_JSON); break; } $in = ($o['t'] ?? '') === 'overrides'; if ($in) continue; }
+    if (!$in) $out3[] = $l;
+}
+file_put_contents(backup_dir() . '/old-noover.json.gz', gzencode(implode("\n", $out3) . "\n"));
+$ov0 = bt_count('overrides');
+$p->exec("INSERT INTO overrides (match_type, match_value, reason) VALUES ('short', 'after-backup', 'block')");
+$pv = backup_preview('old-noover.json.gz', '', $err);
+t_ok('просмотр: таблица, которой нет в файле, останется как есть', is_array($pv) && in_array('overrides', $pv['keep_tables'], true), $err);
+t_ok('восстановление файла без таблицы проходит', is_array(backup_restore('old-noover.json.gz', '', [], null, $err)), $err);
+t_eq('её строки не тронуты, включая добавленные после бэкапа', bt_count('overrides'), $ov0 + 1);
+backup_restore($name, '', [], null, $err);
+// Сжатый файл-«бомба»: отказ без падения по памяти.
+$ml = ini_get('memory_limit');
+ini_set('memory_limit', '128M');
+$z = deflate_init(ZLIB_ENCODING_GZIP);
+$bomb = deflate_add($z, $l3[0] . "\n", ZLIB_NO_FLUSH);
+$chunk = str_repeat('a', 1048576);
+for ($i = 0; $i < 300; $i++) $bomb .= deflate_add($z, $chunk, ZLIB_NO_FLUSH);
+$bomb .= deflate_add($z, '', ZLIB_FINISH);
+unset($chunk);
+file_put_contents(backup_dir() . '/bomb.json.gz', $bomb);
+unset($bomb);
+$before = bt_state();
+t_ok('«бомба» на 300 МБ: отказ, данные не тронуты', backup_restore('bomb.json.gz', '', [], null, $err) === null && strpos($err, 'повреждён') !== false && bt_state() === $before, $err);
+t_ok('память при этом не выросла выше лимита', memory_get_peak_usage(true) < 128 * 1048576);
+ini_set('memory_limit', (string) $ml);
+foreach (['old-noover.json.gz', 'bomb.json.gz'] as $f) @unlink(backup_dir() . '/' . $f);
 file_put_contents(backup_dir() . '/junk.json.gz', gzencode("hello\n"));
 t_ok('чужой gzip: отказ', backup_preview('junk.json.gz', '', $err) === null, $err);
 t_ok('имя с ../ не принимается', backup_path('../config.php') === '' && backup_path('..%2Fx.gz') === '');
@@ -346,12 +386,15 @@ $H['login'] = ['user' => 'other', 'hash' => password_hash('pw2', PASSWORD_DEFAUL
 $LL = explode("\n", rtrim(gzdecode($file), "\n"));
 $LL[0] = json_encode($H, BK_JSON);
 file_put_contents(backup_dir() . '/login2.json.gz', gzencode(implode("\n", $LL) . "\n"));
+$jar2 = t_admin_login($mw);
 [$c, , $b] = $post('bk_restore', ['name' => 'login2.json.gz', 'word' => 'восстановить']);
 $ls = array_values(array_filter(explode("\n", $b)));
 $fin = json_decode((string) end($ls), true);
 t_ok('восстановление с другим логином', !empty($fin['ok']) && $fin['relogin'] === true && $fin['next'] === '', $b);
 [$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=backup', [], null, $jar);
 t_ok('после смены входа — снова форма входа', strpos($page, 'id="password"') !== false && strpos($page, 'id="bkCreate"') === false);
+[$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=backup', [], null, $jar2);
+t_ok('и другая открытая сессия тоже закрыта', strpos($page, 'id="password"') !== false && strpos($page, 'id="bkCreate"') === false);
 file_put_contents($cfgPath, $cfgOrig);
 $jar = t_admin_login($mw);
 [$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=backup', [], null, $jar);

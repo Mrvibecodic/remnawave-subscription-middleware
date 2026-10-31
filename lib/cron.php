@@ -40,10 +40,10 @@ function cron_save(array $st) {
 
 function cron_task_ok(array $t) { return (int) ($t['start'] ?? 0) > 0 && (int) ($t['ok_at'] ?? 0) >= (int) $t['start']; }
 
-// Неудачная или прерванная попытка повторяется через 5 минут, удачная — по своему интервалу.
+// Удачная задача повторяется по своему интервалу, неудачная — через 5 минут, после второго сбоя подряд через 15, дальше раз в час.
 function cron_task_due($t, $every, $now) {
     if (!is_array($t) || (int) ($t['start'] ?? 0) <= 0) return true;
-    $wait = cron_task_ok($t) ? $every : min($every, 300);
+    $wait = cron_task_ok($t) ? $every : min($every, [300, 900, 3600][min(2, max(0, (int) ($t['fails'] ?? 0) - 1))]);
     return !cron_fresh($t['start'], $now, $wait - 5);
 }
 
@@ -180,6 +180,8 @@ function cron_task_cleanup($ctx) {
     junk_prune($p);
     chat_gc();
     if (function_exists('apistat_prune')) apistat_prune();
+    // Уборка папки бэкапов: файлы «скачать сейчас», недописанные куски и брошенный временный конфиг.
+    if (function_exists('backup_list')) backup_list();
     return '';
 }
 
@@ -241,7 +243,7 @@ function cron_run($src) {
                 error_log('submw cron ' . $name . ': ' . $err);
             }
             cron_limit($ctx);
-            if ($err === '') $t['ok_at'] = time();
+            if ($err === '') { $t['ok_at'] = time(); $t['fails'] = 0; } else $t['fails'] = (int) ($t['fails'] ?? 0) + 1;
             $t['err'] = mb_substr($err, 0, 200);
             $st['tasks'][$name] = $t;
             $ran[$name] = ['ok' => $err === '', 'err' => $t['err'], 'ms' => (int) round((microtime(true) - $m) * 1000)];
