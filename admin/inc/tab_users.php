@@ -622,18 +622,18 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-gs .d{font-size:.8rem;color:var(--muted);margin-top:.2rem;line-height:1.45}
 .ux-gs .d code{font-size:.78rem}
 .ux-gs .chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
-.ux-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.74rem;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:.14rem .55rem;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
-.ux-chip .k{color:var(--muted)}
-.ux-chip.ok{color:var(--c-ok-fg)}
-.ux-chip.bad{color:var(--c-bad-fg)}
+.ux-gchip{display:inline-flex;align-items:center;gap:.3rem;font-size:.74rem;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:.14rem .55rem;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ux-gchip .k{color:var(--muted)}
+.ux-gchip.ok{color:var(--c-ok-fg)}
+.ux-gchip.bad{color:var(--c-bad-fg)}
 .ux-gs .act{margin-left:auto;flex:none}
 @media(max-width:640px){.ux-gs{flex-wrap:wrap}.ux-gs .act{margin-left:0;width:100%}.ux-gs .act .wb{width:100%;justify-content:center}}
 .ux-sgg .set-row.ux-wide{grid-column:1/-1}
 .ux-sgf .set-row>input.ux-gaddr{flex:0 1 19rem;width:19rem;min-height:36px;padding:.4rem .6rem;font-size:.84rem;margin:0}
 .ux-gsec{display:flex;align-items:center;gap:.4rem;flex:0 0 auto;min-width:0}
 .ux-gsec code{font-size:.8rem;padding:.4rem .55rem;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.ux-ib{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;min-height:34px;padding:0;border:1px solid var(--line);background:var(--bg2);color:var(--muted);border-radius:var(--radius);cursor:pointer;flex:none}
-.ux-ib:hover{color:var(--text-strong);border-color:var(--accent);background:var(--bg2);filter:none}
+.ux-gib{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;min-height:34px;padding:0;border:1px solid var(--line);background:var(--bg2);color:var(--muted);border-radius:var(--radius);cursor:pointer;flex:none}
+.ux-gib:hover{color:var(--text-strong);border-color:var(--accent);background:var(--bg2);filter:none}
 .ux-sgf .set-d code{white-space:nowrap}
 @media(max-width:900px){.ux-sgg{grid-template-columns:minmax(0,1fr)}.ux-sgg .set-row{min-width:0}.ux-sgf .set-d code{white-space:normal;overflow-wrap:anywhere}.ux-sgf .set-row>input.ux-gaddr,.ux-gsec{width:100%;max-width:100%;box-sizing:border-box;flex:1 1 auto}.ux-gsec code{flex:1}}
 .ux-gwarn{color:var(--c-warn-fg);margin-top:.25rem}
@@ -667,7 +667,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-plt td.e b{color:var(--c-bad-fg);font-weight:600}
 .ux-plt .nd.part{color:var(--c-warn-fg);font-weight:600}
 .ux-plt .nd.zero{color:var(--c-bad-fg);font-weight:600}
-.ux-rt{display:inline-flex;align-items:center;margin-left:.35rem;font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:6px;background:var(--c-info-bg);color:var(--c-info-fg);white-space:nowrap;cursor:help;vertical-align:middle}
+.ux-rtry{display:inline-flex;align-items:center;margin-left:.35rem;font-size:.7rem;font-weight:700;padding:.1rem .4rem;border-radius:6px;background:var(--c-info-bg);color:var(--c-info-fg);white-space:nowrap;cursor:help;vertical-align:middle}
 .ux-plt .ux-eng,.ux-psc .ux-eng{cursor:default}
 @media(min-width:901px){.ux-plt tr.fb>td{background:color-mix(in srgb,var(--c-warn-bg) 55%,transparent)}}
 @media(max-width:900px){table.ux-plt>tbody>tr.fb{border-color:color-mix(in srgb,var(--c-warn-fg) 50%,var(--line))}}
@@ -776,7 +776,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             </div>
             <div class="set-row ux-wide">
                 <div class="set-info"><div class="set-t">Секрет</div><div class="set-d">Впишите его в Go-контейнер как <code>SUBMW_GO_SECRET</code> — без него Go не примет запрос.</div></div>
-                <div class="ux-gsec"><code id="uxGoSec">••••••••••••••••••••••••••••••••</code><button type="button" class="ux-ib" data-ga="show" data-tip="Показать" aria-label="Показать секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="ux-ib" data-ga="copy" data-tip="Копировать" aria-label="Копировать секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button type="button" class="ux-ib" data-ga="rotate" data-tip="Сменить секрет" aria-label="Сменить секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button></div>
+                <div class="ux-gsec"><code id="uxGoSec">••••••••••••••••••••••••••••••••</code><button type="button" class="ux-gib" data-ga="show" data-tip="Показать" aria-label="Показать секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="ux-gib" data-ga="copy" data-tip="Копировать" aria-label="Копировать секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button type="button" class="ux-gib" data-ga="rotate" data-tip="Сменить секрет" aria-label="Сменить секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button></div>
             </div>
             <div class="set-row ux-wide">
                 <div class="set-info"><div class="set-t">Не использовать Go</div><div class="set-d">Опрашивать ноды из PHP, даже когда Go отвечает. Для отката и сравнения.</div></div>
@@ -1729,15 +1729,15 @@ function dur(s){s=Math.max(0,Math.round(s/60));if(s<60)return s+' мин';var h=
 function gDraw(){
  var m=G.mode,u='<code>'+esc(G.url)+'</code>',h='',cls,ic,t,d,ch=[];
  if(m==='go'){cls='ok';ic='bolt';t='Ноды опрашивает Go';d='Отвечает по адресу '+u+'. Если перестанет отвечать, опрос сам вернётся на PHP — история не прервётся.';
-  if(G.v)ch.push('<span class="ux-chip"><span class="k">версия</span>'+esc(G.v)+(G.commit&&G.v!==G.commit?' · '+esc(G.commit.slice(0,7)):'')+'</span>');
-  if(G.bridge)ch.push('<span class="ux-chip ok">мост совпадает</span>');
-  var L=G.last||{};if(L.ts&&L.eng==='go')ch.push('<span class="ux-chip"><span class="k">последний опрос</span>'+tm(L.ts)+' · '+L.ok+' из '+L.nodes+' нод</span>');}
+  if(G.v)ch.push('<span class="ux-gchip"><span class="k">версия</span>'+esc(G.v)+(G.commit&&G.v!==G.commit?' · '+esc(G.commit.slice(0,7)):'')+'</span>');
+  if(G.bridge)ch.push('<span class="ux-gchip ok">мост совпадает</span>');
+  var L=G.last||{};if(L.ts&&L.eng==='go')ch.push('<span class="ux-gchip"><span class="k">последний опрос</span>'+tm(L.ts)+' · '+L.ok+' из '+L.nodes+' нод</span>');}
  else if(m==='warn'){cls='w';ic='boltx';var k=G.kind;
   t=k==='panel'?'Go не достучался до панели — ноды опрашивает PHP':(k==='secret'||k==='nosecret'?'Go не принял запрос — ноды опрашивает PHP':(k==='bridge'?'Версия Go не подходит — ноды опрашивает PHP':'Go не отвечает — ноды опрашивает PHP'));
   d=k==='panel'?'Go по адресу '+u+' работает, но адрес панели из его сети не открывается: '+esc(G.err)+'. В Docker подключите Go к тем же сетям, что и прослойку; при установке файлами — <code>network_mode: host</code>.'
    :(k==='secret'||k==='nosecret'||k==='bridge'?'Адрес '+u+': '+esc(G.err)+'.'
    :'Адрес '+u+': '+esc(G.err||'нет ответа')+'.'+(G.ok_ts?' Последний ответ Go — '+tm(G.ok_ts)+'.':'')+' Проверьте, запущен ли контейнер: <code>'+(G.docker?'docker compose ps':'docker ps')+'</code>.')+' Как только Go справится, опрос вернётся на него сам.';
-  if(G.since)ch.push('<span class="ux-chip bad">не отвечает '+dur(now()/1000-G.since)+'</span>');}
+  if(G.since)ch.push('<span class="ux-gchip bad">не отвечает '+dur(now()/1000-G.since)+'</span>');}
  else if(m==='off'){cls='off';ic='code';t='Go выключен — ноды опрашивает PHP';d='Выключено вручную. Чтобы вернуть опрос через Go, снимите «Не использовать Go».';}
  else{cls='off';ic='plug';t='Go-сервис не найден — ноды опрашивает PHP';d='Go опрашивает все ноды сразу, а не по очереди: при десятке нод опрос заметно быстрее и реже теряет ноды. Он ставится отдельным контейнером рядом с прослойкой — в Docker и при установке файлами. Всё остальное работает и без него.';}
  h='<div class="ux-gs '+cls+'"><div class="ic">'+gi(ic,19)+'</div><div class="tx"><div class="t">'+t+'</div><div class="d">'+d+'</div>'+(ch.length?'<div class="chips">'+ch.join('')+'</div>':'')+'</div><div class="act"><button type="button" class="wb" data-ga="check">'+gi('ref',15)+'Проверить</button></div></div>';
@@ -1777,7 +1777,7 @@ function plDraw(){
   var nc=r.nodes>0&&r.ok===r.nodes?'':(r.ok===0?' zero':' part'),e=[];
   if(r.err){var i=r.err.indexOf(' · ');e.push(r.eng==='fb'||r.ok===0?'<b>'+esc(i>0?r.err.slice(0,i):r.err)+'</b>'+(i>0?esc(r.err.slice(i)):''):esc(r.err));}
   if(r.fail.length)e.push((e.length?'не ответили: ':'')+esc(r.fail.join(', ')));
-  h+='<tr class="'+(r.eng==='fb'?'fb':'')+'"><td data-label="Время">'+tm(r.ts)+'</td><td data-label="Кто">'+eng(r.eng)+'</td><td data-label="Ноды" class="nd'+nc+'">'+r.ok+' / '+r.nodes+(r.retry.length?' <span class="ux-rt" data-tip="'+esc('Повтор: '+r.retry.join(', '))+'">повтор'+(r.retry.length>1?' ×'+r.retry.length:'')+'</span>':'')+'</td><td data-label="Длился">'+sec(r.ms)+'</td><td data-label="Запросов">'+num(r.reqs)+'</td><td data-label="Подключений">'+num(r.conns)+'</td><td data-label="'+(r.err?'Ошибка':'Не ответили')+'" class="e"'+(e.length?'':' data-empty')+'>'+(e.length?e.join(' · '):'—')+'</td></tr>';
+  h+='<tr class="'+(r.eng==='fb'?'fb':'')+'"><td data-label="Время">'+tm(r.ts)+'</td><td data-label="Кто">'+eng(r.eng)+'</td><td data-label="Ноды" class="nd'+nc+'">'+r.ok+' / '+r.nodes+(r.retry.length?' <span class="ux-rtry" data-tip="'+esc('Повтор: '+r.retry.join(', '))+'">повтор'+(r.retry.length>1?' ×'+r.retry.length:'')+'</span>':'')+'</td><td data-label="Длился">'+sec(r.ms)+'</td><td data-label="Запросов">'+num(r.reqs)+'</td><td data-label="Подключений">'+num(r.conns)+'</td><td data-label="'+(r.err?'Ошибка':'Не ответили')+'" class="e"'+(e.length?'':' data-empty')+'>'+(e.length?e.join(' · '):'—')+'</td></tr>';
  });
  h+='</tbody></table>';
  var pages=Math.max(1,Math.ceil(d.total/d.per));
