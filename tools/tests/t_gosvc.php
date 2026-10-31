@@ -315,6 +315,7 @@ t_ok('проверка Go без POST и CSRF не выполняется', strp
 [$c, , $b] = t_http('POST', $mw . '/admin/index.php?ajax=go_check', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $cm[1]]), $jar);
 $j = json_decode($b, true);
 t_ok('ajax проверки Go: состояние и настоящая причина', $c === 200 && !empty($j['ok']) && $j['alive'] === false && $j['go']['mode'] === 'warn' && strpos((string) $j['err'], 'соединение отклонено') !== false && is_array($j['users']), $b);
+t_ok('«О системе» сама спрашивает Go при открытии, без «Проверить»', strpos($page, "post('go_check','auto')") !== false);
 [$c, , $b] = t_http('POST', $mw . '/admin/index.php', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $cm[1], 'action' => 'save_go', 'go_url' => 'http://x/path', 'xhr' => '1']), $jar);
 unset($GLOBALS['submw_settings_cache']);
 t_ok('неверный адрес не сохраняется', go_url_set() === 'http://127.0.0.1:' . $gport, go_url_set());

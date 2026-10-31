@@ -365,7 +365,9 @@ if ($cr_on) {
         }
         draw();
         root.querySelectorAll('.si-go-t').forEach(function(e){e.textContent=tm(+e.getAttribute('data-ts'));});
-        function post(a){var f=new FormData();f.append('csrf',csrf);return fetch('?ajax='+a,{method:'POST',body:f,credentials:'same-origin'}).then(function(r){return r.json();}).catch(function(){return{ok:false,error:'Сетевая ошибка'};});}
+        function post(a,x){var f=new FormData();f.append('csrf',csrf);if(x)f.append(x,'1');return fetch('?ajax='+a,{method:'POST',body:f,credentials:'same-origin'}).then(function(r){return r.json();}).catch(function(){return{ok:false,error:'Сетевая ошибка'};});}
+        // Состояние в карточке — на момент последней работы Go; открыли страницу — спрашиваем Go сразу, без «Проверить».
+        if(G.mode!=='off')post('go_check','auto').then(function(d){if(!d||!d.ok||!d.go)return;var s=G.secret;G=d.go;G.secret=s;draw();});
         function toast(m){if(window.uiToast)uiToast(m);}
         var sv=false,sec=document.getElementById('siGoSec');
         var addr=root.querySelector('input.si-go-addr'),warn=document.getElementById('siGoRemote');

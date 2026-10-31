@@ -342,7 +342,8 @@ if (isset($_GET['ajax']) && is_auth()) {
         $ge = '';
         $gh = go_hello($ge);
         // Список пользователей отключён после неудачной сверки — по кнопке сверяем снова, не дожидаясь суток.
-        if ($gh !== null && function_exists('go_users_blocked') && go_users_blocked()) { @set_time_limit(200); go_users_compare($gd); }
+        // При открытии страницы (auto) — только проверка Go: сверка тяжёлая, она — по кнопке.
+        if ($gh !== null && empty($_POST['auto']) && function_exists('go_users_blocked') && go_users_blocked()) { @set_time_limit(200); go_users_compare($gd); }
         echo json_encode(['ok' => true, 'alive' => $gh !== null, 'err' => $ge, 'go' => go_view(), 'users' => function_exists('go_users_view') ? go_users_view() : null], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         exit();
     }
