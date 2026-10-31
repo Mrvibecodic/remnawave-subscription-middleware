@@ -124,7 +124,7 @@ function apistat_prune() {
 
 function apistat_src_label($src) {
     $src = (string) $src;
-    $fixed = ['sub' => 'Запросы подписки', 'junk' => 'Неизвестные адреса (мусор)', 'webhook' => 'Вебхуки панели', 'chat' => 'Чат поддержки', 'chan' => 'Защищённый канал', 'app' => 'Приложение', 'page' => 'Страницы подписки и заглушка', 'cli' => 'Консоль', 'other' => 'Прочее', 'cron' => 'Планировщик'];
+    $fixed = ['sub' => 'Запросы подписки', 'junk' => 'Неизвестные адреса (мусор)', 'webhook' => 'Вебхуки панели', 'chat' => 'Чат поддержки', 'chan' => 'Защищённый канал', 'app' => 'Приложение', 'page' => 'Страницы подписки и заглушка', 'cli' => 'Консоль', 'other' => 'Прочее', 'cron' => 'Планировщик', 'go:sessions' => 'Go-сервис: опрос нод'];
     if (isset($fixed[$src])) return $fixed[$src];
     if (strpos($src, 'cron:') === 0) {
         $t = function_exists('cron_tasks') ? cron_tasks() : [];

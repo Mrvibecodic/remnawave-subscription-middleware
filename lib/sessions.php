@@ -51,6 +51,14 @@ function sess_ddl($drv) {
             start_ts INT UNSIGNED NOT NULL, last_ts INT UNSIGNED NOT NULL, n INT UNSIGNED NOT NULL DEFAULT 1,
             PRIMARY KEY (id), KEY idx_cs_uid (uid, last_ts), KEY idx_cs_last (last_ts)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS sess_poll (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, ts INT UNSIGNED NOT NULL,
+            eng VARCHAR(4) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'php',
+            nodes INT UNSIGNED NOT NULL DEFAULT 0, ok INT UNSIGNED NOT NULL DEFAULT 0, ms INT UNSIGNED NOT NULL DEFAULT 0,
+            reqs INT UNSIGNED NOT NULL DEFAULT 0, conns INT UNSIGNED NOT NULL DEFAULT 0,
+            err VARCHAR(255) NOT NULL DEFAULT '', fail TEXT NULL,
+            PRIMARY KEY (id), KEY idx_sp_ts (ts)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE IF NOT EXISTS sess_anom (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, uid BIGINT UNSIGNED NOT NULL,
             gid VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -68,6 +76,12 @@ function sess_ddl($drv) {
         )",
         'CREATE INDEX IF NOT EXISTS idx_cs_uid ON conn_sess(uid, last_ts)',
         'CREATE INDEX IF NOT EXISTS idx_cs_last ON conn_sess(last_ts)',
+        "CREATE TABLE IF NOT EXISTS sess_poll (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, eng TEXT NOT NULL DEFAULT 'php',
+            nodes INTEGER NOT NULL DEFAULT 0, ok INTEGER NOT NULL DEFAULT 0, ms INTEGER NOT NULL DEFAULT 0,
+            reqs INTEGER NOT NULL DEFAULT 0, conns INTEGER NOT NULL DEFAULT 0, err TEXT NOT NULL DEFAULT '', fail TEXT NULL
+        )",
+        'CREATE INDEX IF NOT EXISTS idx_sp_ts ON sess_poll(ts)',
         "CREATE TABLE IF NOT EXISTS sess_anom (
             id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER NOT NULL, gid TEXT NOT NULL, lvl TEXT NOT NULL DEFAULT 'bad',
             start_ts INTEGER NOT NULL, last_ts INTEGER NOT NULL, end_ts INTEGER NOT NULL DEFAULT 0,
@@ -155,7 +169,7 @@ function sess_job_start($path, &$err = '') {
 // Задачи опрашиваются по кругу, пока все не завершатся или не выйдет время; пауза между кругами
 // растёт с 0,3 до 2 с, чтобы десятки нод не превращались в сотни запросов за тик.
 // Возвращает по ключу: массив результата, false — задача упала или не успела, null — не стартовала.
-function sess_jobs_wait(array $jobs, callable $path, $deadline) {
+function sess_jobs_wait(array $jobs, callable $path, $deadline, &$reqs = 0) {
     $out = [];
     $pending = [];
     foreach ($jobs as $k => $job) {
@@ -167,6 +181,7 @@ function sess_jobs_wait(array $jobs, callable $path, $deadline) {
         foreach ($pending as $k => $job) {
             if (microtime(true) >= $deadline) break;
             [$ok, , $data, ] = remnawave_api_get($path($job));
+            $reqs++;
             if (!$ok) continue;
             $r = is_array($data) ? ($data['response'] ?? null) : null;
             if (!is_array($r)) continue;
@@ -238,30 +253,32 @@ function sess_collect($deadline) {
     if (!sess_ensure()) return 'нет таблицы сессий';
     $err = '';
     $nodes = sess_nodes_fetch($err);
-    if ($nodes === null) return 'список нод: ' . $err;
+    if ($nodes === null) {
+        $eng = function_exists('go_wanted') && go_wanted() && !empty(go_state()['ok']) ? 'go' : 'php';
+        sess_plog_add(['eng' => $eng, 'nodes' => 0, 'ok' => 0, 'rows' => 0, 'ms' => (int) round((microtime(true) - $t0) * 1000), 'fail' => [], 'err' => 'список нод: ' . $err], 0);
+        return 'список нод: ' . $err;
+    }
     $st = ['ts' => time(), 'nodes' => count($nodes), 'ok' => 0, 'rows' => 0, 'ms' => 0, 'fail' => [], 'err' => ''];
     if (!$nodes) { sess_state_save($st, $t0); return ''; }
-    $P = sess_paths();
-    $jobs = [];
-    $first = '';
-    $flipped = false;
     // Последние 3 с — на запись и схему аномалий: иначе одна зависшая нода съедает весь бюджет и аномалии не считаются никогда.
     $wait_until = $deadline - 3;
-    foreach ($nodes as $uuid => $info) {
-        // Не успели стартовать — это «не ответила», а не «опрошена»: иначе опрос считался бы полным.
-        if (microtime(true) >= $wait_until) { $jobs[$uuid] = ''; continue; }
-        $e = '';
-        $jobs[$uuid] = sess_job_start($P['node']($uuid), $e);
-        if ($e === 'нет такого адреса API' && !$flipped) {
-            // Версия панели в кэше могла быть не той: пробуем второе семейство адресов один раз.
-            $flipped = true;
-            sess_api_flip();
-            $P = sess_paths();
-            $jobs[$uuid] = sess_job_start($P['node']($uuid), $e);
-        }
-        if ($e !== '' && $first === '') $first = $e;
+    $first = '';
+    $reqs = 0;
+    $res = null;
+    $eng = 'php';
+    $gerr = '';
+    $tp = microtime(true);
+    if (function_exists('go_wanted') && go_wanted()) {
+        $res = go_sess_poll($nodes, $wait_until, $gerr, $first, $reqs);
+        // Не ответил Go, который уже работал или задан руками, — это «PHP вместо Go»; у кого Go нет — просто PHP.
+        $eng = $res !== null ? 'go' : (go_known() ? 'fb' : 'php');
+        if ($res === null) { $first = ''; $reqs = 0; }
     }
-    $res = sess_jobs_wait($jobs, $P['node_res'], $wait_until);
+    if ($res === null) {
+        if ($eng === 'fb' && $wait_until - microtime(true) < 2) $res = array_fill_keys(array_keys($nodes), false);
+        else $res = sess_poll_php($nodes, $wait_until, $first, $reqs);
+    }
+    $poll_ms = (int) round((microtime(true) - $tp) * 1000);
     $now = time();
     $seen = [];
     foreach ($res as $uuid => $r) {
@@ -279,15 +296,135 @@ function sess_collect($deadline) {
         }
     }
     $st['rows'] = count($seen);
+    $st['eng'] = $eng;
     $cur = [];
     if ($seen) $st['err'] = sess_store($seen, $now, $cur);
     elseif ($first !== '' && $st['ok'] === 0) $st['err'] = $first;
+    if ($eng === 'fb') $st['go_err'] = $gerr;
     // Схема аномалий — по тому же снимку; закрывать события по «пропавшим» можно только при полном опросе.
     if ($st['ok'] > 0 && $st['err'] === '') $st['an'] = sess_anom_eval($cur, $now, !$st['fail'], $deadline);
     sess_state_save($st, $t0);
+    sess_plog_add(['ms' => $poll_ms] + $st, $reqs);
     admin_cache_put('sess_mx', []);
     if ($st['ok'] === 0) return 'ни одна нода не ответила' . ($first !== '' ? ': ' . $first : '');
     return $st['err'];
+}
+
+const SESS_PLOG_DAYS = 7;
+
+// Журнал опросов: кто опрашивал (go / php / fb — PHP вместо Go), сколько нод ответило, за сколько и каким числом запросов.
+function sess_plog_add(array $st, $reqs) {
+    if (!($p = db())) return;
+    $err = (string) ($st['err'] ?? '');
+    if (($st['eng'] ?? '') === 'fb') $err = 'Go: ' . (string) ($st['go_err'] ?? '') . ($err !== '' ? ' · ' . $err : '');
+    $fail = array_slice(array_map('strval', (array) ($st['fail'] ?? [])), 0, 50);
+    try {
+        $p->prepare('INSERT INTO sess_poll (ts, eng, nodes, ok, ms, reqs, conns, err, fail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          ->execute([time(), (string) ($st['eng'] ?? 'php'), (int) ($st['nodes'] ?? 0), (int) ($st['ok'] ?? 0), (int) ($st['ms'] ?? 0), (int) $reqs, (int) ($st['rows'] ?? 0),
+                     mb_substr($err, 0, 250), $fail ? json_encode($fail, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) : null]);
+    } catch (Throwable $e) { error_log('submw sess_poll: ' . $e->getMessage()); }
+}
+
+function sess_plog_filter($f, &$args) {
+    $args = [];
+    switch ((string) $f) {
+        case 'go':   return "eng = 'go'";
+        case 'php':  return "eng = 'php'";
+        case 'fb':   return "eng = 'fb'";
+        case 'part': return "(ok < nodes OR nodes = 0 OR err <> '')";
+    }
+    return '1 = 1';
+}
+
+// Сводка за $hours часов отдельно по Go и по PHP (PHP вместо Go входит в PHP). Опросы, не получившие списка нод,
+// входят только в число опросов: до нод они не дошли, и время с запросами исказили бы сравнение.
+function sess_plog_summary($hours) {
+    $hours = max(1, min(SESS_PLOG_DAYS * 24, (int) $hours));
+    $out = ['hours' => $hours, 'go' => null, 'php' => null, 'fb' => 0, 'fb_last' => null];
+    if (!sess_ensure() || !($p = db())) return $out;
+    $since = time() - $hours * 3600;
+    try {
+        $st = $p->prepare("SELECT eng, COUNT(*) n, SUM(CASE WHEN nodes > 0 THEN 1 ELSE 0 END) np, SUM(CASE WHEN nodes > 0 AND ok = nodes THEN 1 ELSE 0 END) fl,
+            AVG(CASE WHEN nodes > 0 THEN ms END) ms, MAX(CASE WHEN nodes > 0 THEN ms END) mx, AVG(CASE WHEN nodes > 0 THEN reqs END) rq,
+            AVG(CASE WHEN nodes > 0 THEN conns END) cn FROM sess_poll WHERE ts >= ? GROUP BY eng");
+        $st->execute([$since]);
+        $by = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $by[(string) $r['eng']] = $r;
+        $mk = static function (array $rows) {
+            $rows = array_values(array_filter($rows));
+            if (!$rows) return null;
+            $n = 0; $np = 0; $full = 0; $ms = 0.0; $mx = 0; $rq = 0.0; $cn = 0.0;
+            foreach ($rows as $r) {
+                $k = (int) $r['n'];
+                $w = (int) $r['np'];
+                $n += $k; $np += $w; $full += (int) $r['fl']; $mx = max($mx, (int) $r['mx']);
+                $ms += (float) $r['ms'] * $w; $rq += (float) $r['rq'] * $w; $cn += (float) $r['cn'] * $w;
+            }
+            return ['n' => $n, 'full' => $np > 0 ? round($full * 100 / $np, 1) : null, 'ms' => $np > 0 ? (int) round($ms / $np) : 0, 'mx' => $mx,
+                    'reqs' => $np > 0 ? (int) round($rq / $np) : 0, 'conns' => $np > 0 ? (int) round($cn / $np) : 0];
+        };
+        $out['go'] = $mk([$by['go'] ?? null]);
+        $out['php'] = $mk([$by['php'] ?? null, $by['fb'] ?? null]);
+        $out['fb'] = (int) ($by['fb']['n'] ?? 0);
+        if ($out['fb'] > 0) {
+            $st = $p->prepare("SELECT ts, err FROM sess_poll WHERE eng = 'fb' AND ts >= ? ORDER BY id DESC LIMIT 1");
+            $st->execute([$since]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if ($r) $out['fb_last'] = ['ts' => (int) $r['ts'], 'err' => (string) $r['err']];
+        }
+    } catch (Throwable $e) { error_log('submw sess_poll summary: ' . $e->getMessage()); }
+    return $out;
+}
+
+function sess_plog_counts() {
+    $out = ['all' => 0, 'go' => 0, 'php' => 0, 'fb' => 0, 'part' => 0];
+    if (!sess_ensure() || !($p = db())) return $out;
+    try {
+        $r = $p->query("SELECT COUNT(*) a, SUM(CASE WHEN eng = 'go' THEN 1 ELSE 0 END) g, SUM(CASE WHEN eng = 'php' THEN 1 ELSE 0 END) p,
+            SUM(CASE WHEN eng = 'fb' THEN 1 ELSE 0 END) f, SUM(CASE WHEN ok < nodes OR nodes = 0 OR err <> '' THEN 1 ELSE 0 END) x FROM sess_poll")->fetch(PDO::FETCH_ASSOC);
+        $out = ['all' => (int) $r['a'], 'go' => (int) $r['g'], 'php' => (int) $r['p'], 'fb' => (int) $r['f'], 'part' => (int) $r['x']];
+    } catch (Throwable $e) {}
+    return $out;
+}
+
+function sess_plog_rows($f, $offset, $limit) {
+    if (!sess_ensure() || !($p = db())) return [];
+    $where = sess_plog_filter($f, $args);
+    try {
+        $st = $p->prepare("SELECT id, ts, eng, nodes, ok, ms, reqs, conns, err, fail FROM sess_poll WHERE $where ORDER BY ts DESC, id DESC LIMIT " . max(1, min(5000, (int) $limit)) . ' OFFSET ' . max(0, (int) $offset));
+        $st->execute($args);
+        $out = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $fail = json_decode((string) ($r['fail'] ?? ''), true);
+            $out[] = ['ts' => (int) $r['ts'], 'eng' => (string) $r['eng'], 'nodes' => (int) $r['nodes'], 'ok' => (int) $r['ok'], 'ms' => (int) $r['ms'],
+                      'reqs' => (int) $r['reqs'], 'conns' => (int) $r['conns'], 'err' => (string) $r['err'], 'fail' => is_array($fail) ? array_map('strval', $fail) : []];
+        }
+        return $out;
+    } catch (Throwable $e) { return []; }
+}
+
+// Опрос нод из PHP: задания по очереди, ответы по кругу.
+function sess_poll_php(array $nodes, $wait_until, &$first = '', &$reqs = 0) {
+    $P = sess_paths();
+    $jobs = [];
+    $flipped = false;
+    foreach ($nodes as $uuid => $info) {
+        // Не успели стартовать — это «не ответила», а не «опрошена»: иначе опрос считался бы полным.
+        if (microtime(true) >= $wait_until) { $jobs[$uuid] = ''; continue; }
+        $e = '';
+        $jobs[$uuid] = sess_job_start($P['node']($uuid), $e);
+        $reqs++;
+        if ($e === 'нет такого адреса API' && !$flipped) {
+            // Версия панели в кэше могла быть не той: пробуем второе семейство адресов один раз.
+            $flipped = true;
+            sess_api_flip();
+            $P = sess_paths();
+            $jobs[$uuid] = sess_job_start($P['node']($uuid), $e);
+            $reqs++;
+        }
+        if ($e !== '' && $first === '') $first = $e;
+    }
+    return sess_jobs_wait($jobs, $P['node_res'], $wait_until, $reqs);
 }
 
 function sess_state_save(array $st, $t0) {
@@ -336,7 +473,7 @@ function sess_store(array $seen, $now, ?array &$cur = null) {
 function sess_purge_maybe() {
     if (time() - (int) setting('sess_purge_ts', '0') < 3600) return;
     set_setting('sess_purge_ts', (string) time());
-    if (sess_ensure() && function_exists('gc_purge')) { gc_purge('conn_sess', sess_keep_days(), 5.0); gc_purge('sess_anom', sess_anom_keep_days(), 2.0); }
+    if (sess_ensure() && function_exists('gc_purge')) { gc_purge('conn_sess', sess_keep_days(), 5.0); gc_purge('sess_anom', sess_anom_keep_days(), 2.0); gc_purge('sess_poll', SESS_PLOG_DAYS, 2.0); }
 }
 
 function cron_task_sessions($ctx) {

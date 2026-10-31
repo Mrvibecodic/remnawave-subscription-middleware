@@ -38,6 +38,8 @@ if ($ux_sess) {
         'an' => $ux_an_rules, 'anm' => sess_anom_metrics(), 'ank' => sess_anom_kinds(), 'andef' => sess_anom_default()];
     if (sess_enabled()) { $ux_cfg['sx'] = (object) sess_metrics(); $ux_cfg['ano'] = (object) sess_anom_open_map(); $ux_cfg['anh'] = (object) sess_anom_hist_map(); }
     $ux_sst = sess_state();
+    $ux_go = function_exists('go_view') ? go_view() : null;
+    if ($ux_go !== null && sess_enabled()) $ux_cfg['go'] = $ux_go + ['secret' => go_secret(), 'last' => ['ts' => (int) ($ux_sst['ts'] ?? 0), 'ok' => (int) ($ux_sst['ok'] ?? 0), 'nodes' => (int) ($ux_sst['nodes'] ?? 0), 'eng' => (string) ($ux_sst['eng'] ?? '')]];
     $ux_sc = sess_scopes();
     $ux_sc_miss = array_values(array_filter([$ux_sc['node'], $ux_sc['node_res']], fn($s) => ($ux_ts[$s] ?? '') === 'miss'));
     if (array_filter(array_column($ux_list, 'node'))) {
@@ -599,6 +601,74 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-cbx{width:20px;height:20px}
 .ux-cbx:checked::after{left:6px;top:2px;width:5px;height:10px}
 }
+.ux-eng{display:inline-flex;align-items:center;font-size:.74rem;font-weight:700;line-height:1;padding:.28rem .5rem;border-radius:var(--radius);white-space:nowrap;flex:none;cursor:help}
+.ux-eng.go{background:var(--accent-light);color:var(--accent-text)}
+.coll-head .ux-eng{margin-left:.35rem}
+.ux-eng.php{background:var(--hover);color:var(--muted)}
+.ux-eng.wn{background:var(--c-warn-bg);color:var(--c-warn-fg)}
+.ux-sxh{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin:1.3rem 0 .1rem;padding-top:1.1rem;border-top:1px solid var(--line)}
+.ux-sxh h3{margin:0;font-size:.95rem;color:var(--text-strong);display:inline-flex;align-items:center;gap:.5rem}
+.ux-sxh .seg{margin:0}
+.ux-sxh .seg button,.ux-plf button{background:transparent;color:var(--muted);border:0;border-radius:0;padding:.42rem .8rem;font-size:.82rem;font-weight:600;min-height:34px;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;flex:none}
+.ux-sxh .seg button.on,.ux-plf button.on{background:var(--accent-light);color:var(--accent-text)}
+.ux-gs{display:flex;gap:.85rem;align-items:flex-start;border:1px solid var(--line);background:var(--bg2);border-radius:12px;padding:.8rem .9rem;margin-top:.7rem}
+.ux-gs>.ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:none}
+.ux-gs.ok>.ic{background:var(--accent-light);color:var(--accent-text)}
+.ux-gs.w{border-color:color-mix(in srgb,var(--c-warn-fg) 45%,var(--line))}
+.ux-gs.w>.ic{background:var(--c-warn-bg);color:var(--c-warn-fg)}
+.ux-gs.off>.ic{background:var(--hover);color:var(--muted)}
+.ux-gs>.tx{min-width:0;flex:1}
+.ux-gs .t{font-weight:700;color:var(--text-strong);font-size:.9rem}
+.ux-gs .d{font-size:.8rem;color:var(--muted);margin-top:.2rem;line-height:1.45}
+.ux-gs .d code{font-size:.78rem}
+.ux-gs .chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
+.ux-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.74rem;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:.14rem .55rem;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ux-chip .k{color:var(--muted)}
+.ux-chip.ok{color:var(--c-ok-fg)}
+.ux-chip.bad{color:var(--c-bad-fg)}
+.ux-gs .act{margin-left:auto;flex:none}
+@media(max-width:640px){.ux-gs{flex-wrap:wrap}.ux-gs .act{margin-left:0;width:100%}.ux-gs .act .wb{width:100%;justify-content:center}}
+.ux-sgg .set-row.ux-wide{grid-column:1/-1}
+.ux-sgf .set-row>input.ux-gaddr{flex:0 1 19rem;width:19rem;min-height:36px;padding:.4rem .6rem;font-size:.84rem;margin:0}
+.ux-gsec{display:flex;align-items:center;gap:.4rem;flex:0 0 auto;min-width:0}
+.ux-gsec code{font-size:.8rem;padding:.4rem .55rem;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ux-ib{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;min-height:34px;padding:0;border:1px solid var(--line);background:var(--bg2);color:var(--muted);border-radius:var(--radius);cursor:pointer;flex:none}
+.ux-ib:hover{color:var(--text-strong);border-color:var(--accent);background:var(--bg2);filter:none}
+.ux-sgf .set-d code{white-space:nowrap}
+@media(max-width:900px){.ux-sgg{grid-template-columns:minmax(0,1fr)}.ux-sgg .set-row{min-width:0}.ux-sgf .set-d code{white-space:normal;overflow-wrap:anywhere}.ux-sgf .set-row>input.ux-gaddr,.ux-gsec{width:100%;max-width:100%;box-sizing:border-box;flex:1 1 auto}.ux-gsec code{flex:1}}
+.ux-doc{display:inline-flex;align-items:center;gap:.4rem;font-size:.84rem;font-weight:600;color:var(--accent-text);text-decoration:none;margin-top:.8rem}
+.ux-doc:hover{text-decoration:underline}
+.ux-psm{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.6rem;margin-top:.7rem}
+@media(max-width:900px){.ux-psm{grid-template-columns:minmax(0,1fr)}}
+.ux-psc{border:1px solid var(--line);background:var(--bg2);border-radius:12px;padding:.75rem .85rem}
+.ux-psc .hd{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .5rem;margin-bottom:.55rem;font-size:.86rem;font-weight:700;color:var(--text-strong)}
+.ux-psc .hd .n{font-size:.78rem;color:var(--muted);font-weight:500}
+.ux-psg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem}
+@media(max-width:520px){.ux-psg{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ux-psg>div{min-width:0}
+.ux-psg .k{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ux-psg .v{font-size:1.15rem;font-weight:700;color:var(--text-strong);font-variant-numeric:tabular-nums;margin-top:.1rem}
+.ux-psg .v.ok{color:var(--c-ok-fg)}
+.ux-psg .v.w{color:var(--c-warn-fg)}
+.ux-psg .d{font-size:.72rem;color:var(--muted)}
+.ux-psc .em{font-size:.8rem;color:var(--muted)}
+.ux-psf{font-size:.8rem;color:var(--muted);margin:.6rem 0 0;line-height:1.45}
+.ux-psf b{color:var(--text);font-weight:600}
+.ux-psf .wn{color:var(--c-warn-fg)}
+.ux-plb{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.9rem}
+.ux-plb .ux-plf{display:inline-flex;border:1px solid var(--line);border-radius:.5rem;overflow:hidden;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.ux-plf button .c{font-size:.7rem;opacity:.75;font-variant-numeric:tabular-nums}
+.ux-plb .sp{flex:1}
+.ux-plt{width:100%;margin-top:.7rem}
+.ux-plt td{font-variant-numeric:tabular-nums;vertical-align:top}
+.ux-plt td.e{color:var(--muted);font-size:.8rem}
+.ux-plt td.e b{color:var(--c-bad-fg);font-weight:600}
+.ux-plt .nd.part{color:var(--c-warn-fg);font-weight:600}
+.ux-plt .nd.zero{color:var(--c-bad-fg);font-weight:600}
+.ux-plt .ux-eng,.ux-psc .ux-eng{cursor:default}
+@media(min-width:901px){.ux-plt tr.fb>td{background:color-mix(in srgb,var(--c-warn-bg) 55%,transparent)}}
+@media(max-width:900px){table.ux-plt>tbody>tr.fb{border-color:color-mix(in srgb,var(--c-warn-fg) 50%,var(--line))}}
+.ux-plft{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.7rem;font-size:.8rem;color:var(--muted)}
     </style>
 <div class="ux" id="ux">
     <?php if ($users_err): ?>
@@ -652,7 +722,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 
     <?php if ($ux_sess): ?>
     <section class="<?= coll_cls('users_sess', true) ?>" data-coll="users_sess" id="uxSess">
-        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Сессии <?php if (!sess_enabled()): ?><span class="tag expired">выключено</span><?php elseif (!function_exists('cron_alive') || !cron_alive()): ?><span class="tag blocked">планировщик не запущен</span><?php elseif ($ux_sc_miss): ?><span class="tag blocked">нет прав токена</span><?php else: ?><span class="tag normal">собирается</span><?php endif; ?></span>
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Сессии <?php if (!sess_enabled()): ?><span class="tag expired">выключено</span><?php elseif (!function_exists('cron_alive') || !cron_alive()): ?><span class="tag blocked">планировщик не запущен</span><?php elseif ($ux_sc_miss): ?><span class="tag blocked">нет прав токена</span><?php else: ?><span class="tag normal">собирается</span><?php endif; ?><?php if (sess_enabled() && $ux_go !== null): $ux_gm = $ux_go['mode']; ?><?php if ($ux_gm === 'go'): ?><span class="ux-eng go" data-tip="Ноды опрашивает Go-сервис">Go</span><?php elseif ($ux_gm === 'warn'): ?><span class="ux-eng wn" data-tip="<?= h('PHP вместо Go: ' . $ux_go['err']) ?>"><?= ($ux_go['kind'] ?? '') === 'down' ? 'PHP · Go не отвечает' : 'PHP вместо Go' ?></span><?php else: ?><span class="ux-eng php" data-tip="<?= $ux_gm === 'off' ? 'Ноды опрашивает PHP — Go выключен вручную' : 'Ноды опрашивает PHP' ?>">PHP</span><?php endif; ?><?php endif; ?></span>
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
@@ -674,7 +744,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
                 <label class="switch"><input type="checkbox" name="sess_enabled" <?= sess_enabled() ? 'checked' : '' ?> data-reload><span class="sl"></span></label>
             </div>
             <div class="set-row">
-                <div class="set-info"><div class="set-t">Как часто опрашивать ноды</div><div class="set-d">Один лёгкий запрос на ноду. Это же — разрешение истории.</div></div>
+                <div class="set-info"><div class="set-t">Как часто опрашивать ноды</div><div class="set-d">Каждый опрос — запросы к панели на каждую ноду. Это же — разрешение истории.<?php if (($ux_go['mode'] ?? '') === 'go'): ?> С Go по умолчанию — 1 минута.<?php endif; ?></div></div>
                 <select name="sess_every"><?php foreach (sess_every_opts() as $ux_e): ?><option value="<?= $ux_e ?>" <?= sess_every() === $ux_e ? 'selected' : '' ?>><?= $ux_e < 60 ? $ux_e . ' с' : ($ux_e / 60) . ' мин' ?></option><?php endforeach; ?></select>
             </div>
             <div class="set-row">
@@ -690,6 +760,31 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
         <?php if (sess_enabled()): $ux_st = $ux_sst ?? []; ?>
         <p class="muted" style="font-size:.8rem;margin:.8rem 0 0"><?php if (!empty($ux_st['ts'])): ?>Последний опрос <span class="ct-time" data-ts="<?= (int) $ux_st['ts'] ?>"><?= h(date('Y-m-d H:i', (int) $ux_st['ts'])) ?></span>: нод <?= (int) ($ux_st['ok'] ?? 0) ?> из <?= (int) ($ux_st['nodes'] ?? 0) ?>, подключений <?= (int) ($ux_st['rows'] ?? 0) ?>, <?= (int) ($ux_st['ms'] ?? 0) ?> мс.<?php if (!empty($ux_st['fail'])): ?> Не ответили: <?= h(implode(', ', (array) $ux_st['fail'])) ?>.<?php endif; ?><?php if (!empty($ux_st['err'])): ?> Ошибка: <?= h((string) $ux_st['err']) ?>.<?php endif; ?><?php else: ?>Опроса ещё не было — планировщик сделает его в ближайший тик.<?php endif; ?>
         Страна, провайдер и регион берутся из баз GeoIP — их настройки на вкладке <a href="?tab=geoip">«Геобазы»</a>.</p>
+        <?php if ($ux_go !== null): ?>
+        <div class="ux-sxh"><h3><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>Go-сервис</h3></div>
+        <div id="uxGo"></div>
+        <form method="post" data-autosave class="ux-sgf">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="save_go">
+            <div class="ux-sgg">
+            <div class="set-row ux-wide">
+                <div class="set-info"><div class="set-t">Адрес Go-сервиса</div><div class="set-d">Пусто — прослойка пробует сама: <code><?= h($ux_go['url_def']) ?></code>.</div></div>
+                <input type="text" name="go_url" class="ux-gaddr" value="<?= h($ux_go['url_set']) ?>" placeholder="определяется сам" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="set-row ux-wide">
+                <div class="set-info"><div class="set-t">Секрет</div><div class="set-d">Впишите его в Go-контейнер как <code>SUBMW_GO_SECRET</code> — без него Go не примет запрос.</div></div>
+                <div class="ux-gsec"><code id="uxGoSec">••••••••••••••••••••••••••••••••</code><button type="button" class="ux-ib" data-ga="show" data-tip="Показать" aria-label="Показать секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button><button type="button" class="ux-ib" data-ga="copy" data-tip="Копировать" aria-label="Копировать секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button type="button" class="ux-ib" data-ga="rotate" data-tip="Сменить секрет" aria-label="Сменить секрет"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button></div>
+            </div>
+            <div class="set-row ux-wide">
+                <div class="set-info"><div class="set-t">Не использовать Go</div><div class="set-d">Опрашивать ноды из PHP, даже когда Go отвечает. Для отката и сравнения.</div></div>
+                <label class="switch"><input type="checkbox" name="go_off" <?= go_off() ? 'checked' : '' ?>><span class="sl"></span></label>
+            </div>
+            </div>
+        </form>
+        <a class="ux-doc" href="<?= h(GO_DOC_URL) ?>" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>Как поднять Go-сервис — инструкция в документации<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+        <div class="ux-sxh"><h3>Журнал опросов</h3><span class="seg ux-plh" role="group" aria-label="Период сводки"><button type="button" class="on" data-h="24">24 ч</button><button type="button" data-h="72">3 дня</button></span></div>
+        <div id="uxPlog" class="ux-plog"><p class="muted" style="font-size:.82rem;margin:.6rem 0 0">Загружаю…</p></div>
+        <?php endif; ?>
         <?php endif; ?>
         </div>
     </section>
@@ -1616,5 +1711,80 @@ document.addEventListener('mouseout',function(e){var r=e.target.closest&&e.targe
 document.addEventListener('scroll',function(e){if(e.target&&e.target.closest&&e.target.closest('#uxMenu'))return;closeMenu();},true);
 document.addEventListener('click',function(e){if(!$('uxMenu').classList.contains('open')||!matchMedia('(max-width:600px)').matches||(e.target.closest&&e.target.closest('#uxMenu')))return;e.preventDefault();e.stopPropagation();closeMenu();},true);
 fillSelects();render();
+(function(){
+var G=C.go||null;if(!G)return;
+var gEl=$('uxGo'),pl=$('uxPlog');if(!gEl||!pl)return;
+var GI={bolt:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',boltx:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/><path d="m3 3 18 18"/>',code:'<path d="m8 7-5 5 5 5M16 7l5 5-5 5"/>',plug:'<path d="M12 22v-5M9 8V2M15 8V2M18 8v5a6 6 0 0 1-12 0V8z"/>',ref:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',dl:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>'};
+function gi(n,w){return '<svg viewBox="0 0 24 24" width="'+(w||16)+'" height="'+(w||16)+'" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+GI[n]+'</svg>';}
+var ENG={go:['go','Go'],php:['php','PHP'],fb:['wn','PHP вместо Go']};
+function eng(e){var x=ENG[e]||ENG.php;return '<span class="ux-eng '+x[0]+'">'+x[1]+'</span>';}
+function p2(x){return (x<10?'0':'')+x;}
+function tm(ts){var d=new Date(ts*1000),n=new Date(),hm=p2(d.getHours())+':'+p2(d.getMinutes());return d.toDateString()===n.toDateString()?hm:p2(d.getDate())+'.'+p2(d.getMonth()+1)+' '+hm;}
+function sec(ms){return (ms/1000).toFixed(1).replace('.',',')+' с';}
+function num(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,' ');}
+function dur(s){s=Math.max(0,Math.round(s/60));if(s<60)return s+' мин';var h=Math.floor(s/60);if(h<48)return h+' ч'+(s%60?' '+(s%60)+' мин':'');return Math.round(h/24)+' дн';}
+function gDraw(){
+ var m=G.mode,u='<code>'+esc(G.url)+'</code>',h='',cls,ic,t,d,ch=[];
+ if(m==='go'){cls='ok';ic='bolt';t='Ноды опрашивает Go';d='Отвечает по адресу '+u+'. Если перестанет отвечать, опрос сам вернётся на PHP — история не прервётся.';
+  if(G.v)ch.push('<span class="ux-chip"><span class="k">версия</span>'+esc(G.v)+(G.commit&&G.v!==G.commit?' · '+esc(G.commit.slice(0,7)):'')+'</span>');
+  if(G.bridge)ch.push('<span class="ux-chip ok">мост совпадает</span>');
+  var L=G.last||{};if(L.ts&&L.eng==='go')ch.push('<span class="ux-chip"><span class="k">последний опрос</span>'+tm(L.ts)+' · '+L.ok+' из '+L.nodes+' нод</span>');}
+ else if(m==='warn'){cls='w';ic='boltx';var k=G.kind;
+  t=k==='panel'?'Go не достучался до панели — ноды опрашивает PHP':(k==='secret'||k==='nosecret'?'Go не принял запрос — ноды опрашивает PHP':(k==='bridge'?'Версия Go не подходит — ноды опрашивает PHP':'Go не отвечает — ноды опрашивает PHP'));
+  d=k==='panel'?'Go по адресу '+u+' работает, но адрес панели из его сети не открывается: '+esc(G.err)+'. В Docker подключите Go к тем же сетям, что и прослойку; при установке файлами — <code>network_mode: host</code>.'
+   :(k==='secret'||k==='nosecret'||k==='bridge'?'Адрес '+u+': '+esc(G.err)+'.'
+   :'Адрес '+u+': '+esc(G.err||'нет ответа')+'.'+(G.ok_ts?' Последний ответ Go — '+tm(G.ok_ts)+'.':'')+' Проверьте, запущен ли контейнер: <code>'+(G.docker?'docker compose ps':'docker ps')+'</code>.')+' Как только Go справится, опрос вернётся на него сам.';
+  if(G.since)ch.push('<span class="ux-chip bad">не отвечает '+dur(now()/1000-G.since)+'</span>');}
+ else if(m==='off'){cls='off';ic='code';t='Go выключен — ноды опрашивает PHP';d='Выключено вручную. Чтобы вернуть опрос через Go, снимите «Не использовать Go».';}
+ else{cls='off';ic='plug';t='Go-сервис не найден — ноды опрашивает PHP';d='Go опрашивает все ноды сразу, а не по очереди: при десятке нод опрос заметно быстрее и реже теряет ноды. Он ставится отдельным контейнером рядом с прослойкой — в Docker и при установке файлами. Всё остальное работает и без него.';}
+ h='<div class="ux-gs '+cls+'"><div class="ic">'+gi(ic,19)+'</div><div class="tx"><div class="t">'+t+'</div><div class="d">'+d+'</div>'+(ch.length?'<div class="chips">'+ch.join('')+'</div>':'')+'</div><div class="act"><button type="button" class="wb" data-ga="check">'+gi('ref',15)+'Проверить</button></div></div>';
+ gEl.innerHTML=h;
+}
+gDraw();
+var sv=false;
+document.addEventListener('click',function(e){
+ var b=e.target.closest&&e.target.closest('[data-ga]');if(!b)return;var a=b.getAttribute('data-ga');
+ if(a==='check'){b.disabled=true;post('go_check',{}).then(function(d){b.disabled=false;if(!d.ok){toast(d.error||'Ошибка');return;}var s=G.secret,l=G.last;G=d.go;G.secret=s;G.last=l;gDraw();toast(d.alive?'Go отвечает':'Go не ответил: '+(d.err||G.err));});}
+ else if(a==='show'){sv=!sv;$('uxGoSec').textContent=sv?G.secret:'••••••••••••••••••••••••••••••••';b.setAttribute('data-tip',sv?'Скрыть':'Показать');}
+ else if(a==='copy'){if(window.uiCopy)uiCopy(G.secret);toast('Секрет скопирован');}
+ else if(a==='rotate'){cfm({ic:'refresh',tone:'warn',title:'Сменить секрет Go-сервиса',notes:[['alert','warn','Go перестанет принимать запросы','пока не впишете новый секрет в контейнер'],['info','info','До этого ноды опрашивает PHP','история не прерывается']],ok:'Сменить',onOk:function(){busy(true);post('go_rotate',{}).then(function(d){busy(false);if(!d.ok){toast(d.error||'Ошибка');return;}G.secret=d.secret;sv=true;$('uxGoSec').textContent=G.secret;cfClose();toast('Новый секрет — впишите его в Go-контейнер');});}});}
+});
+var PS={f:'all',p:1,h:24},PL=null,loaded=false;
+function card(k,s,fb){
+ var ic=eng(k);
+ if(!s)return '<div class="ux-psc"><div class="hd">'+ic+'</div><div class="em">'+(k==='go'?'Через Go опросов за этот период не было.':'Через PHP опросов за этот период не было.')+'</div></div>';
+ var fv=s.full==null?'—':String(s.full).replace('.',',')+' %',fc=s.full==null?'':(s.full>=99?'ok':(s.full<90?'w':''));
+ return '<div class="ux-psc"><div class="hd">'+ic+'<span class="n">'+num(s.n)+' опросов'+(fb?' · из них '+num(fb)+' вместо Go':'')+'</span></div><div class="ux-psg">'+
+  '<div><div class="k">Все ноды</div><div class="v '+fc+'">'+fv+'</div><div class="d">опросов без пропусков</div></div>'+
+  '<div><div class="k">Время</div><div class="v">'+sec(s.ms)+'</div><div class="d">медленнее всего '+sec(s.mx)+'</div></div>'+
+  '<div><div class="k">Запросов</div><div class="v">'+num(s.reqs)+'</div><div class="d">к панели за опрос</div></div>'+
+  '<div><div class="k">Подключений</div><div class="v">'+num(s.conns)+'</div><div class="d">в среднем за опрос</div></div></div></div>';
+}
+function plDraw(){
+ var d=PL,S=d.sum||{},c=d.counts||{},h='';
+ h+='<div class="ux-psm">'+card('go',S.go,0)+card('php',S.php,S.fb)+'</div>';
+ h+='<p class="ux-psf">'+(S.fb?'Переходов на PHP — <b>'+num(S.fb)+'</b>'+(S.fb_last?', последний <b>'+tm(S.fb_last.ts)+'</b>'+(S.fb_last.err?': <span class="wn">'+esc(S.fb_last.err)+'</span>':''):'')+'. ':'')+'Здесь и опросы PHP до установки Go — с ними и сравнивать. Хранится '+7+' дней.</p>';
+ var F=[['all','Все'],['go','Go'],['php','PHP'],['fb','PHP вместо Go'],['part','С пропусками']];
+ h+='<div class="ux-plb"><span class="ux-plf" role="group" aria-label="Фильтр журнала">'+F.map(function(f){return '<button type="button" data-pf="'+f[0]+'" class="'+(PS.f===f[0]?'on':'')+'">'+f[1]+' <span class="c">'+num(c[f[0]]||0)+'</span></button>';}).join('')+'</span><span class="sp"></span><a class="wb" href="?sess_plog_csv=1" download>'+gi('dl',15)+'CSV за 7 дней</a></div>';
+ if(!d.rows.length){h+='<p class="muted" style="font-size:.82rem;margin:.8rem 0 0">'+(c.all?'Под фильтр ничего не попало.':'Опросов ещё не было — планировщик сделает первый в ближайшую минуту.')+'</p>';pl.innerHTML=h;return;}
+ h+='<table class="logtbl ux-plt"><thead><tr><th>Время</th><th>Кто</th><th>Ноды</th><th>Длился</th><th>Запросов</th><th>Подключений</th><th>Не ответили / ошибка</th></tr></thead><tbody>';
+ d.rows.forEach(function(r){
+  var nc=r.nodes>0&&r.ok===r.nodes?'':(r.ok===0?' zero':' part'),e=[];
+  if(r.err){var i=r.err.indexOf(' · ');e.push(r.eng==='fb'||r.ok===0?'<b>'+esc(i>0?r.err.slice(0,i):r.err)+'</b>'+(i>0?esc(r.err.slice(i)):''):esc(r.err));}
+  if(r.fail.length)e.push((e.length?'не ответили: ':'')+esc(r.fail.join(', ')));
+  h+='<tr class="'+(r.eng==='fb'?'fb':'')+'"><td data-label="Время">'+tm(r.ts)+'</td><td data-label="Кто">'+eng(r.eng)+'</td><td data-label="Ноды" class="nd'+nc+'">'+r.ok+' / '+r.nodes+'</td><td data-label="Длился">'+sec(r.ms)+'</td><td data-label="Запросов">'+num(r.reqs)+'</td><td data-label="Подключений">'+num(r.conns)+'</td><td data-label="'+(r.err?'Ошибка':'Не ответили')+'" class="e"'+(e.length?'':' data-empty')+'>'+(e.length?e.join(' · '):'—')+'</td></tr>';
+ });
+ h+='</tbody></table>';
+ var pages=Math.max(1,Math.ceil(d.total/d.per));
+ h+='<div class="ux-plft"><span>Время — по часам браузера. В CSV — все опросы за 7 дней со всеми полями.</span>'+(pages>1?'<span class="pgr-nav"><button type="button" class="pgr-b" data-pp="'+(PS.p-1)+'"'+(PS.p<=1?' disabled':'')+' aria-label="Назад">‹</button><span class="pgr-st">'+PS.p+' из '+pages+'</span><button type="button" class="pgr-b" data-pp="'+(PS.p+1)+'"'+(PS.p>=pages?' disabled':'')+' aria-label="Вперёд">›</button></span>':'')+'</div>';
+ pl.innerHTML=h;
+}
+function plLoad(){loaded=true;getj('sess_plog','&f='+PS.f+'&p='+PS.p+'&h='+PS.h).then(function(d){if(!d.ok){pl.innerHTML='<p class="muted" style="font-size:.82rem">'+esc(d.error||'Журнал не загрузился')+'</p>';return;}PL=d;plDraw();});}
+pl.addEventListener('click',function(e){var b=e.target.closest('[data-pf],[data-pp]');if(!b||b.disabled)return;if(b.hasAttribute('data-pf')){PS.f=b.getAttribute('data-pf');PS.p=1;}else PS.p=+b.getAttribute('data-pp');plLoad();});
+document.querySelectorAll('.ux-plh button').forEach(function(b){b.addEventListener('click',function(){PS.h=+b.getAttribute('data-h');document.querySelectorAll('.ux-plh button').forEach(function(x){x.classList.toggle('on',x===b);});plLoad();});});
+var box=$('uxSess');
+if(box&&!box.classList.contains('collapsed'))plLoad();
+else if(box)box.querySelector('.coll-head').addEventListener('click',function(){if(!loaded)setTimeout(plLoad,0);});
+})();
 })();
     </script>

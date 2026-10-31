@@ -121,6 +121,8 @@ if ($path === '/api/hosts') {
     mp_json(200, ['response' => $out]);
     exit;
 }
+// only_v2: панель 2.x — адресов 3.x у неё нет вовсе.
+if (!empty($state['only_v2']) && strpos($path, '/api/connections/') === 0) { mp_json(404, ['message' => 'Cannot ' . $_SERVER['REQUEST_METHOD'] . ' ' . $path, 'error' => 'Not Found', 'statusCode' => 404]); exit; }
 if (preg_match('~^/api/(connections/by-node|ip-control/fetch-users-ips)/([^/]+)$~', $path, $m) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($nodes[$m[2]])) { mp_json(404, ['message' => 'Node not found', 'errorCode' => 'A011']); exit; }
     mp_json(201, ['response' => ['jobId' => 'n-' . $m[2]]]);

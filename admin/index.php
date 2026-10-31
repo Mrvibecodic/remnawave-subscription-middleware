@@ -210,6 +210,23 @@ if (!is_auth()) {
     exit();
 }
 
+if (isset($_GET['sess_plog_csv']) && is_auth() && function_exists('sess_plog_rows')) {
+    session_write_close();
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="sessions_polls_' . date('Ymd_His') . '.csv"');
+    header('Cache-Control: private, no-store');
+    $pl_out = fopen('php://output', 'w');
+    fwrite($pl_out, "\xEF\xBB\xBF");
+    fputcsv($pl_out, ['ts', 'time_utc', 'engine', 'nodes', 'nodes_ok', 'poll_ms', 'panel_requests', 'connections', 'error', 'not_answered'], ';', '"', '\\');
+    $pl_eng = ['go' => 'go', 'php' => 'php', 'fb' => 'php_instead_of_go'];
+    for ($pl_off = 0; ; $pl_off += 2000) {
+        $pl_rows = sess_plog_rows('all', $pl_off, 2000);
+        foreach ($pl_rows as $r) fputcsv($pl_out, [$r['ts'], gmdate('Y-m-d H:i:s', $r['ts']), $pl_eng[$r['eng']] ?? $r['eng'], $r['nodes'], $r['ok'], $r['ms'], $r['reqs'], $r['conns'], $r['err'], implode(', ', $r['fail'])], ';', '"', '\\');
+        if (count($pl_rows) < 2000) break;
+    }
+    exit();
+}
+
 if (isset($_GET['app_apk_dl']) && is_auth()) {
     session_write_close();
     $apk_path = app_apk_path();
@@ -317,6 +334,31 @@ if (isset($_GET['ajax']) && is_auth()) {
 
     if ($a === 'sess_user' && function_exists('sess_user_data')) {
         echo json_encode(['ok' => true] + sess_user_data((int) ($_GET['id'] ?? 0), (string) ($_GET['su'] ?? '')), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
+    if ($a === 'go_check' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && function_exists('go_hello')) {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $ge = '';
+        $gh = go_hello($ge);
+        echo json_encode(['ok' => true, 'alive' => $gh !== null, 'err' => $ge, 'go' => go_view()], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
+    if ($a === 'go_rotate' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && function_exists('go_secret_rotate')) {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        echo json_encode(['ok' => true, 'secret' => go_secret_rotate()], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'sess_plog' && function_exists('sess_plog_rows')) {
+        $pf = (string) ($_GET['f'] ?? 'all');
+        $pp = max(1, (int) ($_GET['p'] ?? 1));
+        $per = 20;
+        $cnt = sess_plog_counts();
+        $tot = (int) ($cnt[$pf] ?? $cnt['all']);
+        echo json_encode(['ok' => true, 'rows' => sess_plog_rows($pf, ($pp - 1) * $per, $per), 'counts' => $cnt, 'total' => $tot, 'per' => $per, 'p' => $pp,
+            'sum' => sess_plog_summary((int) ($_GET['h'] ?? 24) === 72 ? 72 : 24)], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         exit();
     }
 
@@ -988,6 +1030,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         if (sess_enabled()) sess_ensure();
         flash(sess_enabled() ? ($was ? 'Настройки сессий сохранены' : 'Сбор сессий включён — планировщик начнёт опрашивать ноды') : 'Сбор сессий выключен — история остаётся');
         if (sess_enabled() && !$was) register_shutdown_function('geoip_update_after_response');
+        form_saved('users');
+    }
+
+    if ($action === 'save_go' && function_exists('go_url_norm')) {
+        $gu = go_url_norm((string) ($_POST['go_url'] ?? ''), $ge);
+        if ($gu === null) {
+            flash($ge);
+        } else {
+            $gchanged = $gu !== go_url_set();
+            set_setting('go_url', $gu);
+            set_setting('go_off', isset($_POST['go_off']) ? '1' : '0');
+            if ($gchanged) { $gs = go_state(); $gs['ok'] = false; go_state_put($gs); }
+            $gm = 'Настройки Go-сервиса сохранены';
+            if (!go_off() && $gchanged) $gm = go_hello($ge) !== null ? 'Go-сервис отвечает' : 'Сохранено, но Go не ответил: ' . $ge;
+            flash(go_off() ? 'Опрос нод — из PHP, Go не используется' : $gm);
+        }
         form_saved('users');
     }
 
