@@ -25,7 +25,12 @@ t_eq('диапазон адресов подсети', [geonet_range('v4:1.2.3')
 t_ok('диапазон /24 не задевает соседей', '1.2.30.4' >= '1.2.3/' && '1.2.3.255' < '1.2.3/' && '1.2.3.0' >= '1.2.3.');
 
 // Без явного выбора — локальные базы (обновившиеся установки ничего не отправляют наружу); ipinfo ставит мастер установки
+t_settings(['geonet_init' => '']);
+$fresh();
 t_eq('источник по умолчанию — локальные базы', geoip_mode(), 'local');
+t_settings(['geonet_init' => '1']);
+$fresh();
+t_eq('где очередь ipinfo уже работала — ipinfo и без явного выбора', geoip_mode(), 'ipinfo');
 t_settings(['geoip_mode' => 'ipinfo']);
 $fresh();
 // Неизвестная подсеть встаёт в очередь, поиск ничего не ждёт
@@ -191,7 +196,7 @@ t_eq('локальный режим: шаг ipinfo ничего не делае�
 set_setting('update_state', json_encode(['checked_at' => time()]));
 $mw  = t_serve($tt_root, $tt_root . '/tools/tests/_router.php', [], ['opcache.enable' => '0']);
 $jar = t_admin_login($mw);
-$tt_pdo->exec("DELETE FROM settings WHERE k = 'geoip_mode'");
+$tt_pdo->exec("DELETE FROM settings WHERE k IN ('geoip_mode', 'geonet_init')");
 [$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=geoip', [], null, $jar);
 t_ok('без явного выбора — подсказка про ipinfo и кнопка «Оставить локальные базы»', strpos($page, 'Оставить локальные базы') !== false);
 preg_match('~name="csrf" value="([^"]+)"~', $page, $m);
@@ -199,7 +204,7 @@ t_http('POST', $mw . '/admin/index.php', [], http_build_query(['csrf' => $m[1] ?
 unset($GLOBALS['submw_settings_cache']);
 [, , $page] = t_http('GET', $mw . '/admin/index.php?tab=geoip', [], null, $jar);
 t_ok('«Оставить локальные базы» запоминает выбор', setting('geoip_mode', '') === 'local' && strpos($page, 'Оставить локальные базы') === false);
-t_settings(['geoip_mode' => 'ipinfo']);
+t_settings(['geoip_mode' => 'ipinfo', 'geonet_init' => '1']);
 [$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=geoip', [], null, $jar);
 t_ok('вкладка в режиме ipinfo: счётчик и перепроверка', $c === 200 && strpos($page, 'id="giLive"') !== false && strpos($page, 'Запросов в сутки') !== false && strpos($page, 'Скачать базы сейчас') === false);
 preg_match('~name="csrf" value="([^"]+)"~', $page, $m);
