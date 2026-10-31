@@ -852,7 +852,7 @@ function lvc(l){return l==='bad'?'b':(l==='warn'?'w':'');}
 function anDays(p){return p==='a'?SESS_ANK:+p;}
 function anPerTxt(p){return p==='0'?'сейчас':(p==='1'?'24 ч':anDays(p)+' дн');}
 // Срез для списка: идущая сейчас — всегда; иначе последняя закрытая в пределах периода.
-function anomAt(u,p){if(!SESS||!SESS.on||!u.id)return null;var a=ANO[u.id];if(a)return{lvl:a.l,open:1,t:'Идёт сейчас — '+a.t};if(p==='0')return null;var h=ANH[u.id];if(!h)return null;var c=now()/1000-anDays(p)*86400,b=h.b>=c?h.b:0,w=h.w>=c?h.w:0;if(!b&&!w)return null;return{lvl:b?'bad':'warn',open:0,t:'Была '+fdt(Math.max(b,w)*1000).replace(' в ',' ')+' — '+h.t};}
+function anomAt(u,p){if(!SESS||!SESS.on||!u.id)return null;var a=ANO[u.id];if(a)return{lvl:a.l,open:1,t:'Идёт сейчас — '+a.t};if(p==='0')return null;var h=ANH[u.id];if(!h)return null;var c=now()/1000-anDays(p)*86400,b=h.b>=c?h.b:0,w=h.w>=c?h.w:0;if(!b&&!w)return null;return{lvl:b?'bad':'warn',open:0,t:'Была '+fdt((b||w)*1000).replace(' в ',' ')+' — '+(b?h.tb:h.tw)};}
 function sesBadge(u){var f=anomAt(u,S.anp);if(!f)return '';return '<span class="ux-sb '+lvc(f.lvl)+(f.open?'':' h')+'" data-tip="'+esc(f.t)+'">!</span>';}
 function canW(sc){return !sc||C.ts[sc]!=='miss';}
 function roTip(sc){return 'Нет права '+sc+' у API-токена';}

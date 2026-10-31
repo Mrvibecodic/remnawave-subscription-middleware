@@ -33,6 +33,15 @@
 <div class="card">
     <h2 style="margin-top:0;font-size:1rem">Геобазы</h2>
     <p class="muted">По ним прослойка определяет страну, провайдера, регион и город адреса: в сессиях и аномалиях пользователей и в статистике Clod Clash.</p>
+    <?php if (!$gi_ip && setting('geoip_mode', '') === ''): ?>
+    <form method="post" class="info" style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:.6rem 0">
+        <input type="hidden" name="csrf" value="<?= h($token) ?>">
+        <input type="hidden" name="action" value="save_geoip_mode">
+        <input type="hidden" name="geoip_mode" value="local">
+        <span style="flex:1 1 20rem">Регион и город точнее определяет ipinfo.io — переключиться можно в поле «Источник» ниже. Тогда адреса клиентов будут уходить на ipinfo.io; страна и провайдер по-прежнему берутся из локальных баз, пока ipinfo не ответил.</span>
+        <button type="submit" class="btn ghost">Оставить локальные базы</button>
+    </form>
+    <?php endif; ?>
     <form method="post" data-autosave>
         <input type="hidden" name="csrf" value="<?= h($token) ?>">
         <input type="hidden" name="action" value="save_geoip_mode">
