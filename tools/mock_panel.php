@@ -303,6 +303,7 @@ if ($path === '/api/subscription-settings' && $_SERVER['REQUEST_METHOD'] === 'PA
     if (!is_array($body) || ($body['uuid'] ?? '') === '') { mp_json(400, ['message' => 'uuid: Required', 'statusCode' => 400]); exit; }
     if (!empty($state['srr_forbid'])) { mp_json(403, ['message' => 'Forbidden', 'statusCode' => 403]); exit; }
     if (array_key_exists('responseRules', $body)) {
+        $state['srr_raw'] = $body['responseRules'];
         $err = null;
         $parsed = mp_srr_parse($body['responseRules'], $err);
         if ($parsed === null) { mp_json(400, ['message' => 'Config validation error: ' . $err, 'statusCode' => 400]); exit; }
@@ -326,6 +327,7 @@ if ($path === '/api/system/testers/srr-matcher' && $_SERVER['REQUEST_METHOD'] ==
     $hdr = [];
     foreach ($_SERVER as $k => $v) if (strpos($k, 'HTTP_') === 0) $hdr[strtolower(str_replace('_', '-', substr($k, 5)))] = (string) $v;
     if (isset($_SERVER['CONTENT_TYPE'])) $hdr['content-type'] = (string) $_SERVER['CONTENT_TYPE'];
+    if (($state['srr_tester_fail_ua'] ?? '') !== '' && stripos($hdr['user-agent'] ?? '', (string) $state['srr_tester_fail_ua']) !== false) { mp_json(502, ['message' => 'Bad gateway']); exit; }
     $r = mp_srr_match($parsed, $hdr);
     mp_json(200, ['response' => ['matched' => $r['matched'], 'matchedRule' => $r['matchedRule'], 'responseType' => $r['responseType'], 'inputHeaders' => $hdr, 'outputHeaders' => $r['matchedRule']['responseModifications']['headers'] ?? []]]);
     exit;

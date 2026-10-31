@@ -84,18 +84,28 @@ function pr_scopes() {
 
 // ---------- нормализация и проверка ----------
 
-// Приводит черновик к форме панели: только известные ключи, нужные типы. Незнакомые ключи — в $unknown.
+// Ключи, которых прослойка не знает, — как есть, их путь в $unknown: панель новее прослойки, и отправка не должна их стирать.
+function pr_extra(array $a, array $known, $at, array &$unknown) {
+    $out = [];
+    foreach ($a as $k => $v) {
+        if (in_array($k, $known, true)) continue;
+        $unknown[] = $at . $k;
+        $out[$k] = $v;
+    }
+    return $out;
+}
+
+// Приводит черновик к форме панели: известные ключи — к нужным типам, незнакомые остаются как есть и перечисляются в $unknown.
 function pr_normalize($in, array &$unknown = []) {
     $unknown = [];
     $cfg = ['version' => '1'];
     if (!is_array($in)) return $cfg + ['rules' => []];
-    foreach (array_keys($in) as $k) if (!in_array($k, ['version', 'settings', 'rules'], true)) $unknown[] = (string) $k;
     if (isset($in['version'])) $cfg['version'] = is_string($in['version']) ? $in['version'] : (string) $in['version'];
     if (array_key_exists('settings', $in)) {
         $st = is_array($in['settings']) ? $in['settings'] : [];
-        foreach (array_keys($st) as $k) if ($k !== 'disableSubscriptionAccessByPath') $unknown[] = 'settings.' . $k;
         $cfg['settings'] = [];
         if (array_key_exists('disableSubscriptionAccessByPath', $st)) $cfg['settings']['disableSubscriptionAccessByPath'] = (bool) $st['disableSubscriptionAccessByPath'];
+        $cfg['settings'] += pr_extra($st, ['disableSubscriptionAccessByPath'], 'settings.', $unknown);
     }
     $cfg['rules'] = [];
     $rulesIn = is_array($in['rules'] ?? null) ? $in['rules'] : [];
@@ -103,7 +113,6 @@ function pr_normalize($in, array &$unknown = []) {
         if (!is_array($r)) { $cfg['rules'][] = []; continue; }
         $o = [];
         $known = ['name', 'description', 'enabled', 'operator', 'conditions', 'responseType', 'responseModifications'];
-        foreach (array_keys($r) as $k) if (!in_array($k, $known, true)) $unknown[] = 'rules[' . $i . '].' . $k;
         $o['name'] = isset($r['name']) ? (string) $r['name'] : '';
         if (array_key_exists('description', $r) && $r['description'] !== null) $o['description'] = (string) $r['description'];
         $o['enabled'] = array_key_exists('enabled', $r) ? (bool) $r['enabled'] : true;
@@ -111,19 +120,17 @@ function pr_normalize($in, array &$unknown = []) {
         $o['conditions'] = [];
         foreach ((array) ($r['conditions'] ?? []) as $j => $c) {
             if (!is_array($c)) continue;
-            foreach (array_keys($c) as $k) if (!in_array($k, ['headerName', 'operator', 'value', 'caseSensitive'], true)) $unknown[] = 'rules[' . $i . '].conditions[' . $j . '].' . $k;
             $o['conditions'][] = [
                 'headerName'    => (string) ($c['headerName'] ?? ''),
                 'operator'      => strtoupper((string) ($c['operator'] ?? '')),
                 'value'         => (string) ($c['value'] ?? ''),
                 'caseSensitive' => array_key_exists('caseSensitive', $c) ? (bool) $c['caseSensitive'] : true,
-            ];
+            ] + pr_extra($c, ['headerName', 'operator', 'value', 'caseSensitive'], 'rules[' . $i . '].conditions[' . $j . '].', $unknown);
         }
         $o['responseType'] = isset($r['responseType']) ? strtoupper((string) $r['responseType']) : '';
         if (is_array($r['responseModifications'] ?? null)) {
             $m = $r['responseModifications'];
             $mo = [];
-            foreach (array_keys($m) as $k) if (!in_array($k, pr_mod_keys(), true)) $unknown[] = 'rules[' . $i . '].responseModifications.' . $k;
             if (array_key_exists('headers', $m)) {
                 $mo['headers'] = [];
                 foreach ((array) $m['headers'] as $h) if (is_array($h)) $mo['headers'][] = ['key' => (string) ($h['key'] ?? ''), 'value' => (string) ($h['value'] ?? '')];
@@ -138,11 +145,12 @@ function pr_normalize($in, array &$unknown = []) {
             if (array_key_exists('encryption', $m) && is_array($m['encryption'])) {
                 $mo['encryption'] = ['method' => (string) ($m['encryption']['method'] ?? ''), 'key' => trim((string) ($m['encryption']['key'] ?? ''))];
             }
+            $mo += pr_extra($m, pr_mod_keys(), 'rules[' . $i . '].responseModifications.', $unknown);
             if ($mo) $o['responseModifications'] = $mo;
         }
-        $cfg['rules'][] = $o;
+        $cfg['rules'][] = $o + pr_extra($r, $known, 'rules[' . $i . '].', $unknown);
     }
-    return $cfg;
+    return $cfg + pr_extra($in, ['version', 'settings', 'rules'], '', $unknown);
 }
 
 // Черновик в том виде, в каком он уходит в панель: пустые модификации убраны.
@@ -315,14 +323,21 @@ function pr_snap_ensure() {
     return $ok;
 }
 
+// Ручные снимки удаляет только админ; хранение последних pr_snap_keep() касается автоматических.
 function pr_snap_add($rules, $kind, $note = '', $panelUpd = '') {
     if (!is_array($rules) || !pr_snap_ensure() || !($p = db())) return 0;
+    $kind = $kind === 'manual' ? 'manual' : 'auto';
+    $hash = pr_hash($rules);
     $body = json_encode($rules, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     try {
+        if ($kind === 'auto') {
+            $last = $p->query('SELECT id, hash FROM panel_rules_snap ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+            if ($last && (string) $last['hash'] === $hash) return (int) $last['id'];
+        }
         $st = $p->prepare('INSERT INTO panel_rules_snap (ts, kind, note, n, panel_upd, hash, body) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        $st->execute([time(), $kind === 'manual' ? 'manual' : 'auto', $note !== '' ? mb_substr($note, 0, 191) : null, count($rules['rules'] ?? []), $panelUpd !== '' ? mb_substr($panelUpd, 0, 40) : null, pr_hash($rules), $body]);
+        $st->execute([time(), $kind, $note !== '' ? mb_substr($note, 0, 191) : null, count($rules['rules'] ?? []), $panelUpd !== '' ? mb_substr($panelUpd, 0, 40) : null, $hash, $body]);
         $id = (int) $p->lastInsertId();
-        $ids = $p->query('SELECT id FROM panel_rules_snap ORDER BY id DESC')->fetchAll(PDO::FETCH_COLUMN);
+        $ids = $p->query("SELECT id FROM panel_rules_snap WHERE kind = 'auto' ORDER BY id DESC")->fetchAll(PDO::FETCH_COLUMN);
         if (count($ids) > pr_snap_keep()) {
             $old = array_slice($ids, pr_snap_keep());
             $p->prepare('DELETE FROM panel_rules_snap WHERE id IN (' . implode(',', array_fill(0, count($old), '?')) . ')')->execute($old);
@@ -405,7 +420,9 @@ function pr_push(array $cfg, $baseHash, $src = 'form') {
     $v = pr_validate($cfg, $ctx);
     if ($v['errors']) return ['ok' => false, 'error' => 'В черновике есть ошибки', 'errors' => $v['errors'], 'warnings' => $v['warnings']];
     $send = pr_for_panel($cfg);
-    if (is_array($st['rules'])) pr_snap_add($st['rules'], 'auto', $src === 'restore' ? 'перед восстановлением' : 'перед отправкой', (string) $st['upd']);
+    if (is_array($st['rules']) && pr_snap_add($st['rules'], 'auto', $src === 'restore' ? 'перед восстановлением' : 'перед отправкой', (string) $st['upd']) === 0) {
+        return ['ok' => false, 'error' => 'Не удалось сохранить снимок текущих правил панели, поэтому отправка отменена — правила в панели не тронуты. Проверьте запись в базу на вкладке «База данных».'];
+    }
     [$ok, $code, $data, $err] = remnawave_api_request('PATCH', '/api/subscription-settings', ['uuid' => $st['uuid'], 'responseRules' => $send]);
     if (!$ok) {
         $msg = function_exists('panel_err_text') ? panel_err_text($data, $code, $err) : ($err ?: ('HTTP ' . $code));
@@ -439,7 +456,7 @@ function pr_test(array $cfg, array $headers, &$error = '') {
     foreach ($headers as $k => $v) {
         $k = strtolower(trim((string) $k)); $v = trim((string) $v);
         if (!pr_header_token_ok($k) || $v === '' || preg_match('~[\r\n]~', $v)) continue;
-        if (in_array($k, ['authorization', 'content-type', 'content-length', 'host', 'cookie', 'x-api-key', 'transfer-encoding', 'content-encoding', 'connection', 'expect', 'upgrade'], true)) continue;
+        if (in_array($k, ['authorization', 'content-type', 'content-length', 'host', 'cookie', 'x-api-key', 'transfer-encoding', 'content-encoding', 'connection', 'expect', 'upgrade', 'x-forwarded-proto', 'x-forwarded-for'], true)) continue;
         if ($k === 'accept') $hasAccept = true;
         $hl[] = $k . ': ' . $v;
     }
@@ -562,9 +579,11 @@ function pr_group_headers(array $g) {
 
 // Карта клиентов: по одному запросу к тестеру панели на группу. Ответы тестера хранятся по группам, пока не
 // изменятся правила; цифры каждый раз пересчитываются по свежему логу, группы без ответа отмечаются как непроверенные.
-// $mode: '' — считать, если ответов нет или они неполные; 'force' — пересчитать всё; 'cached' — только сохранённое (null, если нет).
-function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '') {
+// $mode: '' — дотестировать группы без ответа; 'force' — пересчитать всё; 'cached' — только сохранённое (null, если нет).
+// Один вызов укладывается в $budget секунд: что не успели, остаётся непроверенным до следующего вызова.
+function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '', $budget = 25) {
     $error = '';
+    $deadline = microtime(true) + max(5, (int) $budget);
     $send = pr_for_panel($cfg);
     $cl = pr_clients($hours);
     $groups = $cl['groups'];
@@ -573,8 +592,9 @@ function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '') {
     foreach ($groups as $i => $g) $mkeys[$i] = md5($g['id'] . '|' . json_encode(pr_group_headers($g), JSON_UNESCAPED_UNICODE));
     $c = $mode === 'force' ? null : admin_cache_get('pr_map', 86400 * 365);
     $saved = is_array($c) && ($c['cfg_hash'] ?? '') === $cfgHash && is_array($c['match'] ?? null) ? $c : null;
-    $missing = $saved === null ? count($groups) : count(array_filter($mkeys, static fn($k) => !isset($saved['match'][$k])));
-    if ($saved !== null && ($mode === 'cached' || $missing === 0)) return pr_map_build($send, $cl, $mkeys, $saved['match'], (int) $saved['ts']);
+    $match = $saved !== null ? $saved['match'] : [];
+    $todo = array_filter($groups, static fn($g, $i) => !isset($match[$mkeys[$i]]), ARRAY_FILTER_USE_BOTH);
+    if ($saved !== null && ($mode === 'cached' || !$todo)) return pr_map_build($send, $cl, $mkeys, $match, (int) $saved['ts']);
     if ($mode === 'cached') return null;
     $base = remnawave_url(); $token = remnawave_token();
     if ($base === '' || $token === '') { $error = 'Не заданы URL панели или API-токен'; return null; }
@@ -583,10 +603,12 @@ function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '') {
     if (strpos($base, 'http://') === 0) { $common[] = 'x-forwarded-proto: https'; $common[] = 'x-forwarded-for: 127.0.0.1'; }
     $common = panel_auth_headers($common);
     $path = '/api/system/testers/srr-matcher';
-    $results = [];
     $batch = 8;
-    for ($off = 0; $off < count($groups); $off += $batch) {
-        $slice = array_slice($groups, $off, $batch, true);
+    $got = 0;
+    $fail = '';
+    foreach (array_chunk($todo, $batch, true) as $slice) {
+        $left = $deadline - microtime(true);
+        if ($left < 3) break;
         $mh = curl_multi_init();
         $hs = [];
         foreach ($slice as $i => $g) {
@@ -594,7 +616,7 @@ function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '') {
             foreach (pr_group_headers($g) as $k => $v) $h[] = $k . ': ' . $v;
             $ch = curl_init();
             curl_setopt_array($ch, [
-                CURLOPT_URL => $base . $path, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 8,
+                CURLOPT_URL => $base . $path, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => (int) max(2, min(15, floor($left))), CURLOPT_CONNECTTIMEOUT => (int) max(1, min(8, floor($left))),
                 CURLOPT_SSL_VERIFYPEER => api_tls_verify(), CURLOPT_SSL_VERIFYHOST => api_tls_verify() ? 2 : 0,
                 CURLOPT_CUSTOMREQUEST => 'POST', CURLOPT_POSTFIELDS => $body, CURLOPT_HTTPHEADER => $h,
             ]);
@@ -615,24 +637,30 @@ function pr_map(array $cfg, $hours = 168, &$error = '', $mode = '') {
             $data = json_decode((string) $resp, true);
             if ($cerr !== '' || $code < 200 || $code >= 300) {
                 $msg = is_array($data) ? (string) ($data['message'] ?? '') : '';
-                $error = $code === 500 && $msg !== '' ? 'Панель отклонила черновик: ' . $msg : ($code === 403 ? 'У API-токена нет права system:test-srr-matcher' : ($cerr !== '' ? $cerr : 'HTTP ' . $code));
-                curl_multi_close($mh);
-                return null;
+                $fail = $code === 500 && $msg !== '' ? 'Панель отклонила черновик: ' . $msg : ($code === 403 ? 'У API-токена нет права system:test-srr-matcher' : ($cerr !== '' ? $cerr : 'HTTP ' . $code));
+                continue;
             }
             $r = is_array($data) ? ($data['response'] ?? $data) : [];
             $mr = is_array($r['matchedRule'] ?? null) ? $r['matchedRule'] : null;
             $idx = null;
             if ($mr !== null) foreach ($send['rules'] as $ri => $rule) if (($rule['name'] ?? '') === ($mr['name'] ?? '') && json_encode($rule['conditions'] ?? []) === json_encode($mr['conditions'] ?? [])) { $idx = $ri; break; }
             if ($mr !== null && $idx === null) foreach ($send['rules'] as $ri => $rule) if (($rule['name'] ?? '') === ($mr['name'] ?? '')) { $idx = $ri; break; }
-            $results[$i] = ['matched' => !empty($r['matched']), 'idx' => $idx, 'type' => (string) ($r['responseType'] ?? '')];
+            $match[$mkeys[$i]] = ['matched' => !empty($r['matched']), 'idx' => $idx, 'type' => (string) ($r['responseType'] ?? '')];
+            $got++;
         }
         curl_multi_close($mh);
+        // Ошибка схемы или прав одинакова для всех групп — дальше спрашивать бессмысленно.
+        if ($fail !== '' && $got === 0) break;
     }
-    $match = [];
-    foreach ($results as $i => $res) $match[$mkeys[$i]] = $res;
+    if ($got === 0 && $fail !== '') { $error = $fail; return null; }
+    // Ответы, оставшиеся от прошлых правил, к новым не относятся.
+    $match = array_intersect_key($match, array_flip($mkeys));
     $ts = time();
     admin_cache_put('pr_map', ['ts' => $ts, 'cfg_hash' => $cfgHash, 'match' => $match]);
-    return pr_map_build($send, $cl, $mkeys, $match, $ts);
+    $out = pr_map_build($send, $cl, $mkeys, $match, $ts);
+    if ($fail !== '') $out['warn'] = 'Часть групп не проверена: ' . $fail;
+    elseif ($out['untested']) $out['warn'] = 'Не успели проверить всех за один раз — нажмите «пересчитать», чтобы дотестировать остальных';
+    return $out;
 }
 
 // Раскладка групп по ступеням из сохранённых ответов тестера и свежих счётчиков лога.
@@ -694,6 +722,8 @@ function pr_paths_stat($days = 30) {
 function pr_tags(&$error = '') {
     $error = '';
     $hosts = panel_ref('hosts', 600, $error);
+    // Снимок хостов от прошлой версии прослойки без тегов: не ждать его устаревания.
+    if (is_array($hosts) && $hosts && !array_filter($hosts, static fn($h) => is_array($h) && array_key_exists('tags', $h))) $hosts = panel_ref('hosts', 0, $error);
     $out = [];
     foreach ((array) $hosts as $h) foreach ((array) ($h['tags'] ?? []) as $t) { $t = (string) $t; if ($t !== '') $out[$t] = ($out[$t] ?? 0) + 1; }
     ksort($out);
@@ -732,12 +762,22 @@ function pr_user_devices($ref, &$error = '') {
     return $out;
 }
 
-// Каталог приложений для условий: ключ, подпись, с чего начинается User-Agent.
+// С чего начинается User-Agent приложения — как его видит лог запросов. Панель сравнивает без учёта регистра.
+// sing-box и Clash Meta подписываются по-разному (SFA/SFI…, mihomo/ClashMetaForAndroid) — для них есть рецепты.
+function pr_app_ua() {
+    return ['clashverge' => 'clash-verge/', 'flclash' => 'flclash/', 'flclashx' => 'flclash x/', 'koala' => 'koala-clash/', 'stash' => 'stash/',
+            'happ' => 'happ/', 'incy' => 'incy/', 'v2rayng' => 'v2rayng/', 'v2rayn' => 'v2rayn/', 'shadowrocket' => 'shadowrocket/',
+            'nekobox' => 'nekobox/', 'hiddify' => 'hiddifynext/', 'streisand' => 'streisand/', 'karing' => 'karing/'];
+}
+
+// Каталог приложений для условий: ключ, подпись, начало User-Agent.
 function pr_app_catalog() {
+    $ua = pr_app_ua();
     $out = [];
     foreach (client_catalog() as $c) {
-        if (empty($c['rk'])) continue;
-        $out[] = ['key' => (string) $c['rk'], 'label' => (string) $c['label'], 'ua' => (string) $c['ua'], 'sample' => (string) ($c['sample'] ?? ''), 'group' => (string) ($c['rg'] ?? 'other')];
+        $k = (string) ($c['rk'] ?? '');
+        if ($k === '' || !isset($ua[$k])) continue;
+        $out[] = ['key' => $k, 'label' => (string) $c['label'], 'pre' => $ua[$k], 'group' => (string) ($c['rg'] ?? 'other')];
     }
     return $out;
 }

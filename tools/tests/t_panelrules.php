@@ -12,7 +12,12 @@ $ctx = ['ver' => '3.4.7', 'custom_remarks' => false, 'serve_json' => true, 'hwid
 echo "— нормализация\n";
 $u = [];
 $n = pr_normalize(['version' => '1', 'foo' => 1, 'rules' => [['name' => 'A', 'enabled' => 'yes', 'operator' => 'and', 'conditions' => [['headerName' => 'User-Agent', 'operator' => 'starts_with', 'value' => 'Happ/']], 'responseType' => 'xray_json', 'responseModification' => ['x' => 1], 'responseModifications' => ['headers' => [['key' => 'a', 'value' => 'b']], 'zzz' => 1]]]], $u);
-t_eq('незнакомые ключи собраны', $u, ['foo', 'rules[0].responseModification', 'rules[0].responseModifications.zzz']);
+$us = $u; sort($us);
+t_eq('незнакомые ключи собраны', $us, ['foo', 'rules[0].responseModification', 'rules[0].responseModifications.zzz']);
+$fp = pr_for_panel($n);
+t_eq('незнакомые ключи уходят в панель как есть', [$fp['foo'] ?? null, $fp['rules'][0]['responseModification'] ?? null, $fp['rules'][0]['responseModifications']['zzz'] ?? null], [1, ['x' => 1], 1]);
+$n2 = pr_normalize(['version' => '1', 'settings' => ['disableSubscriptionAccessByPath' => true, 'newOpt' => 'a'], 'rules' => [['name' => 'A', 'conditions' => [['headerName' => 'user-agent', 'operator' => 'EQUALS', 'value' => 'x', 'newFlag' => true]], 'responseType' => 'BLOCK']]], $u);
+t_eq('незнакомое в настройках и условиях тоже остаётся', [$n2['settings']['newOpt'] ?? null, $n2['rules'][0]['conditions'][0]['newFlag'] ?? null], ['a', true]);
 t_eq('операторы и типы приведены к верхнему регистру', [$n['rules'][0]['operator'], $n['rules'][0]['conditions'][0]['operator'], $n['rules'][0]['responseType']], ['AND', 'STARTS_WITH', 'XRAY_JSON']);
 t_eq('enabled стал bool', $n['rules'][0]['enabled'], true);
 $fp = pr_for_panel(pr_normalize($cfg([$R('A', [], 'XRAY_BASE64', ['headers' => [], 'excludeHostsByTags' => [], 'subscriptionTemplate' => ''])]), $u));
@@ -167,12 +172,66 @@ $cut();
 $map3 = pr_map($draft, 168, $e, 'cached');
 t_eq('новая группа: карта из сохранённого, без запросов', [$tester(), $map3['total'], $map3['by_rule'][0]['n'], $map3['by_rule'][1]['n'], array_column($map3['untested'], 'name'), $map3['untested_n']], [0, 12, 4, 6, ['Hiddify'], 2]);
 $map3 = pr_map($draft, 168, $e);
-t_eq('обычный вызов дотестирует всё', [$tester(), $map3['untested'], $map3['by_rule'][1]['n']], [7, [], 8]);
+t_eq('обычный вызов дотестирует только новую группу', [$tester(), $map3['untested'], $map3['by_rule'][1]['n']], [1, [], 8]);
 $cut();
 $map2 = pr_map(pr_normalize($cfg([$R('Only', [$C('user-agent', 'STARTS_WITH', 'Happ/')], 'XRAY_JSON')]), $u), 168, $e);
 t_eq('без правила «всем» — кто получит 403', [$map2['none_n'], array_map(static fn($g) => $g['name'], $map2['none'])], [8, ['v2rayNG', 'Hiddify', 'Stash', 'v2rayN', 'Браузер']]);
 $mock(['srr_tester_forbid' => true]);
 t_eq('нет права на тестер — понятная ошибка', [pr_map($draft, 168, $e, 'force'), $e], [null, 'У API-токена нет права system:test-srr-matcher']);
+$mock(['srr_tester_fail_ua' => 'Stash']);
+$cut();
+$map4 = pr_map($draft, 168, $e, 'force');
+t_eq('сбой тестера на одной группе: остальные посчитаны, эта — непроверенная', [$e, array_column($map4['untested'], 'name'), $map4['by_rule'][0]['n'], isset($map4['warn'])], ['', ['Stash'], 4, true]);
 $mock();
+$cut();
+$map4 = pr_map($draft, 168, $e);
+t_eq('дотестирование спрашивает только непроверенную группу', [$tester(), $map4['untested']], [1, []]);
+
+echo "— приложения из каталога\n";
+$apps = array_column(pr_app_catalog(), null, 'key');
+foreach (['happ' => 'Happ/3.4.1 Android', 'v2rayng' => 'v2rayNG/1.10.16', 'v2rayn' => 'v2rayN/7.13.8', 'flclashx' => 'FlClash X/v0.3.0', 'stash' => 'Stash/3.1.0 iOS', 'hiddify' => 'HiddifyNext/2.5.7'] as $k => $ua) {
+    t_ok('начало UA ' . $k . ' совпадает с настоящим без учёта регистра', stripos($ua, $apps[$k]['pre']) === 0);
+}
+$appDraft = pr_normalize($cfg([$R('Happ', [$C('user-agent', 'STARTS_WITH', $apps['happ']['pre'], false)], 'XRAY_JSON'), $R('Остальные', [], 'XRAY_BASE64')]), $u);
+t_eq('условие из каталога срабатывает на настоящий UA в тестере', pr_test($appDraft, ['user-agent' => 'Happ/3.4.1 Android'], $e)['idx'] ?? null, 0);
+
+echo "— служебные заголовки тестера\n";
+$t = pr_test($draft, ['user-agent' => 'Happ/3', 'x-forwarded-proto' => 'http', 'x-forwarded-for' => '9.9.9.9'], $e);
+t_eq('свои x-forwarded-* не подменяют служебные', [$e, $t['input']['x-forwarded-proto'] ?? null, $t['input']['x-forwarded-for'] ?? null], ['', 'https', '127.0.0.1']);
+
+echo "— снимки: хранение и страховка\n";
+$p->exec('DELETE FROM panel_rules_snap');
+$m1 = pr_snap_add(['version' => '1', 'rules' => [['name' => 'manual']]], 'manual', 'руками');
+for ($i = 0; $i < 31; $i++) pr_snap_add(['version' => '1', 'rules' => [['name' => 'r' . $i]]], 'auto');
+$kinds = array_count_values(array_column(pr_snap_list(), 'kind'));
+t_eq('31 автоснимок: хранится 30, ручной на месте', [$kinds['auto'] ?? 0, $kinds['manual'] ?? 0, pr_snap_get($m1) !== null], [30, 1, true]);
+$last = pr_snap_list()[0]['id'];
+t_eq('такой же автоснимок второй раз не пишется', pr_snap_add(['version' => '1', 'rules' => [['name' => 'r30']]], 'auto'), $last);
+t_ok('ручной пишется и при совпадении', pr_snap_add(['version' => '1', 'rules' => [['name' => 'r30']]], 'manual') > $last);
+
+$st = pr_state($e);
+$p->exec('DROP TABLE panel_rules_snap');
+$cut();
+$elog = ini_set('error_log', $tt_root . '/data/expected-errors.log');
+$r = pr_push($draft, $st['hash']);
+ini_set('error_log', (string) $elog);
+t_eq('снимок не записался — в панель ничего не ушло', [$r['ok'], $hits()['PATCH /api/subscription-settings'] ?? 0, strpos((string) $r['error'], 'снимок') !== false], [false, 0, true]);
+foreach (pr_snap_ddl(db_driver()) as $sql) $p->exec($sql);
+
+echo "— поля новее прослойки\n";
+$newer = ['version' => '1', 'rules' => [['name' => 'Happ', 'enabled' => true, 'operator' => 'AND', 'conditions' => [$C('user-agent', 'STARTS_WITH', 'Happ/')], 'responseType' => 'XRAY_JSON', 'responseModifications' => ['subscriptionTemplate' => 'Gaming', 'newFeature35' => ['a' => 1]], 'priorityX' => 3], ['name' => 'Z', 'enabled' => true, 'operator' => 'AND', 'conditions' => [], 'responseType' => 'XRAY_BASE64']]];
+$mock(['srr' => $newer]);
+$st = pr_state($e);
+$cfg2 = pr_normalize($st['rules'], $u);
+$cfg2['rules'][1]['name'] = 'Остальные';
+$r = pr_push($cfg2, $st['hash']);
+$sent = json_decode((string) file_get_contents($state), true)['srr_raw'] ?? [];
+t_eq('отправка не стирает поля, которых прослойка не знает', [$r['ok'], $sent['rules'][0]['responseModifications']['newFeature35'] ?? null, $sent['rules'][0]['priorityX'] ?? null, $sent['rules'][1]['name'] ?? null], [true, ['a' => 1], 3, 'Остальные']);
+$mock();
+
+echo "— теги после обновления прослойки\n";
+admin_cache_put('pref_hosts', ['ts' => time(), 'd' => [['uuid' => 'h1', 'remark' => 'NL', 'nodes' => []]]]);
+unset($GLOBALS['submw_pref_memo']);
+t_eq('снимок хостов без тегов перечитывается сразу', array_column(pr_tags($e), 'tag'), ['EU', 'TEST']);
 
 t_done();
