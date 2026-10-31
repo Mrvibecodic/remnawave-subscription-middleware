@@ -636,6 +636,8 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-ib:hover{color:var(--text-strong);border-color:var(--accent);background:var(--bg2);filter:none}
 .ux-sgf .set-d code{white-space:nowrap}
 @media(max-width:900px){.ux-sgg{grid-template-columns:minmax(0,1fr)}.ux-sgg .set-row{min-width:0}.ux-sgf .set-d code{white-space:normal;overflow-wrap:anywhere}.ux-sgf .set-row>input.ux-gaddr,.ux-gsec{width:100%;max-width:100%;box-sizing:border-box;flex:1 1 auto}.ux-gsec code{flex:1}}
+.ux-gwarn{color:var(--c-warn-fg);margin-top:.25rem}
+.ux-gwarn[hidden]{display:none}
 .ux-doc{display:inline-flex;align-items:center;gap:.4rem;font-size:.84rem;font-weight:600;color:var(--accent-text);text-decoration:none;margin-top:.8rem}
 .ux-doc:hover{text-decoration:underline}
 .ux-psm{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.6rem;margin-top:.7rem}
@@ -769,7 +771,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <input type="hidden" name="action" value="save_go">
             <div class="ux-sgg">
             <div class="set-row ux-wide">
-                <div class="set-info"><div class="set-t">Адрес Go-сервиса</div><div class="set-d">Пусто — прослойка пробует сама: <code><?= h($ux_go['url_def']) ?></code>.</div></div>
+                <div class="set-info"><div class="set-t">Адрес Go-сервиса</div><div class="set-d">Пусто — прослойка пробует сама: <code><?= h($ux_go['url_def']) ?></code>.<div class="set-d ux-gwarn" id="uxGoRemote"<?= empty($ux_go['remote']) ? ' hidden' : '' ?>>Если Go не на этом сервере — токен панели пойдёт по сети открытым текстом. Ставьте Go рядом с прослойкой.</div></div></div>
                 <input type="text" name="go_url" class="ux-gaddr" value="<?= h($ux_go['url_set']) ?>" placeholder="определяется сам" autocomplete="off" spellcheck="false">
             </div>
             <div class="set-row ux-wide">
@@ -1743,6 +1745,8 @@ function gDraw(){
 }
 gDraw();
 var sv=false;
+var gA=document.querySelector('input.ux-gaddr'),gR=$('uxGoRemote');
+if(gA&&gR)gA.addEventListener('input',function(){var v=gA.value.trim(),h='';try{h=v?new URL(v).hostname.replace(/^\[|\]$/g,'').toLowerCase():'';}catch(e){}gR.hidden=!(h&&h!=='localhost'&&h!=='::1'&&h.indexOf('127.')!==0&&(h.indexOf('.')>-1||h.indexOf(':')>-1));});
 document.addEventListener('click',function(e){
  var b=e.target.closest&&e.target.closest('[data-ga]');if(!b)return;var a=b.getAttribute('data-ga');
  if(a==='check'){b.disabled=true;post('go_check',{}).then(function(d){b.disabled=false;if(!d.ok){toast(d.error||'Ошибка');return;}var s=G.secret,l=G.last;G=d.go;G.secret=s;G.last=l;gDraw();toast(d.alive?'Go отвечает':'Go не ответил: '+(d.err||G.err));});}
