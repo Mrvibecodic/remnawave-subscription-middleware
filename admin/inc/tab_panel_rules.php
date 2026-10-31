@@ -1,4 +1,6 @@
 <?php
+// Библиотека примеров нужна только этой вкладке — на запросах подписки её не грузим.
+require_once dirname(__DIR__, 2) . '/lib/panelrules_recipes.php';
 $pr_j = static fn($v) => json_encode($v, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 $pr_types = [];
 foreach (pr_types() as $t) {
