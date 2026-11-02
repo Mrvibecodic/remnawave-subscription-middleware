@@ -523,7 +523,7 @@ if ($cr_on) {
                 <h2 style="margin-top:0">Система</h2>
                 <div class="si-kv"><span class="k">PHP</span><span class="v"><?= h($sys_info['php_version']) ?> · <?= h($sys_info['sapi']) ?></span></div>
                 <div class="si-kv"><span class="k">ОС</span><span class="v"><?= h($sys_info['os']) ?></span></div>
-                <?php if ($sys_info['server'] !== ''): ?><div class="si-kv"><span class="k">Веб-сервер</span><span class="v"><?= h($sys_info['server']) ?></span></div><?php endif; ?>
+                <?php if ($sys_info['server'] !== ''): ?><div class="si-kv"><span class="k">Веб-сервер</span><span class="v"><?= h($sys_info['server']) ?><?php if (submw_in_docker()): ?> <span class="muted" data-tip="nginx внутри контейнера прослойки — запросы из интернета сначала принимает ваш реверс-прокси">· внутренний</span><?php endif; ?></span></div><?php endif; ?>
                 <div class="si-kv"><span class="k">Load average</span><span class="v" id="si_load"><?php if (is_array($sys_info['load'])): echo h(implode(' · ', array_map(fn($x) => number_format((float) $x, 2), $sys_info['load']))); echo $sys_info['cores'] ? (' (ядер: ' . (int) $sys_info['cores'] . ')') : ''; else: echo '—'; endif; ?></span></div>
                 <div class="si-kv"><span class="k">Память PHP</span><span class="v"><span id="si_mem"><?= h(metrics_fmt_bytes($sys_info['mem_peak'])) ?></span> / <?= h($sys_info['mem_limit']) ?></span></div>
                 <div class="si-kv"><span class="k">OPcache · cURL</span><span class="v"><?= $sys_info['opcache'] ? 'вкл' : 'выкл' ?> · <?= $sys_info['curl'] ? 'есть' : 'нет' ?></span></div>
