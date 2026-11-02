@@ -109,7 +109,7 @@ $jk_state = static function ($r, $cut_word) {
 
     <div class="card">
         <div class="loghead">
-            <h2>Мусор <span class="muted" style="font-weight:400;font-size:.78rem">сканеры и боты, за 24 часа</span></h2>
+            <h2>Мусор <button type="button" class="qh" onclick="help('junk')" aria-label="Справка">?</button> <span class="muted" style="font-weight:400;font-size:.78rem">сканеры и боты, за 24 часа</span></h2>
             <div class="loghead-r">
                 <form method="post" onsubmit="return uiConfirmForm(this,'Очистить статистику мусора? Правила останутся.','Очистить')">
                     <input type="hidden" name="csrf" value="<?= h($token) ?>">
@@ -264,19 +264,6 @@ $jk_state = static function ($r, $cut_word) {
             </div>
         </div>
     </div>
-
-    <section class="<?= coll_cls('junk_help', true) ?>" data-coll="junk_help">
-        <button type="button" class="coll-head" onclick="collToggle(this)"><span>❓ Как это работает</span>
-            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-        </button>
-        <div class="coll-body">
-            <p class="muted" style="margin-top:0;line-height:1.7">Мусор — запросы на адреса, которых у подписки не бывает: бэкапы и архивы (<code>backup.sql</code>, <code>site.zip</code>), конфиги и ключи (<code>config.yml</code>, <code>server.key</code>), чужие админки (<code>wp-admin</code>, <code>phpmyadmin</code>, <code>cgi-bin</code>). Их шлют сканеры и боты, которые перебирают адреса наугад. Ссылки подписки и файлы страницы подписки сюда не попадают.</p>
-            <p class="muted" style="line-height:1.7">Пока правил нет, такой запрос уходит в панель, как обычный, и сканер получает её ответ «не найдено». «Только считать» ничего не меняет — показывает, сколько отрезало бы. «Резать» — прослойка отвечает сама, панель запрос не видит.</p>
-            <p class="muted" style="line-height:1.7">Часть мусора сюда не доходит: её раньше отсекает nginx прослойки — и в Docker, и при установке файлами через <code>install.sh</code>. Адреса на <code>.php</code> (<code>wp-login.php</code>, <code>xmlrpc.php</code>) получают «не найдено», скрытые файлы (<code>.env</code>, <code>.git</code>) и служебные папки прослойки — «доступ запрещён». В панель они не идут, правила для них не нужны. Если nginx настроен вручную — сюда доходит то, что пропускают его настройки.</p>
-            <p class="muted" style="line-height:1.7">Главная страница (<code>/</code>) получает заглушку и сюда не пишется. После установки мастером так же отвечают на запросы по IP вместо домена.</p>
-            <p class="muted" style="margin-bottom:0;line-height:1.7">Если здесь оказался настоящий адрес — нажмите «Исключить» во вкладке «Пути», и он перестанет считаться мусором.</p>
-        </div>
-    </section>
 
     <div id="jkDlg" class="modal-overlay">
         <div class="modal" style="max-width:520px">
