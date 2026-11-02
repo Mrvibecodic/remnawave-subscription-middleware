@@ -419,17 +419,26 @@ function chat_tg_check($token = null) {
 }
 
 function chat_tg_set_webhook($url) {
-    return chat_tg_api('setWebhook', [
+    $r = chat_tg_api('setWebhook', [
         'url' => $url,
         'secret_token' => chat_tg_secret(),
         'allowed_updates' => json_encode(['message', 'callback_query']),
         'drop_pending_updates' => true,
     ]);
+    if ($r[0]) chat_tg_hook_mark($url === chat_tg_webhook_url());
+    return $r;
 }
 
 function chat_tg_delete_webhook() {
-    return chat_tg_api('deleteWebhook', ['drop_pending_updates' => false]);
+    $r = chat_tg_api('deleteWebhook', ['drop_pending_updates' => false]);
+    if ($r[0]) chat_tg_hook_mark(false);
+    return $r;
 }
+
+function chat_tg_hook_known() { return chat_tg_hook_base() !== '' || trim((string) setting('mirror_domain', '')) !== ''; }
+function chat_tg_hook_sig() { return hash('sha256', chat_tg_token() . '|' . (chat_tg_hook_known() ? chat_tg_webhook_url() : '')); }
+function chat_tg_hook_ok() { return chat_tg_token() !== '' && hash_equals(chat_tg_hook_sig(), (string) setting('chat_tg_hook_set', '')); }
+function chat_tg_hook_mark($ok) { set_setting('chat_tg_hook_set', $ok ? chat_tg_hook_sig() : ''); }
 
 function chat_tg_webhook_info($token = null) {
     [$ok, $res, $err] = chat_tg_api('getWebhookInfo', [], $token, 8);
