@@ -296,7 +296,7 @@ $jk_state = static function ($r, $cut_word) {
                         <label>Срок</label>
                         <div class="seg" id="jkTtlSeg" style="margin:0"><button type="button" data-v="3600">1 час</button><button type="button" data-v="86400">24 часа</button><button type="button" class="on" data-v="0">Навсегда</button></div>
                     </div>
-                    <div class="jk-warn" id="jkIpWarn" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span>Живые ссылки пройдут, если включено «Не трогать живые ссылки».</span></div>
+                    <div class="jk-warn" id="jkUaWarn" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span>Живые ссылки пройдут, если включено «Не трогать живые ссылки».</span></div>
                     <div class="jk-foot"><button type="button" class="btn ghost" id="jkCancel">Отмена</button><button type="submit" class="btn">Создать</button></div>
                 </form>
             </div>
@@ -357,7 +357,7 @@ $jk_state = static function ($r, $cut_word) {
         $('jkKind').value=t;
         document.querySelectorAll('#jkType button').forEach(function(x){x.classList.toggle('on',x.dataset.t===t);});
         $('jkHint').textContent=hints[t][0];$('jkVal').placeholder=hints[t][1];
-        $('jkIpWarn').style.display=t==='path'?'none':'flex';
+        $('jkUaWarn').style.display=t==='path'?'none':'flex';
     }
     document.querySelectorAll('#jkType button').forEach(function(b){b.addEventListener('click',function(){setType(b.dataset.t);});});
     document.querySelectorAll('#jkTtlSeg button').forEach(function(b){b.addEventListener('click',function(){
