@@ -56,10 +56,6 @@ if (empty($path) || $path === 'index.php') {
     exit();
 }
 
-if (!$apisub_in && subpage_dispatch($path, $query, $path_wire($wire_path))) {
-    exit();
-}
-
 register_shutdown_function(function () {
     if (!function_exists('metrics_tick') || !empty($GLOBALS['submw_skip_metric'])) return;
     $t0 = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true);
@@ -85,6 +81,28 @@ $skip_log =
     || junk_short_len_mismatch($path);
 
 $junk_path = $skip_log && !junk_excluded($path);
+
+// До страницы подписки: иначе мусор с браузерным User-Agent уходит туда мимо статистики и правил.
+// function_exists: прежний апдейтер пишет index.php раньше lib/junk.php.
+// Запрос канала c1 уже расшифрован и отвечается внутри канала — правила его не трогают.
+if (function_exists('junk_gate') && !chan_active()) {
+    $junk_ip   = client_ip();
+    $junk_ua   = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $junk_rule = junk_gate($path, $junk_ua);
+    if ($junk_rule || ($junk_path && !junk_protected($path))) {
+        junk_note($path, $junk_ip, $junk_ua, $junk_rule ? $junk_rule['mode'] : 'pass', $junk_rule);
+        register_shutdown_function('junk_flush');
+    }
+    if ($junk_rule && $junk_rule['mode'] === 'cut') {
+        junk_respond($junk_rule['resp']);
+        exit();
+    }
+}
+
+if (!$apisub_in && subpage_dispatch($path, $query, $path_wire($wire_path))) {
+    exit();
+}
+
 $api_src($junk_path ? 'junk' : 'sub');
 
 $to_panel = subpage_active() || $apisub_in;
@@ -228,6 +246,7 @@ if ($addsub_pre !== null && $addsub_pre['ch'] !== null) {
     curl_close($ch);
 }
 if (function_exists('apistat_hit')) apistat_hit('GET', $to_panel ? '/api/sub/{x}' : '/{x}', $curl_err ? 0 : $http_code, $proxy_ms);
+if ($junk_path && !$curl_err && (int) $http_code === 404 && function_exists('junk_404_capture')) junk_404_capture($response, $grabbed_headers['content-type'] ?? '');
 
 $ip     = client_ip();
 $ua     = $_SERVER['HTTP_USER_AGENT'] ?? '';
@@ -394,10 +413,6 @@ if ($do_substitute) {
         ]);
     }
     exit();
-}
-
-if ($junk_path && $short_uuid !== '' && (squadconf_any() || addsub_enabled())) {
-    junk_record($path);
 }
 
 $response_premod = $response;

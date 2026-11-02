@@ -128,6 +128,7 @@
     <div class="seg">
         <a class="on" href="?tab=reqlog" id="rlSegReq">Запросы<?= $rl_outdated ? ' (' . (int) $rl_outdated . ' устаревших)' : '' ?></a>
         <a href="?tab=reqlog&amp;view=clients">Клиенты</a>
+        <a href="?tab=reqlog&amp;view=junk">Мусор</a>
     </div>
     <div class="rl-kpis">
         <div class="rl-kpi"><div class="k">Обновили подписку</div><div class="v"><span id="rlKpiUsers"><?= (int) $rl_today_users ?></span><small id="rlKpiUsersTot"><?= $rl_total_users ? ' / ' . (int) $rl_total_users : '' ?></small></div><div class="d">сегодня, <?= h($rl_today_label) ?></div></div>
@@ -215,11 +216,11 @@
     </div>
 
     <section class="<?= coll_cls('reqlog_junk', true) ?>" data-coll="reqlog_junk">
-        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Мусорные запросы <span class="muted" style="font-weight:400;font-size:.78rem">сканеры/боты — панель не опрашивается<?= !empty($junk_top) ? ' · ' . count($junk_top) : '' ?></span></span>
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>Мусорные запросы <span class="muted" style="font-weight:400;font-size:.78rem">сканеры и боты</span></span>
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
-        <p class="muted">Запросы на несуществующие адреса (файлы, <code>/wp-login.php</code>, <code>/.env</code> и т.п.). Для них прослойка не обращается к API панели, чтобы не нагружать её. Обычная подписка (shortUuid) сюда не попадает. Если в списке оказался нужный адрес — нажмите «Исключить», и он снова будет обрабатываться как подписка.</p>
+        <p class="muted">Запросы на несуществующие адреса: файлы, <code>/wp-login.php</code>, <code>/.env</code> и т.п. Обычная подписка сюда не попадает. Статистика по ним и правила отсечения — в разделе <a href="?tab=reqlog&amp;view=junk">«Мусор»</a>.</p>
         <?php $jl_len = panel_short_uuid_len(); ?>
         <form method="post" data-autosave style="margin:.9rem 0 0">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
@@ -256,30 +257,6 @@
             </form>
             <?php endforeach; ?>
         </div>
-        <?php endif; ?>
-        <?php if (!empty($junk_top)): ?>
-        <table class="logtbl">
-            <thead><tr><th>Путь</th><th>Запросов</th><th>Последний</th><th></th></tr></thead>
-            <tbody>
-            <?php foreach ($junk_top as $j): ?>
-            <tr>
-                <td><code><?= h(mb_substr((string) $j['path'], 0, 120)) ?></code></td>
-                <td><?= (int) $j['hits'] ?></td>
-                <td class="muted"><?= (int) $j['last_ts'] ? '<span class="rl-dt" data-ts="' . (int) $j['last_ts'] . '">' . h(date('Y-m-d H:i', (int) $j['last_ts'])) . '</span>' : '—' ?></td>
-                <td>
-                    <form method="post" style="margin:0">
-                        <input type="hidden" name="csrf" value="<?= h($token) ?>">
-                        <input type="hidden" name="action" value="junk_exclude">
-                        <input type="hidden" name="path" value="<?= h($j['path']) ?>">
-                        <button class="btn ghost" type="submit">Исключить</button>
-                    </form>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php else: ?>
-        <p class="muted">Пока пусто — мусорных запросов не зафиксировано.</p>
         <?php endif; ?>
         </div>
     </section>

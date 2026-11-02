@@ -1333,7 +1333,36 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'junk_exclude') {
         $pth = (string) ($_POST['path'] ?? '');
         if ($pth !== '') { junk_whitelist_add($pth); junk_forget($pth); flash('Путь исключён из мусорных — теперь обрабатывается как обычная подписка'); }
-        header('Location: index.php?tab=reqlog'); exit();
+        header('Location: index.php?tab=reqlog' . (($_POST['ret'] ?? '') === 'junk' ? '&view=junk#paths' : '')); exit();
+    }
+
+    if ($action === 'junk_rule_add') {
+        $ttl = (int) ($_POST['ttl'] ?? 0);
+        $e = '';
+        $ok = junk_rule_add((string) ($_POST['kind'] ?? ''), (string) ($_POST['val'] ?? ''), (string) ($_POST['resp'] ?? ''), (string) ($_POST['mode'] ?? ''), in_array($ttl, [3600, 86400], true) ? $ttl : 0, $e);
+        flash($ok ? 'Правило добавлено' : 'Правило не добавлено: ' . $e);
+        header('Location: index.php?tab=reqlog&view=junk#' . preg_replace('~[^a-z]~', '', (string) ($_POST['ret'] ?? 'rules'))); exit();
+    }
+
+    if ($action === 'junk_rule_mode' || $action === 'junk_rule_del') {
+        $action === 'junk_rule_mode' ? junk_rule_mode((int) ($_POST['id'] ?? 0)) : junk_rule_del((int) ($_POST['id'] ?? 0));
+        flash($action === 'junk_rule_mode' ? 'Режим правила изменён' : 'Правило удалено');
+        header('Location: index.php?tab=reqlog&view=junk#rules'); exit();
+    }
+
+    if ($action === 'junk_cfg') {
+        foreach (['paths', 'bots'] as $jset) {
+            junk_set_save($jset, !empty($_POST['set_' . $jset . '_on']), (string) ($_POST['set_' . $jset . '_mode'] ?? 'dry'), (string) ($_POST['set_' . $jset . '_resp'] ?? 'copy404'));
+        }
+        set_setting('junk_protect_live', empty($_POST['protect_live']) ? '0' : '1');
+        flash('Настройки мусора сохранены');
+        form_saved('reqlog&view=junk#rules');
+    }
+
+    if ($action === 'junk_clear') {
+        junk_clear_stats();
+        flash('Статистика мусора очищена');
+        header('Location: index.php?tab=reqlog&view=junk'); exit();
     }
 
     if ($action === 'junk_include') {
@@ -1737,7 +1766,7 @@ if ($tab === 'settings') $tab = 'connection';
 if ($tab === 'headers') $tab = 'rules';
 if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) $tab));
 if (function_exists('cron_note_web_user')) cron_note_web_user();
-$rl_view = ($tab === 'reqlog' && ($_GET['view'] ?? '') === 'clients') ? 'clients' : '';
+$rl_view = ($tab === 'reqlog' && in_array($_GET['view'] ?? '', ['clients', 'junk'], true)) ? (string) $_GET['view'] : '';
 rules_migrate_legacy();
 squadconf_migrate_v3();
 update_autocheck();
@@ -1877,7 +1906,7 @@ $chat_sessions = [];
 if ($db_ok && $tab === 'chat') { $chat_sessions = chat_sessions_list(100); }
 
 $rl_total_users = 0; $rl_today_users = 0; $rl_today_devices = 0; $rl_total_devices = 0; $rl_today_label = date('d.m.Y');
-$junk_top = []; $junk_wl = [];
+$junk_wl = []; $jk = null;
 $rl_outdated = 0;
 $cv_rows = []; $cv_builtin = []; $cv_groups = []; $cv_seen = []; $cv_checked = 0;
 if ($tab === 'reqlog') {
@@ -1902,8 +1931,8 @@ if ($rl_view === 'clients') {
         $cv_groups[$cv_g][] = $cv_b;
     }
 }
+if ($rl_view === 'junk') $jk = junk_view();
 if ($tab === 'reqlog' && $rl_view === '') {
-    $junk_top = junk_top(100);
     $junk_wl  = junk_whitelist();
     require_once __DIR__ . '/inc/_reqlog_rows.php';
     [, , , $rl_total_users] = reqlog_prepare();
@@ -2349,7 +2378,7 @@ navHidSync();
     <?php include __DIR__ . '/inc/tab_reports.php'; ?>
 
 <?php elseif ($tab === 'reqlog'): ?>
-    <?php include __DIR__ . '/inc/' . ($rl_view === 'clients' ? 'tab_reqlog_clients.php' : 'tab_reqlog.php'); ?>
+    <?php include __DIR__ . '/inc/' . ($rl_view === 'clients' ? 'tab_reqlog_clients.php' : ($rl_view === 'junk' ? 'tab_reqlog_junk.php' : 'tab_reqlog.php')); ?>
 
 <?php elseif ($tab === 'whlog' || $tab === 'whlog_other'): ?>
     <?php include __DIR__ . '/inc/tab_whlog.php'; ?>

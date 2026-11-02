@@ -177,7 +177,6 @@ function cron_task_cleanup($ctx) {
     $p = db();
     if (!$p) return 'нет базы';
     if (ensure_metrics_tables()) metrics_prune($p);
-    junk_ensure();
     junk_prune($p);
     chat_gc();
     if (function_exists('apistat_prune')) apistat_prune();
