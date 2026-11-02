@@ -25,6 +25,7 @@ INSERT INTO settings (k, v) VALUES
     ('landing_fp_ack',        ''),
     ('chat_enabled',          '0'),
     ('chat_tg_api_base',      ''),
+    ('chat_tg_hook_base',     ''),
     ('nolog_shortuuids',      '[]'),
     ('addsub_enabled',        '0'),
     ('addsub_username_suffix','_addsub'),

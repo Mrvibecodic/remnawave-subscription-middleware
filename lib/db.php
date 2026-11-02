@@ -118,6 +118,7 @@ function install_seed_values() {
         'landing_fp_ack'        => '',
         'chat_enabled'          => '0',
         'chat_tg_api_base'      => '',
+        'chat_tg_hook_base'     => '',
         'chan_enabled'          => '0',
         'chan_pad'              => '1',
         'chan_hard_default'     => '0',
