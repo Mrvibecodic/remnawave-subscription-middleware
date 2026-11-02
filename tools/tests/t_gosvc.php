@@ -66,6 +66,18 @@ admin_cache_put('sess_users', ['src' => '', 'u' => null, 'ts0' => 0]);
 t_eq('без Go: лимиты для «Сессий» — PHP', array_keys(sess_users_limits(1800, microtime(true) + 5)), [1]);
 unset($GLOBALS['submw_settings_cache']);
 t_eq('без Go: о Go ничего не записано', [setting('go_state', ''), setting('go_users', ''), go_users_view()['eng']], ['', '', '']);
+$seek = time() - 10;
+set_setting('go_seek', (string) $seek);
+unset($GLOBALS['submw_settings_cache']);
+sess_collect(microtime(true) + 10);
+unset($GLOBALS['submw_settings_cache']);
+t_eq('незнакомый Go ищется не чаще раза в 5 минут', [(int) setting('go_seek', '0'), $plog()['eng'] ?? ''], [$seek, 'php']);
+set_setting('go_seek', '');
+unset($GLOBALS['submw_settings_cache']);
+sess_collect(microtime(true) + 10);
+unset($GLOBALS['submw_settings_cache']);
+t_ok('через 5 минут незнакомый Go ищется снова', (int) setting('go_seek', '0') >= time() - 15);
+set_setting('go_seek', '');
 apistat_flush();
 t_eq('без Go: в «Запросах к панели» строк Go нет', (int) $tt_pdo->query("SELECT COUNT(*) FROM api_stat_hour WHERE src LIKE 'go:%'")->fetchColumn(), 0);
 t_ok('без Go: список не ждёт Go', microtime(true) - $t0 < 3, (string) (microtime(true) - $t0));
@@ -229,6 +241,14 @@ t_eq('обёртка с $each: страницы по 250', $chunks, [250, 250, 1
 admin_cache_put('sess_users', ['src' => '', 'u' => null, 'ts0' => 0]);
 $lim = sess_users_limits(1800, microtime(true) + 10);
 t_ok('лимиты для «Сессий» через Go — весь список за раз', count($lim) === 600 && array_key_exists('1', $lim), (string) count($lim));
+// Обход дольше порции PHP-докачки (5 с): планировщик даёт Go запас на весь список, PHP не зовётся.
+$mock(['version' => '3.4.7', 'users_n' => 4000, 'latency_ms' => 350]);
+admin_cache_put('sess_users', ['src' => md5(remnawave_url() . "\n" . remnawave_token()), 'u' => ['1' => [null, '']], 'ts0' => time() - 4000]);
+@unlink($mlog);
+cron_task_sessions(['deadline' => microtime(true) + 120, 'detached' => true, 'can' => true]);
+$lim = admin_cache_get('sess_users', PHP_INT_MAX);
+t_eq('долгий список лимитов: Go собрал целиком, без PHP-докачки', [count((array) ($lim['u'] ?? [])), substr_count((string) @file_get_contents($mlog), "GET /api/users\n")], [4000, 16]);
+$mock(['version' => '3.4.7', 'users_n' => 600]);
 
 // Сбой страницы — Go ничего не отдаёт, список собирает PHP
 foreach (glob($tt_root . '/data/mock_once_*') ?: [] as $f) unlink($f);

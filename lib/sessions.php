@@ -495,7 +495,9 @@ function sess_purge_maybe() {
 function cron_task_sessions($ctx) {
     if (!sess_enabled()) return '';
     // Список лимитов обновляется до опроса и только при запасе времени; сам опрос берёт снимок как есть.
-    $slot = min(5, $ctx['deadline'] - microtime(true) - 12);
+    // Go берёт весь список за один заход — ему нужен запас на весь обход, а не на порцию PHP-докачки.
+    $left = $ctx['deadline'] - microtime(true);
+    $slot = function_exists('go_users_ready') && go_users_ready() ? min(60, $left - 17) : min(5, $left - 12);
     if ($slot > 1 && sess_anom_rules()) sess_users_limits(1800, microtime(true) + $slot);
     $err = sess_collect(min(microtime(true) + 15, $ctx['deadline'] - 2));
     sess_purge_maybe();
@@ -831,6 +833,7 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
     if ($deadline === null || remnawave_url() === '' || remnawave_token() === '') return $stale;
     // Через Go — весь список за один заход, без докачки по тикам.
     if (function_exists('go_users_list')) {
+        $go_try = function_exists('go_users_ready') && go_users_ready();
         $gl = go_users_list(['id', 'hwidDeviceLimit', 'externalSquadUuid'], $ge, max(2, $deadline - microtime(true)));
         if ($gl !== null) {
             $part = [];
@@ -842,6 +845,8 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
             admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => time()]);
             return $part;
         }
+        // Запас был рассчитан на Go; PHP докачивает обычной порцией, чтобы не задерживать опрос нод.
+        if ($go_try) $deadline = min($deadline, microtime(true) + 5);
     }
     $part = is_array($o['part'] ?? null) ? $o['part'] : [];
     $start = (int) ($o['next'] ?? 0);
