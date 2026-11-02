@@ -2,10 +2,12 @@
 
 function update_repo() { return 'Mrvibecodic/remnawave-subscription-middleware'; }
 function update_branch() {
+    if (submw_in_docker() && submw_image_ref() !== '' && submw_image_release() === '') return submw_image_ref();
     $b = trim((string) setting('update_branch', 'main'));
     return ($b !== '' && preg_match('~^[A-Za-z0-9._/\-]{1,80}$~', $b)) ? $b : 'main';
 }
 function update_set_branch($branch, &$err = null) {
+    if (submw_in_docker()) { $err = 'В Docker ветку задаёт тег образа в docker-compose.yml'; return false; }
     $branch = trim((string) $branch);
     if ($branch === '' || !preg_match('~^[A-Za-z0-9._/\-]{1,80}$~', $branch)) { $err = 'Недопустимое имя ветки'; return false; }
     set_setting('update_branch', $branch);
@@ -17,6 +19,43 @@ function update_root() { return dirname(__DIR__); }
 function submw_in_docker() { return getenv('SUBMW_DOCKER') === '1'; }
 
 function submw_image_version() { return trim((string) getenv('SUBMW_VERSION')); }
+
+// Из чего собран образ: ветка (dev, main) или релизный тег (v1.10.0). Пусто — образ собран раньше или вручную.
+function submw_image_ref() {
+    $r = trim((string) getenv('SUBMW_REF'));
+    return preg_match('~^[A-Za-z0-9._/\-]{1,80}$~', $r) ? $r : '';
+}
+
+function submw_image_release() {
+    $r = submw_image_ref();
+    return preg_match('~^v\d+\.\d+\.\d+$~', $r) ? $r : '';
+}
+
+function update_docker_img() { return submw_image_ref() . '@' . submw_image_version(); }
+
+function update_docker_checkable() {
+    if (submw_image_ref() === '') return false;
+    return submw_image_release() !== '' || preg_match('/^[0-9a-f]{40}$/', submw_image_version()) === 1;
+}
+
+function update_rel_newer($tag, $cur) {
+    if (!preg_match('~^v(\d+\.\d+\.\d+)$~', (string) $tag, $a) || !preg_match('~^v(\d+\.\d+\.\d+)$~', (string) $cur, $b)) return false;
+    return version_compare($a[1], $b[1], '>');
+}
+
+function update_rel_major($tag) { return preg_match('~^v(\d+)\.~', (string) $tag, $m) ? (int) $m[1] : 0; }
+
+function update_rel_url($tag) { return 'https://github.com/' . update_repo() . '/releases/tag/' . rawurlencode((string) $tag); }
+
+function update_version_label() {
+    $iv = update_installed_commit();
+    $short = $iv !== '' ? substr($iv, 0, 7) : '—';
+    if (submw_in_docker()) {
+        if (($rel = submw_image_release()) !== '') return [$rel, ''];
+        return [$short, submw_image_ref()];
+    }
+    return [$short, update_branch()];
+}
 
 function update_web_user() {
     if (function_exists('posix_geteuid') && function_exists('posix_getpwuid')) {
@@ -191,13 +230,50 @@ function update_save_state($st) {
     set_setting('update_state', json_encode($st, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 }
 
+function update_fail_state($err) {
+    $st = update_state();
+    // Результат прошлой проверки относится к прежнему образу — с новым его не сравнивать.
+    if (submw_in_docker() && ($st['img'] ?? '') !== update_docker_img()) $st = ['img' => update_docker_img()];
+    $st['checked_at'] = time();
+    $st['last_err']   = (string) $err;
+    update_save_state($st);
+}
+
+// :vN в compose тянет последний релиз своей основной версии — с ним и сверяемся; более новая основная — отдельно.
+function update_refresh_release($rel, &$err = null) {
+    $j = update_api('/releases?per_page=50', $err);
+    if ($j !== null && !array_is_list($j)) { $err = 'Некорректный ответ GitHub'; $j = null; }
+    if ($j === null) { update_fail_state($err); return null; }
+    $major = update_rel_major($rel);
+    $same = '';
+    $newest = '';
+    foreach ($j as $r) {
+        if (!is_array($r) || !empty($r['draft']) || !empty($r['prerelease'])) continue;
+        $t = (string) ($r['tag_name'] ?? '');
+        if (!preg_match('~^v\d+\.\d+\.\d+$~', $t)) continue;
+        if ($newest === '' || update_rel_newer($t, $newest)) $newest = $t;
+        if (update_rel_major($t) === $major && ($same === '' || update_rel_newer($t, $same))) $same = $t;
+    }
+    if ($newest === '') { update_fail_state($err = 'На GitHub нет релизов'); return null; }
+    $st = [
+        'checked_at' => time(),
+        'img'        => update_docker_img(),
+        'latest_tag' => $same,
+        'newest_tag' => $newest,
+        'last_err'   => '',
+    ];
+    update_save_state($st);
+    return $st;
+}
+
 function update_refresh(&$err = null) {
+    if (submw_in_docker()) {
+        if (!update_docker_checkable()) { $err = 'Образ не сообщает, из какой ветки или релиза он собран'; return null; }
+        if (($rel = submw_image_release()) !== '') return update_refresh_release($rel, $err);
+    }
     $latest = update_latest_commit($err);
     if ($latest === null || $latest['sha'] === '') {
-        $st = update_state();
-        $st['checked_at'] = time();
-        $st['last_err']   = (string) $err;
-        update_save_state($st);
+        update_fail_state($err);
         return null;
     }
     $installed = update_installed_commit();
@@ -212,6 +288,7 @@ function update_refresh(&$err = null) {
         'files'         => [],
         'last_err'      => '',
     ];
+    if (submw_in_docker()) $st['img'] = update_docker_img();
     if ($installed !== '' && $installed !== $latest['sha']) {
         $cmp = update_compare($installed, $latest['sha'], $e2);
         if ($cmp !== null) {
@@ -226,15 +303,23 @@ function update_refresh(&$err = null) {
     return $st;
 }
 
-function update_autocheck() {
+function update_autocheck($every = 43200) {
     $st = update_state();
-    if (time() - (int) ($st['checked_at'] ?? 0) >= 43200) {
+    if (submw_in_docker()) {
+        if (!update_docker_checkable()) return;
+        if (($st['img'] ?? '') !== update_docker_img()) { update_refresh($e); return; }
+    }
+    if (time() - (int) ($st['checked_at'] ?? 0) >= $every) {
         update_refresh($e);
     }
 }
 
 function update_available() {
     $st = update_state();
+    if (submw_in_docker()) {
+        if (!update_docker_checkable() || ($st['img'] ?? '') !== update_docker_img()) return false;
+        if (($rel = submw_image_release()) !== '') return update_rel_newer($st['latest_tag'] ?? '', $rel);
+    }
     $installed = update_installed_commit();
     if ($installed === '') return false;
     $latest = (string) ($st['latest_sha'] ?? '');

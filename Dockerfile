@@ -1,6 +1,7 @@
 FROM php:8.3-fpm-bookworm
 ARG SUBMW_VERSION=dev
-ENV SUBMW_DOCKER=1 SUBMW_VERSION=${SUBMW_VERSION}
+ARG SUBMW_REF=
+ENV SUBMW_DOCKER=1 SUBMW_VERSION=${SUBMW_VERSION} SUBMW_REF=${SUBMW_REF}
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \

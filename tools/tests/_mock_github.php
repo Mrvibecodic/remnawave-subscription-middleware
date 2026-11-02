@@ -1,9 +1,17 @@
 <?php
-// Мок GitHub для теста апдейтера: /api/repos/<repo>/commits|compare и /raw/<repo>/<sha>/<путь>.
+// Мок GitHub для тестов апдейтера: /api/repos/<repo>/commits|compare|releases и /raw/<repo>/<sha>/<путь>.
 if (PHP_SAPI !== 'cli-server') { http_response_code(404); exit; }
 $dir   = (string) getenv('MOCKGH_DIR');
 $state = json_decode((string) @file_get_contents($dir . '/state.json'), true) ?: [];
 $path  = rawurldecode((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH));
+file_put_contents($dir . '/hits.log', $path . "\n", FILE_APPEND);
+
+if (preg_match('~^/api/repos/[^/]+/[^/]+/releases$~', $path)) {
+    if (!isset($state['releases'])) { http_response_code(500); exit; }
+    header('content-type: application/json');
+    echo json_encode(array_map(static fn($t) => ['tag_name' => ltrim($t, '~'), 'prerelease' => $t[0] === '~', 'draft' => false], $state['releases']));
+    exit;
+}
 
 if (preg_match('~^/api/repos/[^/]+/[^/]+/commits/~', $path)) {
     header('content-type: application/json');
