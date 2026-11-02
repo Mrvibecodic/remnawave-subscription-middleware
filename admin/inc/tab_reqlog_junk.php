@@ -97,7 +97,7 @@ $jk_state = static function ($r, $cut_word) {
     .jk-foot{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.1rem}
     .jk-warn{display:flex;gap:.5rem;align-items:flex-start;font-size:.8rem;color:var(--c-warn-fg);background:var(--c-warn-bg);border-radius:10px;padding:.55rem .7rem;margin-top:.6rem}
     .jk-warn svg{flex:0 0 auto;margin-top:.1rem}
-    @media(max-width:560px){.set-row .jk-ctl{justify-content:flex-start}.jk-mode{grid-template-columns:1fr}}
+    @media(max-width:560px){.set-row .jk-ctl{display:grid;grid-template-columns:minmax(0,1fr) auto;width:100%}.set-row .jk-ctl select{width:100%;min-width:0}.set-row .jk-ctl .switch{grid-column:2;grid-row:1/span 2}.jk-mode{grid-template-columns:1fr}}
     @media(max-width:900px){.jk-tbl .num{text-align:left}div.jk-wrap{overflow:visible;border:0;border-radius:0}.jk-ua{max-width:none;white-space:normal}.jk-act{justify-content:flex-end}}
     </style>
 
