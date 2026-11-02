@@ -42,6 +42,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             SUBMW_VERSION=${{ github.sha }}
+            SUBMW_REF=${{ github.ref_name }}
   build-go:
     runs-on: ubuntu-latest
     permissions:

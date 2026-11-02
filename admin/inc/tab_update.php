@@ -1,4 +1,6 @@
 <?php
+// После неудачной проверки ждём обычного срока, чтобы недоступный GitHub не держал вкладку при каждом открытии.
+if (submw_in_docker() && (string) (update_state()['last_err'] ?? '') === '') update_autocheck(3600);
 $u_state     = update_state();
 $u_installed = update_installed_commit();
 $u_avail     = update_available();
@@ -35,52 +37,61 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
         .up-mod{background:rgba(245,181,10,.18);color:var(--amber)}
         .up-del{background:rgba(239,68,68,.18);color:var(--c-bad-fg)}
         .up-ren{background:rgba(59,130,246,.18);color:var(--c-info-fg)}
+        .up-new{background:var(--c-warn-bg);border:1px solid var(--c-warn-fg);color:var(--c-warn-fg);padding:.7rem 1rem;border-radius:var(--radius);margin-top:.6rem}
         .up-logbox{font-family:monospace;font-size:.82rem;line-height:1.6;max-height:320px;overflow:auto;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;word-break:break-word}
     </style>
-<?php if (submw_in_docker()): ?>
+<?php if (submw_in_docker()):
+    $d_rel   = submw_image_release();
+    $d_ref   = submw_image_ref();
+    $d_ok    = update_docker_checkable();
+    $d_fresh = $d_ok && ($u_state['img'] ?? '') === update_docker_img();
+    $d_tag   = $d_fresh ? (string) ($u_state['latest_tag'] ?? '') : '';
+    $d_new   = $d_fresh ? (string) ($u_state['newest_tag'] ?? '') : '';
+    $d_known = $d_fresh && ($d_rel !== '' ? $d_tag !== '' : $u_latest !== '');
+    $d_major = $d_rel !== '' && update_rel_major($d_new) > update_rel_major($d_rel);
+?>
     <div class="info">
-        Прослойка запущена в <b>Docker</b>. Обновление — через <code>docker pull</code> образа в консоли сервера; записи файлов и git здесь нет.
+        Прослойка запущена в <b>Docker</b> и обновляется заменой образа: команды выполняются в консоли сервера, в папке с <code>docker-compose.yml</code>. Настройки и база лежат в volume и при обновлении не теряются.
     </div>
     <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:stretch;margin-bottom:1rem">
     <div class="card" style="flex:1 1 320px;margin:0">
-        <h2 style="margin-top:0;font-size:1rem">Версия (Docker)</h2>
-        <p style="margin:.2rem 0"><span class="muted">Образ:</span> <code class="up-sha"><?= h($u_installed !== '' ? substr($u_installed, 0, 12) : '—') ?></code> · тег <code><?= h($u_branch) ?></code></p>
-        <?php if ($u_latest !== ''): ?><p style="margin:.2rem 0"><span class="muted">Последний в ветке:</span> <code class="up-sha"><?= h(substr($u_latest, 0, 12)) ?></code></p><?php endif; ?>
-        <p class="muted" style="margin:.2rem 0;font-size:.82rem">Последняя проверка: <span class="up-localtime" data-ts="<?= (int) $u_checked ?>"><?= h($u_ts($u_checked)) ?></span></p>
-        <?php if ($u_err !== ''): ?><div class="warn" style="margin-top:.6rem">Последняя ошибка: <?= h($u_err) ?></div><?php endif; ?>
-        <form method="post" style="margin-top:.9rem;display:flex;gap:.5rem;flex-wrap:wrap">
-            <input type="hidden" name="csrf" value="<?= h($token) ?>">
-            <input type="hidden" name="action" value="update_check">
-            <button type="submit" class="btn ghost">🔄 Проверить обновления</button>
-        </form>
+        <h2 style="margin-top:0;font-size:1rem">Версия</h2>
+        <?php if ($d_rel !== ''): ?>
+        <p style="margin:.2rem 0"><span class="muted">Установлен релиз</span> <b><?= h($d_rel) ?></b></p>
+        <?php elseif ($d_ref !== ''): ?>
+        <p style="margin:.2rem 0"><span class="muted">Образ ветки</span> <b><?= h($d_ref) ?></b> · <span class="muted">коммит</span> <code class="up-sha"><?= h($u_installed !== '' ? substr($u_installed, 0, 7) : '—') ?></code></p>
+        <?php else: ?>
+        <p style="margin:.2rem 0"><span class="muted">Образ:</span> <code class="up-sha"><?= h($u_installed !== '' ? substr($u_installed, 0, 12) : '—') ?></code></p>
+        <p class="muted" style="margin:.4rem 0 0;font-size:.82rem">Образ собран без отметки ветки или релиза, поэтому проверить обновления отсюда нельзя. Так бывает у образов, собранных до появления проверки или вручную через <code>docker build</code>; образы из ghcr.io с тегами <code>:v1</code>, <code>:dev</code>, <code>:latest</code> проверку умеют.</p>
+        <?php endif; ?>
+        <?php if ($d_ok): ?>
+        <p class="muted" style="margin:.2rem 0;font-size:.82rem">Проверено: <span class="up-localtime" data-ts="<?= (int) $u_checked ?>"><?= h($u_ts($u_checked)) ?></span> · сама раз в 12 часов и при открытии вкладки</p>
+        <?php if ($u_err !== ''): ?>
+        <div class="warn" style="margin-top:.6rem">Не удалось проверить: <?= h($u_err) ?></div>
+        <?php endif; ?>
+        <?php if ($u_avail && $d_rel !== ''): ?>
+        <div class="up-new">Доступна <b><?= h($d_tag) ?></b> · <a href="<?= h(update_rel_url($d_tag)) ?>" target="_blank" rel="noopener">что нового</a></div>
+        <?php elseif ($u_avail): ?>
+        <div class="up-new">В ветке <b><?= h($d_ref) ?></b> новых коммитов: <?= (int) ($u_state['ahead_by'] ?? count($u_commits)) ?></div>
+        <?php elseif ($d_known && $u_err === ''): ?>
+        <p style="margin:.6rem 0 0">Установлена последняя версия<?= $d_major ? ' линейки v' . (int) update_rel_major($d_rel) . '.x' : '' ?>.</p>
+        <?php endif; ?>
+        <?php if ($d_major): ?>
+        <div class="up-new">Вышла новая основная версия <b><?= h($d_new) ?></b> · <a href="<?= h(update_rel_url($d_new)) ?>" target="_blank" rel="noopener">что нового</a><br>С тегом <code>:v<?= (int) update_rel_major($d_rel) ?></code> она не скачается: прочитайте описание релиза и смените тег образа на <code>:v<?= (int) update_rel_major($d_new) ?></code>.</div>
+        <?php endif; ?>
+        <?php endif; ?>
     </div>
     <div class="card" style="flex:1 1 320px;margin:0">
-        <h2 style="margin-top:0;font-size:1rem">Ветка (тег образа)</h2>
-        <p style="margin:.2rem 0"><span class="muted">Текущая ветка:</span> <code><?= h($u_branch) ?></code></p>
-        <p class="muted" style="margin:.2rem 0;font-size:.82rem"><b>main</b> — стабильная, <b>dev</b> — тестовая. Ветка = тег образа в реестре.</p>
-        <form method="post" style="margin-top:.7rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center" onsubmit="return uiConfirmForm(this,'Переключить отслеживаемую ветку? Проверки обновлений будут сверяться с её последним коммитом.','Переключить',false)">
-            <input type="hidden" name="csrf" value="<?= h($token) ?>">
-            <input type="hidden" name="action" value="update_switch_branch">
-            <select name="branch" class="up-br">
-                <?php foreach ($u_branches as $b): ?>
-                    <option value="<?= h($b) ?>"<?= $b === $u_branch ? ' selected' : '' ?>><?= h($b) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <button type="submit" class="btn">Переключить</button>
-        </form>
-        <p class="muted" style="margin:.5rem 0 0;font-size:.8rem">Чтобы перейти на выбранную ветку: смените тег образа в <code>docker-compose.yml</code> на <code>:<?= h($u_branch) ?></code>, затем <code>docker compose pull &amp;&amp; docker compose up -d</code>.</p>
+        <h2 style="margin-top:0;font-size:1rem">Как обновить</h2>
+        <div class="up-logbox"><div>docker compose pull submw</div><div>docker compose up -d submw</div></div>
+        <p class="muted" style="margin:.6rem 0 0;font-size:.82rem;line-height:1.6"><code>submw</code> — имя сервиса прослойки в <code>docker-compose.yml</code>; если у вас оно другое, подставьте своё. Скачается тот тег образа, что указан в compose: <code>:v1</code> — последний релиз, <code>:dev</code> — свежая сборка ветки dev. Если там закреплена точная версия, например <code>:v1.10.0</code>, сначала поменяйте её.</p>
     </div>
     </div>
-    <?php if ($u_installed !== '' && $u_avail): ?>
-    <div class="card" style="border-color:var(--amber)">
-        <h2 style="margin-top:0;font-size:1rem">Доступно обновление · коммитов: <?= (int) ($u_state['ahead_by'] ?? count($u_commits)) ?></h2>
-        <?php if ($u_commits): ?><div class="up-block"><div class="up-hl">Новые коммиты</div><?php foreach ($u_commits as $c): ?><div class="up-commit"><code class="up-sha"><?= h((string) ($c['sha'] ?? '')) ?></code> <?= h((string) ($c['msg'] ?? '')) ?></div><?php endforeach; ?></div><?php endif; ?>
-        <div class="up-hl" style="margin-top:.9rem">Обновить (в консоли сервера, каталог docker-compose панели)</div>
-        <div class="up-logbox"><div>docker compose pull remnawave-subscription-middleware</div><div>docker compose up -d remnawave-subscription-middleware</div></div>
-        <p class="muted" style="margin-top:.6rem;font-size:.82rem">Образ тянется из реестра; данные (config.php, БД) лежат в volume и не теряются.</p>
+    <?php if ($u_avail && $d_rel === '' && $u_commits): ?>
+    <div class="card">
+        <div class="up-hl">Новые коммиты</div>
+        <?php foreach ($u_commits as $c): ?><div class="up-commit"><code class="up-sha"><?= h((string) ($c['sha'] ?? '')) ?></code> <?= h((string) ($c['msg'] ?? '')) ?></div><?php endforeach; ?>
     </div>
-    <?php elseif ($u_installed !== '' && $u_latest !== ''): ?>
-    <div class="card"><p style="margin:0">✅ Установлена последняя версия образа — обновлять нечего.</p></div>
     <?php endif; ?>
 <?php else: ?>
     <div class="info">
