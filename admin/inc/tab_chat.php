@@ -21,6 +21,7 @@ $c_color  = chat_widget_color();
         .cs-t{font-size:.95rem;font-weight:600;color:var(--text-strong)}
         .cs-b>*{margin-top:0;margin-bottom:0}
         .cs-b>*+*{margin-top:.85rem}
+        .cs-b>[hidden]+*{margin-top:0}
         .cs-b .cb-presets{margin:.35rem 0 0}
         .cs-b .row>.cs-num{flex:0 0 180px;min-width:0}
         .cs-b>#cbTgRes{margin-top:.45rem}
@@ -152,7 +153,7 @@ $c_color  = chat_widget_color();
                     <label class="switch"><input type="checkbox" name="chat_tg_enabled" <?= chat_tg_enabled()?'checked':'' ?>><span class="sl"></span></label>
                 </div>
                 <div class="cs-b">
-                    <div class="warn">⚠️ <b>После подключения бота обязательно активируйте вебхук</b> — иначе ответы оператора из Telegram не дойдут до сайта. Достаточно <b>сохранить настройки</b> с включённым TG (вебхук поставится сам) или нажать «📡 Установить вебхук бота», затем проверить «ℹ️ Статус вебхука».</div>
+                    <div class="warn" id="cbWhWarn"<?= chat_tg_hook_ok() ? ' hidden' : '' ?>>⚠️ <b>После подключения бота обязательно активируйте вебхук</b> — иначе ответы оператора из Telegram не дойдут до сайта. Достаточно <b>сохранить настройки</b> с включённым TG (вебхук поставится сам) или нажать «📡 Установить вебхук бота», затем проверить «ℹ️ Статус вебхука».</div>
                     <div class="row">
                         <div><label>Токен бота</label><input type="password" name="chat_tg_bot_token" value="" placeholder="<?= chat_tg_token()?'•••••• задан':'123456:ABC…' ?>"></div>
                         <div><label>Chat ID оператора / группы</label><input type="text" name="chat_tg_chat_id" value="<?= h(chat_tg_chat_id()) ?>" placeholder="123456789 или -100…"></div>
@@ -304,7 +305,7 @@ $c_color  = chat_widget_color();
     }
     function cbTgApi(act,extra,cb){
         var fd=new URLSearchParams();fd.set('csrf',CB_CSRF);if(extra)Object.keys(extra).forEach(function(k){fd.set(k,extra[k]);});
-        return fetch('?ajax='+act,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()}).then(function(r){return r.json();}).then(cb);
+        return fetch('?ajax='+act,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()}).then(function(r){return r.json();}).then(function(d){var w=document.getElementById('cbWhWarn');if(w&&d&&typeof d.hook_ok==='boolean')w.hidden=d.hook_ok;cb(d);});
     }
     function cbTgCheck(){
         var tok=document.querySelector('[name=chat_tg_bot_token]').value.trim();

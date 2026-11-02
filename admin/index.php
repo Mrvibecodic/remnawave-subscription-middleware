@@ -768,21 +768,28 @@ if (isset($_GET['ajax']) && is_auth()) {
     if ($a === 'chat_setwh' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         [$ok, $res, $err] = chat_tg_set_webhook(chat_tg_webhook_url());
-        echo json_encode(['ok' => $ok, 'error' => $err, 'url' => chat_tg_webhook_url()], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => $ok, 'error' => $err, 'url' => chat_tg_webhook_url(), 'hook_ok' => chat_tg_hook_ok()], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
     if ($a === 'chat_delwh' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         [$ok, $res, $err] = chat_tg_delete_webhook();
-        echo json_encode(['ok' => $ok, 'error' => $err], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => $ok, 'error' => $err, 'hook_ok' => chat_tg_hook_ok()], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
     if ($a === 'chat_whinfo' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
-        $wh_known = chat_tg_hook_base() !== '' || trim((string) setting('mirror_domain', '')) !== '';
-        echo json_encode(chat_tg_webhook_info() + ['expected' => $wh_known ? chat_tg_webhook_url() : ''], JSON_UNESCAPED_UNICODE);
+        $wh_known = chat_tg_hook_known();
+        $wi = chat_tg_webhook_info();
+        if ($wi['ok']) {
+            $wu = (string) ($wi['info']['url'] ?? '');
+            // Без домена зеркала адрес собран из хоста админки: чужой адрес мог поставить другой её хост.
+            if ($wu === chat_tg_webhook_url()) chat_tg_hook_mark(true);
+            elseif ($wh_known || !preg_match('~^https://[^/?#]+/chat\.php\?tg=1$~', $wu)) chat_tg_hook_mark(false);
+        }
+        echo json_encode($wi + ['expected' => $wh_known ? chat_tg_webhook_url() : '', 'hook_ok' => chat_tg_hook_ok()], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
