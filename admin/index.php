@@ -781,7 +781,8 @@ if (isset($_GET['ajax']) && is_auth()) {
 
     if ($a === 'chat_whinfo' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
-        echo json_encode(chat_tg_webhook_info() + ['expected' => chat_tg_webhook_url()], JSON_UNESCAPED_UNICODE);
+        $wh_known = chat_tg_hook_base() !== '' || trim((string) setting('mirror_domain', '')) !== '';
+        echo json_encode(chat_tg_webhook_info() + ['expected' => $wh_known ? chat_tg_webhook_url() : ''], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -1506,12 +1507,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         $hook_base = rtrim(preg_replace('~/chat\.php.*$~is', '', trim($_POST['chat_tg_hook_base'] ?? '')), '/');
         if ($hook_base !== '' && !preg_match('~^[a-z][a-z0-9+.-]*://~i', $hook_base)) $hook_base = 'https://' . $hook_base;
         $hook_bad = $hook_base !== '' && !preg_match('~^https://[^/\s?#]+(/[^\s?#]*)?$~i', $hook_base);
-        set_setting('chat_tg_hook_base', $hook_bad ? '' : $hook_base);
+        if (!$hook_bad) set_setting('chat_tg_hook_base', $hook_base);
         set_setting('chat_webhook_enabled', isset($_POST['chat_webhook_enabled']) ? '1' : '0');
         set_setting('chat_webhook_url', trim($_POST['chat_webhook_url'] ?? ''));
         if (($_POST['chat_webhook_secret'] ?? '') !== '') set_setting('chat_webhook_secret', trim($_POST['chat_webhook_secret']));
         $msg = 'Настройки чата сохранены';
-        if ($hook_bad) $msg .= ' · адрес для вебхука бота должен начинаться с https:// — оставлен домен прослойки';
+        if ($hook_bad) $msg .= ' · адрес для вебхука бота не сохранён: нужен вид https://домен — оставлен прежний';
         if (chat_tg_enabled() && chat_tg_token() !== '') {
             [$wok, $wres, $werr] = chat_tg_set_webhook(chat_tg_webhook_url());
             $msg .= $wok ? ' · вебхук бота установлен' : (' · вебхук НЕ установлен: ' . $werr);
