@@ -1,7 +1,6 @@
 <?php
 
-// Go-сервис рядом с прослойкой: опрашивает ноды для «Сессий» и собирает список пользователей панели.
-// Всё остальное остаётся в PHP; не справился Go — его работу делает PHP, как раньше.
+// Не справился Go — его работу делает PHP, как раньше.
 
 const GO_BRIDGE = 1;
 const GO_FORGET = 7 * 86400;
@@ -20,7 +19,6 @@ function go_url() {
     return $u !== '' ? $u : go_url_default();
 }
 
-// Только схема, хост и порт: путь, логин в адресе и запрос — ошибка, а не молча отброшенная часть.
 function go_url_norm($u, &$err = '') {
     $err = '';
     $u = rtrim(trim((string) $u), '/');
@@ -98,15 +96,13 @@ function go_mark_ok(array $info, ?array $fail = null) {
     }
 }
 
-// Умеет ли этот Go задачу. Go до списка пользователей о себе не рассказывал — он умеет только опрос нод.
-// Пока неизвестно (Go обновили, а hello ещё не было), — не умеет; список спросит Go сам.
+// Go, который о своих умениях не рассказывал (старый образ или ещё не спрошен), считается не умеющим.
 function go_can($cap) {
     $c = go_state()['caps'] ?? null;
     return is_array($c) && in_array((string) $cap, $c, true);
 }
 
-// Без «Сессий» Go больше никто не проверяет: список пользователей сам спрашивает, не вернулся ли он, — не чаще раза
-// в 5 минут. Только Go, который уже отвечал или задан руками: без Go прослойка работает как раньше, без лишних запросов.
+// Без «Сессий» Go больше никто не проверяет — вернулся ли он, спрашивает список пользователей, не чаще раза в 5 минут.
 function go_probe() {
     if (!go_known()) return;
     $s = go_state();
@@ -142,7 +138,7 @@ function go_err_text($kind, $detail = '') {
     return $d !== '' ? $d : 'ещё не проверялся';
 }
 
-// Запрос к Go. Прокси из окружения не используется: сервис всегда локальный.
+// Прокси из окружения не используется: сервис всегда локальный.
 function go_call($method, $path, ?array $body, $timeout, &$kind = '', &$detail = '') {
     $kind = '';
     $detail = '';
@@ -199,7 +195,6 @@ function go_hello(&$err = '') {
     return $j;
 }
 
-// Адреса опроса ноды с местом под идентификатор: их подставляет Go.
 function go_sess_tpl(callable $f) {
     return str_replace('__ID__', '{id}', (string) $f('__ID__'));
 }
@@ -213,10 +208,18 @@ function go_sess_poll(array $nodes, $until, &$err = '', &$first = '', &$reqs = 0
     $flipped = false;
     $ids = array_map('strval', array_keys($nodes));
     // Токен панели уходит только сервису, который уже назвался Go-сервисом: по адресу по умолчанию может слушать чужая программа.
-    if (empty(go_state()['ok']) && go_call('GET', '/v1/hello', null, 3, $kind, $detail) === null) {
-        if ($kind !== 'down' || go_known()) go_mark_fail($kind, $detail);
-        $err = go_err_text($kind, $detail);
-        return null;
+    if (empty(go_state()['ok'])) {
+        // Незнакомый Go ищем не чаще раза в 5 минут: иначе молчащий чужой порт съедал бы время каждого опроса.
+        // Отметка — отдельно от go_state: без Go о нём ничего не хранится.
+        if (!go_known()) {
+            if (time() - (int) setting('go_seek', '0') < 300) { $err = go_err_text('down', 'не найден'); return null; }
+            set_setting('go_seek', (string) time());
+        }
+        if (go_call('GET', '/v1/hello', null, 3, $kind, $detail) === null) {
+            if ($kind !== 'down' || go_known()) go_mark_fail($kind, $detail);
+            $err = go_err_text($kind, $detail);
+            return null;
+        }
     }
     while (true) {
         $left = $until - microtime(true);
@@ -276,7 +279,6 @@ function go_url_local($u) {
     return $h === '' || $h === 'localhost' || $h === '::1' || strpos($h, '127.') === 0 || (strpos($h, '.') === false && strpos($h, ':') === false);
 }
 
-// Для бейджа и блока «Go-сервис»: всё уже разобрано, шаблону и JS остаётся вывести.
 function go_view() {
     $s = go_state();
     $known = go_known($s);
@@ -330,7 +332,6 @@ function go_users_list(?array $fields, &$err = '', $budget = 60, $force = false)
     foreach ((array) ($j['hits'] ?? []) as $h) {
         if (is_array($h) && function_exists('apistat_hit')) apistat_hit((string) ($h['m'] ?? 'GET'), (string) ($h['p'] ?? ''), (int) ($h['c'] ?? 0), (float) ($h['ms'] ?? 0), 'go:users');
     }
-    // Go жив, но панель из его сети не открывается — до следующей проверки Go список собирает PHP.
     if ((string) ($j['panel_down'] ?? '') !== '') {
         go_mark_ok($j, ['panel', (string) $j['panel_down']]);
         $err = go_err_text('panel', (string) $j['panel_down']);
@@ -345,6 +346,11 @@ function go_users_list(?array $fields, &$err = '', $budget = 60, $force = false)
     }
     if (!$force) go_users_note(['eng' => 'go', 'ms' => (int) round((microtime(true) - $t0) * 1000), 'pages' => (int) ($j['pages'] ?? 0), 'n' => count($users), 'rt' => !empty($j['rt']) ? 1 : 0]);
     return $users;
+}
+
+function go_users_ready() {
+    $s = go_state();
+    return go_wanted() && !empty($s['ok']) && (!is_array($s['caps'] ?? null) || go_can('users')) && !go_users_blocked();
 }
 
 function go_users_state() {
@@ -395,7 +401,6 @@ function go_users_compare(&$detail = '') {
     return false;
 }
 
-// Для строки «Список пользователей» в блоке «Go-сервис».
 function go_users_view() {
     $s = go_users_state();
     $c = json_decode((string) setting('go_users_check', ''), true);
