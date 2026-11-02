@@ -11,10 +11,10 @@ foreach (['assets/.app-config-v2.json', 'assets/index-Ab12.js', 'assets/favicon-
 foreach (['wp-login.php', '.env', 'AbCdEfGhIjKlMnOp', 'AbCdEfGhIjKlMnOp/clash', 'robots.txt', 'admin/config.json'] as $pth) {
     t_ok('не защищено: /' . $pth, !junk_protected($pth));
 }
-foreach (['.env', '.env.local', 'app/.env', '.git/config', 'wp-login.php', 'wp-admin/', 'wp-admin', 'x.php', 'a/b.php5', 'phpmyadmin/index.php', 'cgi-bin/luci', 'backup.sql', 'id_rsa.key', 'xmlrpc.php'] as $pth) {
+foreach (['wp-login.php', 'wp-admin/', 'wp-admin', 'wp-content/plugins/x/readme.txt', 'a/b.php5', 'up.phtml', 'phpmyadmin/', 'phpmyadmin/index.php', 'cgi-bin/luci', 'backup.sql', 'wp-config.php.bak', 'id_rsa.key'] as $pth) {
     t_ok('набор путей ловит /' . $pth, junk_set_paths_match($pth));
 }
-foreach (['AbCdEfGhIjKlMnOp', 'AbCdEfGhIjKlMnOp/clash', 'sub/AbCdEfGhIjKlMnOp/sing-box', 'robots.txt', 'assets/.app-config-v2.json', 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.Sfl-KxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c', 'api/v1/users', 'phpinfo'] as $pth) {
+foreach (['AbCdEfGhIjKlMnOp', 'AbCdEfGhIjKlMnOp/clash', 'sub/AbCdEfGhIjKlMnOp/sing-box', 'robots.txt', 'assets/.app-config-v2.json', 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.Sfl-KxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c', 'api/v1/users', 'phpinfo', '.env', '.git/config', 'x.php', 'xmlrpc.php'] as $pth) {
     t_ok('набор путей не трогает /' . $pth, !junk_set_paths_match($pth));
 }
 t_ok('боты: Googlebot', junk_set_bots_match('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'));
@@ -96,17 +96,20 @@ $ua = ['User-Agent' => 'ClashMeta/1.19.0 mihomo'];
 t_eq('живая подписка: 200', $c, 200);
 t_eq('живая подписка в мусор не пишется', (int) db()->query("SELECT COUNT(*) FROM junk_log WHERE path = 'AbCdEfGhIjKlMnOp'")->fetchColumn(), 0);
 
-[$c, , $b] = t_http('GET', $mw . '/.env', ['User-Agent' => 'zgrab/0.x', 'X-Real-IP' => '45.155.205.233']);
+[$c, , $b] = t_http('GET', $mw . '/backup.sql', ['User-Agent' => 'zgrab/0.x', 'X-Real-IP' => '45.155.205.233']);
 $j = $jlog();
-t_ok('мусор без правил уходит в панель и пишется', $c === 404 && $hits('.env') === 1 && ($j['path'] ?? '') === '.env' && $j['kind'] === 'pass' && (int) $j['code'] === 404 && $j['ip'] === '45.155.205.233' && $j['ua'] === 'zgrab/0.x');
+t_ok('мусор без правил уходит в панель и пишется', $c === 404 && $hits('backup.sql') === 1 && ($j['path'] ?? '') === 'backup.sql' && $j['kind'] === 'pass' && (int) $j['code'] === 404 && $j['ip'] === '45.155.205.233' && $j['ua'] === 'zgrab/0.x');
 $copy = $b;
-t_ok('мусор пишется и без доп. конфигов и второй подписки', (int) db()->query("SELECT hits FROM junk_hits WHERE path = '.env'")->fetchColumn() === 1);
+t_ok('мусор пишется и без доп. конфигов и второй подписки', (int) db()->query("SELECT hits FROM junk_hits WHERE path = 'backup.sql'")->fetchColumn() === 1);
+[$c] = t_http('GET', $mw . '/wp-admin/', ['User-Agent' => 'zgrab/0.x', 'X-Real-IP' => '45.155.205.233']);
+$j = $jlog();
+t_ok('путь из набора при выключенном наборе пишется и уходит в панель', $c === 404 && $hits('wp-admin/') === 1 && ($j['path'] ?? '') === 'wp-admin/' && $j['kind'] === 'pass');
 t_ok('копия 404 сохранена', (junk_404_copy()['body'] ?? null) === $copy);
 
 junk_set_save('paths', true, 'cut', 'copy404');
-[$c, $h, $b] = t_http('GET', $mw . '/.env', ['User-Agent' => 'zgrab/0.x', 'X-Real-IP' => '45.155.205.233']);
+[$c, $h, $b] = t_http('GET', $mw . '/backup.sql', ['User-Agent' => 'zgrab/0.x', 'X-Real-IP' => '45.155.205.233']);
 $j = $jlog();
-t_ok('набор режет: панель не спрошена', $hits('.env') === 1);
+t_ok('набор режет: панель не спрошена', $hits('backup.sql') === 1);
 t_ok('ответ — копия 404 панели', $c === 404 && $b === $copy && strpos($h['content-type'] ?? '', 'application/json') === 0, $c . ' ' . substr($b, 0, 80));
 t_ok('отрезанный записан с правилом', $j['kind'] === 'cut' && $j['rule'] === 'Сканерские пути' && $j['resp'] === 'copy404');
 set_setting('mask_notfound', '1');
@@ -114,7 +117,7 @@ set_setting('mask_notfound', '1');
 t_ok('«маскировать 404» — пустой 404', $c === 404 && $b === '');
 set_setting('mask_notfound', '0');
 junk_set_save('paths', true, 'cut', '403');
-[$c] = t_http('GET', $mw . '/xmlrpc.php', ['User-Agent' => 'zgrab/0.x', 'X-Real-IP' => '45.155.205.233']);
+[$c] = t_http('GET', $mw . '/phpmyadmin/', ['User-Agent' => 'zgrab/0.x', 'X-Real-IP' => '45.155.205.233']);
 t_eq('ответ 403', $c, 403);
 
 junk_rule_add('ua', 'Mozilla', 'e404', 'cut', 0, $e);
@@ -146,12 +149,12 @@ $sp = t_serve($tt_root . '/data', $tt_root . '/data/subpage.php');
 t_settings(['subpage_external_url' => $sp]);
 $sphits = static function (string $p) use ($splog): int { return substr_count((string) @file_get_contents($splog), '/' . $p . "\n"); };
 $chrome = ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'X-Real-IP' => '45.155.205.233'];
-[$c] = t_http('GET', $mw . '/wp-config.php', $chrome);
+[$c] = t_http('GET', $mw . '/wp-config.php.bak', $chrome);
 $j = $jlog();
-t_ok('браузерный мусор без правил идёт на страницу подписки и пишется', $sphits('wp-config.php') === 1 && $j['path'] === 'wp-config.php' && $j['kind'] === 'pass' && (int) $j['code'] === 404);
+t_ok('браузерный мусор без правил идёт на страницу подписки и пишется', $sphits('wp-config.php.bak') === 1 && $j['path'] === 'wp-config.php.bak' && $j['kind'] === 'pass' && (int) $j['code'] === 404);
 junk_set_save('paths', true, 'cut', '403');
-[$c] = t_http('GET', $mw . '/wp-config.php', $chrome);
-t_ok('браузерный мусор режется набором до страницы подписки', $c === 403 && $sphits('wp-config.php') === 1 && $jlog()['kind'] === 'cut');
+[$c] = t_http('GET', $mw . '/wp-config.php.bak', $chrome);
+t_ok('браузерный мусор режется набором до страницы подписки', $c === 403 && $sphits('wp-config.php.bak') === 1 && $jlog()['kind'] === 'cut');
 junk_rule_add('ua', 'Mozilla', 'e404', 'cut', 0, $e);
 [$c] = t_http('GET', $mw . '/AbCdEfGhIjKlMnOp', $chrome);
 t_ok('страница живой ссылки в браузере открывается при правиле на Mozilla', $sphits('AbCdEfGhIjKlMnOp') === 1);
@@ -192,7 +195,7 @@ t_ok('экран: сводка за сутки', $v['kpi']['n'] >= 9 && $v['kpi'
 $jar = t_admin_login($mw);
 [$c, , $p] = t_http('GET', $mw . '/admin/index.php?tab=reqlog&view=junk', [], null, $jar);
 t_ok('экран «Мусор» открывается', $c === 200 && strpos($p, 'id="jkReq"') !== false && strpos($p, '</html>') !== false, 'код ' . $c);
-t_ok('экран: строки запросов, путей и IP', strpos($p, '<code class="ip">45.155.205.233</code>') !== false && strpos($p, '<code>/.env</code>') !== false);
+t_ok('экран: строки запросов, путей и IP', strpos($p, '<code class="ip">45.155.205.233</code>') !== false && strpos($p, '<code>/backup.sql</code>') !== false);
 t_ok('экран: нет блокировки по IP', strpos($p, 'Заблокировать') === false && strpos($p, 'Автоблок') === false && strpos($p, 'data-t="ip"') === false);
 preg_match('~name="csrf" value="([0-9a-f]+)"~', $p, $m);
 $post = static function (array $f) use ($mw, $jar, $m) { return t_http('POST', $mw . '/admin/index.php', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $m[1]] + $f), $jar); };

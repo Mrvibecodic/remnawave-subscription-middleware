@@ -220,7 +220,7 @@
             <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         <div class="coll-body">
-        <p class="muted">Запросы на несуществующие адреса: файлы, <code>/wp-login.php</code>, <code>/.env</code> и т.п. Обычная подписка сюда не попадает. Статистика по ним и правила отсечения — в разделе <a href="?tab=reqlog&amp;view=junk">«Мусор»</a>.</p>
+        <p class="muted">Запросы на несуществующие адреса: <code>/backup.sql</code>, <code>/wp-admin/</code>, <code>/phpmyadmin/</code> и т.п. Обычная подписка сюда не попадает. Статистика по ним и правила отсечения — в разделе <a href="?tab=reqlog&amp;view=junk">«Мусор»</a>.</p>
         <?php $jl_len = panel_short_uuid_len(); ?>
         <form method="post" data-autosave style="margin:.9rem 0 0">
             <input type="hidden" name="csrf" value="<?= h($token) ?>">

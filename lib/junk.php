@@ -121,9 +121,9 @@ function junk_protected($path) {
     return (bool) preg_match('~(^|/)(favicon[^/]*|apple-touch-icon[^/]*|site\.webmanifest|manifest(\.[a-z0-9-]+)?\.(json|webmanifest)|browserconfig\.xml)$~i', $path);
 }
 
-function junk_set_paths_dot() { return ['env', 'git', 'svn', 'hg', 'aws', 'ssh', 'htaccess', 'htpasswd', 'bash_history', 'bashrc', 'npmrc', 'dockercfg', 'ds_store']; }
-function junk_set_paths_ext() { return ['php', 'phtml', 'asp', 'aspx', 'jsp', 'cgi', 'pl', 'sh', 'bash', 'sql', 'bak', 'old', 'ini', 'conf', 'cfg', 'pem', 'key', 'crt', 'pfx', 'p12', 'so', 'dll', 'exe']; }
-function junk_set_paths_dir() { return ['wp-admin', 'wp-login', 'wp-content', 'wp-includes', 'xmlrpc.php', 'phpmyadmin', 'cgi-bin']; }
+// *.php и скрытые файлы (.env, .git) nginx прослойки отвечает сам, до PHP они не доходят — в набор не входят.
+function junk_set_paths_ext() { return ['php3', 'php4', 'php5', 'php7', 'phtml', 'asp', 'aspx', 'jsp', 'cgi', 'pl', 'sh', 'bash', 'sql', 'bak', 'old', 'ini', 'conf', 'cfg', 'pem', 'key', 'crt', 'pfx', 'p12', 'so', 'dll', 'exe']; }
+function junk_set_paths_dir() { return ['wp-admin', 'wp-login', 'wp-content', 'wp-includes', 'phpmyadmin', 'cgi-bin']; }
 
 function junk_set_bots() {
     return ['googlebot', 'bingbot', 'bingpreview', 'slurp', 'duckduckbot', 'baiduspider', 'yandexbot', 'yandeximages', 'sogou', 'seznambot', 'mojeek', 'qwantify',
@@ -136,7 +136,7 @@ function junk_set_paths_match($path) {
     static $re = null;
     if ($re === null) {
         $q = static function (array $a) { return implode('|', array_map(static function ($s) { return preg_quote($s, '~'); }, $a)); };
-        $re = '~(^|/)\.(' . $q(junk_set_paths_dot()) . ')(/|$|\.)|\.(' . $q(junk_set_paths_ext()) . ')\d?($|/)|(^|/)(' . $q(junk_set_paths_dir()) . ')([/.]|$)~i';
+        $re = '~\.(' . $q(junk_set_paths_ext()) . ')\d?($|/)|(^|/)(' . $q(junk_set_paths_dir()) . ')([/.]|$)~i';
     }
     return (bool) preg_match($re, (string) $path);
 }
@@ -420,6 +420,7 @@ function junk_clear_stats() {
 
 // Прежние index.php и admin/index.php в окне пофайлового обновления зовут старые имена.
 function junk_record($path) {}
+function junk_set_paths_dot() { return []; }
 
 function junk_top($limit = 100) {
     if (!junk_ensure()) return [];

@@ -78,7 +78,8 @@ $skip_log =
     || substr($path, -1) === '~'
     || preg_match('~^(app|api|backend|frontend|server|config|credentials|secrets|keyfile|phpinfo\.php|wp-login\.php|wp-admin|xmlrpc\.php)$~i', $path)
     || preg_match('~(^|/)(favicon\.ico|robots\.txt|sitemap\.xml|browserconfig\.xml|apple-touch-icon[\w-]*\.png)$~i', $path)
-    || junk_short_len_mismatch($path);
+    || junk_short_len_mismatch($path)
+    || (function_exists('junk_set_paths_match') && junk_set_paths_match($path));
 
 $junk_path = $skip_log && !junk_excluded($path);
 

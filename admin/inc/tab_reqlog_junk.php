@@ -158,7 +158,7 @@ $jk_state = static function ($r, $cut_word) {
                     ?>
                     <tr data-k="<?= h($rk) ?>" data-q="<?= h(mb_strtolower($r['ip'] . ' /' . $r['path'] . ' ' . $r['ua'])) ?>"><td class="ts" data-label="Время"><span class="jk-t" data-ts="<?= (int) $r['ts'] ?>" data-f="t"><?= h(date('H:i:s', (int) $r['ts'])) ?></span></td><td data-label="IP"><code class="ip"><?= h($r['ip']) ?></code></td><td data-label="Путь" data-wide><code>/<?= h($r['path']) ?></code></td><td data-label="User-Agent" data-wide><span class="jk-ua" data-tip="<?= h($r['ua']) ?>"><?= $r['ua'] !== '' ? h($r['ua']) : '—' ?></span></td><td data-label="Ответ" data-wide><?= $tag ?></td><td data-acts><div class="jk-act"><button class="jk-ib" type="button" data-new="path" data-v="<?= h($r['path']) ?>" data-tip="Правило на путь"><?= $jk_ico['rule'] ?></button><?php if ($r['ua'] !== ''): ?><button class="jk-ib" type="button" data-new="ua" data-v="<?= h(mb_substr($r['ua'], 0, 191)) ?>" data-tip="Правило на User-Agent"><?= $jk_ico['ua'] ?></button><?php endif; ?></div></td></tr>
                     <?php endforeach; ?>
-                    <?php if (!$jk['log']): ?><tr class="jk-empty"><td colspan="6">Пока пусто — мусорных запросов не было</td></tr><?php endif; ?>
+                    <?php if (!$jk['log']): ?><tr class="jk-empty"><td colspan="6">Пока пусто — мусор до прослойки не доходил</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -220,14 +220,14 @@ $jk_state = static function ($r, $cut_word) {
                 </div>
 
                 <h3 class="jk-h3">Готовые наборы</h3>
-                <?php foreach (['paths' => ['Сканерские пути', '.php, .env, .git, wp-*, phpmyadmin, cgi-bin, конфиги и ключи'], 'bots' => ['Боты по User-Agent', 'поисковики, SEO-боты, сканеры портов']] as $sk => [$st_t, $st_d]):
+                <?php foreach (['paths' => ['Сканерские пути', 'wp-*, phpmyadmin, cgi-bin, бэкапы, конфиги и ключи'], 'bots' => ['Боты по User-Agent', 'поисковики, SEO-боты, сканеры портов']] as $sk => [$st_t, $st_d]):
                     $sr = $jk_sets[$sk];
                     $s_on = $sr && (int) $sr['active'] === 1;
                     $s_mode = $sr ? (string) $sr['mode'] : 'dry';
                     $s_resp = $sr ? (string) $sr['resp'] : ($sk === 'bots' ? '403' : 'copy404');
                     $s_hits = $sr ? (int) $sr['hits'] : 0;
                     if ($sk === 'paths') {
-                        $chips = array_merge(array_map(static function ($x) { return '*.' . $x; }, junk_set_paths_ext()), array_map(static function ($x) { return '.' . $x; }, junk_set_paths_dot()), array_map(static function ($x) { return $x . (strpos($x, '.') === false ? '/' : ''); }, junk_set_paths_dir()));
+                        $chips = array_merge(array_map(static function ($x) { return '*.' . $x; }, junk_set_paths_ext()), array_map(static function ($x) { return $x . (strpos($x, '.') === false ? '/' : ''); }, junk_set_paths_dir()));
                     } else {
                         $chips = junk_set_bots();
                     }
@@ -264,6 +264,19 @@ $jk_state = static function ($r, $cut_word) {
             </div>
         </div>
     </div>
+
+    <section class="<?= coll_cls('junk_help', true) ?>" data-coll="junk_help">
+        <button type="button" class="coll-head" onclick="collToggle(this)"><span>❓ Как это работает</span>
+            <span class="coll-hr"><svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="coll-body">
+            <p class="muted" style="margin-top:0;line-height:1.7">Мусор — запросы на адреса, которых у подписки не бывает: бэкапы и архивы (<code>backup.sql</code>, <code>site.zip</code>), конфиги и ключи (<code>config.yml</code>, <code>server.key</code>), чужие админки (<code>wp-admin</code>, <code>phpmyadmin</code>, <code>cgi-bin</code>). Их шлют сканеры и боты, которые перебирают адреса наугад. Ссылки подписки и файлы страницы подписки сюда не попадают.</p>
+            <p class="muted" style="line-height:1.7">Пока правил нет, такой запрос уходит в панель, как обычный, и сканер получает её ответ «не найдено». «Только считать» ничего не меняет — показывает, сколько отрезало бы. «Резать» — прослойка отвечает сама, панель запрос не видит.</p>
+            <p class="muted" style="line-height:1.7">Часть мусора сюда не доходит: её раньше отсекает nginx прослойки — и в Docker, и при установке файлами через <code>install.sh</code>. Адреса на <code>.php</code> (<code>wp-login.php</code>, <code>xmlrpc.php</code>) получают «не найдено», скрытые файлы (<code>.env</code>, <code>.git</code>) и служебные папки прослойки — «доступ запрещён». В панель они не идут, правила для них не нужны. Если nginx настроен вручную — сюда доходит то, что пропускают его настройки.</p>
+            <p class="muted" style="line-height:1.7">Главная страница (<code>/</code>) получает заглушку и сюда не пишется. После установки мастером так же отвечают на запросы по IP вместо домена.</p>
+            <p class="muted" style="margin-bottom:0;line-height:1.7">Если здесь оказался настоящий адрес — нажмите «Исключить» во вкладке «Пути», и он перестанет считаться мусором.</p>
+        </div>
+    </section>
 
     <div id="jkDlg" class="modal-overlay">
         <div class="modal" style="max-width:520px">
