@@ -137,6 +137,7 @@ $c_color  = chat_widget_color();
             </div>
             <div class="row">
                 <div><label>Базовый URL Telegram API <span class="hint">пусто — используется api.telegram.org. Свой reverse-proxy нужен, только если Telegram заблокирован на сервере зеркала</span></label><input type="text" name="chat_tg_api_base" value="<?= h(trim((string) setting('chat_tg_api_base',''))) ?>" placeholder="https://api.telegram.org (по умолчанию)"></div>
+                <div><label>Адрес для вебхука бота <span class="hint">пусто — домен прослойки. Другой сервер нужен, только если Telegram не может достучаться до сервера прослойки и ответы оператора не доходят</span></label><input type="text" name="chat_tg_hook_base" value="<?= h(trim((string) setting('chat_tg_hook_base',''))) ?>" placeholder="домен прослойки (по умолчанию)"></div>
             </div>
             <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin:.2rem 0 .2rem">
                 <button type="button" class="btn ghost" onclick="cbTgCheck()">🔌 Проверить доступ TG</button>
@@ -300,8 +301,9 @@ $c_color  = chat_widget_color();
             var url=i.url||'';
             var parts=[];
             parts.push(url?('URL: <code>'+cbEsc(url)+'</code>'):'<b>вебхук не установлен</b> — нажмите «Установить вебхук бота»');
+            if(url&&d.expected&&url!==d.expected)parts.push('⚠️ адрес не тот, что задан в прослойке (<code>'+cbEsc(d.expected)+'</code>) — нажмите «Установить вебхук бота»; если адрес снова меняется, этот бот подключён ещё к другой программе');
             if(typeof i.pending_update_count!=='undefined')parts.push('в очереди: '+i.pending_update_count);
-            if(i.last_error_message)parts.push('❌ последняя ошибка: '+cbEsc(i.last_error_message));
+            if(i.last_error_message){var ea=i.last_error_date?Math.max(0,Math.round(Date.now()/1000-i.last_error_date)):-1;var es=ea<0?'':ea<60?' (только что)':ea<3600?' ('+Math.round(ea/60)+' мин назад)':ea<172800?' ('+Math.round(ea/3600)+' ч назад)':' ('+Math.round(ea/86400)+' дн назад)';parts.push('❌ последняя ошибка'+es+': '+cbEsc(i.last_error_message));}
             else if(url)parts.push('✅ ошибок нет');
             el.innerHTML=parts.join(' · ');
         });

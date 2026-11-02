@@ -20,6 +20,10 @@ function chat_tg_api_base() {
     $v = rtrim(trim((string) setting('chat_tg_api_base', '')), '/');
     return ($v !== '' && preg_match('~^https?://~i', $v)) ? $v : 'https://api.telegram.org';
 }
+function chat_tg_hook_base() {
+    $v = rtrim(trim((string) setting('chat_tg_hook_base', '')), '/');
+    return preg_match('~^https://[^/\s?#]+(/[^\s?#]*)?$~i', $v) ? $v : '';
+}
 function chat_tg_is_down() {
     $ts = (int) setting('chat_tg_down_ts', '0');
     return $ts > 0 && (time() - $ts) < 300;
@@ -603,6 +607,8 @@ function chat_inbound_url() {
 }
 
 function chat_tg_webhook_url() {
+    $base = chat_tg_hook_base();
+    if ($base !== '') return $base . '/chat.php?tg=1';
     $host = mirror_domain() ?: ($_SERVER['HTTP_HOST'] ?? '');
     return 'https://' . $host . '/chat.php?tg=1';
 }
