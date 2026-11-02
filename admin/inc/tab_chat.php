@@ -13,6 +13,24 @@ $c_color  = chat_widget_color();
         .cb-pill{padding:.6rem 1rem;border-radius:24px;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600}
         .cb-bar{padding:.6rem 1.2rem;border-radius:12px 12px 0 0;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600}
         .cb-pre .cb-lbl{font-size:.8rem;color:var(--muted)}
+        .cs-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:start;margin-top:.9rem}
+        @media(min-width:1200px){.cs-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto 1fr;grid-template-areas:"w tg" "fb tg"}.cs-g-w{grid-area:w}.cs-g-tg{grid-area:tg}.cs-g-fb{grid-area:fb}}
+        .cs-grp{border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:1rem 1.1rem 1.1rem;min-width:0}
+        .cs-h{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding-bottom:.8rem;margin-bottom:.9rem;border-bottom:1px solid var(--line)}
+        .cs-h .switch{margin-top:.15rem}
+        .cs-t{font-size:.95rem;font-weight:600;color:var(--text-strong)}
+        .cs-b>*{margin-top:0;margin-bottom:0}
+        .cs-b>*+*{margin-top:.85rem}
+        .cs-b .cb-presets{margin:.35rem 0 0}
+        .cs-b .row>.cs-num{flex:0 0 180px;min-width:0}
+        .cs-b>#cbTgRes{margin-top:.45rem}
+        .cs-b .cb-pill,.cs-b .cb-bar{white-space:nowrap}
+        .cs-b .row>.cs-color{flex:0 0 auto;min-width:0}
+        .cs-color input{width:56px;height:42px;padding:.2rem}
+        .cs-b .set-row>select{flex:0 0 auto;width:180px;margin:0}
+        @media(max-width:560px){.cs-b .set-row>select{width:100%}}
+        .cs-btns{display:flex;gap:.6rem;flex-wrap:wrap}
+        .cs-note{font-size:.8rem}
         .cb-chat{display:grid;grid-template-columns:300px 1fr;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;height:560px}
         @media(max-width:760px){.cb-chat{grid-template-columns:1fr;height:auto}}
         .cb-list{border-right:1px solid var(--line);overflow-y:auto;background:var(--bg2)}
@@ -86,80 +104,87 @@ $c_color  = chat_widget_color();
             <svg width="30" height="30" class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="coll-body">
-        <p class="muted" style="margin-bottom:.6rem">Встроенный в страницу-заглушку чат. Сообщения посетителей переотправляются в Telegram и/или на вебхук; отвечать можно отсюда, из Telegram (ответом на пересланное сообщение) или через вебхук.</p>
+        <p class="muted">Встроенный в страницу-заглушку чат. Сообщения посетителей переотправляются в Telegram и/или на вебхук; отвечать можно отсюда, из Telegram (ответом на пересланное сообщение) или через вебхук.</p>
         <form method="post" data-autosave>
             <input type="hidden" name="csrf" value="<?= h($token) ?>">
             <input type="hidden" name="action" value="save_chat_cfg">
 
-            <div class="set-row">
-                <div class="set-info"><div class="set-t">Включить чат на сайте</div><div class="set-d">Показывать окно чата на странице-заглушке.</div></div>
-                <label class="switch"><input type="checkbox" name="chat_enabled" <?= chat_enabled()?'checked':'' ?>><span class="sl"></span></label>
+            <div class="cs-grid">
+            <div class="cs-grp cs-g-w">
+                <div class="cs-h">
+                    <div class="set-info"><div class="cs-t">Включить чат на сайте</div><div class="set-d">Показывать окно чата на странице-заглушке.</div></div>
+                    <label class="switch"><input type="checkbox" name="chat_enabled" <?= chat_enabled()?'checked':'' ?>><span class="sl"></span></label>
+                </div>
+                <div class="cs-b">
+                    <div class="row">
+                        <div><label>Имя агента поддержки</label><input type="text" name="chat_agent_name" value="<?= h(chat_agent_name()) ?>" placeholder="Поддержка"></div>
+                        <div><label>Фото агента (URL)</label><input type="text" name="chat_agent_photo" value="<?= h(chat_agent_photo()) ?>" placeholder="https://…/avatar.png"></div>
+                    </div>
+                    <div class="row">
+                        <div><label>Приветствие</label><input type="text" name="chat_greeting" value="<?= h(chat_greeting()) ?>" placeholder="Здравствуйте! Чем можем помочь?"></div>
+                        <div class="cs-num"><label>Интервал опроса, сек</label><input type="number" min="2" max="30" name="chat_poll_interval" value="<?= (int) chat_poll_interval() ?>"></div>
+                    </div>
+                    <div>
+                        <label>Вид свёрнутого окна</label>
+                        <div class="cb-presets">
+                            <label class="cb-pre <?= $c_preset===1?'sel':'' ?>" data-pre="1"><input type="radio" name="chat_widget_preset" value="1" <?= $c_preset===1?'checked':'' ?>><div class="cb-demo"><span class="cb-bubble"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.3 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span></div><div class="cb-lbl">Круглый пузырь</div></label>
+                            <label class="cb-pre <?= $c_preset===2?'sel':'' ?>" data-pre="2"><input type="radio" name="chat_widget_preset" value="2" <?= $c_preset===2?'checked':'' ?>><div class="cb-demo"><span class="cb-pill">💬 Напишите нам</span></div><div class="cb-lbl">Пилюля с текстом</div></label>
+                            <label class="cb-pre <?= $c_preset===3?'sel':'' ?>" data-pre="3"><input type="radio" name="chat_widget_preset" value="3" <?= $c_preset===3?'checked':'' ?>><div class="cb-demo"><span class="cb-bar">💬 Напишите нам</span></div><div class="cb-lbl">Бар снизу</div></label>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div><label>Текст на кнопке (пресеты 2–3)</label><input type="text" name="chat_widget_text" value="<?= h(chat_widget_text()) ?>" placeholder="Напишите нам"></div>
+                        <div class="cs-color"><label>Цвет</label><input type="color" name="chat_widget_color" value="<?= h($c_color) ?>"></div>
+                    </div>
+                    <div class="set-row">
+                        <div class="set-info"><div class="set-t">Положение</div><div class="set-d">С какой стороны экрана показывать кнопку.</div></div>
+                        <select name="chat_widget_position">
+                            <option value="right" <?= $c_pos==='right'?'selected':'' ?>>Справа</option>
+                            <option value="left" <?= $c_pos==='left'?'selected':'' ?>>Слева</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
-            <div class="row">
-                <div><label>Имя агента поддержки</label><input type="text" name="chat_agent_name" value="<?= h(chat_agent_name()) ?>" placeholder="Поддержка"></div>
-                <div><label>Фото агента (URL)</label><input type="text" name="chat_agent_photo" value="<?= h(chat_agent_photo()) ?>" placeholder="https://…/avatar.png"></div>
-            </div>
-            <div class="row">
-                <div><label>Приветствие</label><input type="text" name="chat_greeting" value="<?= h(chat_greeting()) ?>" placeholder="Здравствуйте! Чем можем помочь?"></div>
-                <div><label>Интервал опроса, сек</label><input type="number" min="2" max="30" name="chat_poll_interval" value="<?= (int) chat_poll_interval() ?>"></div>
-            </div>
-
-            <label style="margin:.4rem 0 .2rem">Вид свёрнутого окна</label>
-            <div class="cb-presets">
-                <label class="cb-pre <?= $c_preset===1?'sel':'' ?>" data-pre="1"><input type="radio" name="chat_widget_preset" value="1" <?= $c_preset===1?'checked':'' ?>><div class="cb-demo"><span class="cb-bubble"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.3 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 1 1 16.1-3.8z"/></svg></span></div><div class="cb-lbl">Круглый пузырь</div></label>
-                <label class="cb-pre <?= $c_preset===2?'sel':'' ?>" data-pre="2"><input type="radio" name="chat_widget_preset" value="2" <?= $c_preset===2?'checked':'' ?>><div class="cb-demo"><span class="cb-pill">💬 Напишите нам</span></div><div class="cb-lbl">Пилюля с текстом</div></label>
-                <label class="cb-pre <?= $c_preset===3?'sel':'' ?>" data-pre="3"><input type="radio" name="chat_widget_preset" value="3" <?= $c_preset===3?'checked':'' ?>><div class="cb-demo"><span class="cb-bar">💬 Напишите нам</span></div><div class="cb-lbl">Бар снизу</div></label>
-            </div>
-
-            <div class="row">
-                <div><label>Текст на кнопке (пресеты 2–3)</label><input type="text" name="chat_widget_text" value="<?= h(chat_widget_text()) ?>" placeholder="Напишите нам"></div>
-                <div><label>Цвет</label><input type="color" name="chat_widget_color" value="<?= h($c_color) ?>" style="height:42px;padding:.2rem"></div>
-            </div>
-            <div class="set-row">
-                <div class="set-info"><div class="set-t">Положение</div><div class="set-d">С какой стороны экрана показывать кнопку.</div></div>
-                <select name="chat_widget_position">
-                    <option value="right" <?= $c_pos==='right'?'selected':'' ?>>Справа</option>
-                    <option value="left" <?= $c_pos==='left'?'selected':'' ?>>Слева</option>
-                </select>
+            <div class="cs-grp cs-g-tg">
+                <div class="cs-h">
+                    <div class="set-info"><div class="cs-t">Переотправка в Telegram</div><div class="set-d">Отдельный бот. Оператор отвечает в TG <b>ответом</b> на пересланное сообщение (или командой <code>/r &lt;id&gt; текст</code>).</div></div>
+                    <label class="switch"><input type="checkbox" name="chat_tg_enabled" <?= chat_tg_enabled()?'checked':'' ?>><span class="sl"></span></label>
+                </div>
+                <div class="cs-b">
+                    <div class="warn">⚠️ <b>После подключения бота обязательно активируйте вебхук</b> — иначе ответы оператора из Telegram не дойдут до сайта. Достаточно <b>сохранить настройки</b> с включённым TG (вебхук поставится сам) или нажать «📡 Установить вебхук бота», затем проверить «ℹ️ Статус вебхука».</div>
+                    <div class="row">
+                        <div><label>Токен бота</label><input type="password" name="chat_tg_bot_token" value="" placeholder="<?= chat_tg_token()?'•••••• задан':'123456:ABC…' ?>"></div>
+                        <div><label>Chat ID оператора / группы</label><input type="text" name="chat_tg_chat_id" value="<?= h(chat_tg_chat_id()) ?>" placeholder="123456789 или -100…"></div>
+                    </div>
+                    <div><label>Базовый URL Telegram API <span class="hint">пусто — используется api.telegram.org. Свой reverse-proxy нужен, только если Telegram заблокирован на сервере зеркала</span></label><input type="text" name="chat_tg_api_base" value="<?= h(trim((string) setting('chat_tg_api_base',''))) ?>" placeholder="https://api.telegram.org (по умолчанию)"></div>
+                    <div><label>Адрес для вебхука бота <span class="hint">пусто — домен прослойки. Другой сервер нужен, только если Telegram не может достучаться до сервера прослойки и ответы оператора не доходят</span></label><input type="text" name="chat_tg_hook_base" value="<?= h(trim((string) setting('chat_tg_hook_base',''))) ?>" placeholder="домен прослойки (по умолчанию)"></div>
+                    <div class="cs-btns">
+                        <button type="button" class="btn ghost" onclick="cbTgCheck()">🔌 Проверить доступ TG</button>
+                        <button type="button" class="btn ghost" onclick="cbSetWh()">📡 Установить вебхук бота</button>
+                        <button type="button" class="btn ghost" onclick="cbWhInfo()">ℹ️ Статус вебхука</button>
+                        <button type="button" class="btn ghost" onclick="cbDelWh()">🧹 Удалить вебхук</button>
+                    </div>
+                    <div id="cbTgRes" class="muted" style="font-size:.84rem;min-height:1.2rem"></div>
+                    <p class="muted cs-note">Вебхук бота: <code><?= h(chat_tg_webhook_url()) ?></code> — нужен, чтобы ответы из TG доходили до сайта. При сохранении настроек с включённым TG он ставится автоматически; если ответы не приходят, нажмите «Статус вебхука».</p>
+                </div>
             </div>
 
-            <hr style="border:0;border-top:1px solid var(--line);margin:1.2rem 0">
-
-            <div class="set-row">
-                <div class="set-info"><div class="set-t">Переотправка в Telegram</div><div class="set-d">Отдельный бот. Оператор отвечает в TG <b>ответом</b> на пересланное сообщение (или командой <code>/r &lt;id&gt; текст</code>).</div></div>
-                <label class="switch"><input type="checkbox" name="chat_tg_enabled" <?= chat_tg_enabled()?'checked':'' ?>><span class="sl"></span></label>
+            <div class="cs-grp cs-g-fb">
+                <div class="cs-h">
+                    <div class="set-info"><div class="cs-t">Вебхук-fallback (если TG заблокирован)</div><div class="set-d">Двусторонний: новые сообщения POST-ятся на ваш URL с подписью; ответы агента принимаются на входящий endpoint.</div></div>
+                    <label class="switch"><input type="checkbox" name="chat_webhook_enabled" <?= chat_webhook_enabled()?'checked':'' ?>><span class="sl"></span></label>
+                </div>
+                <div class="cs-b">
+                    <div class="row">
+                        <div><label>Исходящий URL (куда слать сообщения)</label><input type="text" name="chat_webhook_url" value="<?= h(chat_webhook_url()) ?>" placeholder="https://your-endpoint/chat"></div>
+                        <div><label>Секрет исходящих (HMAC)</label><input type="password" name="chat_webhook_secret" value="" placeholder="<?= chat_webhook_secret()?'•••••• задан':'не задан' ?>"></div>
+                    </div>
+                    <p class="muted cs-note">Входящий endpoint (для ответов агента): <code><?= h(chat_inbound_url()) ?></code><br>
+                    Заголовок подписи входящих: <code>X-Chat-Signature: sha256=HMAC(body, входящий_секрет)</code>. Входящий секрет: <code><?= h(chat_inbound_secret()) ?></code></p>
+                </div>
             </div>
-            <div class="warn" style="margin:.2rem 0 .6rem">⚠️ <b>После подключения бота обязательно активируйте вебхук</b> — иначе ответы оператора из Telegram не дойдут до сайта. Достаточно <b>сохранить настройки</b> с включённым TG (вебхук поставится сам) или нажать «📡 Установить вебхук бота», затем проверить «ℹ️ Статус вебхука».</div>
-            <div class="row">
-                <div><label>Токен бота</label><input type="password" name="chat_tg_bot_token" value="" placeholder="<?= chat_tg_token()?'•••••• задан':'123456:ABC…' ?>"></div>
-                <div><label>Chat ID оператора / группы</label><input type="text" name="chat_tg_chat_id" value="<?= h(chat_tg_chat_id()) ?>" placeholder="123456789 или -100…"></div>
             </div>
-            <div class="row">
-                <div><label>Базовый URL Telegram API <span class="hint">пусто — используется api.telegram.org. Свой reverse-proxy нужен, только если Telegram заблокирован на сервере зеркала</span></label><input type="text" name="chat_tg_api_base" value="<?= h(trim((string) setting('chat_tg_api_base',''))) ?>" placeholder="https://api.telegram.org (по умолчанию)"></div>
-                <div><label>Адрес для вебхука бота <span class="hint">пусто — домен прослойки. Другой сервер нужен, только если Telegram не может достучаться до сервера прослойки и ответы оператора не доходят</span></label><input type="text" name="chat_tg_hook_base" value="<?= h(trim((string) setting('chat_tg_hook_base',''))) ?>" placeholder="домен прослойки (по умолчанию)"></div>
-            </div>
-            <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin:.2rem 0 .2rem">
-                <button type="button" class="btn ghost" onclick="cbTgCheck()">🔌 Проверить доступ TG</button>
-                <button type="button" class="btn ghost" onclick="cbSetWh()">📡 Установить вебхук бота</button>
-                <button type="button" class="btn ghost" onclick="cbWhInfo()">ℹ️ Статус вебхука</button>
-                <button type="button" class="btn ghost" onclick="cbDelWh()">🧹 Удалить вебхук</button>
-            </div>
-            <div id="cbTgRes" class="muted" style="font-size:.84rem;min-height:1.2rem"></div>
-            <p class="muted" style="font-size:.8rem">Вебхук бота: <code><?= h(chat_tg_webhook_url()) ?></code> — нужен, чтобы ответы из TG доходили до сайта. При сохранении настроек с включённым TG он ставится автоматически; если ответы не приходят, нажмите «Статус вебхука».</p>
-
-            <hr style="border:0;border-top:1px solid var(--line);margin:1.2rem 0">
-
-            <div class="set-row">
-                <div class="set-info"><div class="set-t">Вебхук-fallback (если TG заблокирован)</div><div class="set-d">Двусторонний: новые сообщения POST-ятся на ваш URL с подписью; ответы агента принимаются на входящий endpoint.</div></div>
-                <label class="switch"><input type="checkbox" name="chat_webhook_enabled" <?= chat_webhook_enabled()?'checked':'' ?>><span class="sl"></span></label>
-            </div>
-            <div class="row">
-                <div><label>Исходящий URL (куда слать сообщения)</label><input type="text" name="chat_webhook_url" value="<?= h(chat_webhook_url()) ?>" placeholder="https://your-endpoint/chat"></div>
-                <div><label>Секрет исходящих (HMAC)</label><input type="password" name="chat_webhook_secret" value="" placeholder="<?= chat_webhook_secret()?'•••••• задан':'не задан' ?>"></div>
-            </div>
-            <p class="muted" style="font-size:.8rem">Входящий endpoint (для ответов агента): <code><?= h(chat_inbound_url()) ?></code><br>
-            Заголовок подписи входящих: <code>X-Chat-Signature: sha256=HMAC(body, входящий_секрет)</code>. Входящий секрет: <code><?= h(chat_inbound_secret()) ?></code></p>
 
             <div style="margin-top:1.25rem"><button type="submit">💾 Сохранить настройки чата</button></div>
         </form>
