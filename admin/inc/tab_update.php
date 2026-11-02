@@ -83,8 +83,9 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
     </div>
     <div class="card" style="flex:1 1 320px;margin:0">
         <h2 style="margin-top:0;font-size:1rem">Как обновить</h2>
-        <div class="up-logbox"><div>docker compose pull submw</div><div>docker compose up -d submw</div></div>
-        <p class="muted" style="margin:.6rem 0 0;font-size:.82rem;line-height:1.6"><code>submw</code> — имя сервиса прослойки в <code>docker-compose.yml</code>; если у вас оно другое, подставьте своё. Скачается тот тег образа, что указан в compose: <code>:v1</code> — последний релиз, <code>:dev</code> — свежая сборка ветки dev. Если там закреплена точная версия, например <code>:v1.10.0</code>, сначала поменяйте её.</p>
+        <?php $u_go = function_exists('go_known') && go_known(); $u_svc = $u_go ? 'submw submw-go' : 'submw'; ?>
+        <div class="up-logbox"><div>docker compose pull <?= $u_svc ?></div><div>docker compose up -d <?= $u_svc ?></div></div>
+        <p class="muted" style="margin:.6rem 0 0;font-size:.82rem;line-height:1.6"><?php if ($u_go): ?><code>submw</code> и <code>submw-go</code> — имена сервисов прослойки и Go-сервиса в <code>docker-compose.yml</code>; если у вас они другие, подставьте свои.<?php else: ?><code>submw</code> — имя сервиса прослойки в <code>docker-compose.yml</code>; если у вас оно другое, подставьте своё.<?php endif; ?> Скачается тот тег образа, что указан в compose: <code>:v1</code> — последний релиз, <code>:dev</code> — свежая сборка ветки dev. Если там закреплена точная версия, например <code>:v1.10.0</code>, сначала поменяйте её.</p>
     </div>
     </div>
     <?php if ($u_avail && $d_rel === '' && $u_commits): ?>
@@ -155,6 +156,9 @@ $u_branches  = array_values(array_unique(array_filter(['main', 'dev', $u_branch]
         <p class="muted" style="margin:.5rem 0 0;font-size:.8rem">После переключения нажми «Проверить обновления», затем «Обновить» — прослойка перейдёт на последний коммит выбранной ветки.</p>
     </div>
     </div>
+    <?php if (function_exists('go_known') && go_known()): ?>
+    <div class="info">Кнопка «Обновить» не трогает Go-сервис — он обновляется в своей папке (по инструкции <code>/opt/submw-go</code>):<div class="up-logbox" style="margin-top:.5rem"><div>docker compose pull</div><div>docker compose up -d</div></div></div>
+    <?php endif; ?>
 
     <?php if ($u_installed !== '' && $u_avail): ?>
     <div class="card" style="border-color:var(--amber)">

@@ -164,5 +164,13 @@ t_ok('вкладка, ветка: коммиты и шапка', $c === 200 && s
 [$c, $p] = $tab(['SUBMW_VERSION' => $A, 'SUBMW_REF' => ''], ['latest' => $B, 'releases' => ['v1.11.0']]);
 t_ok('вкладка, старый образ: без проверки и без ложного обновления', $c === 200 && strpos($p, 'собран без отметки ветки или релиза') !== false && strpos($p, 'Доступна') === false && strpos($p, 'новых коммитов') === false && strpos($p, 'Версия <code>aaaaaaa</code></a>') !== false);
 
+set_setting('go_url', 'http://submw-go:8090');
+[$c, $p] = $tab(['SUBMW_VERSION' => $A, 'SUBMW_REF' => 'v1.10.0'], ['latest' => $B, 'releases' => ['v1.10.0']]);
+t_ok('вкладка, Go установлен: команда обновляет и Go', $c === 200 && strpos($p, 'docker compose pull submw submw-go') !== false && strpos($p, 'docker compose up -d submw submw-go') !== false);
 $env(null, null, null);
+$mw  = t_serve($tt_root, $tt_root . '/tools/tests/_router.php', ['MOCKGH_DIR' => $gh], ['opcache.enable' => '0']);
+$jar = t_admin_login($mw);
+[$c, , $p] = t_http('GET', $mw . '/admin/index.php?tab=update', [], null, $jar);
+t_ok('вкладка без Docker, Go установлен: как обновить Go', $c === 200 && strpos($p, 'не трогает Go-сервис') !== false && strpos($p, '/opt/submw-go') !== false && strpos($p, '</html>') !== false, 'код ' . $c);
+set_setting('go_url', '');
 t_done();
