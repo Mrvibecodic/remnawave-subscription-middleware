@@ -166,11 +166,16 @@ t_ok('вкладка, старый образ: без проверки и без
 
 set_setting('go_url', 'http://submw-go:8090');
 [$c, $p] = $tab(['SUBMW_VERSION' => $A, 'SUBMW_REF' => 'v1.10.0'], ['latest' => $B, 'releases' => ['v1.10.0']]);
+$mwd = t_serve($tt_root, $tt_root . '/tools/tests/_router.php', ['SUBMW_DOCKER' => '1', 'SUBMW_VERSION' => $A, 'SUBMW_REF' => 'v1.10.0', 'MOCKGH_DIR' => $gh], ['opcache.enable' => '0']);
+[$cs, , $ps] = t_http('GET', $mwd . '/admin/index.php?tab=sysinfo', [], null, t_admin_login($mwd));
+t_ok('«О системе» в Docker: веб-сервер помечен внутренним', $cs === 200 && strpos($ps, '· внутренний</span>') !== false, 'код ' . $cs);
 t_ok('вкладка, Go установлен: команда обновляет и Go', $c === 200 && strpos($p, 'docker compose pull submw submw-go') !== false && strpos($p, 'docker compose up -d submw submw-go') !== false);
 $env(null, null, null);
 $mw  = t_serve($tt_root, $tt_root . '/tools/tests/_router.php', ['MOCKGH_DIR' => $gh], ['opcache.enable' => '0']);
 $jar = t_admin_login($mw);
 [$c, , $p] = t_http('GET', $mw . '/admin/index.php?tab=update', [], null, $jar);
 t_ok('вкладка без Docker, Go установлен: как обновить Go', $c === 200 && strpos($p, 'не трогает Go-сервис') !== false && strpos($p, '/opt/submw-go') !== false && strpos($p, '</html>') !== false, 'код ' . $c);
+[$cs, , $ps] = t_http('GET', $mw . '/admin/index.php?tab=sysinfo', [], null, $jar);
+t_ok('«О системе» без Docker: без пометки «внутренний»', $cs === 200 && strpos($ps, '· внутренний</span>') === false && strpos($ps, 'Веб-сервер') !== false, 'код ' . $cs);
 set_setting('go_url', '');
 t_done();
