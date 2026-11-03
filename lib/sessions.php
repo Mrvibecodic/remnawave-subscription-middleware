@@ -222,19 +222,14 @@ function sess_nodes_fetch(&$err = '', $maxAge = 0) {
         if ($addr !== '') $byAddr[$addr][] = $u;
         if (!empty($n['isConnected']) && empty($n['isDisabled']) && empty($n['isConnecting'])) $live[$u] = $known[$u];
     }
-    // Хосты — то, что юзер видит в подписке; нода привязана к хосту явно (nodes) или совпадает адресом.
-    // Ремарки меняются редко — снимок на 10 минут; новая нода в списке — повод перечитать сразу.
-    $hosts = panel_ref('hosts', $fresh ? 0 : 600);
+    // Хосты — то, что юзер видит в подписке. Ремарки меняются редко — снимок на 10 минут; новая нода в списке — повод перечитать сразу.
+    $hosts = $fresh ? panel_ref('hosts', 0) : panel_ref_upgraded('hosts', 600, 'sqm');
     if (is_array($hosts)) {
         $map = [];
         foreach ($hosts as $h) {
-            if (!is_array($h) || !empty($h['isDisabled'])) continue;
-            $rem = trim(preg_replace('~\s+~u', ' ', (string) ($h['remark'] ?? '')));
+            $rem = sess_host_remark($h);
             if ($rem === '') continue;
-            $rem = mb_substr($rem, 0, 48);
-            $ids = (array) ($h['nodes'] ?? []);
-            if (!$ids) $ids = $byAddr[strtolower(trim((string) ($h['address'] ?? '')))] ?? [];
-            foreach ($ids as $id) if (isset($known[$id]) && !in_array($rem, $map[$id] ?? [], true) && count($map[$id] ?? []) < 4) $map[$id][] = $rem;
+            foreach (sess_host_nodes($h, $byAddr) as $id) if (isset($known[$id]) && !in_array($rem, $map[$id] ?? [], true) && count($map[$id] ?? []) < 4) $map[$id][] = $rem;
         }
         foreach ($known as $u => $info) $known[$u]['h'] = $map[$u] ?? [];
         foreach ($live as $u => $info) $live[$u]['h'] = $map[$u] ?? [];
@@ -244,6 +239,96 @@ function sess_nodes_fetch(&$err = '', $maxAge = 0) {
     // Возраст подписей считается от снимка, а не от пересборки: суммарно не старше прежних 10 минут.
     set_setting('sess_nodes_ts', (string) (panel_ref_ts('nodes') ?: time()));
     return $live;
+}
+
+function sess_host_remark($h) {
+    if (!is_array($h) || !empty($h['isDisabled'])) return '';
+    return mb_substr(trim(preg_replace('~\s+~u', ' ', (string) ($h['remark'] ?? ''))), 0, 48);
+}
+
+// Нода привязана к хосту явно (nodes) или совпадает адресом.
+function sess_host_nodes(array $h, array $byAddr) {
+    $ids = (array) ($h['nodes'] ?? []);
+    return $ids ?: ($byAddr[strtolower(trim((string) ($h['address'] ?? '')))] ?? []);
+}
+
+// Хосты по нодам из уже снятых снимков панели, без запросов; null — снимка нет или он старого формата.
+function sess_host_index() {
+    $hs = panel_ref_cached('hosts');
+    $ns = panel_ref_cached('nodes');
+    if (!is_array($hs) || !is_array($ns)) return null;
+    $memo = &$GLOBALS['submw_sess_hidx'];
+    $mk = panel_ref_stamp('hosts') . '|' . panel_ref_stamp('nodes');
+    if (is_array($memo) && $memo[0] === $mk) return $memo[1];
+    $byAddr = [];
+    foreach ($ns as $n) {
+        $addr = is_array($n) ? strtolower(trim((string) ($n['address'] ?? ''))) : '';
+        if ($addr !== '' && !empty($n['uuid'])) $byAddr[$addr][] = (string) $n['uuid'];
+    }
+    $idx = [];
+    foreach ($hs as $h) {
+        if (!is_array($h)) continue;
+        if (!array_key_exists('sqm', $h)) { $idx = null; break; }
+        $rem = sess_host_remark($h);
+        if ($rem === '') continue;
+        $row = ['r' => $rem, 'i' => strtolower((string) ($h['inbound'] ?? '')), 'a' => $h['sqm'] === 'A', 's' => array_map(static fn($x) => strtolower((string) $x), (array) ($h['sqs'] ?? [])), 'x' => !empty($h['hid'])];
+        foreach (sess_host_nodes($h, $byAddr) as $id) $idx[(string) $id][] = $row;
+    }
+    $memo = [$mk, $idx];
+    return $idx;
+}
+
+// Сквады пользователя → [инбаунд => сквады, которые его дают]; null — снимок сквадов без инбаундов, отбора не будет.
+function sess_sq_inb($sq) {
+    if (!is_array($sq)) return null;
+    $list = panel_ref_upgraded('isquads', 600, 'inb');
+    if (!is_array($list) || !$list) return null;
+    $want = array_flip(array_map(static fn($x) => strtolower((string) $x), $sq));
+    // Сквада нет в снимке — он новее снимка: перечитываем, но не чаще раза в минуту.
+    $have = array_flip(array_map(static fn($s) => is_array($s) ? strtolower((string) ($s['uuid'] ?? '')) : '', $list));
+    if (array_diff_key($want, $have)) {
+        $l2 = panel_ref('isquads', 60);
+        if (is_array($l2) && $l2) $list = $l2;
+    }
+    $out = [];
+    foreach ($list as $s) {
+        $id = is_array($s) ? strtolower((string) ($s['uuid'] ?? '')) : '';
+        if (!isset($want[$id])) continue;
+        if (!array_key_exists('inb', $s)) return null;
+        foreach ((array) $s['inb'] as $in) $out[strtolower((string) $in)][] = $id;
+    }
+    return $out;
+}
+
+function sess_sq_param($v) {
+    if (!is_string($v)) return null;
+    $out = [];
+    foreach (explode(',', $v) as $x) if (preg_match('~^[0-9a-f-]{36}$~i', $x = trim($x))) $out[] = strtolower($x);
+    return $out;
+}
+
+// Как панель собирает подписку: инбаунд хоста есть в скваде пользователя, и этот сквад не исключён у хоста
+// (EXCLUDE) или указан у него (ALLOW_ONLY). Скрытые хосты панель кладёт только в балансировщики — они идут в подпись, лишь если обычных нет.
+function sess_user_hosts($uuid, array $node, $sqi) {
+    $idx = $sqi === null ? null : sess_host_index();
+    if ($idx === null) return array_values((array) ($node['h'] ?? []));
+    $vis = []; $hid = [];
+    foreach ($idx[(string) $uuid] ?? [] as $h) {
+        $ok = false;
+        foreach ($sqi[$h['i']] ?? [] as $sid) {
+            if (in_array($sid, $h['s'], true) === $h['a']) { $ok = true; break; }
+        }
+        if (!$ok) continue;
+        if (!$h['x']) $vis[$h['r']] = 1; else $hid[$h['r']] = 1;
+    }
+    $all = array_map('strval', array_keys($vis ?: $hid));
+    if (count($all) > 4) return array_merge(array_slice($all, 0, 3), ['+' . (count($all) - 3)]);
+    return $all;
+}
+
+function sess_nodes_for(array $known, $sqi) {
+    foreach ($known as $u => $n) $known[$u]['h'] = sess_user_hosts($u, $n, $sqi);
+    return $known;
 }
 
 function sess_nodes_fresh() {
@@ -601,7 +686,7 @@ function sess_user_rows($uid, $days = 30, $limit = 600) {
     } catch (Throwable $e) { return []; }
 }
 
-function sess_user_data($uid, $short = '') {
+function sess_user_data($uid, $short = '', $sq = null) {
     $uid = (int) $uid;
     $an = $uid > 0 ? sess_anom_user($uid) : [];
     $m = sess_metrics([$uid]);
@@ -613,7 +698,7 @@ function sess_user_data($uid, $short = '') {
         'keep'  => sess_keep_days(),
         'win'   => sess_win_days(),
         'state' => sess_state(),
-        'nodes' => sess_nodes_fresh(),
+        'nodes' => sess_nodes_for(sess_nodes_fresh(), sess_sq_inb($sq)),
         'rows'  => $uid > 0 ? sess_user_rows($uid) : [],
         'm'     => $m[$uid] ?? null,
         'an'    => $an ? sess_anom_subips($an, (string) $short) : $an,
@@ -691,7 +776,7 @@ function sess_geo($ip) {
 }
 
 // Живой опрос нод по одному пользователю: ждём ответа до 8 секунд, частичный результат тоже отдаём.
-function sess_live($ref, &$err = '') {
+function sess_live($ref, &$err = '', $sq = null) {
     $err = '';
     $ref = rw_ref_coerce($ref);
     if (!rw_ref_ok($ref)) { $err = 'Пустой идентификатор пользователя'; return null; }
@@ -706,7 +791,7 @@ function sess_live($ref, &$err = '') {
     $res = sess_jobs_wait(['u' => $job], $P['user_res'], microtime(true) + 8);
     $r = $res['u'] ?? null;
     if (!is_array($r)) { $err = $r === false ? 'Панель не успела опросить ноды — попробуйте ещё раз' : 'Нет ответа'; return null; }
-    $known = sess_nodes_fresh();
+    $known = sess_nodes_for(sess_nodes_fresh(), sess_sq_inb($sq));
     $out = [];
     foreach ((array) ($r['nodes'] ?? []) as $n) {
         if (!is_array($n)) continue;

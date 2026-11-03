@@ -261,6 +261,15 @@ function panel_ref_spec($name) {
                 $row = panel_ref_pick($h, ['uuid', 'remark', 'address', 'port', 'isDisabled', 'securityLayer']);
                 $row['inbound'] = (string) ($h['inbound']['configProfileInboundUuid'] ?? '');
                 $row['tags'] = array_values(array_filter(array_map('strval', (array) ($h['tags'] ?? [])), 'strlen'));
+                // С 3.4 — internalSquads {mode, squads}, в 3.0–3.3 — excludedInternalSquads (то же, что EXCLUDE).
+                $isq = is_array($h['internalSquads'] ?? null) ? $h['internalSquads'] : ['mode' => 'EXCLUDE', 'squads' => $h['excludedInternalSquads'] ?? []];
+                $row['sqm'] = strtoupper((string) ($isq['mode'] ?? '')) === 'ALLOW_ONLY' ? 'A' : 'E';
+                $row['sqs'] = [];
+                foreach ((array) ($isq['squads'] ?? []) as $ref) {
+                    $id = is_array($ref) ? (string) ($ref['uuid'] ?? $ref['squadUuid'] ?? '') : (string) $ref;
+                    if ($id !== '') $row['sqs'][] = $id;
+                }
+                $row['hid'] = !empty($h['isHidden']);
                 $row['nodes'] = [];
                 foreach ((array) ($h['nodes'] ?? []) as $ref) {
                     $id = is_array($ref) ? (string) ($ref['uuid'] ?? $ref['nodeUuid'] ?? '') : (string) $ref;
@@ -279,7 +288,9 @@ function panel_ref_spec($name) {
             $out = [];
             foreach (panel_ref_list($d, 'internalSquads') as $s) {
                 if (!is_array($s) || empty($s['uuid'])) continue;
-                $out[] = ['uuid' => (string) $s['uuid'], 'name' => (string) ($s['name'] ?? $s['uuid']), 'members' => (int) ($s['info']['membersCount'] ?? 0)];
+                $inb = [];
+                foreach ((array) ($s['inbounds'] ?? []) as $in) if (is_array($in) && !empty($in['uuid'])) $inb[] = (string) $in['uuid'];
+                $out[] = ['uuid' => (string) $s['uuid'], 'name' => (string) ($s['name'] ?? $s['uuid']), 'members' => (int) ($s['info']['membersCount'] ?? 0), 'inb' => $inb];
             }
             return $out;
         }];
@@ -379,6 +390,19 @@ function panel_ref_lock($name) {
     return $f;
 }
 
+// Снимок, снятый прежней версией без поля $field, перечитывается один раз; неудача запоминается до конца запроса
+// и не повторяется, пока действует пауза после сбоя панели.
+function panel_ref_upgraded($name, $maxAge, $field) {
+    $list = panel_ref($name, $maxAge);
+    if (!is_array($list) || !$list || array_filter($list, static fn($r) => is_array($r) && array_key_exists($field, $r))) return $list;
+    $tried = &$GLOBALS['submw_pref_upg'][$name];
+    $c = admin_cache_get('pref_' . $name, PHP_INT_MAX);
+    if ($tried || (is_array($c) && time() - (int) ($c['e'] ?? 0) < PANEL_REF_RETRY)) return $list;
+    $tried = true;
+    $fresh = panel_ref($name, 0);
+    return is_array($fresh) ? $fresh : $list;
+}
+
 // Снимки прежних версий лежали в settings — убираем один раз; проверка бесплатна, settings уже в памяти.
 function panel_ref_settings_cleanup() {
     setting('sess_nodes', null);
@@ -391,6 +415,20 @@ function panel_ref_settings_cleanup() {
         $p->prepare('DELETE FROM settings WHERE k IN (' . implode(',', array_fill(0, count($keys), '?')) . ')')->execute($keys);
         foreach ($keys as $k) unset($GLOBALS['submw_settings_cache'][$k]);
     } catch (Throwable $e) {}
+}
+
+// Последний снимок как есть — без запроса к панели и без проверки возраста.
+function panel_ref_cached($name) {
+    $c = $GLOBALS['submw_pref_memo'][$name] ?? admin_cache_get('pref_' . $name, PHP_INT_MAX);
+    if (!is_array($c) || !is_array($c['d'] ?? null)) return null;
+    if (!is_array($GLOBALS['submw_pref_memo'] ?? null)) { $GLOBALS['submw_pref_memo'] = []; panel_ref_settings_cleanup(); }
+    $GLOBALS['submw_pref_memo'][$name] = $c;
+    return $c['d'];
+}
+
+function panel_ref_stamp($name) {
+    $c = $GLOBALS['submw_pref_memo'][$name] ?? admin_cache_get('pref_' . $name, PHP_INT_MAX);
+    return is_array($c) ? (string) ($c['tm'] ?? $c['ts'] ?? '') . '/' . count((array) ($c['d'] ?? [])) : '';
 }
 
 function panel_ref_ts($name) {

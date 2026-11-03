@@ -258,6 +258,23 @@ function ua_grace_info($short) {
     ];
 }
 
+// Сквады для подписей хостов: у пользователя в грейсе — и грейс-сквад, и прежние (история за оба периода).
+function ua_sq_all(array $sq, $gi) {
+    $gs = is_array($gi) ? ($gi['sq'] ?? []) : (is_object($gi) ? ($gi->sq ?? []) : []);
+    $all = array_values(array_unique(array_merge(array_map('strval', $sq), array_map('strval', (array) $gs))));
+    sort($all, SORT_STRING);
+    return $all;
+}
+
+// Подпись хостов последней ноды для пользователя, изменённого на открытой странице (ответы ua_user/ua_save…).
+function ua_user_nh(array $nu, $gi) {
+    $node = (string) ($nu['node'] ?? '');
+    if ($node === '' || !function_exists('sess_user_hosts')) return null;
+    $kn = sess_nodes_known();
+    if (!isset($kn[$node])) return null;
+    return sess_user_hosts($node, $kn[$node], sess_sq_inb(ua_sq_all((array) ($nu['sq'] ?? []), $gi)));
+}
+
 function ua_grace_map() {
     ensure_grace_table();
     $out = [];

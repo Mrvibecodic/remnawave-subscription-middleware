@@ -349,7 +349,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     }
 
     if ($a === 'sess_user' && function_exists('sess_user_data')) {
-        echo json_encode(['ok' => true] + sess_user_data((int) ($_GET['id'] ?? 0), (string) ($_GET['su'] ?? '')), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        echo json_encode(['ok' => true] + sess_user_data((int) ($_GET['id'] ?? 0), (string) ($_GET['su'] ?? ''), sess_sq_param($_GET['sq'] ?? null)), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         exit();
     }
 
@@ -384,7 +384,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     if ($a === 'sess_live' && function_exists('sess_live')) {
         @set_time_limit(40);
         $se = '';
-        $live = sess_live((string) ($_GET['rv'] ?? ''), $se);
+        $live = sess_live((string) ($_GET['rv'] ?? ''), $se, sess_sq_param($_GET['sq'] ?? null));
         echo json_encode($live === null ? ['ok' => false, 'error' => $se] : ['ok' => true, 'nodes' => $live, 'ts' => time()], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         exit();
     }
@@ -392,7 +392,7 @@ if (isset($_GET['ajax']) && is_auth()) {
     if ($a === 'usage' && function_exists('usage_fetch')) {
         @set_time_limit(40);
         $ue = '';
-        $us = usage_fetch((string) ($_GET['rv'] ?? ''), (int) ($_GET['d'] ?? 30), $ue);
+        $us = usage_fetch((string) ($_GET['rv'] ?? ''), (int) ($_GET['d'] ?? 30), $ue, function_exists('sess_sq_param') ? sess_sq_param($_GET['sq'] ?? null) : null);
         echo json_encode($us === null ? ['ok' => false, 'error' => $ue] : ['ok' => true] + $us, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         exit();
     }
@@ -467,7 +467,9 @@ if (isset($_GET['ajax']) && is_auth()) {
         $su = trim((string) ($_GET['su'] ?? ''));
         $ue = ''; $uc = 0;
         $u = $su !== '' ? ua_fetch($su, $ue, $uc) : null;
-        echo json_encode($u ? ['ok' => true, 'user' => ua_norm($u), 'mw' => ua_mw($su, (string) ($u['username'] ?? ''))] : ['ok' => false, 'error' => $ue ?: 'Пустой shortUuid'], JSON_UNESCAPED_UNICODE);
+        $r = $u ? ['ok' => true, 'user' => ua_norm($u), 'mw' => ua_mw($su, (string) ($u['username'] ?? ''))] : ['ok' => false, 'error' => $ue ?: 'Пустой shortUuid'];
+        if (is_array($r['user'] ?? null)) $r['user']['nh'] = ua_user_nh($r['user'], $r['mw']['grace'] ?? null);
+        echo json_encode($r, JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -485,6 +487,7 @@ if (isset($_GET['ajax']) && is_auth()) {
         if ($a === 'ua_save') $r = $su !== '' ? ua_save($su, $fj, (string) ($_POST['upd'] ?? ''), ($_POST['reset'] ?? '') === '1') : ['ok' => false, 'error' => 'Пустой shortUuid'];
         elseif ($a === 'ua_act') $r = $su !== '' ? ua_action($su, (string) ($_POST['act'] ?? '')) : ['ok' => false, 'error' => 'Пустой shortUuid'];
         else $r = ua_create($fj, ['addsub' => (string) ($_POST['addsub'] ?? ''), 'nolog' => ($_POST['nolog'] ?? '') === '1', 'fcdur' => (int) ($_POST['fcdur'] ?? 0)]);
+        if (is_array($r['user'] ?? null)) $r['user']['nh'] = ua_user_nh($r['user'], $r['mw']['grace'] ?? null);
         echo json_encode($r, JSON_UNESCAPED_UNICODE);
         exit();
     }
