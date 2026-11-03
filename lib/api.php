@@ -326,20 +326,57 @@ function panel_ref($name, $maxAge, &$error = '') {
     if ($fresh($c)) { $memo[$name] = $c; return $c['d']; }
     if ($has && $maxAge > 0 && $now - (int) ($c['e'] ?? 0) < PANEL_REF_RETRY) { $memo[$name] = $c; $error = (string) ($c['em'] ?? 'панель недоступна'); return $c['d']; }
     if (remnawave_url() === '' || remnawave_token() === '') { $error = 'Не заданы URL панели или API-токен'; return $has && $maxAge > 0 ? $c['d'] : null; }
-    [$ok, $code, $data, $e] = remnawave_api_get($spec[0]);
-    if (!$ok) {
-        $error = $e ?: ('HTTP ' . $code);
-        $c = $has ? $c : ['ts' => 0, 'd' => null];
-        $c['e'] = $now;
-        $c['em'] = $error;
+    // Вызовы, которым годится снимок, не дублируют идущий запрос: ждут его и берут ответ (или его ошибку) —
+    // дольше собственного запроса это не длится. Принудительное обновление (maxAge 0) не ждёт.
+    $lk = $maxAge > 0 ? panel_ref_lock($name) : null;
+    try {
+        if ($lk) {
+            $etm0 = (float) ($c['etm'] ?? 0);
+            $c2 = admin_cache_get($key, PHP_INT_MAX);
+            if (is_array($c2) && is_array($c2['d'] ?? null)) {
+                $c = $c2;
+                $has = true;
+                if ($fresh($c)) { $memo[$name] = $c; return $c['d']; }
+            }
+            if (is_array($c2) && (float) ($c2['etm'] ?? 0) > $etm0) {
+                $memo[$name] = $c2;
+                $error = (string) ($c2['em'] ?? 'панель недоступна');
+                return $has ? $c['d'] : null;
+            }
+        }
+        $t0 = time();
+        $tm = microtime(true);
+        [$ok, $code, $data, $e] = remnawave_api_get($spec[0]);
+        if (!$ok) {
+            $error = $e ?: ('HTTP ' . $code);
+            $c = $has ? $c : ['ts' => 0, 'd' => null];
+            $c['e'] = $t0;
+            $c['etm'] = $tm;
+            $c['em'] = $error;
+            $memo[$name] = $c;
+            admin_cache_put($key, $c);
+            return $has && $maxAge > 0 ? $c['d'] : null;
+        }
+        $c = ['ts' => $t0, 'tm' => $tm, 'd' => $spec[1]($data)];
         $memo[$name] = $c;
         admin_cache_put($key, $c);
-        return $has && $maxAge > 0 ? $c['d'] : null;
+        return $c['d'];
+    } finally {
+        if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
     }
-    $c = ['ts' => $now, 'd' => $spec[1]($data)];
-    $memo[$name] = $c;
-    admin_cache_put($key, $c);
-    return $c['d'];
+}
+
+// Ждём не дольше таймаута запроса к панели; ФС без flock — сразу без блокировки.
+function panel_ref_lock($name) {
+    if (!function_exists('default_db_path')) return null;
+    $f = @fopen(dirname(default_db_path()) . '/.pref-' . preg_replace('~[^a-z]~', '', (string) $name) . '.lock', 'c');
+    if (!$f) return null;
+    $until = microtime(true) + 25;
+    while (!flock($f, LOCK_EX | LOCK_NB, $wb)) {
+        if (!$wb || microtime(true) >= $until) { fclose($f); return null; }
+        usleep(50000);
+    }
+    return $f;
 }
 
 // Снимки прежних версий лежали в settings — убираем один раз; проверка бесплатна, settings уже в памяти.
