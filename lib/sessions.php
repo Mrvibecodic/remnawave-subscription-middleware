@@ -118,11 +118,12 @@ function sess_nodes_known() {
 }
 
 // До 3.0 обозреватель сессий — /api/ip-control с uuid пользователя, с 3.0 — /api/connections с числовым id.
+// Версия панели ещё неизвестна — считаем 3.x; промах исправит sess_api_flip.
 function sess_api_v3() {
     $o = $GLOBALS['submw_sess_v3'] ?? null;
     if (is_bool($o)) return $o;
     $saved = (string) setting('sess_api_v3', '');
-    return $saved === '1' ? true : ($saved === '0' ? false : panel_api_v3());
+    return $saved === '1' ? true : ($saved === '0' ? false : (panel_version() === '' || panel_api_v3()));
 }
 
 // Панель ответила «нет такого адреса» — семейство API угадано неверно; запоминаем другое.
