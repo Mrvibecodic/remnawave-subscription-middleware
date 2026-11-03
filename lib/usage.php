@@ -18,7 +18,7 @@ function usage_path($ref, $days) {
     return '/api/bandwidth-stats/users/' . rawurlencode((string) $ref) . '?start=' . $start . '&end=' . $end . '&topNodesLimit=100';
 }
 
-function usage_fetch($ref, $days, &$err = '') {
+function usage_fetch($ref, $days, &$err = '', $sq = null) {
     $err = '';
     $ref = rw_ref_coerce($ref);
     if (!rw_ref_ok($ref)) { $err = 'Пустой идентификатор пользователя'; return null; }
@@ -31,7 +31,7 @@ function usage_fetch($ref, $days, &$err = '') {
     }
     $r = is_array($data) ? ($data['response'] ?? null) : null;
     if (!is_array($r)) { $err = 'Панель вернула неожиданный ответ'; return null; }
-    $known = function_exists('sess_nodes_fresh') ? sess_nodes_fresh() : [];
+    $known = function_exists('sess_nodes_fresh') ? sess_nodes_for(sess_nodes_fresh(), sess_sq_inb($sq)) : [];
     $cats = array_values(array_map('strval', (array) ($r['categories'] ?? [])));
     $n = count($cats);
     $series = [];

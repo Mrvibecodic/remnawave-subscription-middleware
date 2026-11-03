@@ -34,7 +34,7 @@ function mp_user(string $short, array $u, int $i): array
         'username'  => (string) ($u['username'] ?? ('user' . $i)),
         'status'    => (string) ($u['status'] ?? 'ACTIVE'),
         'expireAt'  => gmdate('Y-m-d\TH:i:s.000\Z', time() + 30 * 86400),
-        'activeInternalSquads' => [],
+        'activeInternalSquads' => array_map(static fn($q) => ['uuid' => (string) $q, 'name' => (string) $q], array_values((array) ($u['sq'] ?? []))),
     ];
     // hw: лимит устройств (0 — без лимита); отсутствует — «как в панели».
     if (array_key_exists('hw', $u)) $out['hwidDeviceLimit'] = (int) $u['hw'];
@@ -122,14 +122,21 @@ $nodes = is_array($state['nodes'] ?? null) ? $state['nodes'] : [];
 $conns = is_array($state['conns'] ?? null) ? $state['conns'] : [];
 if ($path === '/api/nodes') {
     $out = [];
-    foreach ($nodes as $nu => $n) $out[] = ['uuid' => (string) $nu, 'name' => (string) ($n['name'] ?? $nu), 'countryCode' => (string) ($n['cc'] ?? 'XX'), 'isConnected' => empty($n['off']), 'isDisabled' => false, 'isConnecting' => false];
+    foreach ($nodes as $nu => $n) $out[] = ['uuid' => (string) $nu, 'name' => (string) ($n['name'] ?? $nu), 'countryCode' => (string) ($n['cc'] ?? 'XX')] + (isset($n['addr']) ? ['address' => (string) $n['addr']] : []) + ['isConnected' => empty($n['off']), 'isDisabled' => false, 'isConnecting' => false];
     mp_json(200, ['response' => $out]);
     exit;
 }
 if ($path === '/api/hosts') {
-    // hosts: [{"remark": "…", "address": "…", "nodes": ["<nodeUuid>"], "off": false}]
+    // hosts: [{"remark": "…", "address": "…", "nodes": ["<nodeUuid>"], "off": false, "inb": "<inboundUuid>", "hid": false,
+    //   "isq": {"mode": "EXCLUDE|ALLOW_ONLY", "squads": […]} — как 3.4+, иначе "exsq": […] — как 3.0–3.3}]
     $out = [];
-    foreach ((array) ($state['hosts'] ?? []) as $h) $out[] = ['uuid' => md5((string) ($h['remark'] ?? '')), 'remark' => (string) ($h['remark'] ?? ''), 'address' => (string) ($h['address'] ?? ''), 'port' => 443, 'isDisabled' => !empty($h['off']), 'nodes' => array_values((array) ($h['nodes'] ?? [])), 'tags' => array_values((array) ($h['tags'] ?? []))];
+    foreach ((array) ($state['hosts'] ?? []) as $h) {
+        $row = ['uuid' => md5((string) ($h['remark'] ?? '')), 'remark' => (string) ($h['remark'] ?? ''), 'address' => (string) ($h['address'] ?? ''), 'port' => 443, 'isDisabled' => !empty($h['off']), 'nodes' => array_values((array) ($h['nodes'] ?? [])), 'tags' => array_values((array) ($h['tags'] ?? [])),
+            'inbound' => ['configProfileUuid' => null, 'configProfileInboundUuid' => $h['inb'] ?? null], 'isHidden' => !empty($h['hid'])];
+        if (isset($h['isq'])) $row['internalSquads'] = $h['isq'];
+        else $row['excludedInternalSquads'] = array_values((array) ($h['exsq'] ?? []));
+        $out[] = $row;
+    }
     mp_json(200, ['response' => $out]);
     exit;
 }
@@ -195,10 +202,14 @@ if (($path === '/api/connections/drop' || $path === '/api/ip-control/drop-connec
     exit;
 }
 
-// Справочники: squads: [{"uuid": "…", "name": "…", "members": 3}], esquads — то же, hwid: {"enabled": true, "limit": 2}
+// Справочники: squads: [{"uuid": "…", "name": "…", "members": 3, "inb": ["<inboundUuid>"]}], esquads — то же, hwid: {"enabled": true, "limit": 2}
 if ($path === '/api/internal-squads' || $path === '/api/external-squads') {
     $out = [];
-    foreach ((array) ($state[$path === '/api/internal-squads' ? 'squads' : 'esquads'] ?? []) as $s) $out[] = ['uuid' => (string) ($s['uuid'] ?? ''), 'name' => (string) ($s['name'] ?? ''), 'info' => ['membersCount' => (int) ($s['members'] ?? 0)]];
+    foreach ((array) ($state[$path === '/api/internal-squads' ? 'squads' : 'esquads'] ?? []) as $s) {
+        $row = ['uuid' => (string) ($s['uuid'] ?? ''), 'name' => (string) ($s['name'] ?? ''), 'info' => ['membersCount' => (int) ($s['members'] ?? 0)]];
+        if ($path === '/api/internal-squads') $row['inbounds'] = array_map(static fn($i) => ['uuid' => (string) $i, 'tag' => 'IN-' . substr((string) $i, 0, 4)], array_values((array) ($s['inb'] ?? [])));
+        $out[] = $row;
+    }
     mp_json(200, ['response' => [$path === '/api/internal-squads' ? 'internalSquads' : 'externalSquads' => $out]]);
     exit;
 }

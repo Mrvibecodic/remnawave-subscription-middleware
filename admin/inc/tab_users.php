@@ -44,8 +44,24 @@ if ($ux_sess) {
     $ux_sc_miss = array_values(array_filter([$ux_sc['node'], $ux_sc['node_res']], fn($s) => ($ux_ts[$s] ?? '') === 'miss'));
     if (array_filter(array_column($ux_list, 'node'))) {
         $ux_nodes = [];
-        foreach (sess_nodes_fresh() as $__id => $__n) $ux_nodes[(string) $__id] = ['n' => (string) ($__n['n'] ?? ''), 'h' => array_values((array) ($__n['h'] ?? []))];
+        $__kn = sess_nodes_fresh();
+        foreach ($__kn as $__id => $__n) $ux_nodes[(string) $__id] = ['n' => (string) ($__n['n'] ?? ''), 'h' => array_values((array) ($__n['h'] ?? []))];
         $ux_cfg['nodes'] = (object) $ux_nodes;
+        // Ключ «нода|сквады» строится так же, как uSq() в JS; в конфиг идут только подписи, отличные от подписи ноды.
+        $__sqi = [];
+        $__nh = [];
+        foreach ($ux_list as $__r) {
+            $__nu = (string) $__r['node'];
+            if ($__nu === '' || !isset($__kn[$__nu])) continue;
+            $__sq = ua_sq_all($__r['sq'], $ux_cfg['gr']->{$__r['su']} ?? null);
+            $__k = $__nu . '|' . implode(',', $__sq);
+            if (isset($__nh[$__k])) continue;
+            $__sk = implode(',', $__sq);
+            if (!array_key_exists($__sk, $__sqi)) $__sqi[$__sk] = sess_sq_inb($__sq);
+            $__nh[$__k] = sess_user_hosts($__nu, $__kn[$__nu], $__sqi[$__sk]);
+        }
+        $__nh = array_filter($__nh, static fn($h, $k) => $h !== $ux_nodes[strstr($k, '|', true)]['h'], ARRAY_FILTER_USE_BOTH);
+        if ($__nh) $ux_cfg['nh'] = (object) $__nh;
     }
 }
 $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
@@ -820,7 +836,7 @@ document.documentElement.classList.remove('lp');
 var C=window.UX_CFG,U=window.UX_USERS||[];
 var GSQ=C.gsq||'',DAY=86400000,GB=1073741824;
 var S={f:'all',q:'',sq:'',tag:'',sort:(C.sort&&C.sort.k)||'id',dir:(C.sort&&C.sort.d<0)?-1:1,page:1,size:50,dens:0,an:false,anp:'7'};
-var SESS=C.sess||null,SX=C.sx||{},ANO=C.ano||{},ANH=C.anh||{},USG=C.usage||null,ND=C.nodes||{},SESS_ANK=SESS?SESS.ankeep:30;
+var SESS=C.sess||null,SX=C.sx||{},ANO=C.ano||{},ANH=C.anh||{},USG=C.usage||null,ND=C.nodes||{},NH=C.nh||{},SESS_ANK=SESS?SESS.ankeep:30;
 try{var v0=parseInt(localStorage.getItem('utbl_size'),10);if([10,25,50,0].indexOf(v0)>-1)S.size=v0;}catch(e){}
 try{if(localStorage.getItem('utbl_dens')==='1')S.dens=1;}catch(e){}
 try{var a0=localStorage.getItem('utbl_anp');if(['0','1','7','a'].indexOf(a0)>-1)S.anp=a0;}catch(e){}
@@ -893,7 +909,10 @@ function isGr(u){return !!gInfo(u);}
 function sqName(id){if(META)for(var i=0;i<META.sq.length;i++)if(META.sq[i].uuid===id)return META.sq[i].name;return SQN[id]||(id?id.slice(0,8):'');}
 function exName(id){if(!id)return '';if(META)for(var i=0;i<META.ex.length;i++)if(META.ex[i].uuid===id)return META.ex[i].name;return id.slice(0,8);}
 function nodeName(id){return META&&META.nodes&&META.nodes[id]||(ND[id]&&ND[id].n)||'';}
-function nodeCell(u){if(!u.on||!u.node)return '';var n=ND[u.node]||{},h=n.h||[],nm=nodeName(u.node)||'нода '+u.node.slice(0,8),lbl=h.length?h.join(', '):nm,tip=h.length?(h.length>1?lbl+' · ':'')+'Нода: '+nm:'';return '<span class="ux-nd"'+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+esc(lbl)+'</span>';}
+var HT_MANY=' · через какой хост шло подключение, панель не сообщает';
+function hostTip(nm,h){return h&&h.length?'Нода: '+nm+(h.length>1?HT_MANY:''):'';}
+function uSq(u){var s=(u.sq||[]).slice(),g=gInfo(u);(g&&g.sq||[]).forEach(function(x){if(s.indexOf(x)<0)s.push(x);});return s.sort();}
+function nodeCell(u){if(!u.on||!u.node)return '';var n=ND[u.node]||{},hk=u.node+'|'+uSq(u).join(','),h=Array.isArray(u.nh)?u.nh:Object.prototype.hasOwnProperty.call(NH,hk)?NH[hk]:(n.h||[]),nm=nodeName(u.node)||'нода '+u.node.slice(0,8),lbl=h.length?h.join(', '):nm,tip=h.length?(h.length>1?lbl+' · ':'')+hostTip(nm,h):'';return '<span class="ux-nd"'+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+esc(lbl)+'</span>';}
 function soon(u){var e=expMs(u);return u.st==='ACTIVE'&&!isGr(u)&&e>now()&&e-now()<=7*DAY;}
 function stInfo(u){if(isGr(u)&&u.st==='ACTIVE')return{c:'st-vio',t:'Грейс'};return({ACTIVE:{c:'st-ok',t:'Активен'},EXPIRED:{c:'st-bad',t:'Истёк'},DISABLED:{c:'st-mut',t:'Выключен'},LIMITED:{c:'st-warn',t:'Лимит'}})[u.st]||{c:'st-mut',t:u.st||'—'};}
 function pill(u){var s=stInfo(u);return '<span class="ux-pill '+s.c+'"'+(u.st==='LIMITED'?' data-tip="Трафик закончился"':'')+'><i></i>'+s.t+'</span>';}
@@ -1239,8 +1258,8 @@ function anomTile(u){
  if(!SESS.an.length)return '<div class="go" data-tab="anom" role="button" tabindex="0" data-tip="Схема пуста — настройки внизу вкладки"><div class="k">Аномалии'+ico('chev',13)+'</div><div class="v"><span style="font-size:.9rem">не отслеживаются</span></div></div>';
  return '<div class="go'+(f?(f.lvl==='bad'?' bad':' warn'):'')+'" data-tab="anom" role="button" tabindex="0" data-tip="Журнал аномалий"><div class="k">Аномалии'+ico('chev',13)+'</div><div class="v">'+(f?f.n:0)+(tot!==null?' <span style="font-size:.85rem;color:var(--muted);font-weight:500">/ '+tot+'</span>':'')+'</div><div class="d">'+(tot!==null?'сейчас / за '+SESS_ANK+' дн':(f?'сейчас':'нет открытых'))+'</div></div>';
 }
-function loadSess(){var su=CARD.u.su,u=CARD.u;CARD.sess=false;getj('sess_user','&id='+encodeURIComponent(u.id||0)+'&su='+encodeURIComponent(u.su||'')).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.sess=d.ok?d:{rows:[],nodes:{},err:d.error||'Ошибка'};if(d.ok&&u.id){if(d.m)SX[u.id]=d.m;else delete SX[u.id];}if(CARD.tab==='sess'||CARD.tab==='anom'||CARD.tab==='ov')drawCard();});}
-function loadLive(){var su=CARD.u.su,u=CARD.u;if(!canW(SESS.sc.user)||!canW(SESS.sc.user_res)){CARD.live={err:roTip(canW(SESS.sc.user)?SESS.sc.user_res:SESS.sc.user)};return;}CARD.live=false;getj('sess_live','&rv='+encodeURIComponent(u.rv)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.live=d.ok?{nodes:d.nodes||[],ts:d.ts||0}:{err:d.error||'Ошибка'};if(CARD.tab==='sess')drawCard();});}
+function loadSess(){var su=CARD.u.su,u=CARD.u;CARD.sess=false;getj('sess_user','&id='+encodeURIComponent(u.id||0)+'&su='+encodeURIComponent(u.su||'')+'&sq='+encodeURIComponent(uSq(u).join(','))).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.sess=d.ok?d:{rows:[],nodes:{},err:d.error||'Ошибка'};if(d.ok&&u.id){if(d.m)SX[u.id]=d.m;else delete SX[u.id];}if(CARD.tab==='sess'||CARD.tab==='anom'||CARD.tab==='ov')drawCard();});}
+function loadLive(){var su=CARD.u.su,u=CARD.u;if(!canW(SESS.sc.user)||!canW(SESS.sc.user_res)){CARD.live={err:roTip(canW(SESS.sc.user)?SESS.sc.user_res:SESS.sc.user)};return;}CARD.live=false;getj('sess_live','&rv='+encodeURIComponent(u.rv)+'&sq='+encodeURIComponent(uSq(u).join(','))).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.live=d.ok?{nodes:d.nodes||[],ts:d.ts||0}:{err:d.error||'Ошибка'};if(CARD.tab==='sess')drawCard();});}
 function flag(cc){return /^[A-Z]{2}$/.test(cc||'')?'<span class="ux-fl" data-tip="'+cc+'">'+String.fromCodePoint(0x1F1A5+cc.charCodeAt(0),0x1F1A5+cc.charCodeAt(1))+'</span>':'';}
 function hasFlag(s){return /[\u{1F1E6}-\u{1F1FF}]{2}/u.test(s||'');}
 function sInfo(sd,id){var n=sd&&sd.nodes&&sd.nodes[id];return{n:n&&n.n?n.n:(nodeName(id)||'нода '+String(id).slice(0,8)),h:n&&n.h&&n.h.length?n.h:[],cc:n&&n.cc||''};}
@@ -1266,7 +1285,7 @@ function liveHtml(){
  if(L.err)return '<div class="ux-warn">'+esc(L.err)+'</div>';
  if(!L.nodes.length)return '<div class="ux-empty" style="padding:1rem">Сейчас подключений нет'+(L.ts?' · '+fdt(L.ts*1000).replace(' в ',' '):'')+'</div>';
  var rows=[];
- L.nodes.forEach(function(n){n.ips.forEach(function(x){var lbl=n.h&&n.h.length?n.h.join(', '):(n.name||'нода '+String(n.node).slice(0,8));rows.push('<div><span class="nd"'+(n.h&&n.h.length?' data-tip="'+esc('Нода: '+n.name)+'"':'')+'>'+(n.ncc&&!hasFlag(lbl)?flag(n.ncc):'')+'<span>'+esc(lbl)+'</span></span><span class="ip">'+esc(x.ip)+'</span><span class="pv">'+provHtml(x)+'</span><button type="button" class="wb sm" data-a="sdrop" data-ip="'+esc(x.ip)+'" data-w="'+esc(SESS.sc.drop)+'">'+ico('ban')+'Сбросить</button></div>');});});
+ L.nodes.forEach(function(n){n.ips.forEach(function(x){var lbl=n.h&&n.h.length?n.h.join(', '):(n.name||'нода '+String(n.node).slice(0,8));rows.push('<div><span class="nd"'+(n.h&&n.h.length?' data-tip="'+esc(hostTip(n.name,n.h))+'"':'')+'>'+(n.ncc&&!hasFlag(lbl)?flag(n.ncc):'')+'<span>'+esc(lbl)+'</span></span><span class="ip">'+esc(x.ip)+'</span><span class="pv">'+provHtml(x)+'</span><button type="button" class="wb sm" data-a="sdrop" data-ip="'+esc(x.ip)+'" data-w="'+esc(SESS.sc.drop)+'">'+ico('ban')+'Сбросить</button></div>');});});
  return '<div class="ux-live">'+rows.join('')+'</div><div class="muted" style="font-size:.76rem;margin:-.1rem 0 .4rem">Снимок '+fdt(L.ts*1000).replace(' в ',' ')+' · IP остаётся в списке, пока с него открыто соединение.</div>';
 }
 function sessHtml(u){
@@ -1288,7 +1307,7 @@ function sessHtml(u){
   var regs=Object.keys(g.R).sort(function(a,b){return(a===''?1:0)-(b===''?1:0)||a.localeCompare(b);});
   return '<details class="ux-sg"'+(open?' open':'')+'><summary>'+ico('chev',14).replace('<svg','<svg class="ch"')+(g.cc?flag(g.cc):'')+'<span class="sp">'+esc(g.org||(g.asn?'AS'+g.asn:'Провайдер неизвестен'))+(g.asn&&g.org?' <span class="muted" style="font-weight:500">AS'+g.asn+'</span>':'')+'</span><span class="st">'+Object.keys(g.ips).length+' IP · '+ago(g.e*1000)+'</span></summary>'+
    regs.map(function(rk){var ips=Object.keys(g.R[rk].I).map(function(k){return g.R[rk].I[k];}).sort(function(a,b){return b.e-a.e;});
-    return '<div class="rg">'+(regs.length>1||rk?'<div class="rt">'+(rk?esc(rk):'регион неизвестен')+(Object.keys(g.R[rk].C).length?' <span class="muted" style="font-weight:500">· '+esc(Object.keys(g.R[rk].C).sort().join(', '))+'</span>':'')+'</div>':'')+ips.map(function(x){var ids=Object.keys(x.nodes),nn=ids.map(function(id){return sNode(sd,id);}).join(', '),tp=ids.map(function(id){return sTip(sd,id);}).filter(Boolean).join('; ')||nn;return '<div class="ux-sr'+(x.live?' live':'')+'"><span class="ip">'+esc(x.ip)+'</span><span class="nd"'+(tp?' data-tip="'+esc(tp)+'"':'')+'>'+esc(nn)+'</span><span class="tm"><b>'+spanTxt(x.s,x.e)+'</b><br>'+x.n+' '+plural(x.n,'сессия','сессии','сессий')+' · '+(Math.round(x.sec/360)/10)+' ч</span></div>';}).join('')+'</div>';
+    return '<div class="rg">'+(regs.length>1||rk?'<div class="rt">'+(rk?esc(rk):'регион неизвестен')+(Object.keys(g.R[rk].C).length?' <span class="muted" style="font-weight:500">· '+esc(Object.keys(g.R[rk].C).sort().join(', '))+'</span>':'')+'</div>':'')+ips.map(function(x){var ids=Object.keys(x.nodes),nn=ids.map(function(id){return sNode(sd,id);}).join(', '),tp=ids.map(function(id){return sTip(sd,id);}).filter(Boolean).join('; ');tp=tp?tp+(ids.some(function(id){return sInfo(sd,id).h.length>1;})?HT_MANY:''):nn;return '<div class="ux-sr'+(x.live?' live':'')+'"><span class="ip">'+esc(x.ip)+'</span><span class="nd"'+(tp?' data-tip="'+esc(tp)+'"':'')+'>'+esc(nn)+'</span><span class="tm"><b>'+spanTxt(x.s,x.e)+'</b><br>'+x.n+' '+plural(x.n,'сессия','сессии','сессий')+' · '+(Math.round(x.sec/360)/10)+' ч</span></div>';}).join('')+'</div>';
    }).join('')+'</details>';
  }).join('');
  return h;
@@ -1372,7 +1391,7 @@ function uNode(s){return s.h&&s.h.length?s.h.join(', '):(s.name||'нода '+Str
 var UMAX=8;
 function uCol(s,i){return i>=UMAX?'var(--ch8)':(s.c||'var(--ch'+(i%8+1)+')');}
 function uhN(el){return el.dataset.n==='o'?'o':+el.dataset.n;}
-function loadUsage(){var su=CARD.u.su,u=CARD.u,d=CARD.ud;CARD.uh=null;CARD.uht=null;if(!canW(USG.sc)){CARD.usage={err:roTip(USG.sc)};if(CARD.tab==='usage')drawCard();return;}CARD.usage=false;getj('usage','&rv='+encodeURIComponent(u.rv)+'&d='+d).then(function(r){if(!CARD||CARD.create||CARD.u.su!==su||CARD.ud!==d)return;CARD.usage=r.ok?r:{err:r.error||'Ошибка'};if(CARD.tab==='usage')drawCard();});}
+function loadUsage(){var su=CARD.u.su,u=CARD.u,d=CARD.ud;CARD.uh=null;CARD.uht=null;if(!canW(USG.sc)){CARD.usage={err:roTip(USG.sc)};if(CARD.tab==='usage')drawCard();return;}CARD.usage=false;getj('usage','&rv='+encodeURIComponent(u.rv)+'&d='+d+'&sq='+encodeURIComponent(uSq(u).join(','))).then(function(r){if(!CARD||CARD.create||CARD.u.su!==su||CARD.ud!==d)return;CARD.usage=r.ok?r:{err:r.error||'Ошибка'};if(CARD.tab==='usage')drawCard();});}
 function uhlApply(){
  var dr=$('uxDr');if(!dr||!CARD)return;
  var n=CARD.uh!=null?CARD.uh:(CARD.uht!=null?CARD.uht:null);
@@ -1405,7 +1424,7 @@ function usageHtml(u){
  h+='<div class="ux-cs">'+S.map(function(s,k){var p=s.total/sum*100;return '<b data-n="'+k+'" style="flex:'+s.total+' 0 0;background:'+uCol(s,k)+'" data-tip="'+esc(uNode(s)+' · '+(p>0&&p<1?'<1':Math.round(p))+'% · '+fb(s.total))+'"></b>';}).join('')+'</div>';
  var pcTxt=function(p){return (p>0&&p<1?'&lt;1':Math.round(p))+'%';};
  h+='<div class="ux-ut"><div class="hd"><span></span><span>Сервер</span><span>Доля</span><span class="r">За период</span><span class="r">В день</span></div>';
- h+=main.map(function(s,k){var p=s.total/sum*100,lbl=uNode(s),ad=s.data.filter(function(x){return x>0;}).length;return '<div data-a="uhl" data-n="'+k+'"><span class="sw" style="background:'+uCol(s,k)+'"></span><span class="nd"'+(s.h&&s.h.length?' data-tip="'+esc('Нода: '+s.name)+'"':'')+'>'+(s.cc&&!hasFlag(lbl)?flag(s.cc):'')+'<span>'+esc(lbl)+'</span></span><span class="sh"><span class="ux-bar"><i style="width:'+p.toFixed(1)+'%;background:'+uCol(s,k)+'"></i></span><span class="pc">'+pcTxt(p)+'</span></span><span class="tv">'+fb(s.total)+'</span><span class="d2"><i>в день</i>'+fb(ad?s.total/ad:0)+'</span></div>';}).join('');
+ h+=main.map(function(s,k){var p=s.total/sum*100,lbl=uNode(s),ad=s.data.filter(function(x){return x>0;}).length;return '<div data-a="uhl" data-n="'+k+'"><span class="sw" style="background:'+uCol(s,k)+'"></span><span class="nd"'+(s.h&&s.h.length?' data-tip="'+esc(hostTip(s.name,s.h))+'"':'')+'>'+(s.cc&&!hasFlag(lbl)?flag(s.cc):'')+'<span>'+esc(lbl)+'</span></span><span class="sh"><span class="ux-bar"><i style="width:'+p.toFixed(1)+'%;background:'+uCol(s,k)+'"></i></span><span class="pc">'+pcTxt(p)+'</span></span><span class="tv">'+fb(s.total)+'</span><span class="d2"><i>в день</i>'+fb(ad?s.total/ad:0)+'</span></div>';}).join('');
  if(rest.length){var rt=rest.reduce(function(a,s){return a+s.total;},0),rp=rt/sum*100;h+='<div class="oth" data-a="uhl" data-n="o"><span class="sw"></span><span class="nd"><span>Прочие · '+rest.length+' '+plural(rest.length,'сервер','сервера','серверов')+'</span></span><span class="sh"><span class="ux-bar"><i style="width:'+Math.max(rp,1).toFixed(1)+'%;background:var(--ch8)"></i></span><span class="pc">'+pcTxt(rp)+'</span></span><span class="tv">'+fb(rt)+'</span><span class="d2">—</span></div>';}
  h+='<div class="ft"><span></span><span>Всего · '+CARD.ud+' дн</span><span class="sh"><span class="ux-bar"><i style="width:100%;background:var(--muted);opacity:.4"></i></span><span class="pc">100%</span></span><span class="tv">'+fb(sum)+'</span><span class="d2"><i>в день</i>'+fb(tot30)+'</span></div></div>';
  h+='<div class="muted" style="font-size:.76rem;margin-top:.6rem">Данные панели, сутки по UTC · '+fdt(D.ts*1000).replace(' в ',' ')+' · наведите или нажмите на сервер, чтобы выделить его на графике</div>';
