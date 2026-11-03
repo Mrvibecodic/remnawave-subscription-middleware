@@ -33,6 +33,7 @@ t_ok('таблица сессий есть у «Базы данных»', isset(
 // Снимок → сессии
 t_settings(['sess_enabled' => '1', 'sess_every' => '120']);
 $mock([$N1 => ['1' => ['1.2.3.4']], $N2 => ['1' => ['1.2.3.4'], '2' => ['5.6.7.8', '9.9.9.9']]]);
+remnawave_panel_meta(0);
 t_eq('первый опрос без ошибок', sess_collect(microtime(true) + 10), '');
 t_eq('снимок разложен по сессиям: пользователь × нода × IP', $count(), 4);
 $st = sess_state();
@@ -103,6 +104,10 @@ t_eq('опрос на 3.x без ошибок', sess_collect(microtime(true) + 1
 t_ok('панель 3.x — адреса connections', $logHas('POST /api/connections/by-node/' . $N1) && !$logHas('ip-control'));
 t_ok('сброс на 3.x — по числовому id', sess_drop('1', [], $e) && $logHas('"userIds":[1]'));
 t_eq('права токена для 3.x', sess_scopes()['node'], 'connections:by-node');
+set_setting('panelmeta_json', ''); set_setting('sess_api_v3', ''); unset($GLOBALS['submw_sess_v3']);
+@unlink($mlog);
+sess_collect(microtime(true) + 10);
+t_ok('версия панели неизвестна — сразу адреса 3.x, без пробы ip-control', $logHas('POST /api/connections/by-node/' . $N1) && !$logHas('ip-control'));
 $cat = array_column(tokscope_catalog(), 's');
 t_ok('каталог прав содержит права обозревателя сессий', in_array('connections:by-node', $cat, true) && in_array('connections:by-node-result', $cat, true) && in_array('connections:drop', $cat, true));
 
