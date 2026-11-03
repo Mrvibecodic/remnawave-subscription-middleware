@@ -645,6 +645,12 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 @media(max-width:900px){table.ux-plt>tbody>tr.fb{border-color:color-mix(in srgb,var(--c-warn-fg) 50%,var(--line))}}
 .ux-plft{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.7rem;font-size:.8rem;color:var(--muted)}
     </style>
+<?php if (function_exists('cmap_view')): ?>
+<div class="seg">
+    <a class="on" href="?tab=users">Список</a>
+    <a href="?tab=users&amp;view=map">Карта подключений</a>
+</div>
+<?php endif; ?>
 <div class="ux" id="ux">
     <?php if ($users_err): ?>
     <div class="warn">API недоступен: <?= h($users_err) ?>. Проверьте URL панели и токен во вкладке «Подключение».</div>
@@ -1666,6 +1672,7 @@ document.addEventListener('mouseout',function(e){var r=e.target.closest&&e.targe
 document.addEventListener('scroll',function(e){if(e.target&&e.target.closest&&e.target.closest('#uxMenu'))return;closeMenu();},true);
 document.addEventListener('click',function(e){if(!$('uxMenu').classList.contains('open')||!matchMedia('(max-width:600px)').matches||(e.target.closest&&e.target.closest('#uxMenu')))return;e.preventDefault();e.stopPropagation();closeMenu();},true);
 fillSelects();render();
+(function(){var m=/[?&]card=([^&#]+)/.exec(location.search);if(!m)return;var su=decodeURIComponent(m[1]);try{history.replaceState(null,'',location.pathname+'?tab=users'+location.hash);}catch(e){}for(var i=0;i<U.length;i++)if(U[i].su===su){openCard(U[i],'sess');break;}})();
 (function(){
 var G=C.go||null;if(!G)return;
 var pl=$('uxPlog');if(!pl)return;
