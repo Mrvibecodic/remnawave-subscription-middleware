@@ -671,26 +671,51 @@ function remnawave_sub_template_json($uuid, &$error = '') {
     return $tpl;
 }
 
+// Ответ панели по одному пользователю помнится до конца запроса (и не дольше USER_MEMO_TTL — на случай долгого
+// процесса), отдельно для каждой панели: один и тот же пользователь нужен нескольким модулям подряд (доп.
+// конфиги, слияние подписок, карточка, поиск). Любая наша запись в /api/users сбрасывает memo. Помнится и
+// отказ — в пределах запроса пользователь не появится, а таймаут панели второй раз ждать незачем.
+const USER_MEMO_TTL = 5;
+
+function rw_user_memo($key, ?array $put = null) {
+    $m = &$GLOBALS['submw_user_memo'];
+    if (!is_array($m)) $m = [];
+    $key = panel_users_src() . '|' . $key;
+    if ($put !== null) { $m[$key] = $put + ['t' => microtime(true)]; return $put; }
+    $v = $m[$key] ?? null;
+    return is_array($v) && microtime(true) - (float) $v['t'] < USER_MEMO_TTL ? $v : null;
+}
+
+function rw_user_memo_drop() { unset($GLOBALS['submw_user_memo']); }
+
 function remnawave_get_user_by_short($shortUuid, &$error = '', &$http_code = 0) {
     $error = ''; $http_code = 0;
     if ($shortUuid === '') { $error = 'Пустой shortUuid'; return null; }
+    $k = 'su:' . $shortUuid;
+    if (($m = rw_user_memo($k)) !== null) { $error = $m['e']; $http_code = $m['c']; return $m['u']; }
     [$ok, $code, $data, $e] = remnawave_api_request('GET', '/api/users/by-short-uuid/' . rawurlencode($shortUuid));
     $http_code = (int) $code;
-    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return null; }
+    if (!$ok) { $error = $e ?: ('HTTP ' . $code); rw_user_memo($k, ['u' => null, 'e' => $error, 'c' => $http_code]); return null; }
     $resp = $data['response'] ?? $data;
-    return is_array($resp) ? $resp : null;
+    $u = is_array($resp) ? $resp : null;
+    rw_user_memo($k, ['u' => $u, 'e' => '', 'c' => $http_code]);
+    return $u;
 }
 
 function remnawave_get_user_by_username($username, &$error = '') {
     $error = '';
     $username = (string) $username;
     if ($username === '') { $error = 'Пустой username'; return null; }
+    $k = 'un:' . $username;
+    if (($m = rw_user_memo($k)) !== null) { $error = $m['e']; return $m['u']; }
     [$ok, $code, $data, $e] = remnawave_api_request('GET', '/api/users/by-username/' . rawurlencode($username));
-    if (!$ok) { $error = $e ?: ('HTTP ' . $code); return null; }
+    if (!$ok) { $error = $e ?: ('HTTP ' . $code); rw_user_memo($k, ['u' => null, 'e' => $error, 'c' => (int) $code]); return null; }
     $resp = $data['response'] ?? $data;
     if (is_array($resp) && isset($resp['users']) && is_array($resp['users'])) $resp = $resp['users'][0] ?? null;
     elseif (is_array($resp) && isset($resp[0]) && is_array($resp[0])) $resp = $resp[0];
-    return is_array($resp) ? $resp : null;
+    $u = is_array($resp) ? $resp : null;
+    rw_user_memo($k, ['u' => $u, 'e' => '', 'c' => (int) $code]);
+    return $u;
 }
 
 function api_ctx($src = null, $short = null) {
@@ -701,6 +726,7 @@ function api_ctx($src = null, $short = null) {
 
 function remnawave_update_user($ref, array $fields, &$error = '', &$http_code = 0, &$resp = null) {
     $error = ''; $http_code = 0; $resp = null;
+    rw_user_memo_drop();
     $ref = rw_ref_coerce($ref);
     if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
     $body = array_merge([$ref['key'] => rw_ref_body_value($ref)], $fields);
@@ -717,6 +743,7 @@ function remnawave_update_user($ref, array $fields, &$error = '', &$http_code = 
 
 function remnawave_reset_traffic($ref, &$error = '') {
     $error = '';
+    rw_user_memo_drop();
     $ref = rw_ref_coerce($ref);
     if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
     [$ok, $code, $data, $e] = remnawave_api_request('POST', '/api/users/' . rawurlencode($ref['val']) . '/actions/reset-traffic');
@@ -749,6 +776,7 @@ function panel_err_text($data, $code, $fallback = '') {
 
 function remnawave_user_post($ref, $action, $op, $body = null, &$error = '', &$http_code = 0, &$resp = null) {
     $error = ''; $http_code = 0; $resp = null;
+    rw_user_memo_drop();
     $ref = rw_ref_coerce($ref);
     if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
     [$ok, $code, $data, $e] = remnawave_api_request('POST', '/api/users/' . rawurlencode($ref['val']) . '/actions/' . $action, $body);
@@ -764,6 +792,7 @@ function remnawave_user_post($ref, $action, $op, $body = null, &$error = '', &$h
 
 function remnawave_create_user(array $body, &$error = '', &$http_code = 0) {
     $error = ''; $http_code = 0;
+    rw_user_memo_drop();
     [$ok, $code, $data, $e] = remnawave_api_request('POST', '/api/users', $body);
     $http_code = (int) $code;
     $u = $ok ? ($data['response'] ?? $data) : null;
@@ -780,6 +809,7 @@ function remnawave_create_user(array $body, &$error = '', &$http_code = 0) {
 
 function remnawave_delete_user($ref, &$error = '', &$http_code = 0) {
     $error = ''; $http_code = 0;
+    rw_user_memo_drop();
     $ref = rw_ref_coerce($ref);
     if (!rw_ref_ok($ref)) { $error = 'Пустой идентификатор пользователя'; return false; }
     [$ok, $code, $data, $e] = remnawave_api_request('DELETE', '/api/users/' . rawurlencode($ref['val']));
