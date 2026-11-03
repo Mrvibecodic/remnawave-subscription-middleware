@@ -169,9 +169,12 @@ function cron_task_reports($ctx) {
     $sess = function_exists('sess_enabled') && sess_enabled();
     if (!rep_enabled() && !$sess) return '';
     if (rep_enabled()) rep_purge_maybe();
-    if ($ctx['detached']) geoip_maybe_update();
+    // Скачивание гео-баз идёт минуты — после замка, иначе следующие запуски (и грейс) ждут его.
+    if ($ctx['detached']) cron_after('geoip_maybe_update');
     return '';
 }
+
+function cron_after($fn) { $GLOBALS['submw_cron_after'][(string) $fn] = $fn; }
 
 function cron_task_cleanup($ctx) {
     $p = db();
@@ -260,6 +263,11 @@ function cron_run($src) {
     } finally {
         flock($lock, LOCK_UN);
         fclose($lock);
+    }
+    $after = $GLOBALS['submw_cron_after'] ?? [];
+    unset($GLOBALS['submw_cron_after']);
+    foreach ($after as $name => $fn) {
+        try { $fn(); } catch (Throwable $e) { error_log('submw cron ' . $name . ': ' . $e->getMessage()); }
     }
     return ['ok' => true, 'ran' => $ran];
 }

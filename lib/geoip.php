@@ -286,6 +286,8 @@ function geoip_have_set($which, $src) {
 // Кандидаты на скачивание по порядку: [url, gz]. Чексум на зеркале отстаёт от файла на сутки,
 // поэтому целостность проверяется чтением базы и контрольным поиском.
 function geoip_sources($which) {
+    $t = getenv('SUBMW_TEST_GEOSRC');
+    if (is_string($t) && $t !== '' && (string) getenv('SUBMW_TEST_BOX') !== '') return [[$t . $which, false]];
     $dbip = [];
     if ($which !== 'city6') {
         foreach ([gmdate('Y-m'), gmdate('Y-m', strtotime('first day of last month'))] as $month) $dbip[] = [geoip_dbip_url($which, $month), true];
