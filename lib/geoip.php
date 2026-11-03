@@ -515,7 +515,11 @@ function geoip_update(&$err = '', $only = null) {
     }
     if ($lock) { flock($lock, LOCK_UN); fclose($lock); }
     if (isset($done['country'], $done['asn'])) set_setting('geoip_ts', (string) time());
-    if ($done) { geoip_reset(); if (function_exists('sess_regeo')) sess_regeo(); }
+    if ($done) {
+        geoip_reset();
+        // Опрос нод мог идти параллельно со скачиванием и записать сессии по старой базе — следующий опрос пересчитает ещё раз.
+        if (function_exists('sess_regeo')) { sess_regeo(); set_setting('sess_regeo_need', '1'); }
+    }
     $err = implode('; ', $errs);
 
     return count($done) === count($want);

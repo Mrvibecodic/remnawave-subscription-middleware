@@ -580,6 +580,7 @@ function sess_purge_maybe() {
 
 function cron_task_sessions($ctx) {
     if (!sess_enabled()) return '';
+    if (setting('sess_regeo_need', '') === '1') { set_setting('sess_regeo_need', ''); sess_regeo(); }
     // Список лимитов обновляется до опроса и только при запасе времени; сам опрос берёт снимок как есть.
     // Go берёт весь список за один заход — ему нужен запас на весь обход, а не на порцию PHP-докачки.
     $left = $ctx['deadline'] - microtime(true);

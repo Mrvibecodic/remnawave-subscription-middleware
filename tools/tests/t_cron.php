@@ -259,9 +259,9 @@ tc_state(['grace' => ['start' => $now - 100, 'ok_at' => $now - 100], 'reports' =
 file_put_contents($tt_root . '/data/cron_child.php', '<?php $_SERVER["REQUEST_URI"] = "/"; require ' . var_export($tt_root . '/lib.php', true) . '; require_once ' . var_export($tt_root . '/lib/cron.php', true) . '; $t = microtime(true); $r = cron_run("cli"); echo json_encode(["ran" => array_keys($r["ran"] ?? []), "s" => round(microtime(true) - $t, 1)]);');
 $cenv = getenv(); $cenv['SUBMW_TEST_GEOSRC'] = $geo . '/';
 $child = proc_open([PHP_BINARY, $tt_root . '/data/cron_child.php'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $cp, $tt_root, $cenv);
-usleep(1200000);
+// Ждём не время, а событие: скачивание началось (geoip_try) — значит, задачи прошли и замок отпущен.
+for ($i = 0; $i < 200; $i++) { tc_fresh(); if ((int) setting('geoip_try', '0') > 0) break; usleep(50000); }
 $addGrace();
-tc_fresh();
 $st = cron_state(); $st['tasks']['grace'] = ['start' => $now - 100, 'ok_at' => $now - 100]; cron_save($st);
 $r2 = cron_run('cli');
 t_ok('второй запуск не ждёт скачивание: замок свободен, грейс проверен', empty($r2['skip']) && $graceLeft() === 0, json_encode($r2, JSON_UNESCAPED_UNICODE));
@@ -270,6 +270,11 @@ $cj = json_decode($cout, true);
 tc_fresh();
 t_ok('первый запуск: задача reports выполнена, скачивание шло после неё', in_array('reports', (array) ($cj['ran'] ?? []), true) && (float) ($cj['s'] ?? 0) >= 3 && (int) setting('geoip_try', '0') > 0, $cout . ' ' . $cerr);
 t_ok('ошибка скачивания не ломает запуск', strpos($cerr, 'Fatal') === false, $cerr);
+set_setting('sess_regeo_need', '1');
+$tt_pdo->exec('DELETE FROM grace_users');
+tc_state(['grace' => ['start' => time(), 'ok_at' => time()], 'reports' => ['start' => time(), 'ok_at' => time()], 'sessions' => ['start' => $now - 7200, 'ok_at' => $now - 7200]]);
+cron_run('cli'); tc_fresh();
+t_eq('после обновления баз следующий опрос нод пересчитывает гео сессий', setting('sess_regeo_need', ''), '');
 t_settings(['geoip_auto' => '0', 'sess_enabled' => '0']);
 
 t_done();
