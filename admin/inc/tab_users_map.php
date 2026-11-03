@@ -14,7 +14,6 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
     .cmw{--cm1:#5544b0;--cm2:#6b55d2;--cm3:#8a70ea;--cm4:#ab94f6;--cm5:#d2c4ff}
     html[data-theme="light"] .cmw{--cm1:#a993f2;--cm2:#8c6fe6;--cm3:#7150d6;--cm4:#5735b8;--cm5:#3e2190}
     svg.cmi{width:15px;height:15px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
-    .cm-mk{position:absolute;left:-9999px;top:-9999px;font-size:12px}
     .cm-sub{font-weight:400;font-size:.78rem;color:var(--muted)}
     .cm-per{display:inline-flex;align-items:center;gap:.5rem;flex-wrap:wrap;position:relative}
     .cm-per .seg{margin:0}
@@ -307,6 +306,7 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
 
     <script>window.CMAP_CFG = <?= json_encode($cm_cfg, $cm_js) ?>;</script>
     <script src="assets/cis.js?v=<?= substr(@md5_file(__DIR__ . '/../assets/cis.js') ?: '0', 0, 10) ?>"></script>
+    <script src="assets/cisname.js?v=<?= substr(@md5_file(__DIR__ . '/../assets/cisname.js') ?: '0', 0, 10) ?>"></script>
     <script>
     (function () {
         'use strict';
@@ -331,16 +331,9 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
 
         var CISCC = {};
         Object.keys(M.r).forEach(function (id) { CISCC[M.r[id].cc] = 1; });
-        var nrm = function (x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); };
-        var RTYPES = /\b(oblast|oblasti|oblisi|oblysy|voblasts|voblasc|voblast|region|respublikasi|republic|respublika|kray|krai|krayi|province|viloyati|viloyat|city|gorod|autonomous|avtonomnyy|okrug|district|rayon|raion|municipality|mkhare|qalasy|shahri|economic|of|the|a|s|s r|ao|aok|okr|skaya|skiy|g)\b/g;
-        var strp = function (x) { return nrm(x).replace(RTYPES, ' ').replace(/\s+/g, ' ').trim(); };
-        var regionOf = function (cc, sub) {
-            if (!CISCC[cc] || !sub || !M.a) return null;
-            var id = M.a[cc + '|' + nrm(sub)] || M.a[cc + '|s:' + strp(sub)];
-            return id && M.r[id] ? id : null;
-        };
+        var regionOf = function (cc, sub) { return CISCC[cc] && window.cisRegionByName ? window.cisRegionByName(M, cc, sub) : null; };
 
-        var D = null, NODES = [], REG = [], CL = [], AG = null, DET = null, detSeq = 0, loadSeq = 0, retried = false;
+        var D = null, NODES = [], REG = [], CL = [], AG = null, DET = null, detSeq = 0, loadSeq = 0, retryN = 0, retryT = 0;
         var st = {p: String(C.presets[0] || 1), f: 0, t: 0, node: -1, client: -1, region: null, ab: null, page: 0, q: '', sort: 'ip', cc: '', rgf: null, vb: [0, 0, 1000, 540], hovRg: null};
 
         var setData = function (d) {
@@ -454,7 +447,7 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
         };
 
         var perText = function () {
-            if (st.p === 'c') return tFmt(st.f, 'd') + ' – ' + tFmt(st.t, 'd');
+            if (st.p === 'c') return tFmt(Math.max(st.f, minTs()), 'd') + ' – ' + tFmt(Math.min(st.t, nowS()), 'd');
             var d = +st.p; return d === 1 ? 'за 24 часа' : 'за ' + d + ' ' + plural(d, 'день', 'дня', 'дней');
         };
         var kpis = function () {
@@ -475,7 +468,7 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
         var fresh = function () {
             var el = $('cmFresh');
             if (!D) { el.innerHTML = ''; return; }
-            el.innerHTML = ico('clock') + '<span>Обновлено <b class="cm-ts" data-ts="' + D.ts + '" data-f="dt"></b>' + (D.stale ? ', сейчас пересчитывается' : ', следующее — не раньше <b class="cm-ts" data-ts="' + (D.ts + C.ttl) + '" data-f="t"></b>') + '. Сводка строится из «Сессий».</span>';
+            el.innerHTML = ico('clock') + '<span>Обновлено <b class="cm-ts" data-ts="' + D.ts + '" data-f="dt"></b>' + (D.stale ? (retryN < RETRY.length ? ', сейчас пересчитывается' : ', свежая сводка появится при следующем открытии') : ', следующее — не раньше <b class="cm-ts" data-ts="' + (D.ts + C.ttl) + '" data-f="t"></b>') + '. Сводка строится из «Сессий».</span>';
             locTs(el);
         };
 
@@ -615,12 +608,12 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
             pop.style.left = left + 'px'; pop.style.top = top + 'px';
         };
 
-        var render = function () { aggregate(); paint(); drawOv(); kpis(); legend(); side(); focusBar(); fresh(); $('cmPerT').textContent = perText(); zoomBtns(); };
+        var render = function () { fillNodes(); aggregate(); paint(); drawOv(); kpis(); legend(); side(); focusBar(); fresh(); $('cmPerT').textContent = perText(); zoomBtns(); };
         var refresh = function () { paint(); drawOv(); side(); focusBar(); };
         var resetSel = function () { st.client = -1; st.region = null; st.ab = null; st.hovRg = null; DET = null; closePop(); };
 
         var loadDet = function (c) {
-            var s = ++detSeq, q = 'cmap_user&id=' + encodeURIComponent(c.uid) + '&p=' + encodeURIComponent(st.p) + (st.p === 'c' ? '&f=' + st.f + '&t=' + st.t : '');
+            var s = ++detSeq, q = 'cmap_user&id=' + encodeURIComponent(c.uid) + '&p=c&f=' + D.from + '&t=' + D.to;
             getj(q).then(function (d) {
                 if (s !== detSeq || cur() !== c) return;
                 DET = d.ok ? detBuild(d, c) : {uid: -1, err: d.error || 'Не загрузилось'};
@@ -636,6 +629,8 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
         };
         var clearSel = function () { resetSel(); refresh(); };
 
+        var RETRY = [5, 10, 20, 40];
+        var retryStale = function (d) { clearTimeout(retryT); if (d && d.stale && retryN < RETRY.length) retryT = setTimeout(function () { load(true); }, RETRY[retryN++] * 1000); };
         var load = function (quiet) {
             var s = ++loadSeq, q = 'cmap&p=' + encodeURIComponent(st.p) + (st.p === 'c' ? '&f=' + st.f + '&t=' + st.t : '');
             if (!quiet) $('cmCard').classList.add('busy');
@@ -648,7 +643,7 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
                 if (keep !== null) { st.client = -1; for (var i = 0; i < CL.length; i++) if (CL[i].uid === keep) { st.client = i; break; } if (st.client < 0) resetSel(); }
                 render();
                 if (keep !== null && cur() && (!DET || DET.uid !== keep)) loadDet(cur());
-                if (d.stale && !retried) { retried = true; setTimeout(function () { load(true); }, 5000); }
+                retryStale(d);
             });
         };
 
@@ -759,7 +754,7 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
         var dayStart = function (v) { var p = v.split('-'); return Math.floor(new Date(+p[0], +p[1] - 1, +p[2]).getTime() / 1000); };
         var minTs = function () { return nowS() - C.keep * DAY; };
         var setPer = function (btn) { document.querySelectorAll('#cmPer button').forEach(function (x) { x.classList.toggle('on', x === btn); }); };
-        var periodChanged = function () { resetSel(); st.cc = ''; st.rgf = null; st.page = 0; st.node = -1; retried = false; load(false); };
+        var periodChanged = function () { resetSel(); st.cc = ''; st.rgf = null; st.page = 0; st.node = -1; retryN = 0; clearTimeout(retryT); load(false); };
         document.querySelectorAll('#cmPer button').forEach(function (b) {
             b.addEventListener('click', function (e) {
                 if (b.dataset.p === 'c') {
@@ -786,18 +781,16 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
             var a = dayStart(f), b = dayStart(to); if (a > b) { var x = a; a = b; b = x; }
             var end = new Date(b * 1000); end.setDate(end.getDate() + 1); b = Math.floor(end.getTime() / 1000) - 1;
             if (b < minTs()) { er.textContent = 'История хранится ' + C.keep + ' ' + plural(C.keep, 'день', 'дня', 'дней') + ' — не раньше ' + tFmt(minTs() + DAY, 'd'); return; }
-            st.p = 'c'; st.f = Math.max(a, minTs()); st.t = Math.min(b, nowS());
+            st.p = 'c'; st.f = a; st.t = b;
             pp.classList.remove('open'); setPer($('cmPerC'));
-            $('cmPerC').querySelector('span').textContent = tFmt(st.f, 'd') + ' – ' + tFmt(st.t, 'd');
+            $('cmPerC').querySelector('span').textContent = tFmt(Math.max(a, minTs()), 'd') + ' – ' + tFmt(Math.min(b, nowS()), 'd');
             periodChanged();
         });
         document.addEventListener('click', function (e) { if (pp.classList.contains('open') && !pp.contains(e.target) && !e.target.closest('#cmPerC')) pp.classList.remove('open'); });
 
-        var _render = render;
-        render = function () { fillNodes(); _render(); };
         if (C.d) {
             setData(C.d); render();
-            if (C.d.stale) { retried = true; setTimeout(function () { load(true); }, 5000); }
+            retryStale(C.d);
         } else load(false);
     })();
     </script>
