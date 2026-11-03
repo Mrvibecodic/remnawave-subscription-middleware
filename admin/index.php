@@ -1795,7 +1795,7 @@ if ($tab === 'settings') $tab = 'connection';
 if ($tab === 'headers') $tab = 'rules';
 if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) $tab));
 if (function_exists('cron_note_web_user')) cron_note_web_user();
-$ux_view = ($tab === 'users' && ($_GET['view'] ?? '') === 'map' && function_exists('cmap_view')) ? 'map' : '';
+$ux_view = ($tab === 'users' && ($_GET['view'] ?? '') === 'map' && function_exists('cmap_view') && function_exists('sess_ensure')) ? 'map' : '';
 $rl_view = ($tab === 'reqlog' && in_array($_GET['view'] ?? '', ['clients', 'junk'], true)) ? (string) $_GET['view'] : '';
 rules_migrate_legacy();
 squadconf_migrate_v3();

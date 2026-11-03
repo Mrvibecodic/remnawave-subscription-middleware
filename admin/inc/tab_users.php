@@ -645,7 +645,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 @media(max-width:900px){table.ux-plt>tbody>tr.fb{border-color:color-mix(in srgb,var(--c-warn-fg) 50%,var(--line))}}
 .ux-plft{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.7rem;font-size:.8rem;color:var(--muted)}
     </style>
-<?php if (function_exists('cmap_view')): ?>
+<?php if (function_exists('cmap_view') && function_exists('sess_ensure')): ?>
 <div class="seg">
     <a class="on" href="?tab=users">Список</a>
     <a href="?tab=users&amp;view=map">Карта подключений</a>

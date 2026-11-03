@@ -14,19 +14,30 @@ function cmap_period($p, $from = 0, $to = 0, $now = null) {
     $keep = function_exists('sess_keep_days') ? sess_keep_days() : 30;
     $min = $now - $keep * 86400;
     if ($p === 'c') {
-        $from = max($min, (int) $from);
-        $to = min($now, (int) $to);
+        $rf = $from = (int) $from;
+        $rt = $to = (int) $to;
+        // Граница «с начала хранения» и «по сейчас» сдвигается каждую секунду — в ключ кэша идут метки, а не секунды.
+        $fk = $from <= $min ? 'min' : (string) $from;
+        $tk = $to >= $now ? 'now' : (string) $to;
+        $from = max($min, $from);
+        $to = min($now, $to);
         if ($to <= $from) return null;
-        return ['key' => 'cmap_c', 'p' => 'c', 'from' => $from, 'to' => $to];
+        return ['key' => 'cmap_c', 'p' => 'c', 'from' => $from, 'to' => $to, 'id' => $fk . '-' . $tk, 'f' => $rf, 't' => $rt];
     }
     $d = (int) $p;
     if (!in_array($d, cmap_presets(), true)) $d = 1;
-    return ['key' => 'cmap_p' . $d, 'p' => (string) $d, 'from' => $now - $d * 86400, 'to' => $now];
+    return ['key' => 'cmap_p' . $d, 'p' => (string) $d, 'from' => $now - $d * 86400, 'to' => $now, 'id' => (string) $d, 'f' => 0, 't' => 0];
 }
 
-function cmap_names($maxAge) {
-    $c = admin_cache_get('cmap_names', $maxAge);
-    if (is_array($c) && is_array($c['u'] ?? null)) return $c['u'];
+// При ответе имена берутся из кэша любой давности; обходить панель — только в фоне или если имён ещё нет.
+function cmap_names($refresh) {
+    $c = cmap_cache_get('cmap_names');
+    $have = is_array($c) && is_array($c['u'] ?? null);
+    $fresh = $have && time() - (int) ($c['at'] ?? 0) < CMAP_TTL;
+    $tried = is_array($c) && time() - (int) ($c['try'] ?? 0) < CMAP_TTL;
+    if ($fresh || $tried || ($have && !$refresh)) return $have ? $c['u'] : [];
+    $old = $have ? $c['u'] : [];
+    cmap_cache_put('cmap_names', ['u' => $old, 'at' => (int) ($c['at'] ?? 0), 'try' => time()]);
     $err = '';
     $out = [];
     $list = remnawave_all_users($err, null, ['id', 'username', 'shortUuid']);
@@ -34,11 +45,8 @@ function cmap_names($maxAge) {
         if (!is_array($u) || !isset($u['id'])) continue;
         $out[(string) (int) $u['id']] = [mb_substr((string) ($u['username'] ?? ''), 0, 64), (string) ($u['shortUuid'] ?? '')];
     }
-    if ($err !== '') {
-        $old = admin_cache_get('cmap_names', PHP_INT_MAX);
-        return is_array($old) && is_array($old['u'] ?? null) ? $out + $old['u'] : $out;
-    }
-    admin_cache_put('cmap_names', ['u' => $out]);
+    if ($err !== '') return $out + $old;
+    cmap_cache_put('cmap_names', ['u' => $out, 'at' => time(), 'try' => time()]);
     return $out;
 }
 
@@ -51,7 +59,14 @@ function cmap_nodes() {
     return $out;
 }
 
-function cmap_build(array $per, $namesAge = CMAP_TTL) {
+function cmap_tables() {
+    $p = db();
+    return (function_exists('sess_enabled') && sess_enabled()) || db_table_columns($p, db_driver(), 'conn_sess') !== [];
+}
+
+function cmap_build(array $per, $refreshNames = false) {
+    if (!db()) return null;
+    if (!cmap_tables()) return ['ts' => time(), 'nk' => 0, 'p' => $per['p'], 'id' => $per['id'], 'from' => (int) $per['from'], 'to' => (int) $per['to'], 'U' => [], 'R' => [], 'N' => [], 'G' => [], 'A' => (object) []];
     if (!sess_ensure() || !($p = db())) return null;
     $mysql = db_driver() === 'mysql';
     $every = sess_every();
@@ -89,53 +104,90 @@ function cmap_build(array $per, $namesAge = CMAP_TTL) {
         error_log('submw cmap: ' . $e->getMessage());
         return null;
     }
-    $names = $U ? cmap_names($namesAge) : [];
+    $names = $U ? cmap_names($refreshNames) : [];
     foreach ($U as $i => $u) {
         $nm = $names[(string) $u[0]] ?? null;
         if ($nm) { $U[$i][1] = $nm[0]; $U[$i][2] = $nm[1]; }
     }
-    return ['ts' => time(), 'nk' => count($known), 'p' => $per['p'], 'from' => $from, 'to' => $to, 'U' => $U, 'R' => $R, 'N' => $N, 'G' => $G, 'A' => (object) $A];
+    return ['ts' => time(), 'nk' => count($known), 'p' => $per['p'], 'id' => $per['id'], 'from' => $from, 'to' => $to, 'U' => $U, 'R' => $R, 'N' => $N, 'G' => $G, 'A' => (object) $A];
 }
 
-function cmap_lock() {
+function cmap_lock($wait) {
     if (!function_exists('cron_data_dir')) return null;
     $f = @fopen(cron_data_dir() . '/.cmap.lock', 'c');
     if (!$f) return null;
-    if (!flock($f, LOCK_EX | LOCK_NB)) { fclose($f); return false; }
+    if (!flock($f, $wait ? LOCK_EX : LOCK_EX | LOCK_NB)) { fclose($f); return false; }
     return $f;
+}
+
+function cmap_unlock($lk) {
+    if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
+}
+
+function cmap_cached(array $per) {
+    $c = cmap_cache_get($per['key']);
+    return is_array($c) && (string) ($c['id'] ?? '') === $per['id'] ? $c : null;
+}
+
+function cmap_fresh($c) {
+    return is_array($c) && time() - (int) ($c['ts'] ?? 0) < CMAP_TTL;
 }
 
 // Устаревшая сводка отдаётся сразу, пересчёт — после ответа; без сводки считаем на месте.
 function cmap_view(array $per, &$stale = false) {
     $stale = false;
-    $c = admin_cache_get($per['key'], PHP_INT_MAX);
-    $same = is_array($c) && ($per['p'] !== 'c' || ((int) ($c['from'] ?? 0) === $per['from'] && (int) ($c['to'] ?? 0) === $per['to']));
-    if ($same && time() - (int) ($c['ts'] ?? 0) < CMAP_TTL) return $c;
-    if ($same && $per['p'] !== 'c') {
+    $c = cmap_cached($per);
+    if (cmap_fresh($c)) return $c;
+    if ($c !== null) {
         $stale = true;
-        register_shutdown_function('cmap_refresh_after_response', $per['p']);
+        register_shutdown_function('cmap_refresh_after_response', $per['p'], $per['f'], $per['t']);
         return $c;
     }
-    $lk = cmap_lock();
-    $d = cmap_build($per);
-    if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
-    if ($d !== null) admin_cache_put($per['key'], $d);
-    return $d;
+    // Второй одновременный запрос ждёт первый и берёт его результат.
+    $lk = cmap_lock(true);
+    $c = cmap_cached($per);
+    if ($c === null) {
+        $c = cmap_build($per);
+        if ($c !== null) cmap_cache_put($per['key'], $c);
+    }
+    cmap_unlock($lk);
+    return $c;
 }
 
-function cmap_refresh_after_response($p) {
+function cmap_refresh_after_response($p, $f = 0, $t = 0) {
     if (session_status() === PHP_SESSION_ACTIVE) @session_write_close();
     @ignore_user_abort(true);
     if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
-    $lk = cmap_lock();
+    $lk = cmap_lock(false);
     if ($lk === false) return;
-    $per = cmap_period((string) $p);
-    $c = admin_cache_get($per['key'], PHP_INT_MAX);
-    if (!is_array($c) || time() - (int) ($c['ts'] ?? 0) >= CMAP_TTL) {
-        $d = cmap_build($per);
-        if ($d !== null) admin_cache_put($per['key'], $d);
+    $per = cmap_period((string) $p, (int) $f, (int) $t);
+    if ($per !== null && !cmap_fresh(cmap_cached($per))) {
+        $d = cmap_build($per, true);
+        if ($d !== null) cmap_cache_put($per['key'], $d);
     }
-    if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
+    cmap_unlock($lk);
+}
+
+// Сводка на десятки тысяч клиентов упирается в max_allowed_packet MySQL — крупную храним сжатой.
+function cmap_cache_put($key, array $data) {
+    $j = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($j === false) return false;
+    if (strlen($j) > 524288 && function_exists('gzencode')) {
+        $z = gzencode($j, 6);
+        if ($z !== false) $data = ['z' => base64_encode($z)];
+    }
+    $ok = admin_cache_put($key, $data);
+    if (!$ok) error_log('submw cmap: сводка ' . $key . ' не сохранилась в кэш (' . strlen($j) . ' байт)');
+    return $ok;
+}
+
+function cmap_cache_get($key) {
+    $c = admin_cache_get($key, PHP_INT_MAX);
+    if (is_array($c) && isset($c['z']) && is_string($c['z'])) {
+        $j = function_exists('gzdecode') ? @gzdecode((string) base64_decode($c['z'], true)) : false;
+        $c = $j !== false ? json_decode((string) $j, true) : null;
+    }
+    return is_array($c) ? $c : null;
 }
 
 function cmap_user($uid, array $per) {

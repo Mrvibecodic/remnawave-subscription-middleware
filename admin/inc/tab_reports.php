@@ -670,6 +670,7 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
 <aside class="rv-drw rvp" id="rvDrw" aria-label="Клиент"></aside>
 
     <script src="assets/cis.js?v=<?= substr(@md5_file(__DIR__ . '/../assets/cis.js') ?: '0', 0, 10) ?>"></script>
+    <script src="assets/cisname.js?v=<?= substr(@md5_file(__DIR__ . '/../assets/cisname.js') ?: '0', 0, 10) ?>"></script>
     <script>
     (function () {
         var D = <?= json_encode($rv_mapd, $rv_js) ?>, HST = <?= json_encode($rv_hst, $rv_js) ?>;
@@ -762,19 +763,14 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             Object.keys(M.c).forEach(function (cc) { var p = document.createElementNS(NS, 'path'); p.setAttribute('d', M.c[cc]); p.setAttribute('class', 'cb'); gC.appendChild(p); });
         }
         var BB = {};
-        var nrm = function (x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); };
-        var RTYPES = /\b(oblast|oblasti|oblisi|oblysy|voblasts|voblasc|voblast|region|respublikasi|republic|respublika|kray|krai|krayi|province|viloyati|viloyat|city|gorod|autonomous|avtonomnyy|okrug|district|rayon|raion|municipality|mkhare|qalasy|shahri|economic|of|the|a|s|s r|ao|aok|okr|skaya|skiy|g)\b/g;
-        var strp = function (x) { return nrm(x).replace(RTYPES, ' ').replace(/\s+/g, ' ').trim(); };
         var regionOf = (function () {
             var cache = {};
             return function (loc, cc, sub) {
                 if (!M || !CIS[cc]) return null;
                 var key = (loc || '') + '|' + cc + '|' + (sub || '');
                 if (key in cache) return cache[key];
-                if (sub && M.a) {
-                    var byName = M.a[cc + '|' + nrm(sub)] || M.a[cc + '|s:' + strp(sub)];
-                    if (byName && M.r[byName]) return cache[key] = byName;
-                }
+                var byName = window.cisRegionByName ? window.cisRegionByName(M, cc, sub) : null;
+                if (byName) return cache[key] = byName;
                 if (!loc) return cache[key] = null;
                 var a = loc.split(','), xy = proj(+a[0], +a[1]), hit = null, ha = 1e12, best = null, bd = 1e9;
                 Object.keys(PATHS).forEach(function (id) {

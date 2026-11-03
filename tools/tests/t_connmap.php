@@ -79,13 +79,48 @@ cmap_refresh_after_response('1');
 $v4 = admin_cache_get('cmap_p1', PHP_INT_MAX);
 $U4 = []; foreach ($v4['U'] as $u) $U4[$u[0]] = $u;
 t_eq('после ответа пересчитана', $U4[1][3], 3);
-t_eq('имена при пересчёте — из кэша', $usersCalls() - $before, 1);
-$lk = cmap_lock();
+t_eq('имена при пересчёте — из кэша, пока свежие', $usersCalls() - $before, 1);
+$lk = cmap_lock(false);
 $age('cmap_p1', CMAP_TTL + 5);
 $t0 = admin_cache_get('cmap_p1', PHP_INT_MAX)['ts'];
 cmap_refresh_after_response('1');
 t_eq('параллельный пересчёт не запускается второй раз', admin_cache_get('cmap_p1', PHP_INT_MAX)['ts'], $t0);
 if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
+
+// Имена: при ответе — из кэша любой давности, обход панели — только в фоне
+$nm = cmap_cache_get('cmap_names'); $nm['at'] -= CMAP_TTL + 5; $nm['try'] -= CMAP_TTL + 5; cmap_cache_put('cmap_names', $nm);
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'cmap_p7'");
+$b1 = $usersCalls();
+cmap_view(cmap_period('7'), $stale);
+t_eq('первое открытие периода со старыми именами — панель не обходится', $usersCalls() - $b1, 0);
+$age('cmap_p7', CMAP_TTL + 5);
+cmap_refresh_after_response('7');
+t_eq('фоновый пересчёт обновляет старые имена', $usersCalls() - $b1, 1);
+$nm = cmap_cache_get('cmap_names'); $nm['at'] -= CMAP_TTL + 5; $nm['try'] -= CMAP_TTL + 5; cmap_cache_put('cmap_names', $nm);
+set_setting('remnawave_url', 'http://127.0.0.1:9');
+$t1 = microtime(true); $n1 = cmap_names(true);
+t_eq('панель недоступна — старые имена остаются', $n1['1'][0] ?? '', 'anna');
+$t1 = microtime(true); cmap_names(true); $t1 = microtime(true) - $t1;
+t_ok('неудачная попытка запомнена — повтор не раньше чем через 15 минут', $t1 < 0.05, round($t1, 3) . ' с');
+set_setting('remnawave_url', $panel);
+
+// Свой период: «с начала хранения» и «по сейчас» попадают в кэш, хотя секунды границ сдвигаются
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'cmap_c'");
+$pc = cmap_period('c', $now - 60 * 86400, $now + 86400);
+t_eq('свой период до сегодня от начала хранения — метки в ключе', $pc['id'], 'min-now');
+$c1 = cmap_view($pc, $stale);
+$c2 = cmap_view(cmap_period('c', $now - 60 * 86400, $now + 86400, time() + 3), $stale);
+t_eq('повтор того же своего периода через секунды — из кэша', [$stale, $c2['ts']], [false, $c1['ts']]);
+$c3 = cmap_view(cmap_period('c', $now - 3 * 86400, $now - 86400), $stale);
+t_eq('другой свой период — считается заново', [$c3['id'], (int) $c3['from']], [($now - 3 * 86400) . '-' . ($now - 86400), $now - 3 * 86400]);
+
+// Крупная сводка хранится сжатой и читается обратно
+$big = ['ts' => time(), 'x' => str_repeat('абвгд', 200000)];
+cmap_cache_put('cmap_test', $big);
+$raw = json_decode((string) $tt_pdo->query("SELECT v FROM admin_cache WHERE k = 'cmap_test'")->fetchColumn(), true);
+t_ok('крупная сводка в кэше — сжатой', isset($raw['z']) && strlen((string) $raw['z']) < 200000);
+t_eq('сжатая сводка читается как была', cmap_cache_get('cmap_test'), $big);
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'cmap_test'");
 
 // Подробности клиента
 $u2 = cmap_user(2, cmap_period('7'));
@@ -122,5 +157,9 @@ $tt_pdo->exec('DELETE FROM conn_sess');
 $tt_pdo->exec("DELETE FROM admin_cache WHERE k LIKE 'cmap%'");
 [, , $page] = t_http('GET', $mw . '/admin/index.php?tab=users&view=map', [], null, $jar);
 t_ok('сбор выключен и истории нет — подсказка включить', strpos($page, 'включите сбор') !== false && strpos($page, 'window.CMAP_CFG') === false);
+$tt_pdo->exec('DROP TABLE conn_sess');
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k LIKE 'cmap%'");
+$e0 = cmap_build(cmap_period('1'));
+t_eq('сессии никогда не включали — карта пустая и таблицу не создаёт', [count($e0['U']), db_table_columns($tt_pdo, db_driver(), 'conn_sess')], [0, []]);
 
 t_done();
