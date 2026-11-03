@@ -971,7 +971,8 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
     }
     if ($done) {
         if ($snap) panel_users_feed($rows, $t0);
-        admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => $t0]);
+        // Сборка дольше maxAge не должна тут же начаться заново — пауза хотя бы на тик.
+        admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => max($t0, time() - $maxAge + sess_every())]);
         return $part;
     }
     admin_cache_put('sess_users', ['src' => $src, 'u' => is_array($o['u'] ?? null) ? $o['u'] : null, 'ts0' => (int) ($o['ts0'] ?? 0), 'part' => $part, 'rows' => $rows, 'next' => $start, 't0' => $t0]);

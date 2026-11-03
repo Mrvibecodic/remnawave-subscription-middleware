@@ -137,6 +137,13 @@ $race_err = stream_get_contents($rp[2]); fclose($rp[1]); fclose($rp[2]); proc_cl
 t_ok('параллельный процесс без ошибок', trim($race_err) === '', $race_err);
 $forget();
 t_eq('патч дождался замка и лёг на новый снимок', array_column((array) panel_users_cached(), 'shortUuid'), ['OnlyOneShortUuid', 'RaceUserShort001']);
+$lk = panel_ref_lock('users');
+file_put_contents($tt_root . '/data/race.php', '<?php $_SERVER["REQUEST_URI"] = "/"; require ' . var_export($tt_root . '/lib.php', true) . "; \$t = microtime(true); panel_users_patch(['shortUuid' => 'LateUserShort0001', 'username' => 'late', 'id' => 89], false, 0, 1); echo round(microtime(true) - \$t, 1);");
+$race = proc_open([PHP_BINARY, $tt_root . '/data/race.php'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $rp, $tt_root);
+$race_out = stream_get_contents($rp[1]); fclose($rp[1]); fclose($rp[2]); proc_close($race);
+flock($lk, LOCK_UN); fclose($lk);
+$forget();
+t_ok('замок занят дольше ожидания — патч из админки не ждёт и не пишет без замка', (float) $race_out >= 1 && (float) $race_out < 2.5 && !in_array('LateUserShort0001', array_column((array) panel_users_cached(), 'shortUuid'), true), $race_out);
 
 // Другая панель: снимок от прежней не отдаётся даже без сброса
 t_settings(['remnawave_url' => $panel . '/other']);
