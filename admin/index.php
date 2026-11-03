@@ -4,6 +4,7 @@ ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
 require __DIR__ . '/../lib.php';
+if (is_file(dirname(__DIR__) . '/lib/connmap.php')) require_once dirname(__DIR__) . '/lib/connmap.php';
 
 header('X-Robots-Tag: noindex, nofollow');
 if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) ($_GET['tab'] ?? 'users')));
@@ -329,6 +330,21 @@ if (isset($_GET['ajax']) && is_auth()) {
             $out = ['ok' => $e === '', 'error' => $e, 'devices' => $d];
         }
         echo json_encode($out, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit();
+    }
+
+    if (($a === 'cmap' || $a === 'cmap_user') && function_exists('cmap_view')) {
+        $per = cmap_period((string) ($_GET['p'] ?? '1'), (int) ($_GET['f'] ?? 0), (int) ($_GET['t'] ?? 0));
+        if ($per === null) { echo json_encode(['ok' => false, 'error' => 'Неверный период']); exit(); }
+        if ($a === 'cmap') {
+            $stale = false;
+            $d = cmap_view($per, $stale);
+            $out = $d === null ? ['ok' => false, 'error' => 'Сводка не построилась — нет связи с БД'] : ['ok' => true, 'stale' => $stale, 'ttl' => CMAP_TTL] + $d;
+        } else {
+            $d = cmap_user((int) ($_GET['id'] ?? 0), $per);
+            $out = $d === null ? ['ok' => false, 'error' => 'Нет связи с БД'] : ['ok' => true] + $d;
+        }
+        cmap_send(json_encode($out, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
         exit();
     }
 
@@ -1779,6 +1795,7 @@ if ($tab === 'settings') $tab = 'connection';
 if ($tab === 'headers') $tab = 'rules';
 if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) $tab));
 if (function_exists('cron_note_web_user')) cron_note_web_user();
+$ux_view = ($tab === 'users' && ($_GET['view'] ?? '') === 'map' && function_exists('cmap_view')) ? 'map' : '';
 $rl_view = ($tab === 'reqlog' && in_array($_GET['view'] ?? '', ['clients', 'junk'], true)) ? (string) $_GET['view'] : '';
 rules_migrate_legacy();
 squadconf_migrate_v3();
@@ -1790,7 +1807,7 @@ $db_ok = $pdo !== null;
 if ($tab === 'reports' && $db_ok) rep_mark_seen();
 
 $overrides = [];
-if ($db_ok && ($tab === 'users' || $tab === 'overrides')) foreach ($pdo->query('SELECT * FROM overrides ORDER BY updated_at DESC LIMIT 500') as $r) $overrides[] = $r;
+if ($db_ok && (($tab === 'users' && $ux_view === '') || $tab === 'overrides')) foreach ($pdo->query('SELECT * FROM overrides ORDER BY updated_at DESC LIMIT 500') as $r) $overrides[] = $r;
 $ov_index = [];
 foreach ($overrides as $o) if ($o['match_type'] === 'shortuuid') $ov_index[$o['match_value']] = $o;
 $blocked_hwid_users = [];
@@ -1810,9 +1827,9 @@ if ($tab === 'overrides' && $ov_need_exp && remnawave_url() !== '' && remnawave_
 
 $users = []; $users_err = '';
 $nolog_set = [];
-if ($tab === 'users') { $users = remnawave_all_users($users_err); $nolog_set = nolog_shortuuids(); }
+if ($tab === 'users' && $ux_view === '') { $users = remnawave_all_users($users_err); $nolog_set = nolog_shortuuids(); }
 $addsub_links = [];
-if ($tab === 'users') { foreach (addsub_map_all() as $__r) $addsub_links[(string) $__r['main_short']] = (string) $__r['add_url']; }
+if ($tab === 'users' && $ux_view === '') { foreach (addsub_map_all() as $__r) $addsub_links[(string) $__r['main_short']] = (string) $__r['add_url']; }
 
 $reqlog = [];
 $rl_over = ['total' => 0, 'blocked' => 0, 'blocked_users' => 0, 'errors' => 0, 'hourly' => array_fill(0, 24, 0), 'peak' => 0, 'peak_h' => 0];
@@ -1961,7 +1978,7 @@ if ($tab === 'reqlog' && $rl_view === '') {
 $sys_info = []; $sys_db = []; $sys_load = []; $sys_series = []; $sys_peaks = [];
 // Базы GeoIP для отчётов клиентов: раз в месяц, после отдачи страницы. Запрос
 // клиента качает их только под php-fpm, где ответ уже ушёл; здесь — везде.
-if ($tab === 'geoip' || ($tab === 'reports' && rep_enabled()) || ($tab === 'users' && function_exists('sess_enabled') && sess_enabled())) register_shutdown_function('geoip_update_after_response');
+if ($tab === 'geoip' || ($tab === 'reports' && rep_enabled()) || ($tab === 'users' && $ux_view === '' && function_exists('sess_enabled') && sess_enabled())) register_shutdown_function('geoip_update_after_response');
 if ($tab === 'sysinfo') {
     ensure_metrics_tables();
     $sys_info   = metrics_system_info();
@@ -2350,7 +2367,7 @@ navHidSync();
 <?php endif; ?>
 
 <?php if ($tab === 'users'): ?>
-    <?php include __DIR__ . '/inc/tab_users.php'; ?>
+    <?php include __DIR__ . ($ux_view === 'map' ? '/inc/tab_users_map.php' : '/inc/tab_users.php'); ?>
 <?php elseif ($tab === 'branding'): ?>
     <?php include __DIR__ . '/inc/tab_branding.php'; ?>
 <?php elseif ($tab === 'connection'): ?>
