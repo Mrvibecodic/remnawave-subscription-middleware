@@ -23,7 +23,7 @@ $mw = t_serve($tt_root, $tt_root . '/tools/tests/_router.php');
 
 $cut   = static function () use ($mlog) { @file_put_contents($mlog, ''); };
 $calls = static fn() => substr_count((string) @file_get_contents($mlog), "GET /api/users\n");
-$age   = static function (int $sec) { $c = admin_cache_get('pref_users', PHP_INT_MAX); $c['ts'] -= $sec; admin_cache_put('pref_users', $c); unset($GLOBALS['submw_pusers_memo']); };
+$age   = static function (int $sec) { unset($GLOBALS['submw_pusers_memo']); $c = panel_users_load(); $c['ts'] -= $sec; panel_users_store($c); unset($GLOBALS['submw_pusers_memo']); };
 $forget = static function () { unset($GLOBALS['submw_pusers_memo']); };
 $e = '';
 
@@ -83,15 +83,15 @@ t_eq('… и он же обновил снимок', count((array) panel_users(3
 
 // Сбой панели: снимок остаётся, повтор не раньше PANEL_REF_RETRY; maxAge 0 — null
 $age(1000);
-t_settings(['remnawave_url' => $panel . '/down']);
+$mock(['users' => $base['users'] + ['FourthUserShort4' => ['username' => 'gleb']], 'users_fail' => true]);
 $cut();
 t_eq('устаревший снимок при сбое отдаётся, ошибка — текстом', [count((array) panel_users(300, $e)), $e !== ''], [4, true]);
 $forget();
 panel_users(300, $e);
-t_eq('после сбоя — одна попытка', substr_count((string) @file_get_contents($mlog), "GET /down/api/users\n"), 1);
+t_eq('после сбоя — одна попытка', $calls(), 1);
 t_eq('maxAge 0 при сбое — null', panel_users(0, $e), null);
 t_eq('лог запросов при сбое — прежние имена', count(reqlog_users(true)[0]), 4);
-t_settings(['remnawave_url' => $panel]);
+$mock(['users' => $base['users'] + ['FourthUserShort4' => ['username' => 'gleb']]]);
 
 // Правка из админки — одна строка снимка, возраст снимка прежний
 $ts = panel_users_ts();
@@ -112,12 +112,37 @@ $wh = static function (string $event, array $data) use ($mw, $secret) {
     $raw = json_encode(['scope' => 'user', 'event' => $event, 'timestamp' => gmdate('c'), 'data' => $data]);
     return t_http('POST', $mw . '/webhook.php', ['content-type' => 'application/json', 'x-remnawave-signature' => hash_hmac('sha256', $raw, $secret)], $raw)[0];
 };
+set_setting('pusers_pt', '0');
 $c1 = $wh('user.created', ['shortUuid' => 'WebhookCreated01', 'username' => 'wh', 'status' => 'ACTIVE', 'id' => 77]);
 $c2 = $wh('user.deleted', ['shortUuid' => 'ThirdUserShort22', 'username' => 'vera', 'status' => 'ACTIVE', 'id' => 3]);
 usleep(300000);
 $forget();
 $su = array_column((array) panel_users_cached(), 'shortUuid');
-t_eq('вебхук: created добавил, deleted убрал', [$c1, $c2, in_array('WebhookCreated01', $su, true), in_array('ThirdUserShort22', $su, true)], [200, 200, true, false]);
+t_eq('вебхук: created добавил; deleted через секунду после него — пропущен, доедет по возрасту', [$c1, $c2, in_array('WebhookCreated01', $su, true), in_array('ThirdUserShort22', $su, true)], [200, 200, true, true]);
+set_setting('pusers_pt', '0');
+$wh('user.deleted', ['shortUuid' => 'ThirdUserShort22', 'username' => 'vera', 'status' => 'ACTIVE', 'id' => 3]);
+usleep(300000);
+$forget();
+t_eq('вебхук deleted спустя паузу — убрал', in_array('ThirdUserShort22', array_column((array) panel_users_cached(), 'shortUuid'), true), false);
+
+// Патч под замком: пока идёт обход, патч ждёт и накладывается на новый снимок, а не на старый
+$lk = panel_ref_lock('users');
+file_put_contents($tt_root . '/data/race.php', '<?php $_SERVER["REQUEST_URI"] = "/"; require ' . var_export($tt_root . '/lib.php', true) . "; panel_users_patch(['shortUuid' => 'RaceUserShort001', 'username' => 'race', 'id' => 88]);");
+$race = proc_open([PHP_BINARY, $tt_root . '/data/race.php'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $rp, $tt_root);
+usleep(400000);
+$forget();
+panel_users_store(['ts' => time(), 'tm' => microtime(true), 'd' => [['id' => 1, 'shortUuid' => 'OnlyOneShortUuid', 'username' => 'solo']]]);
+flock($lk, LOCK_UN); fclose($lk);
+$race_err = stream_get_contents($rp[2]); fclose($rp[1]); fclose($rp[2]); proc_close($race);
+t_ok('параллельный процесс без ошибок', trim($race_err) === '', $race_err);
+$forget();
+t_eq('патч дождался замка и лёг на новый снимок', array_column((array) panel_users_cached(), 'shortUuid'), ['OnlyOneShortUuid', 'RaceUserShort001']);
+
+// Другая панель: снимок от прежней не отдаётся даже без сброса
+t_settings(['remnawave_url' => $panel . '/other']);
+$forget();
+t_eq('снимок помечен панелью — для другой панели его нет', panel_users_cached(), null);
+t_settings(['remnawave_url' => $panel]);
 
 // Смена панели — снимки справочников и пользователей сброшены
 panel_ref('nodes', 0);
@@ -134,5 +159,45 @@ t_eq('600 пользователей — три страницы, снимок �
 $cut();
 reqlog_users(true);
 t_eq('лог запросов после сессий — без запроса', $calls(), 0);
+
+// Докачка за несколько тиков: возраст снимка — от первой страницы, а не от последней
+$mock(['users_n' => 600, 'latency_ms' => 700]);
+admin_cache_put('sess_users', ['src' => '', 'u' => null, 'ts0' => 0]);
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'pref_users'"); $forget();
+$tick1 = time();
+sess_users_limits(1800, microtime(true) + 1);
+$o = admin_cache_get('sess_users', PHP_INT_MAX);
+t_ok('первый тик: часть страниц, снимка ещё нет', (int) ($o['next'] ?? 0) > 0 && (int) ($o['next'] ?? 0) < 600 && panel_users_ts() === 0, json_encode($o['next'] ?? null));
+sleep(3);
+$lim = sess_users_limits(1800, microtime(true) + 5);
+$forget();
+t_ok('второй тик дособрал; возраст снимка — от первого тика', count($lim) === 600 && panel_users_ts() <= $tick1 + 1, (string) (panel_users_ts() - $tick1));
+$mock(['users_n' => 600]);
+
+// Имена c1 из снимка стареют вместе с ним, а не заново от момента сборки карты
+$age(500);
+$tt_pdo->exec("DELETE FROM chan_state");
+set_setting('chan_names', '{}');
+chan_names_refresh();
+t_ok('карта имён c1 не моложе снимка', (int) (chan_names_cache()['ts'] ?? 0) <= time() - 490, (string) (time() - (int) (chan_names_cache()['ts'] ?? 0)));
+
+// Сбой панели без снимка: имена c1 — одна попытка, не две
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'pref_users'"); $forget();
+set_setting('chan_names', '{}');
+$mock(['users_n' => 600, 'users_fail' => true]);
+$cut();
+$el = ini_get('error_log'); ini_set('error_log', $tt_root . '/data/php-test.log');
+chan_names_refresh();
+ini_set('error_log', (string) $el);
+t_eq('имена c1 при сбое и без снимка — один обход', $calls(), 1);
+$mock(['users_n' => 600]);
+
+// Большой снимок хранится сжатым и читается обратно
+$mock(['users_n' => 2000]);
+$forget();
+$n = count((array) panel_users(0));
+$raw = (string) $tt_pdo->query("SELECT v FROM admin_cache WHERE k = 'pref_users'")->fetchColumn();
+$forget();
+t_eq('2000 пользователей: ячейка сжата, снимок читается', [$n, strlen($raw) < 200000, isset(json_decode($raw, true)['z']), count((array) panel_users(300))], [2000, true, true, 2000]);
 
 t_done();

@@ -441,6 +441,8 @@ function panel_ref_ts($name) {
 // Кто сходил в панель за полным списком, тот и обновил снимок (panel_users_feed); остальные читают его,
 // пока он не старше их maxAge. Горячий путь подписки снимком не пользуется.
 const PANEL_USERS_FIELDS = ['id', 'uuid', 'shortUuid', 'username', 'status', 'hwidDeviceLimit', 'expireAt', 'externalSquadUuid', 'activeInternalSquads'];
+const PANEL_USERS_GZ = 262144;
+const PANEL_USERS_PATCH_GAP = 5;
 
 function panel_users_row($u) {
     if (!is_array($u)) return null;
@@ -463,6 +465,8 @@ function panel_users_key($row) {
     return rw_ref_ok($ref) ? $ref['key'] . ':' . $ref['val'] : '';
 }
 
+function panel_users_src() { return md5(remnawave_url() . "\n" . remnawave_token()); }
+
 function &panel_users_memo() {
     $memo = &$GLOBALS['submw_pusers_memo'];
     if (!is_array($memo)) {
@@ -476,8 +480,25 @@ function &panel_users_memo() {
     return $memo;
 }
 
+// Снимок из базы — только от текущей панели; большой хранится сжатым (размер ячейки и max_allowed_packet).
+function panel_users_load() {
+    $c = admin_cache_get('pref_users', PHP_INT_MAX);
+    if (is_array($c) && isset($c['z']) && is_string($c['z'])) {
+        $j = function_exists('gzdecode') ? @gzdecode((string) base64_decode($c['z'], true)) : false;
+        $c = $j !== false ? json_decode((string) $j, true) : null;
+    }
+    return is_array($c) && ($c['src'] ?? '') === panel_users_src() ? $c : null;
+}
+
 function panel_users_store(array $c) {
+    $c['src'] = panel_users_src();
     $GLOBALS['submw_pusers_memo'] = ['c' => $c];
+    $j = json_encode($c, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($j === false) return false;
+    if (strlen($j) > PANEL_USERS_GZ && function_exists('gzencode')) {
+        $z = gzencode($j, 3);
+        if ($z !== false) return admin_cache_put('pref_users', ['z' => base64_encode($z)]);
+    }
     return admin_cache_put('pref_users', $c);
 }
 
@@ -487,9 +508,9 @@ function panel_users($maxAge, &$error = '') {
     $error = '';
     $now = time();
     $memo = &panel_users_memo();
-    $fresh = static function ($c) use ($now, $maxAge) { return $maxAge > 0 && is_array($c) && is_array($c['d'] ?? null) && $now - (int) ($c['ts'] ?? 0) <= $maxAge; };
+    $fresh = static function ($c) use (&$now, $maxAge) { return $maxAge > 0 && is_array($c) && is_array($c['d'] ?? null) && $now - (int) ($c['ts'] ?? 0) <= $maxAge; };
     $c = $memo['c'];
-    if (!$fresh($c)) $c = admin_cache_get('pref_users', PHP_INT_MAX);
+    if (!$fresh($c)) $c = panel_users_load();
     $has = is_array($c) && is_array($c['d'] ?? null);
     if ($fresh($c)) { $memo['c'] = $c; return $c['d']; }
     if ($has && $maxAge > 0 && $now - (int) ($c['e'] ?? 0) < PANEL_REF_RETRY) { $memo['c'] = $c; $error = (string) ($c['em'] ?? 'панель недоступна'); return $c['d']; }
@@ -497,8 +518,9 @@ function panel_users($maxAge, &$error = '') {
     $lk = $maxAge > 0 ? panel_ref_lock('users') : null;
     try {
         if ($lk) {
+            $now = time();
             $etm0 = (float) ($c['etm'] ?? 0);
-            $c2 = admin_cache_get('pref_users', PHP_INT_MAX);
+            $c2 = panel_users_load();
             if (is_array($c2) && is_array($c2['d'] ?? null)) {
                 $c = $c2;
                 $has = true;
@@ -522,8 +544,7 @@ function panel_users($maxAge, &$error = '') {
             $c['e'] = $t0;
             $c['etm'] = $tm;
             $c['em'] = $error;
-            $memo['c'] = $c;
-            admin_cache_put('pref_users', $c);
+            panel_users_store($c);
             return $has && $maxAge > 0 ? $c['d'] : null;
         }
         $c = ['ts' => $t0, 'tm' => $tm, 'd' => $rows];
@@ -534,19 +555,19 @@ function panel_users($maxAge, &$error = '') {
     }
 }
 
-// Полный список, который потребитель только что получил сам (вкладка «Пользователи», оценка пула WG, индекс c1),
-// становится снимком для остальных. Неполный список (ошибка на одной из страниц) сюда не передавать.
-function panel_users_feed(array $users) {
+// Полный список, который потребитель только что получил сам (вкладка «Пользователи», индекс c1, обход через Go),
+// становится снимком для остальных; $ts — когда обход начался, а не закончился. Неполный список сюда не передавать.
+function panel_users_feed(array $users, $ts = null) {
     $rows = [];
     foreach ($users as $u) if (($r = panel_users_row($u)) !== null) $rows[] = $r;
     panel_users_memo();
-    panel_users_store(['ts' => time(), 'tm' => microtime(true), 'd' => $rows]);
+    panel_users_store(['ts' => $ts === null ? time() : (int) $ts, 'tm' => microtime(true), 'd' => $rows]);
 }
 
 // Последний снимок как есть — без запроса к панели и без проверки возраста.
 function panel_users_cached() {
     $memo = &panel_users_memo();
-    $c = $memo['c'] ?? admin_cache_get('pref_users', PHP_INT_MAX);
+    $c = $memo['c'] ?? panel_users_load();
     if (!is_array($c) || !is_array($c['d'] ?? null)) return null;
     $memo['c'] = $c;
     return $c['d'];
@@ -554,30 +575,41 @@ function panel_users_cached() {
 
 function panel_users_ts() {
     $memo = &panel_users_memo();
-    $c = $memo['c'] ?? admin_cache_get('pref_users', PHP_INT_MAX);
+    $c = $memo['c'] ?? panel_users_load();
     return is_array($c) && is_array($c['d'] ?? null) ? (int) ($c['ts'] ?? 0) : 0;
 }
 
-// Одна строка снимка после записи из админки: правка, создание ($drop = false) или удаление ($drop = true).
-// Возраст снимка не меняется — он по-прежнему возраст всего списка.
-function panel_users_patch($u, $drop = false) {
-    $memo = &panel_users_memo();
-    $c = $memo['c'] ?? admin_cache_get('pref_users', PHP_INT_MAX);
-    if (!is_array($c) || !is_array($c['d'] ?? null)) return;
+// Одна строка снимка после записи: правка, создание ($drop = false) или удаление ($drop = true). Возраст снимка
+// не меняется — он по-прежнему возраст всего списка. Чтение и запись — под тем же замком, что и обход, иначе
+// параллельный полный обход затирается старой копией. $gap > 0 — не чаще раза в $gap секунд (пачки вебхуков):
+// пропущенные строки доедут по возрасту снимка, как и раньше.
+function panel_users_patch($u, $drop = false, $gap = 0) {
     $row = panel_users_row($u);
     $key = panel_users_key($row);
     if ($key === '') return;
-    $found = false;
-    foreach ($c['d'] as $i => $r) {
-        if (panel_users_key($r) !== $key) continue;
-        if ($drop) unset($c['d'][$i]); else $c['d'][$i] = $row;
-        $found = true;
-        break;
+    if ($gap > 0) {
+        if (time() - (int) setting('pusers_pt', '0') < $gap) return;
+        set_setting('pusers_pt', (string) time());
     }
-    if (!$found && !$drop) $c['d'][] = $row;
-    elseif (!$found) return;
-    $c['d'] = array_values($c['d']);
-    panel_users_store($c);
+    $lk = panel_ref_lock('users');
+    try {
+        panel_users_memo();
+        $c = panel_users_load();
+        if (!is_array($c) || !is_array($c['d'] ?? null)) return;
+        $found = false;
+        foreach ($c['d'] as $i => $r) {
+            if (panel_users_key($r) !== $key) continue;
+            if ($drop) unset($c['d'][$i]); else $c['d'][$i] = $row;
+            $found = true;
+            break;
+        }
+        if (!$found && !$drop) $c['d'][] = $row;
+        elseif (!$found) return;
+        $c['d'] = array_values($c['d']);
+        panel_users_store($c);
+    } finally {
+        if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
+    }
 }
 
 // Сменили панель или токен — снимки справочников и пользователей от прежней панели не нужны.

@@ -87,6 +87,8 @@ if ($path === '/api/users') {
     $list = isset($state['users_n']) ? array_fill_keys(array_map(static fn($k) => sprintf('U%015d', $k), range(0, max(0, (int) $state['users_n'] - 1))), []) : $users;
     if ((int) ($state['users_n'] ?? 1) === 0) $list = [];
     foreach ($list as $short => $u) $all[] = mp_user((string) $short, (array) $u, $i++);
+    // users_fail: true — список пользователей не отдаётся (502), остальные адреса работают.
+    if (!empty($state['users_fail'])) { mp_json(502, ['message' => 'Bad Gateway']); exit; }
     // users_fail_once: [<start>] — первая выдача страницы с этим start отвечает 502.
     if (in_array($start, (array) ($state['users_fail_once'] ?? []), true) && !is_file($once . 'users_' . $start)) { touch($once . 'users_' . $start); mp_json(502, ['message' => 'Bad Gateway']); exit; }
     // users_extra_on: [<n>] — n-я по счёту выдача первой страницы добавляет лишнего пользователя (расхождение снимков).

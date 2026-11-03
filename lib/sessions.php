@@ -925,7 +925,9 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
     $stale = is_array($o['u'] ?? null) ? $o['u'] : [];
     // Возраст — по ts0 собранного снимка, а не по записи в кэше: частичный прогресс его не продлевает.
     if (is_array($o['u'] ?? null) && time() - (int) ($o['ts0'] ?? 0) < $maxAge) return $stale;
-    $pts = function_exists('panel_users_ts') ? panel_users_ts() : 0;
+    // Общий снимок пользователей моложе нашего и не старше maxAge — лимиты из него, панель не трогаем.
+    $snap = function_exists('panel_users_ts');
+    $pts = $snap ? panel_users_ts() : 0;
     if ($pts > (int) ($o['ts0'] ?? 0) && time() - $pts < $maxAge) {
         $part = sess_limits_from(panel_users_cached());
         admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => $pts]);
@@ -937,11 +939,12 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
     // Через Go — весь список за один заход, без докачки по тикам.
     if (function_exists('go_users_list')) {
         $go_try = function_exists('go_users_ready') && go_users_ready();
-        $gl = go_users_list(PANEL_USERS_FIELDS, $ge, max(2, $deadline - microtime(true)));
+        $t0 = time();
+        $gl = go_users_list($snap ? PANEL_USERS_FIELDS : ['id', 'hwidDeviceLimit', 'externalSquadUuid'], $ge, max(2, $deadline - microtime(true)));
         if ($gl !== null) {
             $part = sess_limits_from($gl);
-            panel_users_feed($gl);
-            admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => time()]);
+            if ($snap) panel_users_feed($gl, $t0);
+            admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => $t0]);
             return $part;
         }
         // Запас был рассчитан на Go; PHP докачивает обычной порцией, чтобы не задерживать опрос нод.
@@ -950,6 +953,8 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
     $part = is_array($o['part'] ?? null) ? $o['part'] : [];
     $rows = is_array($o['rows'] ?? null) ? $o['rows'] : [];
     $start = (int) ($o['next'] ?? 0);
+    // Возраст списка, собранного за несколько тиков, — от первой страницы.
+    $t0 = $start > 0 && (int) ($o['t0'] ?? 0) > 0 ? (int) $o['t0'] : time();
     $size = 250;
     $done = false;
     while (microtime(true) < $deadline) {
@@ -960,16 +965,16 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
         if (!is_array($users)) $users = [];
         $total = (int) ($resp['total'] ?? count($users));
         $part = sess_limits_from($users) + $part;
-        foreach ($users as $x) if (($r = panel_users_row($x)) !== null) $rows[] = $r;
+        if ($snap) foreach ($users as $x) if (($r = panel_users_row($x)) !== null) $rows[] = $r;
         $start += $size;
         if (!$users || $start >= $total || $start > 1000000) { $done = true; break; }
     }
     if ($done) {
-        panel_users_feed($rows);
-        admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => time()]);
+        if ($snap) panel_users_feed($rows, $t0);
+        admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => $t0]);
         return $part;
     }
-    admin_cache_put('sess_users', ['src' => $src, 'u' => is_array($o['u'] ?? null) ? $o['u'] : null, 'ts0' => (int) ($o['ts0'] ?? 0), 'part' => $part, 'rows' => $rows, 'next' => $start]);
+    admin_cache_put('sess_users', ['src' => $src, 'u' => is_array($o['u'] ?? null) ? $o['u'] : null, 'ts0' => (int) ($o['ts0'] ?? 0), 'part' => $part, 'rows' => $rows, 'next' => $start, 't0' => $t0]);
     return $stale;
 }
 

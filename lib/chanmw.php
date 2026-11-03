@@ -280,6 +280,7 @@ function chan_index_rebuild($force = false) {
         $err    = '';
         $shorts = [];
         $rows   = [];
+        $t0     = time();
         $take   = static function (array $page) use (&$shorts, &$rows) {
             foreach ($page as $u) {
                 $short = is_array($u) ? trim((string) ($u['shortUuid'] ?? '')) : '';
@@ -293,7 +294,7 @@ function chan_index_rebuild($force = false) {
             $grow();
             return false;
         }
-        if ($err === '' && function_exists('panel_users_feed')) panel_users_feed($rows);
+        if ($err === '' && function_exists('panel_users_feed')) panel_users_feed($rows, $t0);
         unset($rows);
 
         $wlock = @fopen(chan_lock_path('write'), 'c');
@@ -584,23 +585,25 @@ function chan_names_refresh($force = false) {
     foreach (chan_names_wanted() as $s) $map[$s] = '';
     // Общий снимок пользователей; клиент, которого нет ни в снимке, ни в прежней карте, новее снимка — свежий обход.
     $users = $force ? null : panel_users(chan_names_ttl(), $err);
-    if (is_array($users)) {
+    if (is_array($users) && $err === '') {
         $have = chan_names_map($c);
         foreach ($users as $u) if (is_array($u)) $have[(string) ($u['shortUuid'] ?? '')] = true;
         foreach ($map as $s => $v) if (!isset($have[$s])) { $users = null; break; }
     }
-    if ($users === null) $users = panel_users(0, $err);
+    if ($users === null && ($force || $err === '')) $users = panel_users(0, $err);
     if (!is_array($users)) {
         error_log('submw chan names: ' . $err);
         return chan_names_map($c);
     }
+    // Возраст карты — возраст снимка, из которого она собрана: иначе имена старели бы до двух TTL.
+    $sts = min($now, panel_users_ts() ?: $now);
     foreach ($users as $u) {
         if (!is_array($u)) continue;
         $su = (string) ($u['shortUuid'] ?? '');
         if ($su === '' || !array_key_exists($su, $map)) continue;
         $map[$su] = (string) ($u['username'] ?? '');
     }
-    set_setting('chan_names', json_encode(['ts' => $now, 'try' => $now, 'map' => $map], JSON_UNESCAPED_UNICODE));
+    set_setting('chan_names', json_encode(['ts' => $sts, 'try' => $now, 'map' => $map], JSON_UNESCAPED_UNICODE));
     return $map;
 }
 
