@@ -436,6 +436,158 @@ function panel_ref_ts($name) {
     return is_array($c) && is_array($c['d'] ?? null) ? (int) ($c['ts'] ?? 0) : 0;
 }
 
+// Список пользователей панели — один снимок на всех потребителей админки и планировщика (строки только из
+// этих полей: полный объект пользователя в снимок не кладётся, иначе на большой панели он растёт в разы).
+// Кто сходил в панель за полным списком, тот и обновил снимок (panel_users_feed); остальные читают его,
+// пока он не старше их maxAge. Горячий путь подписки снимком не пользуется.
+const PANEL_USERS_FIELDS = ['id', 'uuid', 'shortUuid', 'username', 'status', 'hwidDeviceLimit', 'expireAt', 'externalSquadUuid', 'activeInternalSquads'];
+
+function panel_users_row($u) {
+    if (!is_array($u)) return null;
+    $r = panel_ref_pick($u, PANEL_USERS_FIELDS);
+    if (array_key_exists('activeInternalSquads', $r)) {
+        $sq = [];
+        foreach ((array) $r['activeInternalSquads'] as $s) {
+            $id = is_array($s) ? (string) ($s['uuid'] ?? '') : (string) $s;
+            if ($id !== '') $sq[] = ['uuid' => $id];
+        }
+        $r['activeInternalSquads'] = $sq;
+    }
+    return $r;
+}
+
+function panel_users_key($row) {
+    $su = is_array($row) ? (string) ($row['shortUuid'] ?? '') : '';
+    if ($su !== '') return 'su:' . $su;
+    $ref = rw_user_ref($row);
+    return rw_ref_ok($ref) ? $ref['key'] . ':' . $ref['val'] : '';
+}
+
+function &panel_users_memo() {
+    $memo = &$GLOBALS['submw_pusers_memo'];
+    if (!is_array($memo)) {
+        $memo = ['c' => null];
+        // Прежние копии списка у отдельных потребителей больше не обновляются — убираем один раз.
+        if (setting('pusers_v', '') !== '1' && ($p = db())) {
+            try { $p->exec("DELETE FROM admin_cache WHERE k IN ('reqlog_users', 'cmap_names')"); set_setting('pusers_v', '1'); }
+            catch (Throwable $e) {}
+        }
+    }
+    return $memo;
+}
+
+function panel_users_store(array $c) {
+    $GLOBALS['submw_pusers_memo'] = ['c' => $c];
+    return admin_cache_put('pref_users', $c);
+}
+
+// maxAge 0 — всегда свежий обход панели (и он же обновляет снимок). При сбое панели: снимок есть и maxAge > 0 —
+// отдаём его и PANEL_REF_RETRY с не ходим снова; иначе null.
+function panel_users($maxAge, &$error = '') {
+    $error = '';
+    $now = time();
+    $memo = &panel_users_memo();
+    $fresh = static function ($c) use ($now, $maxAge) { return $maxAge > 0 && is_array($c) && is_array($c['d'] ?? null) && $now - (int) ($c['ts'] ?? 0) <= $maxAge; };
+    $c = $memo['c'];
+    if (!$fresh($c)) $c = admin_cache_get('pref_users', PHP_INT_MAX);
+    $has = is_array($c) && is_array($c['d'] ?? null);
+    if ($fresh($c)) { $memo['c'] = $c; return $c['d']; }
+    if ($has && $maxAge > 0 && $now - (int) ($c['e'] ?? 0) < PANEL_REF_RETRY) { $memo['c'] = $c; $error = (string) ($c['em'] ?? 'панель недоступна'); return $c['d']; }
+    if (remnawave_url() === '' || remnawave_token() === '') { $error = 'Не заданы URL панели или API-токен'; return $has && $maxAge > 0 ? $c['d'] : null; }
+    $lk = $maxAge > 0 ? panel_ref_lock('users') : null;
+    try {
+        if ($lk) {
+            $etm0 = (float) ($c['etm'] ?? 0);
+            $c2 = admin_cache_get('pref_users', PHP_INT_MAX);
+            if (is_array($c2) && is_array($c2['d'] ?? null)) {
+                $c = $c2;
+                $has = true;
+                if ($fresh($c)) { $memo['c'] = $c; return $c['d']; }
+            }
+            if (is_array($c2) && (float) ($c2['etm'] ?? 0) > $etm0) {
+                $memo['c'] = $c2;
+                $error = (string) ($c2['em'] ?? 'панель недоступна');
+                return $has ? $c['d'] : null;
+            }
+        }
+        $t0 = time();
+        $tm = microtime(true);
+        $rows = [];
+        $e = '';
+        $take = static function (array $page) use (&$rows) { foreach ($page as $u) if (($r = panel_users_row($u)) !== null) $rows[] = $r; };
+        $take(remnawave_all_users($e, $take, PANEL_USERS_FIELDS));
+        if ($e !== '') {
+            $error = $e;
+            $c = $has ? $c : ['ts' => 0, 'd' => null];
+            $c['e'] = $t0;
+            $c['etm'] = $tm;
+            $c['em'] = $error;
+            $memo['c'] = $c;
+            admin_cache_put('pref_users', $c);
+            return $has && $maxAge > 0 ? $c['d'] : null;
+        }
+        $c = ['ts' => $t0, 'tm' => $tm, 'd' => $rows];
+        panel_users_store($c);
+        return $rows;
+    } finally {
+        if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
+    }
+}
+
+// Полный список, который потребитель только что получил сам (вкладка «Пользователи», оценка пула WG, индекс c1),
+// становится снимком для остальных. Неполный список (ошибка на одной из страниц) сюда не передавать.
+function panel_users_feed(array $users) {
+    $rows = [];
+    foreach ($users as $u) if (($r = panel_users_row($u)) !== null) $rows[] = $r;
+    panel_users_memo();
+    panel_users_store(['ts' => time(), 'tm' => microtime(true), 'd' => $rows]);
+}
+
+// Последний снимок как есть — без запроса к панели и без проверки возраста.
+function panel_users_cached() {
+    $memo = &panel_users_memo();
+    $c = $memo['c'] ?? admin_cache_get('pref_users', PHP_INT_MAX);
+    if (!is_array($c) || !is_array($c['d'] ?? null)) return null;
+    $memo['c'] = $c;
+    return $c['d'];
+}
+
+function panel_users_ts() {
+    $memo = &panel_users_memo();
+    $c = $memo['c'] ?? admin_cache_get('pref_users', PHP_INT_MAX);
+    return is_array($c) && is_array($c['d'] ?? null) ? (int) ($c['ts'] ?? 0) : 0;
+}
+
+// Одна строка снимка после записи из админки: правка, создание ($drop = false) или удаление ($drop = true).
+// Возраст снимка не меняется — он по-прежнему возраст всего списка.
+function panel_users_patch($u, $drop = false) {
+    $memo = &panel_users_memo();
+    $c = $memo['c'] ?? admin_cache_get('pref_users', PHP_INT_MAX);
+    if (!is_array($c) || !is_array($c['d'] ?? null)) return;
+    $row = panel_users_row($u);
+    $key = panel_users_key($row);
+    if ($key === '') return;
+    $found = false;
+    foreach ($c['d'] as $i => $r) {
+        if (panel_users_key($r) !== $key) continue;
+        if ($drop) unset($c['d'][$i]); else $c['d'][$i] = $row;
+        $found = true;
+        break;
+    }
+    if (!$found && !$drop) $c['d'][] = $row;
+    elseif (!$found) return;
+    $c['d'] = array_values($c['d']);
+    panel_users_store($c);
+}
+
+// Сменили панель или токен — снимки справочников и пользователей от прежней панели не нужны.
+function panel_snapshots_drop() {
+    unset($GLOBALS['submw_pref_memo'], $GLOBALS['submw_pusers_memo']);
+    if (!($p = db())) return;
+    try { $p->exec("DELETE FROM admin_cache WHERE k LIKE 'pref!_%' ESCAPE '!'"); }
+    catch (Throwable $e) {}
+}
+
 function remnawave_internal_squads(&$error = '', $maxAge = 0) {
     $out = panel_ref('isquads', $maxAge, $error);
     return is_array($out) ? $out : [];

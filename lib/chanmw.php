@@ -274,24 +274,27 @@ function chan_index_rebuild($force = false) {
         set_setting('chan_index_ts', (string) $now);
         $grow = static function () use ($wait) { set_setting('chan_index_wait', (string) chan_index_wait($wait * 2)); };
 
-        // Из пользователей нужен только shortUuid: страницы панели не копятся в
-        // памяти целиком — на большой панели это сотни мегабайт. Список, который
-        // функция всё же вернула (её прежняя версия обратный вызов не знает — так
-        // бывает, пока файлы прослойки обновляются), тоже в ход.
+        // Страницы панели не копятся в памяти целиком (на большой панели это сотни мегабайт): остаются метки
+        // и короткие строки общего снимка пользователей, который этот обход заодно обновляет. Список, который
+        // функция всё же вернула (прежняя версия обратный вызов не знает — пока файлы обновляются), тоже в ход.
         $err    = '';
         $shorts = [];
-        $take   = static function (array $page) use (&$shorts) {
+        $rows   = [];
+        $take   = static function (array $page) use (&$shorts, &$rows) {
             foreach ($page as $u) {
                 $short = is_array($u) ? trim((string) ($u['shortUuid'] ?? '')) : '';
                 if ($short !== '') $shorts[] = $short;
+                if (function_exists('panel_users_row') && ($r = panel_users_row($u)) !== null) $rows[] = $r;
             }
         };
-        if (function_exists('remnawave_all_users')) $take(remnawave_all_users($err, $take, ['shortUuid']));
+        if (function_exists('remnawave_all_users')) $take(remnawave_all_users($err, $take, defined('PANEL_USERS_FIELDS') ? PANEL_USERS_FIELDS : ['shortUuid']));
         if (!$shorts) {
             if ($err !== '') error_log('submw chan index: ' . $err);
             $grow();
             return false;
         }
+        if ($err === '' && function_exists('panel_users_feed')) panel_users_feed($rows);
+        unset($rows);
 
         $wlock = @fopen(chan_lock_path('write'), 'c');
         if ($wlock) flock($wlock, LOCK_EX);
@@ -577,13 +580,20 @@ function chan_names_refresh($force = false) {
     $c['try'] = $now;
     set_setting('chan_names', json_encode($c, JSON_UNESCAPED_UNICODE));
     $err   = '';
-    $users = remnawave_all_users($err, null, ['shortUuid', 'username']);
-    if ($err !== '') {
+    $map = [];
+    foreach (chan_names_wanted() as $s) $map[$s] = '';
+    // Общий снимок пользователей; клиент, которого нет ни в снимке, ни в прежней карте, новее снимка — свежий обход.
+    $users = $force ? null : panel_users(chan_names_ttl(), $err);
+    if (is_array($users)) {
+        $have = chan_names_map($c);
+        foreach ($users as $u) if (is_array($u)) $have[(string) ($u['shortUuid'] ?? '')] = true;
+        foreach ($map as $s => $v) if (!isset($have[$s])) { $users = null; break; }
+    }
+    if ($users === null) $users = panel_users(0, $err);
+    if (!is_array($users)) {
         error_log('submw chan names: ' . $err);
         return chan_names_map($c);
     }
-    $map = [];
-    foreach (chan_names_wanted() as $s) $map[$s] = '';
     foreach ($users as $u) {
         if (!is_array($u)) continue;
         $su = (string) ($u['shortUuid'] ?? '');

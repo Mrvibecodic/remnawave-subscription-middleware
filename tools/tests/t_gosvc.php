@@ -63,6 +63,7 @@ $l = remnawave_all_users($e1);
 t_ok('без Go список собирает PHP, полный объект', count($l) === 1 && $e1 === '' && ($l[0]['shortUuid'] ?? '') === 'AbCdEfGhIjKlMnOp' && isset($l[0]['status']), $e1);
 t_eq('без Go: поля места вызова не мешают PHP', count(remnawave_all_users($e1, null, ['shortUuid'])[0] ?? []) > 1, true);
 admin_cache_put('sess_users', ['src' => '', 'u' => null, 'ts0' => 0]);
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'pref_users'"); unset($GLOBALS['submw_pusers_memo']);
 t_eq('без Go: лимиты для «Сессий» — PHP', array_keys(sess_users_limits(1800, microtime(true) + 5)), [1]);
 unset($GLOBALS['submw_settings_cache']);
 t_eq('без Go: о Go ничего не записано', [setting('go_state', ''), setting('go_users', ''), go_users_view()['eng']], ['', '', '']);
@@ -239,15 +240,19 @@ $chunks = [];
 t_eq('обёртка с $each: ничего не копит', remnawave_all_users($e1, static function (array $c) use (&$chunks) { $chunks[] = count($c); }, ['shortUuid']), []);
 t_eq('обёртка с $each: страницы по 250', $chunks, [250, 250, 100]);
 admin_cache_put('sess_users', ['src' => '', 'u' => null, 'ts0' => 0]);
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'pref_users'"); unset($GLOBALS['submw_pusers_memo']);
 $lim = sess_users_limits(1800, microtime(true) + 10);
 t_ok('лимиты для «Сессий» через Go — весь список за раз', count($lim) === 600 && array_key_exists('1', $lim), (string) count($lim));
 // Обход дольше порции PHP-докачки (5 с): планировщик даёт Go запас на весь список, PHP не зовётся.
 $mock(['version' => '3.4.7', 'users_n' => 4000, 'latency_ms' => 350]);
 admin_cache_put('sess_users', ['src' => md5(remnawave_url() . "\n" . remnawave_token()), 'u' => ['1' => [null, '']], 'ts0' => time() - 4000]);
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'pref_users'"); unset($GLOBALS['submw_pusers_memo']);
 @unlink($mlog);
 cron_task_sessions(['deadline' => microtime(true) + 120, 'detached' => true, 'can' => true]);
 $lim = admin_cache_get('sess_users', PHP_INT_MAX);
 t_eq('долгий список лимитов: Go собрал целиком, без PHP-докачки', [count((array) ($lim['u'] ?? [])), substr_count((string) @file_get_contents($mlog), "GET /api/users\n")], [4000, 16]);
+unset($GLOBALS['submw_pusers_memo']);
+t_eq('общий снимок пользователей — от того же обхода Go', [count((array) panel_users(300)), substr_count((string) @file_get_contents($mlog), "GET /api/users\n")], [4000, 16]);
 $mock(['version' => '3.4.7', 'users_n' => 600]);
 
 // Сбой страницы — Go ничего не отдаёт, список собирает PHP
