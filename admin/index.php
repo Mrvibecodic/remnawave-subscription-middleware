@@ -1831,8 +1831,9 @@ if ($tab === 'overrides' && $ov_need_exp && remnawave_url() !== '' && remnawave_
 $users = []; $users_err = '';
 $nolog_set = [];
 if ($tab === 'users' && $ux_view === '') {
+    $users_t0 = time();
     $users = remnawave_all_users($users_err);
-    if ($users_err === '' && remnawave_url() !== '' && remnawave_token() !== '') panel_users_feed($users);
+    if ($users_err === '' && remnawave_url() !== '' && remnawave_token() !== '') panel_users_feed($users, $users_t0);
     $nolog_set = nolog_shortuuids();
 }
 $addsub_links = [];

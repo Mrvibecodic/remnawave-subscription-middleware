@@ -98,12 +98,15 @@ $age('cmap_p7', CMAP_TTL + 5);
 cmap_refresh_after_response('7');
 t_eq('фоновый пересчёт обновляет старые имена', $usersCalls() - $b1, 1);
 $age('pref_users', CMAP_TTL + 5); unset($GLOBALS['submw_pusers_memo']);
-set_setting('remnawave_url', 'http://127.0.0.1:9');
-$t1 = microtime(true); $n1 = cmap_names(true);
+$st0 = (string) file_get_contents($state);
+file_put_contents($state, json_encode(['users_fail' => true] + json_decode($st0, true)));
+$b2 = $usersCalls();
+$n1 = cmap_names(true);
 t_eq('панель недоступна — старые имена остаются', $n1['1'][0] ?? '', 'anna');
-$t1 = microtime(true); cmap_names(true); $t1 = microtime(true) - $t1;
-t_ok('неудачная попытка запомнена — повтор не раньше чем через PANEL_REF_RETRY', $t1 < 0.05, round($t1, 3) . ' с');
-set_setting('remnawave_url', $panel);
+unset($GLOBALS['submw_pusers_memo']);
+cmap_names(true);
+t_eq('неудачная попытка запомнена — повтор не раньше чем через PANEL_REF_RETRY', $usersCalls() - $b2, 1);
+file_put_contents($state, $st0);
 
 // Свой период: «с начала хранения» и «по сейчас» попадают в кэш, хотя секунды границ сдвигаются
 $tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'cmap_c'");
