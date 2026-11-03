@@ -1197,7 +1197,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         set_setting('remnawave_cookie', trim($_POST['remnawave_cookie'] ?? ''));
         set_setting('remnawave_xapikey', trim($_POST['remnawave_xapikey'] ?? ''));
         if (($_POST['remnawave_api_key'] ?? '') !== '') set_setting('remnawave_api_key', trim($_POST['remnawave_api_key']));
-        if ([remnawave_url(), remnawave_token()] !== $cn_old) set_setting('tokscopes_json', '');
+        if ([remnawave_url(), remnawave_token()] !== $cn_old) { set_setting('tokscopes_json', ''); panel_snapshots_drop(); }
         if (($_POST['webhook_secret'] ?? '') !== '')   set_setting('webhook_secret', trim($_POST['webhook_secret']));
         set_setting('trust_header_expire', isset($_POST['trust_header_expire']) ? '1' : '0');
         set_setting('tls_verify', isset($_POST['tls_verify']) ? '1' : '0');
@@ -1820,7 +1820,7 @@ $ov_need_exp = false;
 foreach ($overrides as $o) if (($o['reason'] ?? '') === 'expired' && ($o['match_type'] ?? '') === 'shortuuid') { $ov_need_exp = true; break; }
 if ($tab === 'overrides' && $ov_need_exp && remnawave_url() !== '' && remnawave_token() !== '') {
     $ov_e = '';
-    foreach (remnawave_all_users($ov_e, null, ['shortUuid', 'expireAt']) as $u) {
+    foreach ((array) panel_users(20, $ov_e) as $u) {
         if (!empty($u['shortUuid']) && !empty($u['expireAt'])) {
             $ov_ts = strtotime((string) $u['expireAt']);
             if ($ov_ts !== false) $ov_expire[(string) $u['shortUuid']] = $ov_ts;
@@ -1830,7 +1830,11 @@ if ($tab === 'overrides' && $ov_need_exp && remnawave_url() !== '' && remnawave_
 
 $users = []; $users_err = '';
 $nolog_set = [];
-if ($tab === 'users' && $ux_view === '') { $users = remnawave_all_users($users_err); $nolog_set = nolog_shortuuids(); }
+if ($tab === 'users' && $ux_view === '') {
+    $users = remnawave_all_users($users_err);
+    if ($users_err === '' && remnawave_url() !== '' && remnawave_token() !== '') panel_users_feed($users);
+    $nolog_set = nolog_shortuuids();
+}
 $addsub_links = [];
 if ($tab === 'users' && $ux_view === '') { foreach (addsub_map_all() as $__r) $addsub_links[(string) $__r['main_short']] = (string) $__r['add_url']; }
 

@@ -63,7 +63,8 @@ $d7 = cmap_build(cmap_period('7'));
 t_ok('за 7 дней — Анталья есть', in_array(['TR', 'Antalya'], $d7['R'], true));
 
 // Кэш: повтор в пределах 15 минут — без запросов к панели и без пересчёта
-$tt_pdo->exec("DELETE FROM admin_cache WHERE k LIKE 'cmap%'");
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k LIKE 'cmap%' OR k = 'pref_users'");
+unset($GLOBALS['submw_pusers_memo']);
 $before = $usersCalls();
 $v1 = cmap_view(cmap_period('1'), $stale);
 t_eq('первое открытие — считается сразу', [$stale, count($v1['U'])], [false, 3]);
@@ -87,8 +88,8 @@ cmap_refresh_after_response('1');
 t_eq('параллельный пересчёт не запускается второй раз', admin_cache_get('cmap_p1', PHP_INT_MAX)['ts'], $t0);
 if ($lk) { flock($lk, LOCK_UN); fclose($lk); }
 
-// Имена: при ответе — из кэша любой давности, обход панели — только в фоне
-$nm = cmap_cache_get('cmap_names'); $nm['at'] -= CMAP_TTL + 5; $nm['try'] -= CMAP_TTL + 5; cmap_cache_put('cmap_names', $nm);
+// Имена: при ответе — из общего снимка пользователей любой давности, обход панели — только в фоне
+$age('pref_users', CMAP_TTL + 5); unset($GLOBALS['submw_pusers_memo']);
 $tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'cmap_p7'");
 $b1 = $usersCalls();
 cmap_view(cmap_period('7'), $stale);
@@ -96,12 +97,12 @@ t_eq('первое открытие периода со старыми имен�
 $age('cmap_p7', CMAP_TTL + 5);
 cmap_refresh_after_response('7');
 t_eq('фоновый пересчёт обновляет старые имена', $usersCalls() - $b1, 1);
-$nm = cmap_cache_get('cmap_names'); $nm['at'] -= CMAP_TTL + 5; $nm['try'] -= CMAP_TTL + 5; cmap_cache_put('cmap_names', $nm);
+$age('pref_users', CMAP_TTL + 5); unset($GLOBALS['submw_pusers_memo']);
 set_setting('remnawave_url', 'http://127.0.0.1:9');
 $t1 = microtime(true); $n1 = cmap_names(true);
 t_eq('панель недоступна — старые имена остаются', $n1['1'][0] ?? '', 'anna');
 $t1 = microtime(true); cmap_names(true); $t1 = microtime(true) - $t1;
-t_ok('неудачная попытка запомнена — повтор не раньше чем через 15 минут', $t1 < 0.05, round($t1, 3) . ' с');
+t_ok('неудачная попытка запомнена — повтор не раньше чем через PANEL_REF_RETRY', $t1 < 0.05, round($t1, 3) . ' с');
 set_setting('remnawave_url', $panel);
 
 // Свой период: «с начала хранения» и «по сейчас» попадают в кэш, хотя секунды границ сдвигаются

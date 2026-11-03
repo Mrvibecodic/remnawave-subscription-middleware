@@ -381,6 +381,7 @@ function ua_fetch($short, &$err = '', &$code = 0) {
 function ua_after_write($short, $u) {
     squadconf_cache_drop($short);
     addsub_cache_drop($short);
+    if (is_array($u)) panel_users_patch($u);
     if (is_array($u) && function_exists('addsub_cache_drop_main_of')) addsub_cache_drop_main_of((string) ($u['username'] ?? ''));
     if (is_array($u) && ua_ts($u['expireAt'] ?? null) > time() && ($u['status'] ?? '') === 'ACTIVE') delete_override('shortuuid', $short, 'webhook');
 }
@@ -476,6 +477,7 @@ function ua_action($short, $act) {
             wglease_purge_user($short);
             squadconf_cache_drop($short);
             addsub_cache_drop($short);
+            panel_users_patch($u, true);
             if (function_exists('chan_index_drop')) {
                 try { chan_index_drop($short); chan_state_drop($short); rep_forget($short); }
                 catch (Throwable $ex) { error_log('submw user delete chan: ' . $ex->getMessage()); }
@@ -519,6 +521,7 @@ function ua_create(array $raw, array $extra) {
     $u = remnawave_create_user($body, $err, $code);
     if (!$u) return ['ok' => false, 'error' => $err];
     $short = (string) $u['shortUuid'];
+    panel_users_patch($u);
     $warn = '';
     if ($add !== '' && !addsub_map_set($short, $add, '')) $warn = 'Пользователь создан, но доп-подписка не привязалась';
     if (!empty($extra['nolog'])) nolog_set($short, true);

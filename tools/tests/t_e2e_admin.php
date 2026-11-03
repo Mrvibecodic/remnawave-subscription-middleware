@@ -29,7 +29,8 @@ $n0 = $ulist();
 [$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=reqlog', [], null, $jar);
 t_ok('лог запросов: открытие тянет список пользователей панели', $c === 200 && $ulist() > $n0);
 $n1 = $ulist();
-db()->exec('UPDATE admin_cache SET ts = ts - 60');
+// Снимок пользователей старше 20 с, но моложе 5 минут: тики читают его, кнопка «Обновить» идёт в панель
+$pu = admin_cache_get('pref_users', PHP_INT_MAX); $pu['ts'] -= 60; admin_cache_put('pref_users', $pu);
 for ($i = 0; $i < 3; $i++) {
     [$c, , $b] = t_http('GET', $mw . '/admin/index.php?tab=reqlog&ajax=reqlog', [], null, $jar);
     $j = json_decode($b, true);

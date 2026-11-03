@@ -29,24 +29,15 @@ function cmap_period($p, $from = 0, $to = 0, $now = null) {
     return ['key' => 'cmap_p' . $d, 'p' => (string) $d, 'from' => $now - $d * 86400, 'to' => $now, 'id' => (string) $d, 'f' => 0, 't' => 0];
 }
 
-// При ответе имена берутся из кэша любой давности; обходить панель — только в фоне или если имён ещё нет.
+// Имена — из общего снимка пользователей: при ответе любой давности, в фоне — не старше CMAP_TTL.
 function cmap_names($refresh) {
-    $c = cmap_cache_get('cmap_names');
-    $have = is_array($c) && is_array($c['u'] ?? null);
-    $fresh = $have && time() - (int) ($c['at'] ?? 0) < CMAP_TTL;
-    $tried = is_array($c) && time() - (int) ($c['try'] ?? 0) < CMAP_TTL;
-    if ($fresh || $tried || ($have && !$refresh)) return $have ? $c['u'] : [];
-    $old = $have ? $c['u'] : [];
-    cmap_cache_put('cmap_names', ['u' => $old, 'at' => (int) ($c['at'] ?? 0), 'try' => time()]);
-    $err = '';
+    $list = $refresh ? null : panel_users_cached();
+    if ($list === null) { $err = ''; $list = panel_users(CMAP_TTL, $err); }
     $out = [];
-    $list = remnawave_all_users($err, null, ['id', 'username', 'shortUuid']);
-    foreach ($list as $u) {
+    foreach ((array) $list as $u) {
         if (!is_array($u) || !isset($u['id'])) continue;
         $out[(string) (int) $u['id']] = [mb_substr((string) ($u['username'] ?? ''), 0, 64), (string) ($u['shortUuid'] ?? '')];
     }
-    if ($err !== '') return $out + $old;
-    cmap_cache_put('cmap_names', ['u' => $out, 'at' => time(), 'try' => time()]);
     return $out;
 }
 

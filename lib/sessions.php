@@ -904,9 +904,20 @@ function sess_anom_save($raw) {
     return $rules;
 }
 
+function sess_limits_from($list) {
+    $part = [];
+    foreach ((array) $list as $x) {
+        if (!is_array($x) || !isset($x['id'])) continue;
+        $hw = (isset($x['hwidDeviceLimit']) && $x['hwidDeviceLimit'] !== '' && $x['hwidDeviceLimit'] !== null) ? (int) $x['hwidDeviceLimit'] : null;
+        $part[(string) (int) $x['id']] = [$hw, (string) ($x['externalSquadUuid'] ?? '')];
+    }
+    return $part;
+}
+
 // Лимиты устройств пользователей из панели: id → [свой лимит | null «как в панели», внешний сквад].
-// Это весь список пользователей постранично, поэтому кэш полчаса, а докачка — по страницам до
-// $deadline с продолжением в следующем тике; пока снимок не собран целиком, отдаётся прежний.
+// Это весь список пользователей постранично, поэтому кэш полчаса; если общий снимок пользователей
+// моложе — лимиты из него. Иначе докачка по страницам до $deadline с продолжением в следующем тике;
+// пока список не собран целиком, отдаётся прежний.
 function sess_users_limits($maxAge = 1800, $deadline = null) {
     $src = md5(remnawave_url() . "\n" . remnawave_token());
     $o = admin_cache_get('sess_users', PHP_INT_MAX);
@@ -914,20 +925,22 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
     $stale = is_array($o['u'] ?? null) ? $o['u'] : [];
     // Возраст — по ts0 собранного снимка, а не по записи в кэше: частичный прогресс его не продлевает.
     if (is_array($o['u'] ?? null) && time() - (int) ($o['ts0'] ?? 0) < $maxAge) return $stale;
+    $pts = function_exists('panel_users_ts') ? panel_users_ts() : 0;
+    if ($pts > (int) ($o['ts0'] ?? 0) && time() - $pts < $maxAge) {
+        $part = sess_limits_from(panel_users_cached());
+        admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => $pts]);
+        return $part;
+    }
     // Снимка ещё не было — собрать сразу, иначе до первого свободного тика все пороги шли бы по общему лимиту.
     if ($deadline === null && !is_array($o['u'] ?? null)) $deadline = microtime(true) + 8;
     if ($deadline === null || remnawave_url() === '' || remnawave_token() === '') return $stale;
     // Через Go — весь список за один заход, без докачки по тикам.
     if (function_exists('go_users_list')) {
         $go_try = function_exists('go_users_ready') && go_users_ready();
-        $gl = go_users_list(['id', 'hwidDeviceLimit', 'externalSquadUuid'], $ge, max(2, $deadline - microtime(true)));
+        $gl = go_users_list(PANEL_USERS_FIELDS, $ge, max(2, $deadline - microtime(true)));
         if ($gl !== null) {
-            $part = [];
-            foreach ($gl as $x) {
-                if (!is_array($x) || !isset($x['id'])) continue;
-                $hw = (isset($x['hwidDeviceLimit']) && $x['hwidDeviceLimit'] !== '' && $x['hwidDeviceLimit'] !== null) ? (int) $x['hwidDeviceLimit'] : null;
-                $part[(string) (int) $x['id']] = [$hw, (string) ($x['externalSquadUuid'] ?? '')];
-            }
+            $part = sess_limits_from($gl);
+            panel_users_feed($gl);
             admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => time()]);
             return $part;
         }
@@ -935,6 +948,7 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
         if ($go_try) $deadline = min($deadline, microtime(true) + 5);
     }
     $part = is_array($o['part'] ?? null) ? $o['part'] : [];
+    $rows = is_array($o['rows'] ?? null) ? $o['rows'] : [];
     $start = (int) ($o['next'] ?? 0);
     $size = 250;
     $done = false;
@@ -945,19 +959,17 @@ function sess_users_limits($maxAge = 1800, $deadline = null) {
         $users = is_array($resp) ? ($resp['users'] ?? $resp) : [];
         if (!is_array($users)) $users = [];
         $total = (int) ($resp['total'] ?? count($users));
-        foreach ($users as $x) {
-            if (!is_array($x) || !isset($x['id'])) continue;
-            $hw = (isset($x['hwidDeviceLimit']) && $x['hwidDeviceLimit'] !== '' && $x['hwidDeviceLimit'] !== null) ? (int) $x['hwidDeviceLimit'] : null;
-            $part[(string) (int) $x['id']] = [$hw, (string) ($x['externalSquadUuid'] ?? '')];
-        }
+        $part = sess_limits_from($users) + $part;
+        foreach ($users as $x) if (($r = panel_users_row($x)) !== null) $rows[] = $r;
         $start += $size;
         if (!$users || $start >= $total || $start > 1000000) { $done = true; break; }
     }
     if ($done) {
+        panel_users_feed($rows);
         admin_cache_put('sess_users', ['src' => $src, 'u' => $part, 'ts0' => time()]);
         return $part;
     }
-    admin_cache_put('sess_users', ['src' => $src, 'u' => is_array($o['u'] ?? null) ? $o['u'] : null, 'ts0' => (int) ($o['ts0'] ?? 0), 'part' => $part, 'next' => $start]);
+    admin_cache_put('sess_users', ['src' => $src, 'u' => is_array($o['u'] ?? null) ? $o['u'] : null, 'ts0' => (int) ($o['ts0'] ?? 0), 'part' => $part, 'rows' => $rows, 'next' => $start]);
     return $stale;
 }
 
