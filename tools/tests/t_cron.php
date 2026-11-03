@@ -250,4 +250,26 @@ t_eq('второй подряд — через 15', [$f(2, 400), $f(2, 1000)], [
 t_eq('третий и дальше — через час', [$f(3, 1000), $f(7, 3700)], [false, true]);
 t_eq('частая задача ждёт не дольше своего интервала', $f(5, 70, 60), true);
 
+// Скачивание гео-баз — после замка: пока первый запуск качает, следующий проходит и проверяет грейс
+file_put_contents($tt_root . '/data/geo_router.php', '<?php sleep(3); header("Content-Type: application/octet-stream"); echo str_repeat("x", 2048);');
+$geo = t_serve($tt_root . '/data', $tt_root . '/data/geo_router.php');
+t_settings(['remnawave_url' => $panel, 'geoip_auto' => '1', 'geoip_mode' => 'local', 'geoip_try' => '0', 'sess_enabled' => '1']);
+foreach (glob(geoip_dir() . '/*.mmdb') ?: [] as $gf) @unlink($gf);
+tc_state(['grace' => ['start' => $now - 100, 'ok_at' => $now - 100], 'reports' => ['start' => $now - 7200, 'ok_at' => $now - 7200]]);
+file_put_contents($tt_root . '/data/cron_child.php', '<?php $_SERVER["REQUEST_URI"] = "/"; require ' . var_export($tt_root . '/lib.php', true) . '; require_once ' . var_export($tt_root . '/lib/cron.php', true) . '; $t = microtime(true); $r = cron_run("cli"); echo json_encode(["ran" => array_keys($r["ran"] ?? []), "s" => round(microtime(true) - $t, 1)]);');
+$cenv = getenv(); $cenv['SUBMW_TEST_GEOSRC'] = $geo . '/';
+$child = proc_open([PHP_BINARY, $tt_root . '/data/cron_child.php'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $cp, $tt_root, $cenv);
+usleep(1200000);
+$addGrace();
+tc_fresh();
+$st = cron_state(); $st['tasks']['grace'] = ['start' => $now - 100, 'ok_at' => $now - 100]; cron_save($st);
+$r2 = cron_run('cli');
+t_ok('второй запуск не ждёт скачивание: замок свободен, грейс проверен', empty($r2['skip']) && $graceLeft() === 0, json_encode($r2, JSON_UNESCAPED_UNICODE));
+$cout = stream_get_contents($cp[1]); $cerr = stream_get_contents($cp[2]); fclose($cp[1]); fclose($cp[2]); proc_close($child);
+$cj = json_decode($cout, true);
+tc_fresh();
+t_ok('первый запуск: задача reports выполнена, скачивание шло после неё', in_array('reports', (array) ($cj['ran'] ?? []), true) && (float) ($cj['s'] ?? 0) >= 3 && (int) setting('geoip_try', '0') > 0, $cout . ' ' . $cerr);
+t_ok('ошибка скачивания не ломает запуск', strpos($cerr, 'Fatal') === false, $cerr);
+t_settings(['geoip_auto' => '0', 'sess_enabled' => '0']);
+
 t_done();

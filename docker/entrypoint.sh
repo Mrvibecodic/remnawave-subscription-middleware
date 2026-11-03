@@ -42,7 +42,8 @@ FPM=$!
 nginx -g 'daemon off;' &
 NGINX=$!
 
-( while sleep 60; do setpriv --reuid=www-data --regid=www-data --init-groups php "$DEST/tools/cron.php" || true; done ) &
+# Запуск не ждёт предыдущий: долгая задача (скачивание гео-баз) не задерживает следующие, одновременность держит замок планировщика.
+( while sleep 60; do setpriv --reuid=www-data --regid=www-data --init-groups php "$DEST/tools/cron.php" & done ) &
 
 while kill -0 "$FPM" 2>/dev/null && kill -0 "$NGINX" 2>/dev/null; do
   sleep 5
