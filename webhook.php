@@ -222,7 +222,7 @@ try {
 }
 // Появление и удаление пользователя — в общий снимок списка сразу; остальные правки доезжают по его возрасту.
 try {
-    if ($short_uuid !== '' && ($event === 'user.created' || $event === 'user.deleted') && function_exists('panel_users_patch')) panel_users_patch(['shortUuid' => $short_uuid] + $data, $event === 'user.deleted', PANEL_USERS_PATCH_GAP);
+    if ($short_uuid !== '' && ($event === 'user.created' || $event === 'user.deleted') && function_exists('panel_users_patch')) panel_users_patch(['shortUuid' => $short_uuid] + $data, $event === 'user.deleted', PANEL_USERS_PATCH_GAP, 25);
 } catch (Throwable $e) {
     error_log('submw users snapshot: ' . $e->getMessage());
 }

@@ -378,11 +378,11 @@ function panel_ref($name, $maxAge, &$error = '') {
 }
 
 // Ждём не дольше таймаута запроса к панели; ФС без flock — сразу без блокировки.
-function panel_ref_lock($name) {
+function panel_ref_lock($name, $wait = 25) {
     if (!function_exists('default_db_path')) return null;
     $f = @fopen(dirname(default_db_path()) . '/.pref-' . preg_replace('~[^a-z]~', '', (string) $name) . '.lock', 'c');
     if (!$f) return null;
-    $until = microtime(true) + 25;
+    $until = microtime(true) + $wait;
     while (!flock($f, LOCK_EX | LOCK_NB, $wb)) {
         if (!$wb || microtime(true) >= $until) { fclose($f); return null; }
         usleep(50000);
@@ -581,21 +581,20 @@ function panel_users_ts() {
 
 // Одна строка снимка после записи: правка, создание ($drop = false) или удаление ($drop = true). Возраст снимка
 // не меняется — он по-прежнему возраст всего списка. Чтение и запись — под тем же замком, что и обход, иначе
-// параллельный полный обход затирается старой копией. $gap > 0 — не чаще раза в $gap секунд (пачки вебхуков):
-// пропущенные строки доедут по возрасту снимка, как и раньше.
-function panel_users_patch($u, $drop = false, $gap = 0) {
+// параллельный полный обход затирается старой копией; замок занят дольше $wait с — строка доедет по возрасту
+// снимка, как и раньше (из админки ждать долго нельзя). $gap > 0 — не чаще раза в $gap секунд (пачки вебхуков).
+function panel_users_patch($u, $drop = false, $gap = 0, $wait = 3) {
     $row = panel_users_row($u);
     $key = panel_users_key($row);
     if ($key === '') return;
-    if ($gap > 0) {
-        if (time() - (int) setting('pusers_pt', '0') < $gap) return;
-        set_setting('pusers_pt', (string) time());
-    }
-    $lk = panel_ref_lock('users');
+    if ($gap > 0 && time() - (int) setting('pusers_pt', '0') < $gap) return;
+    $lk = panel_ref_lock('users', $wait);
+    if (!$lk) return;
     try {
         panel_users_memo();
         $c = panel_users_load();
         if (!is_array($c) || !is_array($c['d'] ?? null)) return;
+        if ($gap > 0) set_setting('pusers_pt', (string) time());
         $found = false;
         foreach ($c['d'] as $i => $r) {
             if (panel_users_key($r) !== $key) continue;
