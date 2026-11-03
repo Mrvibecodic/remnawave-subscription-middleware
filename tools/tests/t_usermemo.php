@@ -29,6 +29,12 @@ t_eq('два чтения подряд — один запрос, тот же о
 remnawave_get_user_by_username('user0_addsub', $e);
 remnawave_get_user_by_username('user0_addsub', $e);
 t_eq('by-username помнится отдельно', [$hits('/api/users/by-username/user0_addsub'), $hits($BS)], [1, 1]);
+apistat_expect(404);
+remnawave_get_user_by_username('user0_addsub', $e);
+t_eq('ожидаемый 404 не переживает ответ из memo', isset($GLOBALS['submw_apistat_expect']), false);
+foreach ($GLOBALS['submw_user_memo'] as $mk => $mv) $GLOBALS['submw_user_memo'][$mk]['t'] -= USER_MEMO_TTL + 1;
+remnawave_get_user_by_short('ThirdUserShort22', $e, $c);
+t_eq('протухшие записи вычищаются при записи новой', count($GLOBALS['submw_user_memo']), 1);
 
 // Отказ панели тоже помнится: второй модуль не ждёт ответ ещё раз
 $cut();

@@ -681,9 +681,17 @@ function rw_user_memo($key, ?array $put = null) {
     $m = &$GLOBALS['submw_user_memo'];
     if (!is_array($m)) $m = [];
     $key = panel_users_src() . '|' . $key;
-    if ($put !== null) { $m[$key] = $put + ['t' => microtime(true)]; return $put; }
+    $now = microtime(true);
+    if ($put !== null) {
+        foreach ($m as $k => $v) if ($now - (float) ($v['t'] ?? 0) >= USER_MEMO_TTL) unset($m[$k]);
+        $m[$key] = $put + ['t' => $now];
+        return $put;
+    }
     $v = $m[$key] ?? null;
-    return is_array($v) && microtime(true) - (float) $v['t'] < USER_MEMO_TTL ? $v : null;
+    if (!is_array($v) || $now - (float) $v['t'] >= USER_MEMO_TTL) return null;
+    // Ожидаемый код ответа относился к этому запросу: без похода в панель его нельзя оставить следующему.
+    unset($GLOBALS['submw_apistat_expect']);
+    return $v;
 }
 
 function rw_user_memo_drop() { unset($GLOBALS['submw_user_memo']); }
