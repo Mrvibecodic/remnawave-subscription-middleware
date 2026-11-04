@@ -1069,6 +1069,201 @@ function conf_set_param($raw, $section, $key, $value) {
     return implode("\n", $out);
 }
 
+function wgnoise_pool_ok($pool) {
+    $pool = (string) $pool;
+    return $pool === '__manual__' || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $pool) === 1;
+}
+
+function wgnoise_stored($pool) {
+    $d = json_decode((string) setting('wgnoise_' . (string) $pool, ''), true);
+    if (!is_array($d)) return ['m' => 'off', 'j' => ''];
+    $m = (string) ($d['m'] ?? 'off');
+    return ['m' => in_array($m, ['fm', 'fr'], true) ? $m : 'off', 'j' => (string) ($d['j'] ?? '')];
+}
+
+function wgnoise_get($pool) {
+    static $memo = [];
+    $raw = (string) setting('wgnoise_' . (string) $pool, '');
+    if ($raw === '') return null;
+    if (array_key_exists($raw, $memo)) return $memo[$raw];
+    $s = wgnoise_stored($pool);
+    $n = $s['m'] === 'off' ? null : wgnoise_parse($s['m'], $s['j']);
+    return $memo[$raw] = ($n === null ? null : ['m' => $s['m'], 'n' => $n]);
+}
+
+function wgnoise_for_cfg(array $c) {
+    if ((string) ($c['type'] ?? '') !== 'wireguard') return null;
+    $pool = (string) ($c['_pool'] ?? '');
+    if ($pool !== '') return wgnoise_get($pool);
+    foreach (squadconf_squads_of($c) as $sq) { $n = wgnoise_get($sq); if ($n) return $n; }
+    return null;
+}
+
+function wgnoise_range($v, $min, $max) {
+    if (is_int($v)) return $v >= $min && $v <= $max;
+    if (!is_string($v) || !preg_match('/^(\d{1,9})(?:-(\d{1,9}))?$/', $v, $m)) return false;
+    $a = (int) $m[1]; $b = (isset($m[2]) && $m[2] !== '') ? (int) $m[2] : $a;
+    return min($a, $b) >= $min && max($a, $b) <= $max;
+}
+
+function wgnoise_presets() {
+    return [
+        'fm' => "[\n  {\"rand\": \"10-20\", \"delay\": \"10-16\"}\n]",
+        'fr' => "[\n  {\"type\": \"rand\", \"packet\": \"10-20\", \"delay\": \"10-16\"}\n]",
+    ];
+}
+
+function wgnoise_json($text) {
+    $t = trim((string) $text);
+    $d = json_decode($t, true);
+    if (!is_array($d) && $t !== '' && $t[0] === '"') {
+        $t = rtrim($t, ", \t\r\n");
+        $d = json_decode('{' . $t, true);
+        if (!is_array($d)) $d = json_decode('{' . $t . '}', true);
+    }
+    return is_array($d) ? $d : null;
+}
+
+function wgnoise_from_outbounds(array $obs, $mode) {
+    $found = ['fm' => null, 'fr' => null];
+    foreach ($obs as $ob) {
+        if (!is_array($ob)) continue;
+        $fr = $ob['settings']['noises'] ?? null;
+        if (($ob['protocol'] ?? '') === 'freedom' && is_array($fr) && $found['fr'] === null) $found['fr'] = $fr;
+        foreach ((array) ($ob['streamSettings']['finalmask']['udp'] ?? []) as $mk) {
+            if (is_array($mk) && strtolower((string) ($mk['type'] ?? '')) === 'noise' && is_array($mk['settings'] ?? null) && $found['fm'] === null) $found['fm'] = $mk['settings'];
+        }
+    }
+    return [$found[$mode], $found[$mode === 'fm' ? 'fr' : 'fm'] !== null];
+}
+
+function wgnoise_parse($mode, $text, &$err = '') {
+    $err = '';
+    $d = wgnoise_json($text);
+    if ($d === null) { $err = 'это не JSON'; return null; }
+    $obs = null;
+    if (isset($d['outbounds']) && is_array($d['outbounds'])) $obs = $d['outbounds'];
+    elseif (array_is_list($d) && isset($d[0]['outbounds']) && is_array($d[0]['outbounds'])) $obs = $d[0]['outbounds'];
+    elseif (array_is_list($d) && isset($d[0]['protocol'])) $obs = $d;
+    elseif (isset($d['protocol'])) $obs = [$d];
+    if ($obs !== null) {
+        [$n, $other] = wgnoise_from_outbounds($obs, $mode);
+        if ($n === null) { $err = $other ? 'в конфиге шум ' . ($mode === 'fm' ? 'старого' : 'нового') . ' формата — выберите «' . ($mode === 'fm' ? 'Старый' : 'Новый') . '»' : 'в конфиге не найден шум'; return null; }
+        $d = $n;
+    }
+    $reset = null;
+    if ($mode === 'fm') {
+        if (isset($d['type'], $d['settings']) && is_array($d['settings'])) {
+            if (strtolower((string) $d['type']) !== 'noise') { $err = 'нужна маска с type "noise"'; return null; }
+            $d = $d['settings'];
+        }
+        if (array_key_exists('noise', $d) || array_key_exists('reset', $d) || array_key_exists('script', $d)) {
+            if (array_key_exists('script', $d)) { $err = 'script не поддерживается, нужен список noise'; return null; }
+            if (array_key_exists('reset', $d)) {
+                if (!wgnoise_range($d['reset'], 0, 86400)) { $err = 'reset — число или диапазон, например "30-60"'; return null; }
+                $reset = $d['reset'];
+            }
+            $d = $d['noise'] ?? null;
+        }
+    } else {
+        if (array_key_exists('noises', $d)) $d = $d['noises'];
+    }
+    if (!is_array($d) || !$d || !array_is_list($d)) { $err = 'нужен непустой список шумов в [ ]'; return null; }
+    if (count($d) > 32) { $err = 'не больше 32 шумов'; return null; }
+    $out = [];
+    foreach ($d as $i => $it) {
+        $k = $i + 1;
+        if (!is_array($it) || !$it || array_is_list($it)) { $err = "шум {$k}: нужен объект в { }"; return null; }
+        $o = $mode === 'fm' ? wgnoise_item_fm($it, $e) : wgnoise_item_fr($it, $e);
+        if ($o === null) { $err = "шум {$k}: {$e}"; return null; }
+        $out[] = $o;
+    }
+    if ($mode !== 'fm') return $out;
+    $s = ['noise' => $out];
+    if ($reset !== null) $s['reset'] = $reset;
+    return $s;
+}
+
+function wgnoise_text($mode, $n) {
+    if ($mode === 'fm' && !isset($n['reset'])) $n = $n['noise'];
+    return json_encode($n, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+}
+
+function wgnoise_item_fr(array $it, &$e) {
+    $e = '';
+    $bad = array_diff(array_keys($it), ['type', 'packet', 'delay', 'applyTo']);
+    if ($bad) { $e = 'неизвестное поле ' . implode(', ', $bad) . (array_intersect($bad, ['rand', 'randRange']) ? ' — это поле нового формата' : ''); return null; }
+    $t = $it['type'] ?? null; $p = $it['packet'] ?? null;
+    if (!is_string($t) || !in_array($t, ['rand', 'str', 'hex', 'base64'], true)) { $e = 'type — rand, str, hex или base64'; return null; }
+    if (!is_string($p) || trim($p) === '') { $e = 'packet — непустая строка'; return null; }
+    $p = trim($p);
+    if ($t === 'rand' && (!wgnoise_range($p, 1, 65535))) { $e = 'для type "rand" в packet нужна длина, например "10-20"'; return null; }
+    if ($t === 'hex' && (strlen($p) % 2 || !ctype_xdigit($p))) { $e = 'packet — не hex'; return null; }
+    if ($t === 'base64' && base64_decode(strtr(rtrim($p, '='), '-_', '+/'), true) === false) { $e = 'packet — не base64'; return null; }
+    $o = ['type' => $t, 'packet' => $p];
+    if (array_key_exists('delay', $it)) {
+        if (!wgnoise_range($it['delay'], 0, 60000)) { $e = 'delay — пауза в мс, например "10-16"'; return null; }
+        $o['delay'] = $it['delay'];
+    }
+    if (array_key_exists('applyTo', $it)) {
+        if (!is_string($it['applyTo']) || !in_array(strtolower($it['applyTo']), ['', 'ip', 'all', 'ipv4', 'ipv6'], true)) { $e = 'applyTo — ip, ipv4 или ipv6'; return null; }
+        $o['applyTo'] = $it['applyTo'];
+    }
+    return $o;
+}
+
+function wgnoise_item_fm(array $it, &$e) {
+    $e = '';
+    $bad = array_diff(array_keys($it), ['rand', 'randRange', 'type', 'packet', 'delay']);
+    if ($bad) { $e = 'неизвестное поле ' . implode(', ', $bad) . (in_array('applyTo', $bad, true) ? ' — это поле старого формата' : ''); return null; }
+    $t = strtolower((string) ($it['type'] ?? ''));
+    if (array_key_exists('type', $it) && !is_string($it['type'])) { $e = 'type — строка'; return null; }
+    if ($t === 'rand') { $e = 'type "rand" бывает только в старом формате, в новом пишут "rand": "10-20"'; return null; }
+    if (!in_array($t, ['', 'array', 'str', 'hex', 'base64', 'exp'], true)) { $e = 'type — array, str, hex, base64 или exp'; return null; }
+    $o = [];
+    $rand = false;
+    if (array_key_exists('rand', $it)) {
+        if (!wgnoise_range($it['rand'], 0, 65535)) { $e = 'rand — длина, например "10-20"'; return null; }
+        $rand = !in_array((string) $it['rand'], ['0', '0-0'], true);
+        $o['rand'] = $it['rand'];
+    }
+    if (array_key_exists('randRange', $it)) {
+        if (!wgnoise_range($it['randRange'], 0, 255)) { $e = 'randRange — диапазон байтов от 0 до 255'; return null; }
+        $o['randRange'] = $it['randRange'];
+    }
+    $p = $it['packet'] ?? null;
+    $has = $p !== null && $p !== '' && $p !== [];
+    if ($has) {
+        if ($rand) { $e = 'rand и packet вместе нельзя'; return null; }
+        if ($t === '' || $t === 'array') {
+            if (is_array($p)) {
+                if (!array_is_list($p)) { $e = 'packet — список байтов'; return null; }
+                foreach ($p as $b) if (!is_int($b) || $b < 0 || $b > 255) { $e = 'packet — байты 0–255'; return null; }
+            } elseif (!is_string($p) || base64_decode($p, true) === false) { $e = 'packet — список байтов'; return null; }
+        } elseif (!is_string($p)) { $e = 'packet — строка'; return null; }
+        elseif ($t === 'hex' && (strlen($p) % 2 || !ctype_xdigit($p))) { $e = 'packet — не hex'; return null; }
+        elseif ($t === 'base64' && base64_decode($p, true) === false) { $e = 'packet — не base64'; return null; }
+        if ($t !== '') $o['type'] = $it['type'];
+        $o['packet'] = $p;
+    } elseif (!$rand) { $e = 'нужен rand или packet'; return null; }
+    if (array_key_exists('delay', $it)) {
+        if (!wgnoise_range($it['delay'], 0, 60000)) { $e = 'delay — пауза в мс, например "10-16"'; return null; }
+        $o['delay'] = $it['delay'];
+    }
+    return $o;
+}
+
+function wgnoise_wrap(array &$wg, $nz) {
+    if (!is_array($nz) || ($wg['protocol'] ?? '') !== 'wireguard') return null;
+    if ($nz['m'] === 'fm') {
+        $wg['streamSettings'] = ['finalmask' => ['udp' => [['type' => 'noise', 'settings' => $nz['n']]]]];
+        return null;
+    }
+    $tag = 'wg-noise-' . substr(md5(json_encode($nz['n'])), 0, 8);
+    $wg['streamSettings'] = ['sockopt' => ['dialerProxy' => $tag]];
+    return ['tag' => $tag, 'protocol' => 'freedom', 'settings' => ['noises' => $nz['n']]];
+}
+
 function squadconf_inject($body, $format, array $configs, array $prof, &$sent = null) {
     $sent = [];
     $configs = array_values(array_filter($configs, fn($c) => squadconf_cfg_ok($c, $prof)));
@@ -1145,7 +1340,7 @@ function squadconf_inject_xray_json($body, array $configs, array &$sent) {
         $pn = json_decode((string) ($c['parsed'] ?? ''), true);
         if (!is_array($pn) || !in_array($pn['type'] ?? '', ['wireguard', 'vless'], true)) continue;
         $nm = squadconf_uniq_label($c, $names, ($pn['type'] ?? '') === 'vless' ? 'VLESS' : 'WireGuard');
-        $items[] = ['pn' => $pn, 'name' => $nm, 'id' => (int) $c['id']]; $names[] = $nm;
+        $items[] = ['pn' => $pn, 'name' => $nm, 'id' => (int) $c['id'], 'nz' => wgnoise_for_cfg($c)]; $names[] = $nm;
     }
     if (!$items) return $body;
 
@@ -1164,8 +1359,10 @@ function squadconf_inject_xray_json($body, array $configs, array &$sent) {
         foreach ($items as $it) {
             $wg = xray_outbound_any($it['pn'], 'proxy');
             if (!$wg) continue;
+            $nzo = wgnoise_wrap($wg, $it['nz']);
             $el = json_decode(json_encode($tpl));
             xray_tpl_make_single($el, $wg);
+            if ($nzo) $el->outbounds[] = $nzo;
             $el->remarks = $it['name'];
             $obj[] = $el;
             $ids[] = $it['id'];
@@ -1173,7 +1370,15 @@ function squadconf_inject_xray_json($body, array $configs, array &$sent) {
     } else {
         if (!isset($obj->outbounds) || !is_array($obj->outbounds)) return $body;
         $ids = [];
-        foreach ($items as $it) { $wg = xray_outbound_any($it['pn'], ''); if ($wg) { $obj->outbounds[] = $wg; $ids[] = $it['id']; } }
+        $tags = [];
+        foreach ($obj->outbounds as $ob) if (is_object($ob) && isset($ob->tag)) $tags[(string) $ob->tag] = true;
+        foreach ($items as $it) {
+            $wg = xray_outbound_any($it['pn'], '');
+            if (!$wg) continue;
+            $nzo = wgnoise_wrap($wg, $it['nz']);
+            $obj->outbounds[] = $wg; $ids[] = $it['id'];
+            if ($nzo && !isset($tags[$nzo['tag']])) { $obj->outbounds[] = $nzo; $tags[$nzo['tag']] = true; }
+        }
     }
     $enc = json_encode($obj, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if ($enc === false) return $body;
