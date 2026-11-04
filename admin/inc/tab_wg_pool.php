@@ -475,6 +475,7 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
                 <li><b>Группа</b> делит пул сквада: загрузите германские конфиги с группой DE, нидерландские — с NL, и каждый получит 1 DE + 1 NL.</li>
                 <li><b>Throne и INCY</b> получают AmneziaWG в своём формате. INCY на компьютере AWG не поддерживает — ему уходит только WG, и слот AWG он не занимает.</li>
                 <li><b>Ручная привязка</b> — конфиг закрепляется за конкретным пользователем в обход сквадов. В грейсе не выдаётся.</li>
+                <li><b>DNS в xray-json</b> — строка <code>DNS</code> из .conf туда пока не переносится: клиенты на Xray ищут адреса сайтов через 1.1.1.1 и 1.0.0.1, как задано в ядре по умолчанию (<a href="https://xtls.github.io/ru/config/outbounds/wireguard.html#outboundconfigurationobject" target="_blank" rel="noopener noreferrer">remoteDNS</a>). Из всех форматов подписки DNS из .conf сейчас попадает только в Clash.</li>
             </ul>
         </details>
     </div>
