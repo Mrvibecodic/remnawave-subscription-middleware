@@ -1717,6 +1717,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         form_saved('wg_pool');
     }
 
+    if ($action === 'save_pool_noise') {
+        $pool = (string) ($_POST['pool'] ?? '');
+        $m = (string) ($_POST['nz_mode'] ?? 'off');
+        $j = trim((string) ($_POST['nz_json'] ?? ''));
+        $err = '';
+        if (!wgnoise_pool_ok($pool)) $err = 'неизвестный пул';
+        elseif (!in_array($m, ['off', 'fm', 'fr'], true)) $err = 'неизвестный формат';
+        elseif (strlen($j) > 262144) $err = 'слишком большой текст';
+        elseif ($m !== 'off' && ($nz = wgnoise_parse($m, $j, $err)) !== null) $j = wgnoise_text($m, $nz);
+        elseif ($m === 'off' && strlen($j) > 8000) $j = '';
+        if ($err === '') {
+            set_setting('wgnoise_' . $pool, ($m === 'off' && $j === '') ? '' : json_encode(['m' => $m, 'j' => $j], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            flash($m === 'off' ? 'Шум выключен' : 'Шум сохранён');
+            form_saved('wg_pool');
+        }
+        if (!empty($_POST['xhr'])) { header('Content-Type: application/json; charset=utf-8'); echo json_encode(['ok' => false, 'error' => $err], JSON_UNESCAPED_UNICODE); exit(); }
+        flash('Шум не сохранён: ' . $err);
+        header('Location: index.php?tab=wg_pool'); exit();
+    }
+
     if ($action === 'pool_manual_add') {
         $cid = (int) ($_POST['config_id'] ?? 0);
         $su  = trim($_POST['short_uuid'] ?? '');

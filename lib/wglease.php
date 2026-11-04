@@ -143,7 +143,7 @@ function wglease_select($short_uuid, $hwid, array $u_squads, array $prof) {
         if (wglease_mode($sq) !== 'shared') continue;
         foreach ($by_squad[$sq] ?? [] as $c) {
             $id = (int) $c['id'];
-            if (!isset($added[$id])) { $added[$id] = true; $out[] = $c; }
+            if (!isset($added[$id])) { $added[$id] = true; $c['_pool'] = $sq; $out[] = $c; }
         }
     }
     foreach ($u_squads as $sq) {
@@ -154,7 +154,7 @@ function wglease_select($short_uuid, $hwid, array $u_squads, array $prof) {
             $id = (int) $c['id'];
             if (isset($added[$id])) continue;
             $t = (string) ($c['type'] ?? '');
-            if ($t === 'vless') { $added[$id] = true; $out[] = $c; continue; }
+            if ($t === 'vless') { $added[$id] = true; $c['_pool'] = $sq; $out[] = $c; continue; }
             if (!squadconf_type_ok($c, $prof)) continue;
             $g = trim((string) ($c['grp'] ?? ''));
             $sub = ($g === '') ? ('t:' . $t) : ('t:' . $t . '|g:' . $g);
@@ -171,13 +171,13 @@ function wglease_select($short_uuid, $hwid, array $u_squads, array $prof) {
         }
         foreach ($by_group as $sub => $cands) {
             $pick = wglease_pick($sq, $base . '|' . $sub, $short_uuid, ($mode === 'devices' ? $hwid : ''), $cands, $ua, $group_ids[$sub]);
-            if ($pick) { $added[(int) $pick['id']] = true; $out[] = $pick; }
+            if ($pick) { $added[(int) $pick['id']] = true; $pick['_pool'] = $sq; $out[] = $pick; }
         }
     }
     if (grace_is_active($short_uuid)) return $out;
     foreach (wglease_manual_for_user($short_uuid, $hwid) as $c) {
         $id = (int) $c['id'];
-        if (!isset($added[$id])) { $added[$id] = true; $out[] = $c; }
+        if (!isset($added[$id])) { $added[$id] = true; $c['_pool'] = '__manual__'; $out[] = $c; }
     }
     return $out;
 }

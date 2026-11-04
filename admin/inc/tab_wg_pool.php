@@ -150,6 +150,10 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
         .wv-3{background:var(--c-warn-bg);color:var(--c-warn-fg)}
         .wgx-ph .wgx-vts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.25rem;margin-left:auto;flex:0 1 auto;min-width:0}
         .wgx-ph .wgx-add{flex:none}
+        .wgx .wgx-nzb{flex:none;padding:.1rem .5rem}
+        .wgx .wgx-nzb.on{color:var(--accent-text);background:var(--accent-light);border-color:var(--accent)}
+        #wgxNzModal .wgx-seg{margin-bottom:.6rem}
+        #wgxNzJ{font-family:monospace;font-size:.78rem;width:100%}
         .wgx-seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--card)}
         .wgx .wgx-seg label{display:block;flex:1 1 0;min-width:0;margin:0;font-size:.72rem;font-weight:600;color:var(--muted);text-align:center;padding:.32rem .2rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .wgx-seg label+label{border-left:1px solid var(--line)}
@@ -296,6 +300,7 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
                             <button type="button" class="wgx-pname" data-pool="__manual__" data-tip="Показать конфиги ручной привязки">Ручная привязка</button>
                             <span class="wgx-pm" data-tip="Назначено <?= count($wgx_man) ?> из <?= (int) $wgx_man_cfgs ?> конфигов"><?= count($wgx_man) ?>/<?= (int) $wgx_man_cfgs ?> назначено</span>
                             <span class="wgx-vts"><?php foreach (array_keys($wgx_pools['__manual__']['vers'] ?? []) as $v): ?><span class="wgx-vt <?= awg_ver_class($v) ?>"><?= h($v) ?></span><?php endforeach; ?></span>
+                            <?php $nzs = wgnoise_stored('__manual__'); ?><button type="button" class="wb sm wgx-nzb<?= $nzs['m'] !== 'off' ? ' on' : '' ?>" data-nz="<?= h('__manual__') ?>" data-nzn="<?= h('Ручная привязка') ?>" data-tip="Шум для WireGuard: <?= $nzs['m'] === 'fm' ? 'новый формат' : ($nzs['m'] === 'fr' ? 'старый формат' : 'выключен') ?>">Шум</button>
                             <button type="button" class="wb sm wgx-add" data-upload="__manual__" data-tip="Загрузить конфиги для ручной привязки" aria-label="Загрузить в ручную привязку">+</button>
                         </div>
                         <?php if ($wgx_man): ?>
@@ -317,6 +322,7 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
                             <button type="button" class="wgx-pname" data-pool="<?= h($pk) ?>" data-tip="Показать конфиги этого пула"><?= h($wgx_pname($pk)) ?></button>
                             <span class="wgx-pm"><?= isset($wgx_members[$pk]) ? (int) $wgx_members[$pk] . ' польз.' : '' ?></span>
                             <span class="wgx-vts"><?php foreach (array_keys($pl['vers']) as $v): ?><span class="wgx-vt <?= awg_ver_class($v) ?>"><?= h($v) ?></span><?php endforeach; ?></span>
+                            <?php $nzs = wgnoise_stored($pk); ?><button type="button" class="wb sm wgx-nzb<?= $nzs['m'] !== 'off' ? ' on' : '' ?>" data-nz="<?= h($pk) ?>" data-nzn="<?= h($wgx_pname($pk)) ?>" data-tip="Шум для WireGuard: <?= $nzs['m'] === 'fm' ? 'новый формат' : ($nzs['m'] === 'fr' ? 'старый формат' : 'выключен') ?>">Шум</button>
                             <button type="button" class="wb sm wgx-add" data-upload="<?= h($pk) ?>" data-tip="Загрузить конфиги в этот пул" aria-label="Загрузить в <?= h($wgx_pname($pk)) ?>">+</button>
                         </div>
                         <div class="wgx-seg" role="radiogroup" aria-label="Как выдавать в <?= h($wgx_pname($pk)) ?>">
@@ -551,6 +557,30 @@ foreach ($wgx_order as $pk) $wgx_names[$pk] = $wgx_pname($pk);
     </div>
 </div>
 
+<div id="wgxNzModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-head"><div>Шум для WireGuard · <span id="wgxNzN"></span></div><button type="button" class="modal-x" data-nzclose>×</button></div>
+        <div class="modal-body wgx">
+            <form method="post" autocomplete="off" id="wgxNzF">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="save_pool_noise">
+                <input type="hidden" name="pool" value="">
+                <div class="wgx-seg" role="radiogroup" aria-label="Шум">
+                    <label><input type="radio" name="nz_mode" value="off">Выключен</label>
+                    <label data-tip="finalmask — Xray 26.2.6 и новее"><input type="radio" name="nz_mode" value="fm">Новый</label>
+                    <label data-tip="freedom с noises — любая версия Xray, но формат устаревает"><input type="radio" name="nz_mode" value="fr">Старый</label>
+                </div>
+                <textarea name="nz_json" id="wgxNzJ" rows="7" spellcheck="false" aria-label="JSON шума"></textarea>
+                <div class="wgx-pf" style="margin-top:.45rem"><button type="button" class="wb sm" id="wgxNzPre">Подставить пример</button><span class="wgx-pm" id="wgxNzErr" style="color:var(--c-bad-fg)"></span></div>
+                <?php if (!squadconf_xray_json_enabled()): ?><div class="wgx-note bad"><span>Сейчас WireGuard не попадает в xray-json — включите «Инжект для xray-json» на вкладке «Доп. конфиги».</span></div><?php endif; ?>
+                <p class="wgx-sub">Перед подключением клиент отправит несколько пакетов-мусора, чтобы WireGuard было труднее распознать. Работает только в клиентах на Xray (Happ, v2rayNG и другие) и только для WireGuard этого пула. Сервер менять не нужно.</p>
+                <p class="wgx-sub"><b>Новый</b> формат — для Xray 26.2.6 и новее, на старых версиях шума не будет. <b>Старый</b> работает на любой версии, но Xray собирается его убрать — тогда клиент с ним не подключится. Можно вставить готовый конфиг целиком — прослойка возьмёт из него только шум. Поля шума — в документации Xray: <a href="https://xtls.github.io/ru/config/transports/finalmask.html#noise" target="_blank" rel="noopener noreferrer">новый формат</a>, <a href="https://github.com/XTLS/Xray-docs-next/blob/e42da10dbe1be23595c0876731187b62244fef7b/docs/ru/config/outbounds/freedom.md#noiseobject" target="_blank" rel="noopener noreferrer">старый формат</a>.</p>
+                <div class="wgx-pf" style="margin-top:.6rem"><button type="submit" class="wb pri" id="wgxNzGo">Сохранить</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <form method="post" id="wgxManDelF" hidden><input type="hidden" name="csrf" value="<?= h($token) ?>"><input type="hidden" name="action" value="pool_manual_del"><input type="hidden" name="ret" value="wg_pool"><input type="hidden" name="id" value=""></form>
 
 <div id="sqEditModal" class="modal-overlay">
@@ -589,6 +619,8 @@ sqcfgInitEdit();
 (function(){
     var NAMES = <?= json_encode($wgx_names, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     var CSRF = <?= json_encode($token) ?>;
+    var NZ = <?php $wgx_nz = []; foreach ($wgx_cards as $pk) $wgx_nz[$pk] = wgnoise_stored($pk); echo json_encode((object) $wgx_nz, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+    var NZP = <?= json_encode(wgnoise_presets(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     var D = window.WGX || {};
     var $ = function(id){ return document.getElementById(id); };
     function esc(s){ var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
@@ -817,6 +849,36 @@ sqcfgInitEdit();
     document.querySelectorAll('[data-manclose]').forEach(function(b){ b.addEventListener('click', manClose); });
     if (man) man.addEventListener('click', function(e){ if (e.target === man) manClose(); });
     if ($('wgm_q')) $('wgm_q').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); $('wgm_find').click(); } });
+    var nzm = $('wgxNzModal'), nzf = $('wgxNzF');
+    function nzMode(){ var r = nzf.querySelector('input[name=nz_mode]:checked'); return r ? r.value : 'off'; }
+    function nzSync(){ var m = nzMode(); $('wgxNzPre').disabled = m === 'off'; $('wgxNzJ').placeholder = NZP[m] || ''; }
+    function nzOpen(b){
+        var pk = b.dataset.nz, st = NZ[pk] || {m: 'off', j: ''};
+        nzf.elements.pool.value = pk;
+        $('wgxNzN').textContent = b.dataset.nzn || '';
+        nzf.querySelectorAll('input[name=nz_mode]').forEach(function(r){ r.checked = r.value === st.m; });
+        $('wgxNzJ').value = st.j; $('wgxNzErr').textContent = '';
+        nzSync(); nzm.classList.add('open');
+    }
+    function nzClose(){ nzm.classList.remove('open'); }
+    document.querySelectorAll('[data-nz]').forEach(function(b){ b.addEventListener('click', function(){ nzOpen(b); }); });
+    document.querySelectorAll('[data-nzclose]').forEach(function(b){ b.addEventListener('click', nzClose); });
+    if (nzm) nzm.addEventListener('click', function(e){ if (e.target === nzm) nzClose(); });
+    if (nzf) {
+        nzf.addEventListener('change', nzSync);
+        $('wgxNzPre').addEventListener('click', function(){ var m = nzMode(); if (NZP[m]) { $('wgxNzJ').value = NZP[m]; $('wgxNzErr').textContent = ''; } });
+        nzf.addEventListener('submit', function(e){
+            e.preventDefault();
+            var go = $('wgxNzGo'), fd = new FormData(nzf); fd.append('xhr', '1');
+            if (nzMode() !== 'off' && !$('wgxNzJ').value.trim()) { $('wgxNzErr').textContent = 'Вставьте JSON или нажмите «Подставить пример»'; return; }
+            go.disabled = true; $('wgxNzErr').textContent = '';
+            fetch('index.php', {method: 'POST', credentials: 'same-origin', body: fd}).then(function(r){ return r.json(); }).then(function(d){
+                if (!d || !d.ok) { go.disabled = false; $('wgxNzErr').textContent = 'Не сохранено: ' + ((d && d.error) || 'ошибка'); return; }
+                if (window.uiToast) uiToast(d.msg || 'Сохранено');
+                setTimeout(function(){ location.reload(); }, 450);
+            }).catch(function(){ go.disabled = false; $('wgxNzErr').textContent = 'Ошибка сети — не сохранено'; });
+        });
+    }
     sqcfgInitManual(NAMES);
     apply();
 })();
