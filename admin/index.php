@@ -975,6 +975,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         form_saved('reports');
     }
 
+    if ($action === 'rep_clear' && function_exists('rep_clear_all')) {
+        ignore_user_abort(true);
+        if (mb_strtolower(trim((string) ($_POST['word'] ?? ''))) !== 'очистить') flash('Статистика не очищена: не введено слово «очистить»');
+        elseif (!rep_clear_all($rc_err)) flash($rc_err);
+        else flash('Статистика Clod Clash очищена' . (db_driver() === 'mysql' ? '' : '. Чтобы файл базы стал меньше, нажмите «Сжать базу» на вкладке «База данных»'));
+        header('Location: index.php?tab=reports'); exit();
+    }
+
     if ($action === 'save_geoip_mode') {
         $gm = (string) ($_POST['geoip_mode'] ?? '');
         if (isset(geoip_modes()[$gm]) && ($gm !== geoip_mode() || setting('geoip_mode', '') === '')) {

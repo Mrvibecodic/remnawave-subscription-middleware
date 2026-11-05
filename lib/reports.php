@@ -654,6 +654,33 @@ function rep_rebuild_start() {
     return true;
 }
 
+function rep_clear_all(&$err = '') {
+    $err = '';
+    if (!rep_ensure() || !($p = db())) { $err = 'Нет подключения к базе данных'; return false; }
+    @set_time_limit(0);
+    try {
+        // Пересборка останавливается на следующей записи; текущей даём закончиться, чтобы она не легла в пустые таблицы.
+        $rb = rep_rebuild_active();
+        set_setting('rep_rb', '');
+        set_setting('rep_rb_need', '0');
+        if ($rb) sleep(2);
+        $mysql = db_driver() === 'mysql';
+        foreach (array_merge(rep_derived_tables(), ['rep_raw']) as $t) {
+            if ($mysql) {
+                try { $p->exec("TRUNCATE TABLE $t"); continue; } catch (Throwable $e) {}
+            }
+            $p->exec("DELETE FROM $t");
+        }
+        rep_mark_seen();
+    } catch (Throwable $e) {
+        error_log('submw rep clear: ' . $e->getMessage());
+        $err = 'Не удалось очистить: ' . $e->getMessage();
+        return false;
+    }
+
+    return true;
+}
+
 function rep_replay_row(PDO $p, array $r) {
     $json = rep_raw_json($r);
     $why  = '';
