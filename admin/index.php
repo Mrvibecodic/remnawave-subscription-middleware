@@ -1517,18 +1517,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         $bk_prevId = backup_tg_chat();
         if ($bk_tok !== backup_tg_token()) {
             set_setting('backup_tg_token', $bk_tok);
-            foreach (['backup_tg_chat', 'backup_tg_title', 'backup_tg_bot', 'backup_tg_q', 'backup_tg_last'] as $bk_k) set_setting($bk_k, '');
+            foreach (['backup_tg_chat', 'backup_tg_title', 'backup_tg_bot', 'backup_tg_uid', 'backup_tg_who', 'backup_tg_q', 'backup_tg_last'] as $bk_k) set_setting($bk_k, '');
         }
+        $bk_pin0 = backup_tg_uid();
         $bk_r = backup_tg_check($bk_tok, $bk_err);
         if ($bk_r === null) flash($bk_err);
         else {
             set_setting('backup_tg_chat', $bk_r['chat']);
             set_setting('backup_tg_title', $bk_r['title']);
             set_setting('backup_tg_bot', $bk_r['bot']);
-            flash($bk_prevId !== '' && $bk_prevId !== $bk_r['chat']
+            set_setting('backup_tg_uid', $bk_r['uid']);
+            set_setting('backup_tg_who', $bk_r['who']);
+            flash(($bk_prevId !== '' && $bk_prevId !== $bk_r['chat']
                 ? 'Чат сменён: был «' . $bk_prev . '», теперь «' . $bk_r['title'] . '». Тестовое сообщение отправлено туда'
-                : 'Связь есть: тестовое сообщение отправлено в чат «' . $bk_r['title'] . '»');
+                : 'Связь есть: тестовое сообщение отправлено в чат «' . $bk_r['title'] . '»')
+                . ($bk_pin0 === '' && $bk_r['uid'] !== '' ? '. Чат закреплён за ' . $bk_r['who'] . ' — сообщения боту от других людей его не поменяют' : '')
+                . ($bk_r['others'] > 0 ? '. Боту писали и другие люди — их сообщения не учтены' : ''));
         }
+        header('Location: index.php?tab=backup'); exit();
+    }
+
+    if ($action === 'bk_tg_unpin' && function_exists('backup_tg_uid')) {
+        foreach (['backup_tg_chat', 'backup_tg_title', 'backup_tg_uid', 'backup_tg_who', 'backup_tg_q'] as $bk_k) set_setting($bk_k, '');
+        flash('Привязка сброшена, бэкапы в Telegram не отправляются. Напишите боту из нужного чата и нажмите «Проверить связь»');
         header('Location: index.php?tab=backup'); exit();
     }
 
