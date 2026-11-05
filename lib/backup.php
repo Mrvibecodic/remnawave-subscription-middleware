@@ -10,7 +10,10 @@ const BK_CHUNK   = 1048576;
 const BK_ITER    = 600000;
 const BK_MAXLINE = 25165824;
 const BK_JSON    = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION;
-const BK_KEEP    = ['auto' => 7, 'pre' => 3];
+const BK_KEEP    = ['pre' => 3];
+const BK_BUSY    = 'Уже идёт другой бэкап или восстановление — подождите, пока он закончится';
+const BK_TG_API  = 'https://api.telegram.org';
+const BK_TG_PART = 51380224;
 
 function backup_dir() { return dirname(default_db_path()) . '/backups'; }
 
@@ -69,6 +72,16 @@ function backup_keep_setting($k, $keep_login) {
 function backup_auto_on() { return setting('backup_auto', '0') === '1'; }
 
 function backup_auto_pass() { return (string) setting('backup_auto_pass', ''); }
+
+function backup_auto_hours() {
+    $h = (int) setting('backup_auto_hours', '24');
+    return $h >= 1 && $h <= 24 ? $h : 24;
+}
+
+function backup_auto_keep() {
+    $n = (int) setting('backup_auto_keep', '7');
+    return $n >= 1 && $n <= 200 ? $n : 7;
+}
 
 function backup_upload_limit() {
     $b = static function ($v) {
@@ -138,7 +151,7 @@ function backup_list() {
 }
 
 function backup_prune($kind) {
-    $keep = BK_KEEP[$kind] ?? 0;
+    $keep = $kind === 'auto' ? backup_auto_keep() : (BK_KEEP[$kind] ?? 0);
     if ($keep <= 0) return;
     $same = array_values(array_filter(backup_list(), static function ($b) use ($kind) { return $b['kind'] === $kind; }));
     foreach (array_slice($same, $keep) as $b) @unlink(backup_dir() . '/' . $b['name']);
@@ -149,7 +162,7 @@ function backup_lock(&$err = '') {
     if ($d === '') return null;
     $h = @fopen($d . '/.lock', 'c');
     if (!$h) { $err = 'Нет прав на запись в папку ' . $d; return null; }
-    if (!flock($h, LOCK_EX | LOCK_NB)) { fclose($h); $err = 'Уже идёт другой бэкап или восстановление — подождите, пока он закончится'; return null; }
+    if (!flock($h, LOCK_EX | LOCK_NB)) { fclose($h); $err = BK_BUSY; return null; }
     return $h;
 }
 
@@ -860,8 +873,229 @@ function backup_ticker() {
     };
 }
 
-function cron_task_backup($ctx) {
-    $pass = backup_auto_pass();
+// ---- Telegram ----
+
+function backup_tg_token() { return trim((string) setting('backup_tg_token', '')); }
+
+function backup_tg_chat() { return trim((string) setting('backup_tg_chat', '')); }
+
+function backup_tg_token_ok($t) { return is_string($t) && (bool) preg_match('~^[0-9]{3,20}:[A-Za-z0-9_-]{30,64}$~', $t); }
+
+// Без пароля файл с токеном панели и другими секретами ушёл бы на чужие серверы.
+function backup_tg_ready() { return backup_tg_token() !== '' && backup_tg_chat() !== '' && backup_auto_pass() !== '' && backup_crypto_ok(); }
+
+function backup_tg_on() { return setting('backup_tg', '0') === '1' && backup_tg_ready(); }
+
+function backup_tg_pending() {
+    $q = json_decode((string) setting('backup_tg_q', ''), true);
+    return is_array($q) && backup_name_ok($q['n'] ?? null) ? $q : null;
+}
+
+function backup_tg_last() {
+    $l = json_decode((string) setting('backup_tg_last', ''), true);
+    return is_array($l) ? $l : null;
+}
+
+// Токен уходит в адрес запроса, поэтому сертификат проверяется всегда, независимо от настройки TLS панели.
+function bk_tg_api($method, array $fields, $token = null, $timeout = 15) {
+    $token = (string) ($token ?? backup_tg_token());
+    if (!backup_tg_token_ok($token)) return [false, null, 'не задан токен бота', 0];
+    if (!function_exists('curl_init')) return [false, null, 'на сервере нет расширения PHP curl', 0];
+    $base = function_exists('chat_tg_api_base') ? chat_tg_api_base() : BK_TG_API;
+    $file = false;
+    foreach ($fields as $v) if ($v instanceof CURLFile) $file = true;
+    $ch = curl_init($base . '/bot' . $token . '/' . $method);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $file ? $fields : http_build_query($fields),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => $timeout,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+    ]);
+    $resp = curl_exec($ch);
+    $cerr = curl_error($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($resp === false || $cerr !== '') return [false, null, 'нет связи с Telegram (' . ($cerr !== '' ? $cerr : 'пустой ответ') . ')', 0];
+    $d = json_decode((string) $resp, true);
+    if (!is_array($d) || empty($d['ok'])) return [false, is_array($d) ? $d : null, is_array($d) && isset($d['description']) ? (string) $d['description'] : 'HTTP ' . $code, $code];
+    return [true, $d['result'] ?? null, '', $code];
+}
+
+// Группа, ставшая супергруппой, получает новый id — Telegram сообщает его в ответе, повторяем туда.
+function bk_tg_to_chat($method, array $fields, $timeout) {
+    $r = bk_tg_api($method, ['chat_id' => backup_tg_chat()] + $fields, null, $timeout);
+    $to = is_array($r[1]) ? (string) ($r[1]['parameters']['migrate_to_chat_id'] ?? '') : '';
+    if ($r[0] || $to === '' || !preg_match('~^-?[0-9]{1,20}$~', $to)) return $r;
+    set_setting('backup_tg_chat', $to);
+    return bk_tg_api($method, ['chat_id' => $to] + $fields, null, $timeout);
+}
+
+function bk_tg_chat_title(array $c) {
+    $t = trim((string) ($c['title'] ?? ''));
+    if ($t === '') $t = trim((string) ($c['first_name'] ?? '') . ' ' . (string) ($c['last_name'] ?? ''));
+    if (($c['username'] ?? '') !== '') $t .= ($t !== '' ? ' ' : '') . '@' . $c['username'];
+    return $t !== '' ? $t : (string) ($c['id'] ?? '');
+}
+
+// Чат — последний, где боту написали или куда его добавили; без новых сообщений остаётся найденный раньше.
+function backup_tg_check($token, &$err) {
     $err = '';
-    return backup_create('auto', $pass, false, null, $err) !== '' ? '' : ($err !== '' ? $err : 'Не удалось создать бэкап');
+    [$ok, $me, $e] = bk_tg_api('getMe', [], $token, 10);
+    if (!$ok) { $err = stripos($e, 'unauthorized') !== false || stripos($e, 'not found') !== false ? 'Telegram не принял токен — проверьте его у @BotFather' : 'Бот не ответил: ' . $e; return null; }
+    $bot = (string) ($me['username'] ?? '');
+    [$ok, $up, $e] = bk_tg_api('getUpdates', ['limit' => 100, 'timeout' => 0], $token, 10);
+    if (!$ok) { $err = stripos($e, 'webhook') !== false ? 'У бота @' . $bot . ' включён вебхук — для бэкапов нужен отдельный бот' : 'Бот не ответил: ' . $e; return null; }
+    $chat = null;
+    foreach (array_reverse(is_array($up) ? $up : []) as $u) {
+        if (isset($u['my_chat_member']['chat']['id'])) {
+            if (in_array((string) ($u['my_chat_member']['new_chat_member']['status'] ?? ''), ['left', 'kicked'], true)) continue;
+            $chat = $u['my_chat_member']['chat'];
+            break;
+        }
+        foreach (['message', 'channel_post', 'edited_message', 'edited_channel_post'] as $k) {
+            if (isset($u[$k]['chat']['id'])) { $chat = $u[$k]['chat']; break 2; }
+        }
+    }
+    $id = $chat !== null ? (string) $chat['id'] : ($token === backup_tg_token() ? backup_tg_chat() : '');
+    if ($id === '') { $err = 'Напишите боту @' . $bot . ' любое сообщение и нажмите «Проверить связь» ещё раз'; return null; }
+    $title = $chat !== null ? bk_tg_chat_title($chat) : (string) setting('backup_tg_title', $id);
+    [$ok, , $e] = bk_tg_api('sendMessage', ['chat_id' => $id, 'text' => '✅ Прослойка на связи. Сюда будут приходить бэкапы по расписанию.'], $token, 10);
+    if (!$ok) { $err = 'Чат «' . $title . '» найден, но написать в него не удалось: ' . $e; return null; }
+    return ['bot' => $bot, 'chat' => $id, 'title' => $title];
+}
+
+function bk_tg_note($ok, $err, $name = '') {
+    set_setting('backup_tg_last', json_encode(['ts' => time(), 'ok' => $ok ? 1 : 0, 'err' => mb_substr((string) $err, 0, 300), 'n' => (string) $name], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE));
+}
+
+// Очередь читается мимо кэша настроек и меняется только если в ней то, что прочитали: новый бэкап мог встать в неё во время отправки.
+function bk_tg_q_raw() {
+    $st = db()->prepare('SELECT v FROM settings WHERE k = ?');
+    $st->execute(['backup_tg_q']);
+    $v = $st->fetchColumn();
+    $st->closeCursor();
+    return $v === false ? '' : (string) $v;
+}
+
+function bk_tg_q_swap($old, $new) {
+    $st = db()->prepare('UPDATE settings SET v = ? WHERE k = ? AND v = ?');
+    $st->execute([(string) $new, 'backup_tg_q', (string) $old]);
+    $ok = $st->rowCount() === 1;
+    if ($ok && isset($GLOBALS['submw_settings_cache'])) $GLOBALS['submw_settings_cache']['backup_tg_q'] = (string) $new;
+    return $ok;
+}
+
+// Файл больше предела Bot API уходит частями .001, .002…: 7-Zip склеивает их обратно.
+function backup_tg_send($deadline, &$err) {
+    $err = '';
+    $lock = @fopen(backup_dir() . '/.tg.lock', 'c');
+    if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) { if ($lock) fclose($lock); return true; }
+    try {
+        while (true) {
+            $raw = bk_tg_q_raw();
+            $q = json_decode($raw, true);
+            if (!is_array($q) || !backup_name_ok($q['n'] ?? null)) return true;
+            $r = bk_tg_send_one($q, $raw, $deadline, $err);
+            if ($r !== 'next') return $r === 'ok';
+        }
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+}
+
+// 'ok' — отправлен или отложен до следующего запуска, 'next' — очередь сменилась, 'fail' — ошибка.
+function bk_tg_send_one(array $q, $raw, $deadline, &$err) {
+    $name = (string) $q['n'];
+    $path = backup_path($name);
+    if ($path === '') return bk_tg_q_swap($raw, '') ? 'ok' : 'next';
+    if (!backup_is_enc($path)) {
+        if (!bk_tg_q_swap($raw, '')) return 'next';
+        $err = 'Бэкап без пароля в Telegram не отправляется';
+        bk_tg_note(false, $err, $name);
+        return 'fail';
+    }
+    if (!function_exists('curl_file_create')) { $err = 'на сервере нет расширения PHP curl'; bk_tg_note(false, $err, $name); return 'fail'; }
+    clearstatcache();
+    $size = (int) @filesize($path);
+    $parts = $size <= BK_TG_PART ? 1 : (int) ceil($size / BK_TG_PART);
+    $from = max(0, min($parts, (int) ($q['p'] ?? 0)));
+    $info = backup_info($name, $path);
+    $head = "🔒 Бэкап прослойки\n" . gmdate('d.m.Y H:i', (int) $info['ts']) . ' UTC · ' . metrics_fmt_bytes($size);
+    for ($i = $from; $i < $parts; $i++) {
+        if ($i > $from && microtime(true) + 300 > $deadline) return 'ok';
+        $tmp = '';
+        if ($parts === 1) {
+            $f = curl_file_create($path, 'application/octet-stream', $name);
+            $cap = $head;
+        } else {
+            $tmp = backup_dir() . '/.part-tg-' . bin2hex(random_bytes(6));
+            $in = @fopen($path, 'rb');
+            $out = $in ? @fopen($tmp, 'xb') : false;
+            $n = ($in && $out && fseek($in, $i * BK_TG_PART) === 0) ? stream_copy_to_stream($in, $out, BK_TG_PART) : false;
+            if ($in) fclose($in);
+            if ($out) fclose($out);
+            if (!$n) { @unlink($tmp); $err = 'Не удалось подготовить часть файла в папке ' . backup_dir(); bk_tg_note(false, $err, $name); return 'fail'; }
+            $f = curl_file_create($tmp, 'application/octet-stream', $name . '.' . sprintf('%03d', $i + 1));
+            $cap = $head . "\nЧасть " . ($i + 1) . ' из ' . $parts . '. Скачайте все части и объедините в 7-Zip (Файл → Объединить файлы) — получится файл для восстановления.';
+        }
+        [$ok, , $e, $code] = bk_tg_to_chat('sendDocument', ['caption' => $cap, 'document' => $f], 300);
+        if ($tmp !== '') @unlink($tmp);
+        if (!$ok) {
+            // Сеть, 429 и 5xx проходят сами — повторяем; остальное (чат удалён, бот выгнан) повтор не исправит.
+            $keep = $code === 0 || $code === 429 || $code >= 500;
+            if (!$keep && !bk_tg_q_swap($raw, '')) return 'next';
+            $err = 'Не удалось отправить бэкап в Telegram: ' . $e . ($keep ? '' : '. Отправка остановлена — проверьте связь с ботом');
+            bk_tg_note(false, $err, $name);
+            return 'fail';
+        }
+        $q['p'] = $i + 1;
+        $nraw = json_encode($q, JSON_UNESCAPED_SLASHES);
+        if (!bk_tg_q_swap($raw, $nraw)) return 'next';
+        $raw = $nraw;
+    }
+    if (!bk_tg_q_swap($raw, '')) return 'next';
+    bk_tg_note(true, '', $name);
+    return 'ok';
+}
+
+// Отправка идёт уже после того, как планировщик освободился: долгая выгрузка не задерживает грейс и другие задачи.
+function backup_tg_after() {
+    @set_time_limit(0);
+    $err = '';
+    backup_tg_send(microtime(true) + 3600, $err);
+}
+
+// Одно сообщение на серию сбоев: следующее — только после удачного бэкапа.
+function backup_tg_alert($text) {
+    if (!backup_tg_on() || setting('backup_tg_alert', '0') === '1') return;
+    [$ok] = bk_tg_to_chat('sendMessage', ['text' => $text], 10);
+    if ($ok) set_setting('backup_tg_alert', '1');
+}
+
+function cron_task_backup($ctx) {
+    $err = '';
+    $name = backup_create('auto', backup_auto_pass(), false, null, $err);
+    if ($name === '') {
+        if ($err === BK_BUSY) return $err;
+        $err = $err !== '' ? $err : 'Не удалось создать бэкап';
+        backup_tg_alert('⚠️ Бэкап по расписанию не создан: ' . $err);
+        return $err;
+    }
+    if (setting('backup_tg_alert', '0') !== '0') set_setting('backup_tg_alert', '0');
+    if (backup_tg_on()) {
+        set_setting('backup_tg_q', json_encode(['n' => $name, 'p' => 0], JSON_UNESCAPED_SLASHES));
+        cron_after('backup_tg_after');
+    }
+    return '';
+}
+
+// Ошибка прошлой попытки становится ошибкой задачи — по ней планировщик и реже повторяет.
+function cron_task_bktg($ctx) {
+    cron_after('backup_tg_after');
+    $l = backup_tg_last();
+    return is_array($l) && empty($l['ok']) && (string) ($l['n'] ?? '') === (string) (backup_tg_pending()['n'] ?? '') ? (string) $l['err'] : '';
 }
