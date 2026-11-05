@@ -14,8 +14,10 @@ if ($tt_box === '' || realpath($tt_box) !== realpath($tt_root)) {
 foreach (glob($tt_root . '/data/submw.sqlite*') ?: [] as $f) unlink($f);
 foreach (glob($tt_root . '/data/*.lock') ?: [] as $f) unlink($f);
 
-// Наружу тесты не ходят: ipinfo — на закрытый порт, если тест не поднял свой мок.
+// Наружу тесты не ходят: ipinfo и скачивание гео-баз — на закрытый порт, если тест не поднял свой мок.
+// Иначе вкладки, которые после ответа обновляют гео-базы, на CI с интернетом держат запрос, пока качаются базы.
 if (getenv('SUBMW_TEST_IPINFO') === false) putenv('SUBMW_TEST_IPINFO=http://127.0.0.1:9/');
+if (getenv('SUBMW_TEST_GEOSRC') === false) putenv('SUBMW_TEST_GEOSRC=http://127.0.0.1:9/');
 
 $_SERVER['REQUEST_URI'] = '/';
 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
