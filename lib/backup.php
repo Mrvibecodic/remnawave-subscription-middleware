@@ -940,7 +940,26 @@ function bk_tg_chat_title(array $c) {
     return $t !== '' ? $t : (string) ($c['id'] ?? '');
 }
 
-// Чат — последний, где боту написали или куда его добавили; без новых сообщений остаётся найденный раньше.
+function backup_tg_uid() { return trim((string) setting('backup_tg_uid', '')); }
+
+// [чат, автор] из обновления; автор — кто написал или добавил бота (у постов канала его нет).
+function bk_tg_upd(array $u) {
+    if (isset($u['my_chat_member']['chat']['id'])) {
+        if (in_array((string) ($u['my_chat_member']['new_chat_member']['status'] ?? ''), ['left', 'kicked'], true)) return null;
+        return [$u['my_chat_member']['chat'], $u['my_chat_member']['from'] ?? null];
+    }
+    foreach (['message', 'channel_post', 'edited_message', 'edited_channel_post'] as $k) {
+        if (isset($u[$k]['chat']['id'])) return [$u[$k]['chat'], $u[$k]['from'] ?? null];
+    }
+    return null;
+}
+
+function bk_tg_who(array $f) {
+    $n = ($f['username'] ?? '') !== '' ? '@' . $f['username'] : trim((string) ($f['first_name'] ?? '') . ' ' . (string) ($f['last_name'] ?? ''));
+    return $n !== '' ? $n : (string) ($f['id'] ?? '');
+}
+
+// Чат закреплён за аккаунтом, который его выбрал: сообщения боту от других людей его не меняют.
 function backup_tg_check($token, &$err) {
     $err = '';
     [$ok, $me, $e] = bk_tg_api('getMe', [], $token, 10);
@@ -948,23 +967,39 @@ function backup_tg_check($token, &$err) {
     $bot = (string) ($me['username'] ?? '');
     [$ok, $up, $e] = bk_tg_api('getUpdates', ['limit' => 100, 'timeout' => 0], $token, 10);
     if (!$ok) { $err = stripos($e, 'webhook') !== false ? 'У бота @' . $bot . ' включён вебхук — для бэкапов нужен отдельный бот' : 'Бот не ответил: ' . $e; return null; }
-    $chat = null;
+    $same = $token === backup_tg_token();
+    $pin = $same ? backup_tg_uid() : '';
+    $saved = $same ? backup_tg_chat() : '';
+    $cand = [];
     foreach (array_reverse(is_array($up) ? $up : []) as $u) {
-        if (isset($u['my_chat_member']['chat']['id'])) {
-            if (in_array((string) ($u['my_chat_member']['new_chat_member']['status'] ?? ''), ['left', 'kicked'], true)) continue;
-            $chat = $u['my_chat_member']['chat'];
-            break;
-        }
-        foreach (['message', 'channel_post', 'edited_message', 'edited_channel_post'] as $k) {
-            if (isset($u[$k]['chat']['id'])) { $chat = $u[$k]['chat']; break 2; }
-        }
+        $x = is_array($u) ? bk_tg_upd($u) : null;
+        if ($x === null || !is_array($x[1]) || !isset($x[1]['id']) || !empty($x[1]['is_bot'])) continue;
+        $cand[] = $x;
     }
-    $id = $chat !== null ? (string) $chat['id'] : ($token === backup_tg_token() ? backup_tg_chat() : '');
+    $pick = null;
+    $others = 0;
+    foreach ($cand as $x) {
+        if ($pin !== '' && (string) $x[1]['id'] !== $pin) { $others++; continue; }
+        if ($pin === '' && $saved !== '' && (string) $x[0]['id'] !== $saved) continue;
+        $pick = $x;
+        break;
+    }
+    if ($pick === null && $pin === '' && $cand) $pick = $cand[0];
+    if ($pick !== null) {
+        $id = (string) $pick[0]['id'];
+        $title = bk_tg_chat_title($pick[0]);
+        $uid = (string) $pick[1]['id'];
+        $who = bk_tg_who($pick[1]);
+    } else {
+        $id = $saved;
+        $title = (string) setting('backup_tg_title', $id);
+        $uid = $pin;
+        $who = (string) setting('backup_tg_who', '');
+    }
     if ($id === '') { $err = 'Напишите боту @' . $bot . ' любое сообщение и нажмите «Проверить связь» ещё раз'; return null; }
-    $title = $chat !== null ? bk_tg_chat_title($chat) : (string) setting('backup_tg_title', $id);
     [$ok, , $e] = bk_tg_api('sendMessage', ['chat_id' => $id, 'text' => '✅ Прослойка на связи. Сюда будут приходить бэкапы по расписанию.'], $token, 10);
     if (!$ok) { $err = 'Чат «' . $title . '» найден, но написать в него не удалось: ' . $e; return null; }
-    return ['bot' => $bot, 'chat' => $id, 'title' => $title];
+    return ['bot' => $bot, 'chat' => $id, 'title' => $title, 'uid' => $uid, 'who' => $who, 'others' => $others];
 }
 
 function bk_tg_note($ok, $err, $name = '') {

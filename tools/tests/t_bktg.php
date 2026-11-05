@@ -54,16 +54,17 @@ $tg(['hook' => 1]);
 $r = backup_tg_check($TOK, $err);
 t_ok('у бота вебхук — нужен отдельный бот', $r === null && strpos($err, 'вебхук') !== false, $err);
 $tg(['updates' => [
-    ['update_id' => 1, 'message' => ['chat' => ['id' => 555, 'type' => 'private', 'first_name' => 'Ал', 'username' => 'al'], 'text' => 'hi']],
-    ['update_id' => 2, 'my_chat_member' => ['chat' => ['id' => -100777, 'title' => 'Ушёл'], 'new_chat_member' => ['status' => 'kicked']]],
+    ['update_id' => 1, 'message' => ['chat' => ['id' => 555, 'type' => 'private', 'first_name' => 'Ал', 'username' => 'al'], 'from' => ['id' => 555, 'first_name' => 'Ал', 'username' => 'al'], 'text' => 'hi']],
+    ['update_id' => 2, 'my_chat_member' => ['chat' => ['id' => -100777, 'title' => 'Ушёл'], 'from' => ['id' => 555, 'first_name' => 'Ал'], 'new_chat_member' => ['status' => 'kicked']]],
 ]]);
 $r = backup_tg_check($TOK, $err);
 $sm = $calls('sendMessage');
 t_ok('чат найден по последнему сообщению, откуда бота выгнали — пропущен', is_array($r) && $r['chat'] === '555' && $r['title'] === 'Ал @al' && $r['bot'] === 'submw_test_bot', $err);
+t_ok('найденный чат закрепляется за автором сообщения', is_array($r) && $r['uid'] === '555' && $r['who'] === '@al');
 t_ok('в найденный чат ушло тестовое сообщение', count($sm) === 1 && $sm[0]['chat'] === '555');
 $tg(['updates' => [
-    ['update_id' => 1, 'message' => ['chat' => ['id' => 555, 'type' => 'private', 'first_name' => 'Ал']]],
-    ['update_id' => 2, 'my_chat_member' => ['chat' => ['id' => -100888, 'title' => 'Группа админов', 'type' => 'supergroup'], 'new_chat_member' => ['status' => 'member']]],
+    ['update_id' => 1, 'message' => ['chat' => ['id' => 555, 'type' => 'private', 'first_name' => 'Ал'], 'from' => ['id' => 555, 'first_name' => 'Ал']]],
+    ['update_id' => 2, 'my_chat_member' => ['chat' => ['id' => -100888, 'title' => 'Группа админов', 'type' => 'supergroup'], 'from' => ['id' => 555, 'first_name' => 'Ал'], 'new_chat_member' => ['status' => 'member']]],
 ]]);
 $r = backup_tg_check($TOK, $err);
 t_ok('бота добавили в группу — берётся группа', is_array($r) && $r['chat'] === '-100888' && $r['title'] === 'Группа админов', $err);
@@ -73,6 +74,35 @@ set_setting('backup_tg_title', 'Ал');
 $tg([]);
 $r = backup_tg_check($TOK, $err);
 t_ok('тот же токен без новых сообщений — остаётся найденный чат', is_array($r) && $r['chat'] === '555' && $r['title'] === 'Ал', $err);
+
+// ---- закрепление чата за аккаунтом ----
+$stranger = ['update_id' => 9, 'message' => ['chat' => ['id' => 999, 'type' => 'private', 'first_name' => 'Чужой'], 'from' => ['id' => 999, 'first_name' => 'Чужой']]];
+set_setting('backup_tg_uid', '555');
+set_setting('backup_tg_who', '@al');
+$tg(['updates' => [$stranger]]);
+$r = backup_tg_check($TOK, $err);
+t_ok('закреплено: чужой написал боту — чат и закрепление прежние, тест ушёл в свой чат', is_array($r) && $r['chat'] === '555' && $r['uid'] === '555' && $r['who'] === '@al' && $r['others'] === 1 && $calls('sendMessage')[0]['chat'] === '555', json_encode($r, JSON_UNESCAPED_UNICODE) . $err);
+$tg(['updates' => [
+    ['update_id' => 7, 'my_chat_member' => ['chat' => ['id' => -100900, 'title' => 'Новая группа', 'type' => 'supergroup'], 'from' => ['id' => 555, 'first_name' => 'Ал', 'username' => 'al'], 'new_chat_member' => ['status' => 'member']]],
+    ['update_id' => 8, 'my_chat_member' => ['chat' => ['id' => -100901, 'title' => 'Группа чужого', 'type' => 'supergroup'], 'from' => ['id' => 999, 'first_name' => 'Чужой'], 'new_chat_member' => ['status' => 'member']]],
+    $stranger,
+]]);
+$r = backup_tg_check($TOK, $err);
+t_ok('закреплено: свой аккаунт добавил бота в группу — чат сменился, чужие группы и сообщения не в счёт', is_array($r) && $r['chat'] === '-100900' && $r['uid'] === '555' && $r['others'] === 2, json_encode($r, JSON_UNESCAPED_UNICODE) . $err);
+$tg(['updates' => [
+    ['update_id' => 7, 'message' => ['chat' => ['id' => -100555, 'type' => 'supergroup', 'title' => 'Группа'], 'from' => ['id' => 1087968824, 'is_bot' => true, 'first_name' => 'Group'], 'sender_chat' => ['id' => -100555]]],
+    ['update_id' => 8, 'channel_post' => ['chat' => ['id' => -100556, 'type' => 'channel', 'title' => 'Канал']]],
+]]);
+$r = backup_tg_check($TOK, $err);
+t_ok('закреплено: сообщения без автора-человека (боты, посты канала) не в счёт', is_array($r) && $r['chat'] === '555', json_encode($r, JSON_UNESCAPED_UNICODE) . $err);
+set_setting('backup_tg_uid', '');
+set_setting('backup_tg_who', '');
+$tg(['updates' => [['update_id' => 6, 'message' => ['chat' => ['id' => 555, 'type' => 'private', 'first_name' => 'Ал'], 'from' => ['id' => 555, 'first_name' => 'Ал']]], $stranger]]);
+$r = backup_tg_check($TOK, $err);
+t_ok('чат задан без закрепления: закрепляется за автором из этого чата, а не за последним написавшим', is_array($r) && $r['chat'] === '555' && $r['uid'] === '555', json_encode($r, JSON_UNESCAPED_UNICODE) . $err);
+$tg(['updates' => [['update_id' => 8, 'channel_post' => ['chat' => ['id' => -100556, 'type' => 'channel', 'title' => 'Канал']]]]]);
+$r = backup_tg_check('111111111:' . str_repeat('C', 35), $err);
+t_ok('новый бот, есть только пост канала без автора — просим написать боту', $r === null && strpos($err, 'Напишите боту') !== false, $err);
 $tg(['chat_gone' => 1]);
 $r = backup_tg_check($TOK, $err);
 t_ok('в чат не написать — ошибка, а не «связь есть»', $r === null && strpos($err, 'написать в него не удалось') !== false, $err);
@@ -300,11 +330,12 @@ foreach (['' => 'пустые поля', 'abc' => 'не число', ' ' => 'п�
 t_ok('в поле — сохранённое значение', (bool) preg_match('~name="backup_auto_keep" min="1" max="200" value="15"~', $page));
 $fl = $post(['action' => 'bk_tg_check', 'backup_tg_token' => 'не токен']);
 t_ok('не токен — отказ', strpos($fl, 'не похоже на токен') !== false, $fl);
-$tg(['updates' => [['update_id' => 5, 'message' => ['chat' => ['id' => 42, 'type' => 'private', 'first_name' => 'Новый']]]]]);
+$tg(['updates' => [['update_id' => 5, 'message' => ['chat' => ['id' => 42, 'type' => 'private', 'first_name' => 'Новый'], 'from' => ['id' => 42, 'first_name' => 'Новый']]]]]);
 $TOK2 = '987654321:' . str_repeat('B', 35);
 $fl = $post(['action' => 'bk_tg_check', 'backup_tg_token' => $TOK2]);
 bg_fresh();
 t_ok('новый токен — найден новый чат, смена сказана', setting('backup_tg_token') === $TOK2 && setting('backup_tg_chat') === '42' && strpos($fl, 'Чат сменён: был «Ал», теперь «Новый»') !== false, $fl);
+t_ok('новый токен — закрепление за новым аккаунтом, это сказано', setting('backup_tg_uid') === '42' && setting('backup_tg_who') === 'Новый' && strpos($fl, 'Чат закреплён за Новый') !== false, $fl);
 set_setting('backup_auto_pass', '');
 $fl = $post(['action' => 'save_backup_tg', 'backup_tg' => '1']);
 bg_fresh();
@@ -315,10 +346,23 @@ bg_fresh();
 t_ok('с паролем — включается', setting('backup_tg') === '1', $fl);
 [, , $page] = t_http('GET', $mw . '/admin/index.php?tab=backup', [], null, $jar);
 t_ok('тумблер отправки включён и доступен', (bool) preg_match('~name="backup_tg" data-reload checked\s*>~', $page));
-$tg(['updates' => [['update_id' => 6, 'message' => ['chat' => ['id' => 77, 'type' => 'private', 'first_name' => 'Чужой']]]]]);
+t_ok('в карточке чата — за кем закреплён и кнопка сброса', strpos($page, 'закреплён за <b>Новый</b>') !== false && strpos($page, 'value="bk_tg_unpin"') !== false);
+$tg(['updates' => [['update_id' => 6, 'message' => ['chat' => ['id' => 77, 'type' => 'private', 'first_name' => 'Чужой'], 'from' => ['id' => 77, 'first_name' => 'Чужой']]]]]);
 $fl = $post(['action' => 'bk_tg_check', 'backup_tg_token' => '']);
 bg_fresh();
-t_ok('чат сменился — это сказано явно', setting('backup_tg_chat') === '77' && strpos($fl, 'Чат сменён: был «Новый», теперь «Чужой»') !== false, $fl);
+t_ok('чужой написал боту — чат не сменился, сказано, что чужие не учтены', setting('backup_tg_chat') === '42' && setting('backup_tg_uid') === '42' && strpos($fl, 'Связь есть') !== false && strpos($fl, 'другие люди') !== false && strpos($fl, 'закреплён') === false, $fl);
+$tg(['updates' => [['update_id' => 7, 'my_chat_member' => ['chat' => ['id' => -100500, 'title' => 'Группа', 'type' => 'supergroup'], 'from' => ['id' => 42, 'first_name' => 'Новый'], 'new_chat_member' => ['status' => 'administrator']]]]]);
+$fl = $post(['action' => 'bk_tg_check', 'backup_tg_token' => '']);
+bg_fresh();
+t_ok('свой аккаунт перенёс бота в группу — чат сменился, это сказано явно', setting('backup_tg_chat') === '-100500' && strpos($fl, 'Чат сменён: был «Новый», теперь «Группа»') !== false, $fl);
+set_setting('backup_tg_q', json_encode(['n' => 'x.json.gz.enc', 'p' => 0]));
+$fl = $post(['action' => 'bk_tg_unpin']);
+bg_fresh();
+t_ok('сброс привязки: чат и закрепление стёрты, отправка на паузе, токен остался', setting('backup_tg_chat') === '' && setting('backup_tg_uid') === '' && setting('backup_tg_q') === '' && setting('backup_tg_token') === $TOK2 && !backup_tg_on() && strpos($fl, 'Привязка сброшена') !== false, $fl);
+$tg(['updates' => [['update_id' => 6, 'message' => ['chat' => ['id' => 77, 'type' => 'private', 'first_name' => 'Чужой'], 'from' => ['id' => 77, 'first_name' => 'Чужой']]]]]);
+$fl = $post(['action' => 'bk_tg_check', 'backup_tg_token' => '']);
+bg_fresh();
+t_ok('после сброса — выбирается заново по последнему сообщению', setting('backup_tg_chat') === '77' && setting('backup_tg_uid') === '77' && backup_tg_on() && strpos($fl, 'Чат закреплён за Чужой') !== false, $fl);
 $fl = $post(['action' => 'save_backup_pass', 'del' => '1']);
 bg_fresh();
 t_ok('убрали пароль — отправка выключилась', setting('backup_tg') === '0' && setting('backup_auto_pass') === '' && strpos($fl, 'Telegram выключена') !== false, $fl);

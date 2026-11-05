@@ -74,6 +74,10 @@ if (backup_path($bk_open) === '') $bk_open = '';
 .bk-box.amber{background:var(--c-warn-bg);color:var(--c-warn-fg)}
 .bk-box.red{background:var(--c-bad-bg);color:var(--c-bad-fg)}
 .bk-box.info{background:var(--bg2);color:var(--muted);border:1px solid var(--line)}
+.bk-box:has(>.bk-pin){flex-wrap:wrap;align-items:center}
+.bk-box:has(>.bk-pin)>span{flex:1 1 16rem;min-width:0}
+.bk-pin{margin:0 0 0 auto;flex:none}
+.bk-pin .btn{padding:.25rem .65rem;font-size:.8rem}
 .bk-tok{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.7rem}
 .bk-tok input{flex:1 1 14rem;min-width:0;max-width:24rem;margin:0}
 .bk-sub{display:flex;align-items:center;gap:.45rem;font-weight:600;color:var(--text-strong);font-size:.92rem;margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid var(--line)}
@@ -205,7 +209,7 @@ if (backup_path($bk_open) === '') $bk_open = '';
     </form>
 
     <div class="bk-sub"><?= $bk_ic['send'] ?>Отправка в Telegram</div>
-    <p class="muted">Бэкапы по расписанию будут приходить в чат с вашим ботом. Создайте бота у @BotFather, вставьте его токен, напишите боту любое сообщение и нажмите «Проверить связь». Файл больше 50 МБ придёт частями — их объединяет 7-Zip (Файл → Объединить файлы).</p>
+    <p class="muted">Бэкапы по расписанию будут приходить в чат с вашим ботом. Создайте бота у @BotFather, вставьте его токен, напишите боту любое сообщение и нажмите «Проверить связь». Чат закрепится за вашим аккаунтом: если боту напишет кто-то ещё, бэкапы к нему не уйдут. Файл больше 50 МБ придёт частями — их объединяет 7-Zip (Файл → Объединить файлы).</p>
     <form method="post" class="bk-tok">
         <input type="hidden" name="csrf" value="<?= h($token) ?>">
         <input type="hidden" name="action" value="bk_tg_check">
@@ -213,7 +217,13 @@ if (backup_path($bk_open) === '') $bk_open = '';
         <button type="submit" class="btn ghost">Проверить связь</button>
     </form>
     <?php if ($bk_tgchat !== ''): ?>
-    <div class="bk-box info"><?= $bk_ic['ok'] ?><span>Чат: <b><?= h((string) setting('backup_tg_title', $bk_tgchat)) ?></b><?php if ((string) setting('backup_tg_bot', '') !== ''): ?> · бот @<?= h((string) setting('backup_tg_bot', '')) ?><?php endif; ?></span></div>
+    <div class="bk-box info"><?= $bk_ic['ok'] ?><span>Чат: <b><?= h((string) setting('backup_tg_title', $bk_tgchat)) ?></b><?php if ((string) setting('backup_tg_bot', '') !== ''): ?> · бот @<?= h((string) setting('backup_tg_bot', '')) ?><?php endif; ?><?php if (backup_tg_uid() !== ''): ?> · закреплён за <b><?= h((string) setting('backup_tg_who', '')) ?></b><?php endif; ?></span>
+        <form method="post" class="bk-pin" onsubmit="return uiConfirmForm(this,'Сбросить привязку чата? Бэкапы перестанут уходить в Telegram, пока вы снова не напишете боту и не проверите связь.','Сбросить',false)">
+            <input type="hidden" name="csrf" value="<?= h($token) ?>">
+            <input type="hidden" name="action" value="bk_tg_unpin">
+            <button type="submit" class="btn ghost" data-tip="Выбрать другой чат или аккаунт">Сбросить привязку</button>
+        </form>
+    </div>
     <?php endif; ?>
     <form method="post" data-autosave>
         <input type="hidden" name="csrf" value="<?= h($token) ?>">
