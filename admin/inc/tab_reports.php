@@ -398,6 +398,19 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
     .rv-share .bar{width:56px;height:6px;border-radius:3px;background:var(--hover);overflow:hidden;flex:none}
     .rv-share .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
     .rv-share .pc{min-width:2.8rem;text-align:right;color:var(--muted);font-size:.78rem}
+    .rv-rbb{display:flex;gap:.5rem;flex-wrap:wrap;flex:0 0 auto}
+    #rvClear{color:var(--c-bad-fg);border-color:color-mix(in srgb,var(--c-bad-fg) 45%,var(--line))}
+    #rvClear:hover{background:var(--c-bad-bg);border-color:var(--c-bad-fg)}
+    #rvClrDlg .modal{max-width:460px}
+    .rv-clr{display:flex;flex-direction:column;gap:.55rem}
+    .rv-clr>div{display:flex;gap:.65rem;align-items:flex-start;font-size:.88rem;line-height:1.45}
+    .rv-clr svg{flex:none;width:18px;height:18px;margin-top:.05rem;color:var(--muted)}
+    .rv-clr .bad svg{color:var(--c-bad-fg)}
+    .rv-clr b{color:var(--text-strong)}
+    .rv-clrw{margin-top:1rem}
+    .rv-clrw label{display:block;font-size:.84rem;color:var(--muted);margin-bottom:.35rem}
+    .rv-clrw input{width:100%;margin:0}
+    #rvClrGo:disabled{opacity:.45;cursor:default;filter:none;transform:none}
     .rv-hrs{margin-top:.7rem}
     .rv-hrs summary{cursor:pointer;font-size:.82rem;color:var(--accent-text);font-weight:600}
     .rv-hrs table.rv-lt td,.rv-hrs table.rv-lt th{padding:.32rem .5rem}
@@ -660,7 +673,29 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
         <p class="muted" style="font-size:.8rem;margin-top:.6rem">Страна, провайдер и регион в отчётах — по базам GeoIP; их настройки и обновление — на вкладке <a href="?tab=geoip">«Геобазы»</a>.</p>
         <div class="set-row" style="margin-top:1rem">
             <div class="set-info"><div class="set-t">Сырые отчёты</div><div class="set-d" id="rvRawInfo"><?php if ($rep_raw['n'] > 0): ?>Хранится <b><?= $rv_num($rep_raw['n']) ?></b> <?= h(['отчёт', 'отчёта', 'отчётов'][($rep_raw['n'] % 10 === 1 && $rep_raw['n'] % 100 !== 11) ? 0 : (($rep_raw['n'] % 10 >= 2 && $rep_raw['n'] % 10 <= 4 && ($rep_raw['n'] % 100 < 10 || $rep_raw['n'] % 100 >= 20)) ? 1 : 2)]) ?> с <span class="ct-time" data-ts="<?= (int) $rep_raw['first'] ?>"><?= h(date('Y-m-d H:i', (int) $rep_raw['first'])) ?></span>, <?= h($rv_bytes($rep_raw['bytes'])) ?> до сжатия.<?php if ($rep_raw['old'] > 0): ?> Из них <b><?= $rv_num($rep_raw['old']) ?></b> — от клиентов старее Android 0.1.23-alpha.7 и ПК 0.1.12-alpha.5: они не различают узлы на одном адресе и порту (мосты), поэтому в статистику не идут.<?php endif; ?><?php else: ?>Пока нет ни одного.<?php endif; ?> Каждый отчёт клиента хранится как пришёл, вся статистика строится из них. Срок хранения — тот же.</div></div>
-            <button type="button" class="btn ghost" id="rvRebuild" data-csrf="<?= h($token) ?>" data-active="<?= rep_rebuild_active() ? '1' : '' ?>" data-tip="Сводки стираются и заново раскладываются из сохранённых сырых отчётов по порядку. Что пришло до появления сырых отчётов, пересобрать не из чего — это удалится."><?= rep_rebuild_active() ? 'Продолжить пересборку' : 'Пересобрать статистику' ?></button>
+            <div class="rv-rbb">
+                <button type="button" class="btn ghost" id="rvRebuild" data-csrf="<?= h($token) ?>" data-active="<?= rep_rebuild_active() ? '1' : '' ?>" data-tip="Сводки стираются и заново раскладываются из сохранённых сырых отчётов по порядку. Что пришло до появления сырых отчётов, пересобрать не из чего — это удалится."><?= rep_rebuild_active() ? 'Продолжить пересборку' : 'Пересобрать статистику' ?></button>
+                <button type="button" class="btn ghost" id="rvClear" data-tip="Удалить сырые отчёты и всю статистику, собранную из них">Очистить статистику</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="rvClrDlg" class="modal-overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rvClrT">
+        <div class="modal-head"><span id="rvClrT">Очистить статистику</span><button type="button" class="modal-x" id="rvClrX" aria-label="Закрыть">×</button></div>
+        <div class="modal-body">
+            <form method="post" id="rvClrForm">
+                <input type="hidden" name="csrf" value="<?= h($token) ?>">
+                <input type="hidden" name="action" value="rep_clear">
+                <div class="rv-clr">
+                    <div class="bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span><b>Удалятся все отчёты Clod Clash</b> — сырые отчёты и всё, что из них собрано: карта, узлы, устройства, провайдеры.</span></div>
+                    <div class="bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg><span>Вернуть можно только из бэкапа.</span></div>
+                    <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>Настройки приёма не меняются<?= rep_enabled() ? ', новые отчёты клиентов продолжат приходить' : '' ?>.</span></div>
+                </div>
+                <div class="rv-clrw"><label for="rvClrWord">Чтобы подтвердить, введите слово <b>очистить</b></label><input type="text" id="rvClrWord" name="word" autocomplete="off"></div>
+                <div class="dlg-actions"><button type="button" class="btn ghost" id="rvClrNo">Отменить</button><button type="submit" class="btn danger" id="rvClrGo" disabled>Очистить</button></div>
+            </form>
         </div>
     </div>
 </div>
@@ -1680,6 +1715,22 @@ $rv_js = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | 
             if (rb.dataset.active === '1') rbRun(false);
             var rbGo = document.getElementById('rvRbGo');
             if (rbGo) rbGo.addEventListener('click', function () { rb.click(); });
+        }
+        var clr = document.getElementById('rvClear'), clrDlg = document.getElementById('rvClrDlg');
+        if (clr && clrDlg) {
+            var cw = document.getElementById('rvClrWord'), cgo = document.getElementById('rvClrGo'), cbusy = false;
+            var cok = function () { return cw.value.trim().toLowerCase() === 'очистить'; };
+            var cclose = function () { if (!cbusy) clrDlg.classList.remove('open'); };
+            clr.addEventListener('click', function () { cw.value = ''; cgo.disabled = true; clrDlg.classList.add('open'); setTimeout(function () { cw.focus(); }, 50); });
+            cw.addEventListener('input', function () { cgo.disabled = !cok(); });
+            document.getElementById('rvClrX').addEventListener('click', cclose);
+            document.getElementById('rvClrNo').addEventListener('click', cclose);
+            clrDlg.addEventListener('click', function (e) { if (e.target === clrDlg) cclose(); });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && clrDlg.classList.contains('open')) cclose(); });
+            document.getElementById('rvClrForm').addEventListener('submit', function (e) {
+                if (!cok() || cbusy) { e.preventDefault(); return; }
+                cbusy = true; cgo.disabled = true; cgo.textContent = 'Очищаю…';
+            });
         }
         if (DEVS.length) {
             fetch('?ajax=clod_names', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
