@@ -20,7 +20,8 @@ function cron_tasks() {
         'update'  => ['Проверка обновлений', 3600, true],
     ] + (function_exists('cron_task_sessions') ? ['sessions' => ['Сессии: опрос нод', sess_every(), false]] : [])
       + (function_exists('cron_task_geo') && geoip_ipinfo() ? ['geo' => ['Гео: уточнение адресов через ipinfo', 60, false]] : [])
-      + (function_exists('cron_task_backup') && backup_auto_on() ? ['backup' => ['Бэкап по расписанию', 86400, true]] : [])
+      + (function_exists('cron_task_backup') && backup_auto_on() ? ['backup' => ['Бэкап по расписанию', (function_exists('backup_auto_hours') ? backup_auto_hours() : 24) * 3600, true]] : [])
+      + (function_exists('cron_task_bktg') && backup_tg_pending() !== null && backup_tg_on() ? ['bktg' => ['Бэкап: отправка в Telegram', 900, true]] : [])
       + (function_exists('go_users_compare') && go_wanted() && !empty(go_state()['ok']) && go_can('users') ? ['gocheck' => ['Go-сервис: сверка списка пользователей', 86400, true]] : []);
 }
 
@@ -46,6 +47,13 @@ function cron_task_due($t, $every, $now) {
     if (!is_array($t) || (int) ($t['start'] ?? 0) <= 0) return true;
     $wait = cron_task_ok($t) ? $every : min($every, [300, 900, 3600][min(2, max(0, (int) ($t['fails'] ?? 0) - 1))]);
     return !cron_fresh($t['start'], $now, $wait - 5);
+}
+
+function cron_kick($name) { set_setting('cron_kick_' . $name, (string) time()); }
+
+function cron_kicked($name, $t) {
+    $k = (int) setting('cron_kick_' . $name, '0');
+    return $k > 0 && $k > (int) (is_array($t) ? ($t['start'] ?? 0) : 0);
 }
 
 function cron_alive($state = null, $now = null) {
@@ -235,7 +243,7 @@ function cron_run($src) {
         if (!$ctx['detached'] && isset($tasks['sessions']) && sess_enabled() && cron_task_due($st['tasks']['sessions'] ?? null, $tasks['sessions'][1], $now)) $ctx['grace_cap'] = 8;
         foreach ($tasks as $name => [$title, $every, $heavy]) {
             if ($heavy && !$ctx['detached']) continue;
-            if (!cron_task_due($st['tasks'][$name] ?? null, $every, $now)) continue;
+            if (!cron_task_due($st['tasks'][$name] ?? null, $every, $now) && !cron_kicked($name, $st['tasks'][$name] ?? null)) continue;
             if (microtime(true) > $ctx['deadline']) break;
             $t = is_array($st['tasks'][$name] ?? null) ? $st['tasks'][$name] : [];
             $t['start'] = time();

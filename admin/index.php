@@ -1469,16 +1469,71 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         header('Location: index.php?tab=backup'); exit();
     }
 
-    if ($action === 'save_backup_auto') {
-        set_setting('backup_auto', isset($_POST['backup_auto']) ? '1' : '0');
-        flash(isset($_POST['backup_auto']) ? 'Бэкап по расписанию включён' : 'Бэкап по расписанию выключен');
+    if ($action === 'save_backup_auto' && function_exists('backup_auto_hours')) {
+        $bk_was = backup_auto_on();
+        $bk_h0 = backup_auto_hours();
+        $bk_on = isset($_POST['backup_auto']);
+        set_setting('backup_auto', $bk_on ? '1' : '0');
+        // Пустое поле — не «1»: иначе стёртое «Сколько хранить» удалило бы все бэкапы по расписанию, кроме одного.
+        $bk_num = static function ($k) { $v = is_string($_POST[$k] ?? null) ? trim($_POST[$k]) : ''; return preg_match('~^[0-9]{1,6}$~', $v) ? (int) $v : null; };
+        if (($bk_v = $bk_num('backup_auto_hours')) !== null) set_setting('backup_auto_hours', (string) max(1, min(24, $bk_v)));
+        if (($bk_v = $bk_num('backup_auto_keep')) !== null) set_setting('backup_auto_keep', (string) max(1, min(200, $bk_v)));
+        $bk_h = backup_auto_hours();
+        $bk_soon = function_exists('cron_alive') && cron_alive() ? ' — первый бэкап в течение минуты' : '';
+        if ($bk_on && (!$bk_was || $bk_h !== $bk_h0) && function_exists('cron_kick')) cron_kick('backup');
+        if ($bk_on && !$bk_was) flash('Бэкап по расписанию включён' . $bk_soon);
+        elseif (!$bk_on && $bk_was) flash('Бэкап по расписанию выключен');
+        elseif ($bk_on && $bk_h !== $bk_h0) flash('Бэкап каждые ' . $bk_h . ' ч' . ($bk_soon !== '' ? ' — следующий в течение минуты' : ''));
+        else flash('Сохранено');
         form_saved('backup');
     }
 
     if ($action === 'save_backup_pass') {
-        if (!empty($_POST['del'])) { set_setting('backup_auto_pass', ''); flash('Пароль для бэкапов по расписанию удалён'); }
+        if (!empty($_POST['del'])) {
+            set_setting('backup_auto_pass', '');
+            $bk_tgoff = setting('backup_tg', '0') === '1';
+            if ($bk_tgoff) { set_setting('backup_tg', '0'); set_setting('backup_tg_q', ''); }
+            flash('Пароль для бэкапов по расписанию удалён' . ($bk_tgoff ? ', отправка в Telegram выключена' : ''));
+        }
         elseif (is_string($_POST['backup_auto_pass'] ?? null) && $_POST['backup_auto_pass'] !== '' && function_exists('backup_crypto_ok') && backup_crypto_ok()) { set_setting('backup_auto_pass', $_POST['backup_auto_pass']); flash('Пароль для бэкапов по расписанию сохранён'); }
         header('Location: index.php?tab=backup'); exit();
+    }
+
+    if ($action === 'bk_tg_check' && function_exists('backup_tg_check')) {
+        $bk_tok = trim((string) (is_string($_POST['backup_tg_token'] ?? null) ? $_POST['backup_tg_token'] : ''));
+        if ($bk_tok === '') $bk_tok = backup_tg_token();
+        if ($bk_tok === '') { flash('Вставьте токен бота'); header('Location: index.php?tab=backup'); exit(); }
+        if (!backup_tg_token_ok($bk_tok)) { flash('Это не похоже на токен бота — скопируйте его у @BotFather целиком'); header('Location: index.php?tab=backup'); exit(); }
+        @set_time_limit(60);
+        $bk_prev = backup_tg_chat() !== '' ? (string) setting('backup_tg_title', backup_tg_chat()) : '';
+        $bk_prevId = backup_tg_chat();
+        if ($bk_tok !== backup_tg_token()) {
+            set_setting('backup_tg_token', $bk_tok);
+            foreach (['backup_tg_chat', 'backup_tg_title', 'backup_tg_bot', 'backup_tg_q', 'backup_tg_last'] as $bk_k) set_setting($bk_k, '');
+        }
+        $bk_r = backup_tg_check($bk_tok, $bk_err);
+        if ($bk_r === null) flash($bk_err);
+        else {
+            set_setting('backup_tg_chat', $bk_r['chat']);
+            set_setting('backup_tg_title', $bk_r['title']);
+            set_setting('backup_tg_bot', $bk_r['bot']);
+            flash($bk_prevId !== '' && $bk_prevId !== $bk_r['chat']
+                ? 'Чат сменён: был «' . $bk_prev . '», теперь «' . $bk_r['title'] . '». Тестовое сообщение отправлено туда'
+                : 'Связь есть: тестовое сообщение отправлено в чат «' . $bk_r['title'] . '»');
+        }
+        header('Location: index.php?tab=backup'); exit();
+    }
+
+    if ($action === 'save_backup_tg' && function_exists('backup_tg_ready')) {
+        $bk_want = isset($_POST['backup_tg']);
+        if ($bk_want && backup_auto_pass() === '') { set_setting('backup_tg', '0'); flash('Сначала задайте пароль на бэкапы по расписанию'); }
+        elseif ($bk_want && !backup_tg_ready()) { set_setting('backup_tg', '0'); flash('Сначала проверьте связь с ботом'); }
+        else {
+            set_setting('backup_tg', $bk_want ? '1' : '0');
+            if (!$bk_want) set_setting('backup_tg_q', '');
+            flash($bk_want ? 'Бэкапы по расписанию будут приходить в Telegram' : 'Отправка в Telegram выключена');
+        }
+        form_saved('backup');
     }
 
     if ($action === 'gc_compact') {

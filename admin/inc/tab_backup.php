@@ -9,6 +9,14 @@ $bk_tagcls = ['manual' => 'manual', 'auto' => 'normal', 'pre' => 'grace', 'uploa
 $bk_lim    = backup_upload_limit();
 $bk_auto   = backup_auto_on();
 $bk_apass  = backup_auto_pass() !== '';
+$bk_hours  = backup_auto_hours();
+$bk_keep   = backup_auto_keep();
+$bk_tgtok  = backup_tg_token() !== '';
+$bk_tgchat = backup_tg_chat();
+$bk_tgon   = backup_tg_on();
+$bk_tgok   = backup_tg_ready();
+$bk_tglast = backup_tg_last();
+$bk_tgq    = backup_tg_pending();
 $bk_cst    = function_exists('cron_state') ? cron_state() : [];
 $bk_alive  = function_exists('cron_alive') && cron_alive();
 $bk_nofpm  = ($bk_cst['src'] ?? '') === 'url' && !function_exists('fastcgi_finish_request');
@@ -22,6 +30,8 @@ $bk_ic = [
     'del'     => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
     'lock'    => '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
     'up'      => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>',
+    'send'    => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>',
+    'ok'      => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
     'warn'    => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
 ];
 $bk_user = function_exists('update_web_user') ? update_web_user() : '';
@@ -66,6 +76,15 @@ if (backup_path($bk_open) === '') $bk_open = '';
 .bk-box.info{background:var(--bg2);color:var(--muted);border:1px solid var(--line)}
 .bk-tok{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.7rem}
 .bk-tok input{flex:1 1 14rem;min-width:0;max-width:24rem;margin:0}
+.bk-sub{display:flex;align-items:center;gap:.45rem;font-weight:600;color:var(--text-strong);font-size:.92rem;margin-top:1.4rem;padding-top:1.1rem;border-top:1px solid var(--line)}
+.bk-sub svg{width:16px;height:16px;color:var(--accent-text)}
+.bk-sub+.muted{margin:.35rem 0 0;font-size:.84rem}
+.bk-box.ok{background:var(--c-ok-bg);color:var(--c-ok-fg)}
+.bk-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.55rem}
+.bk-grid .set-row{margin:0}
+.bk-row1 .set-info{display:flex;flex-wrap:wrap;align-items:baseline;gap:.1rem .6rem}
+.bk-row1 .set-d{margin:0}
+@media(max-width:560px){.bk-grid{grid-template-columns:1fr}.set-row.bk-row1{flex-direction:row;align-items:center}.set-row.bk-row1>input[type=number]{width:76px}}
 #bkDlg .modal{max-width:520px}
 .bk-kv{display:flex;flex-direction:column;gap:.5rem}
 .bk-kv>div{display:flex;gap:.65rem;align-items:flex-start;font-size:.88rem}
@@ -148,7 +167,7 @@ if (backup_path($bk_open) === '') $bk_open = '';
         <input type="file" id="bkUpFile" accept=".gz,.enc" hidden>
         <span class="muted"><?php if ($bk_lim < PHP_INT_MAX): ?>Сервер принимает файлы до <?= h(metrics_fmt_bytes($bk_lim)) ?>. <?php endif; ?><?php if (submw_in_docker()): ?>Файл больше можно скопировать в контейнер командой <code>docker cp файл &lt;контейнер&gt;:/var/www/html/data/backups/</code> — он появится в списке.<?php else: ?>Файл больше можно положить на сервер в папку <code><?= h(backup_dir()) ?></code> — он появится в списке. Прослойка работает от пользователя <b><?= h($bk_user) ?></b>, у него должен быть доступ к файлу.<?php endif; ?></span>
     </div>
-    <div class="bk-box info">Перед каждым восстановлением прослойка сохраняет снимок текущих данных — из него можно вернуть всё как было. Хранятся 3 последних снимка и 7 последних бэкапов по расписанию, более старые удаляются сами. Сохранённые вручную и загруженные файлы не удаляются.</div>
+    <div class="bk-box info">Перед каждым восстановлением прослойка сохраняет снимок текущих данных — из него можно вернуть всё как было. Хранятся 3 последних снимка и <?= (int) $bk_keep ?> <?= h($bk_keep % 10 === 1 && $bk_keep % 100 !== 11 ? 'последний бэкап' : ($bk_keep % 10 >= 2 && $bk_keep % 10 <= 4 && ($bk_keep % 100 < 12 || $bk_keep % 100 > 14) ? 'последних бэкапа' : 'последних бэкапов')) ?> по расписанию, более старые удаляются сами. Сохранённые вручную и загруженные файлы не удаляются.</div>
 </div>
 
 <div class="card">
@@ -157,8 +176,18 @@ if (backup_path($bk_open) === '') $bk_open = '';
         <input type="hidden" name="csrf" value="<?= h($token) ?>">
         <input type="hidden" name="action" value="save_backup_auto">
         <div class="set-row">
-            <div class="set-info"><div class="set-t">Каждый день</div><div class="set-d">Раз в сутки прослойка сама сохраняет бэкап на сервере, хранятся 7 последних.<?php if ($bk_lastauto > 0): ?> Последний — <span class="bk-ts" data-ts="<?= (int) $bk_lastauto ?>"><?= h(gmdate('Y-m-d H:i', $bk_lastauto)) ?> UTC</span>.<?php endif; ?></div></div>
+            <div class="set-info"><div class="set-t">Сохранять по расписанию</div><div class="set-d">Прослойка сама сохраняет бэкап на сервере. При включении и смене интервала бэкап делается сразу, дальше часы отсчитываются от него.<?php if ($bk_lastauto > 0): ?> Последний — <span class="bk-ts" data-ts="<?= (int) $bk_lastauto ?>"><?= h(gmdate('Y-m-d H:i', $bk_lastauto)) ?> UTC</span>.<?php endif; ?></div></div>
             <label class="switch"><input type="checkbox" name="backup_auto" data-reload <?= $bk_auto ? 'checked' : '' ?>><span class="sl"></span></label>
+        </div>
+        <div class="bk-grid">
+            <div class="set-row bk-row1">
+                <div class="set-info"><div class="set-t">Каждые, часов</div><div class="set-d">от 1 до 24</div></div>
+                <input type="number" name="backup_auto_hours" min="1" max="24" value="<?= (int) $bk_hours ?>" aria-label="Интервал в часах">
+            </div>
+            <div class="set-row bk-row1">
+                <div class="set-info"><div class="set-t">Сколько хранить</div><div class="set-d">от 1 до 200, старые удаляются сами</div></div>
+                <input type="number" name="backup_auto_keep" min="1" max="200" value="<?= (int) $bk_keep ?>" aria-label="Сколько бэкапов хранить">
+            </div>
         </div>
     </form>
     <?php if ($bk_auto && !$bk_alive): ?>
@@ -174,6 +203,39 @@ if (backup_path($bk_open) === '') $bk_open = '';
         <button type="submit" class="btn ghost">Сохранить пароль</button>
         <?php if ($bk_apass): ?><button type="submit" class="btn ghost" name="del" value="1">Убрать пароль</button><?php endif; ?>
     </form>
+
+    <div class="bk-sub"><?= $bk_ic['send'] ?>Отправка в Telegram</div>
+    <p class="muted">Бэкапы по расписанию будут приходить в чат с вашим ботом. Создайте бота у @BotFather, вставьте его токен, напишите боту любое сообщение и нажмите «Проверить связь». Файл больше 50 МБ придёт частями — их объединяет 7-Zip (Файл → Объединить файлы).</p>
+    <form method="post" class="bk-tok">
+        <input type="hidden" name="csrf" value="<?= h($token) ?>">
+        <input type="hidden" name="action" value="bk_tg_check">
+        <input type="password" name="backup_tg_token" autocomplete="off" aria-label="Токен бота" placeholder="<?= $bk_tgtok ? 'Токен задан — можно вставить другой' : 'Токен бота от @BotFather' ?>">
+        <button type="submit" class="btn ghost">Проверить связь</button>
+    </form>
+    <?php if ($bk_tgchat !== ''): ?>
+    <div class="bk-box info"><?= $bk_ic['ok'] ?><span>Чат: <b><?= h((string) setting('backup_tg_title', $bk_tgchat)) ?></b><?php if ((string) setting('backup_tg_bot', '') !== ''): ?> · бот @<?= h((string) setting('backup_tg_bot', '')) ?><?php endif; ?></span></div>
+    <?php endif; ?>
+    <form method="post" data-autosave>
+        <input type="hidden" name="csrf" value="<?= h($token) ?>">
+        <input type="hidden" name="action" value="save_backup_tg">
+        <div class="set-row">
+            <div class="set-info"><div class="set-t">Отправлять в Telegram</div><div class="set-d">Каждый бэкап по расписанию уходит в чат, копия остаётся на сервере. Если бэкап не создался, в чат придёт сообщение об ошибке.</div></div>
+            <label class="switch"<?= $bk_tgok ? '' : ' data-tip="' . h(!$bk_apass ? 'Сначала задайте пароль на бэкапы' : 'Сначала проверьте связь с ботом') . '"' ?>><input type="checkbox" name="backup_tg" data-reload <?= $bk_tgon ? 'checked' : '' ?> <?= $bk_tgok ? '' : 'disabled' ?>><span class="sl"></span></label>
+        </div>
+    </form>
+    <?php if (!$bk_apass): ?>
+    <div class="bk-note"><?= $bk_ic['lock'] ?><span>Без пароля отправка не включается: в бэкапе токен панели и другие секреты.</span></div>
+    <?php endif; ?>
+    <?php if ($bk_tgon && !$bk_auto): ?>
+    <div class="bk-box amber"><?= $bk_ic['warn'] ?><span>Бэкап по расписанию выключен — отправлять нечего.</span></div>
+    <?php endif; ?>
+    <?php if ($bk_tgon && $bk_tglast): ?>
+    <?php if (!empty($bk_tglast['ok'])): ?>
+    <div class="bk-box ok"><?= $bk_ic['ok'] ?><span>Последний бэкап отправлен <span class="bk-ts" data-ts="<?= (int) $bk_tglast['ts'] ?>"><?= h(gmdate('Y-m-d H:i', (int) $bk_tglast['ts'])) ?> UTC</span>.</span></div>
+    <?php else: ?>
+    <div class="bk-box red"><?= $bk_ic['warn'] ?><span><?= h((string) $bk_tglast['err']) ?> (<span class="bk-ts" data-ts="<?= (int) $bk_tglast['ts'] ?>"><?= h(gmdate('Y-m-d H:i', (int) $bk_tglast['ts'])) ?> UTC</span>).<?= $bk_tgq !== null ? ' Прослойка повторит отправку сама.' : '' ?></span></div>
+    <?php endif; ?>
+    <?php endif; ?>
     <?php endif; ?>
 </div>
 
@@ -213,6 +275,17 @@ function fmtB(n){var u=['Б','КБ','МБ','ГБ'],i=0;while(n>=1024&&i<u.length
 function short(v){v=String(v||'');return /^[0-9a-f]{40}$/.test(v)?v.slice(0,7):v;}
 function loc(){document.querySelectorAll('.bk-ts[data-ts]').forEach(function(e){e.textContent=dt(+e.getAttribute('data-ts'));});}
 loc();
+// Срабатывает раньше автосохранения формы: в поле остаётся то, что реально сохранится.
+document.querySelectorAll('.bk-grid input[type=number]').forEach(function(i){
+    var last=i.value;
+    i.addEventListener('focusin',function(){if(/^\d+$/.test(i.value.trim()))last=i.value;});
+    i.addEventListener('focusout',function(){
+        var v=i.value.trim();
+        if(!/^\d+$/.test(v)){i.value=last;return;}
+        var n=Math.min(+i.max,Math.max(+i.min,parseInt(v,10)));
+        i.value=String(n);last=i.value;
+    });
+});
 
 function stream(url,fd,onp){
     return fetch(url,{method:'POST',credentials:'same-origin',body:fd}).then(function(r){
