@@ -1266,7 +1266,7 @@ function qkPlan(u,p){
   rows.push(['cal','Срок',u.exp?fd(expMs(u)):'—',fd(ne)]);
   if(g){notes.push(['hour','vio','Грейс завершится','прежний тариф вернётся']);rsS=!!(p.rs||C.reset||u.st==='LIMITED');}
   if(u.st==='DISABLED')notes.push(['power','warn','Останется выключенным','включите отдельно']);
-  else if(!g&&expMs(u)<now())notes.push(['check','ok','Станет «Активен»','срок — от сегодня']);
+  else if(!g&&u.st==='EXPIRED')notes.push(['check','ok','Станет «Активен»','срок — от сегодня']);
   if(fcPend(u.su))notes.push(['hour','info','Отсчёт от подключения отменится','срок будет таким, как здесь']);
  }
  if(p.hw){var e=qkHw(u);
