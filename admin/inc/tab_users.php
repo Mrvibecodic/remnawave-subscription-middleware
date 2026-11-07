@@ -216,6 +216,7 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-dh .id{font-size:.78rem;color:var(--muted);margin-top:.15rem;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
 .ux-dh .id code{font-size:.76rem;cursor:copy;padding:.05rem .35rem}
 .ux-dh .nmw{min-width:0;flex:1}
+.ux-dh .r1>.x{margin-left:auto}
 .ux-ha{display:flex;align-items:center;gap:.15rem;flex:none;margin-left:auto}
 .ux-ha .sep{width:1px;height:18px;background:var(--line);margin:0 .25rem}
 .ux-ib.bad{color:var(--c-bad-fg)}
@@ -685,6 +686,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-av{width:36px;height:36px;border-radius:10px;font-size:.9rem}
 .ux-dh .nm{font-size:1.02rem;gap:.35rem}
 .ux-ha{margin:-.3rem -.4rem 0 auto}
+.ux-dh .r1>.x{width:40px;height:40px;margin:-.3rem -.4rem 0 auto}
 .ux-ha .ux-hm,.ux-ha .sep{display:none}
 .ux-ha .ux-ib{width:40px;height:40px}
 .ux-qa{gap:.35rem}
