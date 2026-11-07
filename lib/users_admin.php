@@ -24,6 +24,31 @@ function ua_cols_parse($v) {
 }
 function ua_cols_hidden() { return ua_cols_parse(setting('users_cols_hide', '')); }
 
+// Быстрые действия карточки пользователя — общие для всех админов. Пустая настройка = набор по умолчанию, «[]» = админ убрал все.
+function ua_quick_default() {
+    $z = ['n' => '', 'tm' => 0, 'tu' => 'm', 'hw' => 0, 'tl' => 0, 'rs' => 0];
+    return [array_merge($z, ['tm' => 1]), array_merge($z, ['tm' => 3]), array_merge($z, ['hw' => 1]), array_merge($z, ['tl' => 50]), array_merge($z, ['rs' => 1])];
+}
+function ua_quick_parse($v) {
+    $a = is_array($v) ? $v : json_decode((string) $v, true);
+    if (!is_array($a) || !array_is_list($a) || count($a) > 8) return null;
+    $out = [];
+    foreach ($a as $p) {
+        if (!is_array($p)) return null;
+        $tu = ($p['tu'] ?? 'm') === 'd' ? 'd' : 'm';
+        $tm = (int) ($p['tm'] ?? 0); $hw = (int) ($p['hw'] ?? 0); $tl = (int) ($p['tl'] ?? 0); $rs = empty($p['rs']) ? 0 : 1;
+        if ($tm < 0 || $tm > ($tu === 'd' ? 3650 : 120) || $hw < 0 || $hw > 100 || $tl < 0 || $tl > 100000) return null;
+        if (!$tm && !$hw && !$tl && !$rs) return null;
+        $n = trim((string) preg_replace('~[\x00-\x1F\x7F]~u', '', (string) ($p['n'] ?? '')));
+        $out[] = ['n' => mb_substr($n, 0, 24), 'tm' => $tm, 'tu' => $tu, 'hw' => $hw, 'tl' => $tl, 'rs' => $rs];
+    }
+    return $out;
+}
+function ua_quick() {
+    $v = (string) setting('users_quick', '');
+    return $v === '' ? ua_quick_default() : (ua_quick_parse($v) ?? ua_quick_default());
+}
+
 function ua_link($short) {
     $m = mirror_domain();
     if ($m === '' || (string) $short === '') return '';

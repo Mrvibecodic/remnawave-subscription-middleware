@@ -25,6 +25,8 @@ $ux_cfg = [
     'wh'    => webhook_secret() !== '',
     'sort'  => ua_sort(),
     'hide'  => ua_cols_hidden(),
+    'quick' => ua_quick(),
+    'quickdef' => ua_quick_default(),
     'qr'    => 'assets/qrcode.js?v=' . substr(md5_file(__DIR__ . '/../assets/qrcode.js'), 0, 10),
     'sess'  => null,
     'sx'    => (object) [],
@@ -213,8 +215,27 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-dh .nm{font-size:1.15rem;font-weight:700;color:var(--text-strong);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 .ux-dh .id{font-size:.78rem;color:var(--muted);margin-top:.15rem;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
 .ux-dh .id code{font-size:.76rem;cursor:copy;padding:.05rem .35rem}
-.ux-dh .x{margin-left:auto}
-.ux-dh .r2{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center}
+.ux-dh .nmw{min-width:0;flex:1}
+.ux-ha{display:flex;align-items:center;gap:.15rem;flex:none;margin-left:auto}
+.ux-ha .sep{width:1px;height:18px;background:var(--line);margin:0 .25rem}
+.ux-ib.bad{color:var(--c-bad-fg)}
+.ux-ib.bad:hover{background:var(--c-bad-bg);border-color:transparent;color:var(--c-bad-fg)}
+.ux-ib.ok{color:var(--c-ok-fg)}
+.ux-ib:disabled{opacity:.4;cursor:not-allowed}
+.ux-ib:disabled:hover{background:none;border-color:transparent;color:var(--muted)}
+.ux-qa{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.ux-qa .ux-ib{width:28px;height:28px}
+.ux-qc{box-sizing:border-box;display:inline-flex;align-items:center;gap:.38rem;max-width:100%;padding:.3rem .72rem .3rem .55rem;border-radius:999px;border:1px solid var(--line);background:var(--bg2);color:var(--text);font:inherit;font-size:.8rem;font-weight:600;line-height:1.25;white-space:nowrap;min-height:0;cursor:pointer}
+.ux-qc,.ux-qc:hover,.ux-qc:active{filter:none;transform:none}
+.ux-qc svg{width:14px;height:14px;flex:none;color:var(--accent-text)}
+.ux-qc>span{overflow:hidden;text-overflow:ellipsis}
+.ux-qc:focus-visible{border-color:var(--accent);background:var(--accent-light);color:var(--text-strong);outline:0}
+@media(hover:hover){.ux-qc:hover{border-color:var(--accent);background:var(--accent-light);color:var(--text-strong)}}
+.ux-qc[aria-disabled="true"],.ux-qc[aria-disabled="true"]:hover{opacity:.45;cursor:not-allowed;border-color:var(--line);background:var(--bg2);color:var(--text)}
+.ux-qc[aria-disabled="true"] svg{color:var(--muted)}
+.ux-qc.pv{cursor:default;pointer-events:none}
+.ux-dk>.pvw{border-color:var(--accent);background:var(--accent-light)}
+.ux-dk>.pvw .d{color:var(--accent-text);font-weight:600}
 .ux-tabs{display:flex;gap:.2rem;padding:0 1.2rem;border-bottom:1px solid var(--line)}
 .ux-dr .ux-tabs button{all:unset;cursor:pointer;padding:.65rem .75rem;font-size:.86rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;gap:.4rem;align-items:center}
 .ux-dr .ux-tabs button:hover{color:var(--text-strong)}
@@ -239,18 +260,44 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-sect{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin:1.2rem 0 .55rem;display:flex;align-items:center;gap:.6rem}
 .ux-sect:first-child{margin-top:0}
 .ux-sect .sp{flex:1;height:1px;background:var(--line)}
-.ux-dl{display:grid;grid-template-columns:minmax(9rem,auto) minmax(0,1fr);gap:.45rem 1rem;font-size:.86rem;align-items:baseline}
-.ux-dl dt{color:var(--muted)}
-.ux-dl dd{margin:0;color:var(--text);min-width:0;overflow-wrap:anywhere;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
-.ux-dl dd .m{color:var(--muted)}
-.ux-mw{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
-.ux-mw>div{border:1px solid var(--line);border-radius:10px;padding:.6rem .75rem;display:flex;gap:.6rem;align-items:flex-start;min-width:0}
-.ux-mw .ic{width:30px;height:30px;border-radius:8px;background:var(--bg2);display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none}
-.ux-mw .ic svg{width:16px;height:16px}
-.ux-mw .tx{min-width:0;flex:1}
-.ux-mw .tt{font-size:.8rem;color:var(--muted)}
-.ux-mw .tv{font-size:.86rem;color:var(--text-strong);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ux-mw .ta{margin-top:.35rem}
+.ux-sect .ux-sl{all:unset;cursor:pointer;display:inline-flex;gap:.3rem;align-items:center;font-size:.76rem;text-transform:none;letter-spacing:0;color:var(--muted);font-weight:600;padding:.15rem .45rem;border-radius:6px}
+.ux-sect .ux-sl svg{width:13px;height:13px}
+.ux-sect .ux-sl:hover{color:var(--accent-text);background:var(--hover)}
+.ux-sect .ux-sl:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ux-sect .ux-sl:disabled{opacity:.45;cursor:not-allowed;background:none;color:var(--muted)}
+.ux-pc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.9rem 1.4rem;padding:.15rem 0 .1rem}
+.ux-pc>.c{min-width:0}
+.ux-pc>.c.w{grid-column:1/-1}
+.ux-pc .k{font-size:.78rem;color:var(--muted);margin-bottom:.12rem}
+.ux-pc .v{font-size:.88rem;color:var(--text-strong);display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere;min-height:1.35rem}
+.ux-pc .v .m{color:var(--muted)}
+.ux-pc .v code{font-size:.8rem;padding:.05rem .35rem}
+.ux-cpb{width:22px;height:22px;padding:0!important;border:0;background:none;color:var(--muted);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;min-height:0;flex:none}
+.ux-cpb,.ux-cpb:hover,.ux-cpb:active{filter:none;transform:none}
+.ux-cpb:hover{background:var(--hover);color:var(--text-strong)}
+.ux-cpb svg{width:13px;height:13px}
+.ux-ml{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ux-ml>.r{display:flex;align-items:center;gap:.75rem;padding:.6rem .8rem;border-top:1px solid var(--line);min-height:56px}
+.ux-ml>.r:first-child{border-top:0}
+.ux-ml .i{width:32px;height:32px;border-radius:9px;background:var(--bg2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none}
+.ux-ml .i svg{width:16px;height:16px}
+.ux-ml .i.tn-ok{background:var(--c-ok-bg);color:var(--c-ok-fg);border-color:transparent}
+.ux-ml .i.tn-bad{background:var(--c-bad-bg);color:var(--c-bad-fg);border-color:transparent}
+.ux-ml .i.tn-vio{background:var(--c-violet-bg);color:var(--c-violet-fg);border-color:transparent}
+.ux-ml .i.tn-warn{background:var(--c-warn-bg);color:var(--c-warn-fg);border-color:transparent}
+.ux-ml .t{flex:1;min-width:0}
+.ux-ml .t>.k{font-size:.74rem;color:var(--muted)}
+.ux-ml .t>.v{font-size:.88rem;color:var(--text-strong);font-weight:600;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere;margin-top:.05rem}
+.ux-ml .t>.v .m{color:var(--muted);font-weight:400}
+.ux-ml .t>.v code{font-size:.78rem;padding:.05rem .35rem;font-weight:400}
+.ux-ml .t>.s{font-size:.78rem;color:var(--muted);margin-top:.05rem;overflow-wrap:anywhere}
+.ux-ml .tc-bad{color:var(--c-bad-fg)}
+.ux-ml .tc-vio{color:var(--c-violet-fg)}
+.ux-ml .tc-warn{color:var(--c-warn-fg)}
+.ux-ml .a{flex:none;display:flex;align-items:center}
+.ux-lk{display:inline-flex;align-items:center;gap:.2rem;font-size:.8rem;color:var(--muted);text-decoration:none;padding:.3rem .45rem;border-radius:7px;font-weight:600;white-space:nowrap}
+.ux-lk svg{width:13px;height:13px}
+.ux-lk:hover{color:var(--accent-text);background:var(--hover);text-decoration:none}
 .ux-gb{border:1px solid var(--c-violet-fg);background:var(--c-violet-bg);border-radius:12px;padding:.8rem .9rem;margin-bottom:1rem}
 .ux-gb .h{display:flex;gap:.6rem;align-items:center;color:var(--text-strong);font-weight:700;font-size:.92rem}
 .ux-gb .h svg{width:18px;height:18px;color:var(--c-violet-fg);flex:none}
@@ -333,7 +380,7 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 @media(max-width:1600px){.ux-tbl .c-sq{display:none}}
 @media(max-width:1280px){.ux-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.ux-tbl .c-on{display:none}}
 @media(min-width:1101px) and (max-width:1180px){.ux-tr{min-width:6.5rem}.ux-tr .t{flex-direction:column;gap:0}.u-sub{max-width:11rem}}
-@media(max-width:900px){.ux-dk{grid-template-columns:repeat(2,minmax(0,1fr))}.ux-mw{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:900px){.ux-dk{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1100px){
 .ux-wrap{border:0;overflow:visible}
 .ux-tbl,.ux-tbl tbody{display:block}
@@ -357,8 +404,6 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
 .ux-flt input#uxQ{flex:1 1 100%;width:100%}
 .ux-g2{grid-template-columns:minmax(0,1fr)}
-.ux-dl{grid-template-columns:minmax(0,1fr)}
-.ux-dl dt{margin-top:.35rem}
 .ux-rt{grid-template-columns:auto minmax(0,1fr)}
 .ux-rt .ar{display:none}
 .ux-dr{border-radius:0}
@@ -411,6 +456,42 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-cff .h svg{width:14px;height:14px;flex:none}
 .ux-cff .btn{white-space:nowrap}
 @media(max-width:560px){.ux-cfr{grid-template-columns:30px minmax(0,1fr)}.ux-cfr .v{grid-column:2;justify-content:flex-start;text-align:left}.ux-cff{flex-wrap:wrap}.ux-cff .h{flex:1 1 100%}}
+.ux-menu .mo{display:none}
+@media(max-width:600px){.ux-menu button.mo{display:flex}.ux-menu hr.mo{display:block}}
+.modal.ux-cf.ux-qk{max-width:780px}
+.ux-qkl{display:flex;flex-direction:column;gap:.55rem;padding-top:.65rem}
+.ux-qkr{border:1px solid var(--line);border-radius:11px;padding:.6rem .7rem .7rem;background:var(--bg2)}
+.ux-qkr.err{border-color:var(--c-bad-fg)}
+.ux-qkr .l1{display:flex;gap:.45rem;align-items:center}
+.ux-qkr .mv{display:flex;flex-direction:column}
+.ux-qkr .mv .ux-ib{width:22px;height:16px;border-radius:5px}
+.ux-qkr .mv .ux-ib svg{width:13px;height:13px}
+.ux-qkr .l1 .nmi{flex:1;width:auto;min-width:0;height:32px;min-height:32px;margin:0;padding:0 .6rem;font-size:.88rem;font-weight:600;background:var(--card)}
+.ux-qkr .l2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;margin-top:.55rem}
+.ux-qkr .lb{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:flex;gap:.3rem;align-items:center;margin-bottom:.25rem}
+.ux-qkr .lb svg{width:12px;height:12px}
+.ux-qkr .fi{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;background:var(--card);height:32px;overflow:hidden;margin:0}
+.ux-qkr .fi:focus-within{border-color:var(--accent)}
+.ux-qkr .fi .pre{padding-left:.55rem;color:var(--muted);font-weight:700;font-size:.86rem}
+.ux-qkr .fi input[type=number]{flex:1;width:auto;min-width:0;height:100%;min-height:0;margin:0;padding:0 .35rem;border:0;border-radius:0;background:none;box-shadow:none;font-size:.86rem;font-variant-numeric:tabular-nums;color:var(--text-strong);-moz-appearance:textfield;appearance:textfield}
+.ux-qkr .fi input[type=number]:focus{box-shadow:none;border:0}
+.ux-qkr .fi input::-webkit-outer-spin-button,.ux-qkr .fi input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.ux-qkr .fi .u{padding:0 .55rem;color:var(--muted);font-size:.78rem;border-left:1px solid var(--line);height:100%;display:flex;align-items:center}
+.ux-qkr .fi .us{display:flex;height:100%}
+.ux-qkr .fi .us button{all:unset;padding:0 .5rem;font-size:.76rem;height:100%;display:flex;align-items:center;cursor:pointer;color:var(--muted);border-left:1px solid var(--line)}
+.ux-qkr .fi .us button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ux-qkr .fi .us button.on{background:var(--accent-light);color:var(--accent-text);font-weight:600}
+.ux-qkr label.fi.sw{justify-content:space-between;padding:0 .55rem;cursor:pointer;font-size:.82rem;color:var(--muted);font-weight:500}
+.ux-qkr .er{font-size:.78rem;color:var(--c-bad-fg);margin-top:.45rem;display:none;gap:.35rem;align-items:center}
+.ux-qkr .er svg{width:14px;height:14px}
+.ux-qkr.err .er{display:flex}
+.ux-qk .ux-qkadd{width:100%;margin-top:.6rem;display:flex;justify-content:center;align-items:center;gap:.4rem;padding:.5rem;border:1px dashed var(--line);border-radius:11px;background:none;color:var(--muted);font-size:.84rem;font-weight:600;cursor:pointer;min-height:0}
+.ux-qk .ux-qkadd:hover{border-color:var(--accent);color:var(--accent-text);background:var(--hover);filter:none}
+.ux-qk .ux-qkadd:disabled{opacity:.45;cursor:not-allowed;border-color:var(--line);color:var(--muted);background:none}
+.ux-qk .ux-qkadd svg{width:15px;height:15px}
+.ux-qke{font-size:.82rem;color:var(--muted);margin-top:.6rem}
+@media(max-width:760px){.ux-qkr .l2{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:440px){.ux-qkr .l1 .ux-qc{display:none}.ux-qk .ux-cff .sp{display:none}.ux-qk .ux-cff .btn{flex:1;justify-content:center}.ux-qk .ux-cff [data-qk=def]{flex:1 1 100%}}
 .ux-an{display:inline-flex;align-items:center;gap:.4rem}
 .ux-an .n{font-size:.7rem;background:var(--c-bad-bg);color:var(--c-bad-fg);border-radius:999px;padding:.02rem .4rem;font-weight:700}
 .ux-an.on{border-color:var(--c-bad-fg);background:var(--c-bad-bg);color:var(--c-bad-fg)}
@@ -602,13 +683,16 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-dh .r1{gap:.65rem}
 .ux-av{width:36px;height:36px;border-radius:10px;font-size:.9rem}
 .ux-dh .nm{font-size:1.02rem;gap:.35rem}
-.ux-dh .x{width:40px;height:40px;margin:-.3rem -.4rem 0 auto}
-.ux-dh .r2{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -1rem;padding:0 1rem}
-.ux-dh .r2::-webkit-scrollbar{display:none}
-.ux-dh .r2 .wb{flex:none;min-height:38px}
-.ux-dh .r2 .ux-ib{flex:none;width:38px;height:38px}
-.ux-dh .r2 [data-a=reset],.ux-dh .r2 [data-a=enable],.ux-dh .r2 [data-a=disable]{display:none}
-.ux-dr[data-view=edit] .ux-dh .r2,.ux-dr[data-view=edit] .ux-dh .id{display:none}
+.ux-ha{margin:-.3rem -.4rem 0 auto}
+.ux-ha .ux-hm,.ux-ha .sep{display:none}
+.ux-ha .ux-ib{width:40px;height:40px}
+.ux-qa{gap:.35rem}
+.ux-qc{padding:.42rem .7rem .42rem .55rem;font-size:.78rem}
+.ux-qa .ux-ib{width:34px;height:34px}
+.ux-dr[data-view=edit] .ux-qa,.ux-dr[data-view=edit] .ux-dh .id{display:none}
+.ux-pc{grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem 1rem}
+.ux-ml>.r{padding:.55rem .7rem;gap:.6rem}
+.ux-ml .a .wb{min-height:34px}
 .ux-dr[data-view=edit] .ux-dh{padding-bottom:.55rem}
 .ux-menu{left:0!important;right:0;top:auto!important;bottom:0;min-width:0;width:100%;max-height:80vh;max-height:80dvh;overflow-y:auto;border-radius:16px 16px 0 0;border-bottom:0;padding:.5rem .5rem calc(.5rem + env(safe-area-inset-bottom));box-shadow:0 0 0 100vmax rgba(2,6,23,.45);animation:sheetIn .18s ease-out;overscroll-behavior:contain}
 .ux-menu button{min-height:46px;padding:.55rem .8rem;font-size:.95rem;gap:.8rem}
@@ -825,6 +909,14 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
             <div class="ux-cff"><span class="h" id="uxCfH"></span><span class="sp"></span><button type="button" class="btn ghost" data-close="cf">Отмена</button><button type="button" class="btn" id="uxCfOk"></button></div>
         </div>
     </div>
+
+    <div class="modal-overlay" id="uxQkOv">
+        <div class="modal ux-cf ux-qk" role="dialog" aria-modal="true" aria-labelledby="uxQkT">
+            <div class="ux-cfh"><span class="ux-cfi tn-acc" id="uxQkI"></span><div style="min-width:0"><div class="t" id="uxQkT">Быстрые действия</div><div class="s">Кнопки в карточке пользователя · общие для всех админов</div></div><button type="button" class="modal-x" data-close="qk" aria-label="Закрыть">×</button></div>
+            <div class="ux-cfb" id="uxQkB"></div>
+            <div class="ux-cff"><span class="h" id="uxQkH"></span><span class="sp"></span><button type="button" class="btn ghost" data-qk="def">По умолчанию</button><button type="button" class="btn ghost" data-close="qk">Отмена</button><button type="button" class="btn" id="uxQkOk">Сохранить</button></div>
+        </div>
+    </div>
 </div>
     <script>
     window.UX_CFG = <?= json_encode($ux_cfg, $__jf) ?>;
@@ -848,6 +940,10 @@ var META=null,METAP=null;
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 var P={
+sliders:'<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+zap:'<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+up:'<path d="m18 15-6-6-6 6"/>',
+down:'<path d="m6 9 6 6 6-6"/>',
 copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
 qr:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4"/>',
 more:'<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',
@@ -1056,14 +1152,17 @@ function cfClose(){$('uxCfOv').classList.remove('open');CF=null;}
 function chips(ids){return ids&&ids.length?ids.map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join(''):'нет';}
 
 var menuFor=null;
-function openMenu(btn,u){
+function openMenu(btn,u,card){
  var m=$('uxMenu'),off=u.st==='DISABLED',nl=!!C.nl[u.su];
- var it=[['open','user','Открыть карточку'],['edit','edit','Изменить',null,'users:update'],'-',
+ var it=card?[['copy','link','Скопировать ссылку','mo'],['qr','qr','QR-код','mo'],[off?'enable':'disable','power',off?'Включить':'Выключить',off?'mo':'bad mo',off?'users:enable':'users:disable'],'-mo',
+  ['edit','edit','Изменить',null,'users:update'],['ext','cal','Продлить на свой срок…',null,'users:update'],['reset','reset','Сбросить трафик',null,'users:reset-traffic'],'-',
+  ['devs','dev','Устройства'],['addsub','link',C.as[u.su]?'Доп-подписка ✓':'Доп-подписка…'],['nolog',nl?'eye':'eyeoff',nl?'Вернуть в лог запросов':'Скрыть из лога запросов'],['qcfg','sliders','Настроить быстрые действия'],'-',
+  ['revoke','key','Новые ключи…',null,'users:revoke-subscription'],['del','trash','Удалить…','bad','users:delete']]:[['open','user','Открыть карточку'],['edit','edit','Изменить',null,'users:update'],'-',
   ['ext30','calp','Продлить на 30 дней',null,'users:update'],['ext','cal','Продлить…',null,'users:update'],['reset','reset','Сбросить трафик',null,'users:reset-traffic'],
   [off?'enable':'disable','power',off?'Включить':'Выключить',null,off?'users:enable':'users:disable'],'-',
   ['qr','qr','QR-код'],['devs','dev','Устройства'],['addsub','link',C.as[u.su]?'Доп-подписка ✓':'Доп-подписка…'],['nolog',nl?'eye':'eyeoff',nl?'Вернуть в лог запросов':'Скрыть из лога запросов'],'-',
   ['revoke','key','Новые ключи…',null,'users:revoke-subscription'],['del','trash','Удалить…','bad','users:delete']];
- m.innerHTML=it.map(function(x){if(x==='-')return '<hr>';var dis=(x[0]==='qr'&&!u.lk)||(x[4]&&!canW(x[4]));var tip=x[4]&&!canW(x[4])?roTip(x[4]):(x[0]==='qr'&&!u.lk?'Не задан адрес зеркала':'');return '<button type="button" role="menuitem" data-m="'+x[0]+'"'+(x[3]?' class="'+x[3]+'"':'')+(dis?' disabled style="opacity:.45;cursor:not-allowed"':'')+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+ico(x[1])+esc(x[2])+'</button>';}).join('');
+ m.innerHTML=it.map(function(x){if(x==='-'||x==='-mo')return x==='-mo'?'<hr class="mo">':'<hr>';var nolk=(x[0]==='qr'||x[0]==='copy')&&!u.lk,dis=nolk||(x[4]&&!canW(x[4]));var tip=x[4]&&!canW(x[4])?roTip(x[4]):(nolk?'Не задан адрес зеркала':'');return '<button type="button" role="menuitem" data-m="'+x[0]+'"'+(x[3]?' class="'+x[3]+'"':'')+(dis?' disabled style="opacity:.45;cursor:not-allowed"':'')+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+ico(x[1])+esc(x[2])+'</button>';}).join('');
  m.classList.add('open');menuFor=u;
  var r=btn.getBoundingClientRect(),mw=m.offsetWidth,mh=m.offsetHeight;
  var left=Math.max(8,Math.min(r.right-mw,innerWidth-mw-8)),top=r.bottom+4;if(top+mh>innerHeight-8)top=Math.max(8,r.top-mh-4);
@@ -1098,14 +1197,14 @@ function act(u,a){
 }
 function doAction(a,u){
  if(a==='open')return openCard(u,'ov');
- if(a==='edit')return openCard(u,'edit');
- if(a==='devs')return openCard(u,'dev');
+ if(a==='edit'||a==='devs'){var to=a==='edit'?'edit':'dev';if(CARD&&!CARD.create&&CARD.u.su===u.su){if(CARD.tab!==to)cardGo(to);return;}return openCard(u,to);}
+ if(a==='qcfg')return qkEdit();
  if(a==='copy')return copy(u.lk,'Ссылка подписки скопирована');
  if(a==='qr')return openQr(u);
  if(a==='ext30')return extend(u,30);
  if(a==='ext')return pickExtend(u);
  if(a==='addsub')return pickAddsub(u);
- if(a==='nolog'){var on=!C.nl[u.su];post('toggle_nolog',{short_uuid:u.su,nolog:on?'1':'0'}).then(function(d){if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка');return;}if(d.nolog)C.nl[u.su]=1;else delete C.nl[u.su];if(CARD&&CARD.mw&&CARD.u.su===u.su)CARD.mw.nolog=!!d.nolog;toast(d.nolog?'Запросы '+u.un+' скрыты из лога':'Запросы '+u.un+' снова в логе');if(CARD)drawCard();});return;}
+ if(a==='nolog'){var on=!C.nl[u.su];post('toggle_nolog',{short_uuid:u.su,nolog:on?'1':'0'}).then(function(d){if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка');if(CARD)drawCard();return;}if(d.nolog)C.nl[u.su]=1;else delete C.nl[u.su];if(CARD&&CARD.mw&&CARD.u.su===u.su)CARD.mw.nolog=!!d.nolog;toast(d.nolog?'Запросы '+u.un+' скрыты из лога':'Запросы '+u.un+' снова в логе');if(CARD)drawCard();});return;}
  if(['reset','disable','enable','revoke','del'].indexOf(a)>-1)return act(u,a);
 }
 function openPick(t,html){$('uxPickT').textContent=t;$('uxPickB').innerHTML=html;$('uxPickOv').classList.add('open');applyRo($('uxPickB'));}
@@ -1130,6 +1229,119 @@ function qrLib(){if(window.qrcode)return Promise.resolve();if(!QRP)QRP=new Promi
 function qrSvg(t){var q=qrcode(0,'M');q.addData(t);q.make();return q.createSvgTag({cellSize:4,margin:0,scalable:true});}
 function openQr(u){if(!u.lk)return;qrLib().then(function(){$('uxQrBox').innerHTML=qrSvg(u.lk);$('uxQrT').textContent='QR-код · '+u.un;$('uxQrL').textContent=u.lk;$('uxQrCopy').onclick=function(){copy(u.lk,'Ссылка подписки скопирована');};$('uxQrOv').classList.add('open');},function(){if(window.uiAlert)uiAlert('Не загрузился генератор QR-кода');});}
 
+var QK=C.quick||[],QK_MAX=8,QE=null,QE_TRIED=false;
+function cap(s){s=String(s||'');return s.charAt(0).toUpperCase()+s.slice(1);}
+function qkSteps(p){return (p.tm?1:0)+(p.hw?1:0)+(p.tl?1:0)+(p.rs?1:0);}
+function qkTxt(p,short){var a=[];
+ if(p.tm)a.push('+'+p.tm+' '+(p.tu==='d'?(short?'дн':plural(p.tm,'день','дня','дней')):(short?'мес':plural(p.tm,'месяц','месяца','месяцев'))));
+ if(p.hw)a.push('+'+p.hw+' '+(short&&a.length?'устр.':plural(p.hw,'устройство','устройства','устройств')));
+ if(p.tl)a.push('+'+p.tl+' ГБ');
+ if(p.rs)a.push(a.length?'сброс трафика':'Сброс трафика');
+ return a;}
+function qkLabel(p){return String(p.n||'').trim()||qkTxt(p,true).join(' · ');}
+function qkFull(p){return cap(qkTxt(p,false).join(' · '));}
+function qkIco(p){if(qkSteps(p)>1)return 'zap';if(p.tm)return 'calp';if(p.hw)return 'dev';if(p.tl)return 'wave';return 'reset';}
+// Календарный месяц: 31 января + 1 мес = последний день февраля, а не 3 марта.
+function addMonC(ts,m){var d=new Date(ts),day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+m);d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));return d.getTime();}
+// В грейсе шаги считаются от запомненного тарифа: при продлении вернётся он.
+function qkBase(u){var g=gInfo(u);return g?{hw:g.hw,tl:g.tl,ex:g.ex!==null?(g.ex||''):u.ex}:{hw:u.hw,tl:u.tl,ex:u.ex};}
+function qkHw(u){var b=qkBase(u);return hwEff({hw:b.hw,ex:b.ex});}
+function qkHwWhy(u){var b=qkBase(u);if(b.hw===0)return 'устройства без лимита';return qkHw(u).txt==='выключен в панели'?'лимит устройств выключен в панели':'лимит устройств неизвестен';}
+function qkAvail(u,p){
+ if((p.tm||p.hw||p.tl)&&!canW('users:update'))return{off:roTip('users:update')};
+ if(p.rs&&!canW('users:reset-traffic'))return{off:roTip('users:reset-traffic')};
+ if(isGr(u)&&!p.tm&&(p.hw||p.tl))return{off:'В грейсе сначала продлите срок — вернётся прежний тариф'};
+ var left=(p.tm?1:0)+(p.rs?1:0),why=[];
+ if(p.hw){if(qkHw(u).lim)left++;else why.push(qkHwWhy(u));}
+ if(p.tl){if(qkBase(u).tl)left++;else why.push('трафик без лимита');}
+ return left?{}:{off:cap(why.join(', '))};
+}
+function qkPlan(u,p){
+ var g=gInfo(u),rows=[],notes=[],f={},nx={},rsS=false;
+ if(p.tm){
+  var b=g?now():Math.max(now(),expMs(u)),ne=p.tu==='d'?b+p.tm*DAY:addMonC(b,p.tm);
+  if(g)f=graceRestore(u);
+  f.expireAt=Math.round(ne/1000);nx.exp=ne;
+  rows.push(['cal','Срок',u.exp?fd(expMs(u)):'—',fd(ne)]);
+  if(g){notes.push(['hour','vio','Грейс завершится','прежний тариф вернётся']);rsS=!!(p.rs||C.reset||u.st==='LIMITED');}
+  if(u.st==='DISABLED')notes.push(['power','warn','Останется выключенным','включите отдельно']);
+  else if(!g&&expMs(u)<now())notes.push(['check','ok','Станет «Активен»','срок — от сегодня']);
+  if(fcPend(u.su))notes.push(['hour','info','Отсчёт от подключения отменится','срок будет таким, как здесь']);
+ }
+ if(p.hw){var e=qkHw(u);
+  if(e.lim){var nh=e.lim+p.hw,cur=hwEff(u);f.hwidDeviceLimit=nh;nx.hw=nh;rows.push(['dev','Лимит устройств',esc(cur.lim?String(cur.lim):cur.txt),String(nh)]);if(qkBase(u).hw==null)notes.push(['info','info','Лимит станет своим','сейчас '+esc(e.d)+' — '+e.lim]);}
+  else notes.push(['alert','warn','Лимит устройств не меняется',esc(qkHwWhy(u))]);}
+ if(p.tl){var t0=qkBase(u).tl;
+  if(t0){var nt=t0+p.tl*GB;f.trafficLimitBytes=nt;nx.tl=nt;rows.push(['wave','Лимит трафика',u.tl?fb(u.tl):'без лимита',fb(nt)]);}
+  else notes.push(['alert','warn','Лимит трафика не меняется','трафик без лимита']);}
+ if(p.rs||rsS){rows.push(['reset','Использовано',fb(u.used),'0 Б']);nx.used=0;if(u.st==='LIMITED')notes.push(['check','ok','Статус «Лимит» снимется','']);}
+ var hint=p.tm?(g||expMs(u)<now()?'Срок считается от сегодня':'Срок прибавляется к дате окончания'):(qkSteps(p)===1&&p.rs?'Лимит и срок не меняются':'Срок не меняется');
+ return{rows:rows,notes:notes,f:f,nx:nx,rsS:rsS,rsA:!!p.rs&&!rsS,hint:hint};
+}
+function qkBar(u){
+ if(!QK.length)return '<div class="ux-qa"><button type="button" class="wb sm" data-a="qcfg">'+ico('sliders')+'Быстрые действия</button></div>';
+ return '<div class="ux-qa">'+QK.map(function(p,i){var a=qkAvail(u,p),tip=a.off||(String(p.n||'').trim()||qkSteps(p)>1?qkFull(p):'');return '<button type="button" class="ux-qc" data-q="'+i+'"'+(a.off?' aria-disabled="true"':'')+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+ico(qkIco(p),14)+'<span>'+esc(qkLabel(p))+'</span></button>';}).join('')+
+  '<button type="button" class="ux-ib" data-a="qcfg" aria-label="Настроить быстрые действия" data-tip="Настроить быстрые действия">'+ico('sliders')+'</button></div>';
+}
+function qkPv(i){
+ if(!CARD||CARD.create||CARD.tab!=='ov')return;
+ var p=i===null?null:QK[i],pv=p&&!qkAvail(CARD.u,p).off?qkPlan(CARD.u,p).nx:null;
+ if(!pv&&!CARD.pv)return;
+ CARD.pv=pv;var w=$('uxDkW');if(w)w.innerHTML=dkHtml(CARD.u);
+}
+function qkRun(u,i){
+ var p=QK[i];if(!p)return;
+ var a=qkAvail(u,p);if(a.off){toast(a.off);return;}
+ if(CARD&&CARD.pv){CARD.pv=null;var w=$('uxDkW');if(w)w.innerHTML=dkHtml(u);}
+ var pl=qkPlan(u,p),nm=String(p.n||'').trim();
+ cfm({ic:qkIco(p),title:nm||qkFull(p),sub:'<b>'+esc(u.un)+'</b>'+(nm?' · '+esc(qkFull(p)):''),rows:pl.rows,notes:pl.notes,hint:pl.hint,ok:'Применить',onOk:function(){qkApply(u,p,pl);}});
+}
+function qkApply(u,p,pl){
+ var su=u.su,un=u.un;
+ var fin=function(warn,title){busy(false);cfClose();if(warn&&window.uiAlert)uiAlert(warn,title);else toast(qkLabel(p)+' · '+un);render();if(CARD)drawCard();};
+ var reset=function(saved,w0){post('ua_act',{su:su,act:'reset'}).then(function(r){if(r.ok&&r.user)putUser(r.user,r.mw,su);if(r.ok)fin(w0||r.warn||'');else fin((saved?'Сохранено, но трафик не сбросился: ':'')+(r.error||'Ошибка'),saved?'':'Панель не приняла');});};
+ busy(true);
+ if(!Object.keys(pl.f).length)return reset(false,'');
+ post('ua_save',{su:su,fields:JSON.stringify(pl.f),upd:u.upd,reset:pl.rsS?'1':''}).then(function(d){
+  if(!d.ok){busy(false);if(d.conflict&&d.user){cfClose();putUser(d.user,d.mw,su);render();if(CARD)drawCard();}if(window.uiAlert)uiAlert(d.conflict?'Пользователя изменили, пока страница была открыта. Данные обновлены — проверьте и повторите.':(d.error||'Ошибка'),d.conflict?'Данные устарели':'Панель не приняла');return;}
+  if(d.user)putUser(d.user,d.mw,su);
+  if(pl.rsA)return reset(true,d.warn||'');
+  fin(d.warn||'');
+ });
+}
+function qkEdit(){closeMenu();QE=JSON.parse(JSON.stringify(QK));QE_TRIED=false;$('uxQkI').innerHTML=ico('sliders',20);$('uxQkH').innerHTML=ico('info',14)+'Пустое поле — не меняется. Месяц — календарный.';qkEdDraw();$('uxQkOv').classList.add('open');}
+function qkEdClose(){$('uxQkOv').classList.remove('open');QE=null;}
+function qkFl(ic,t,inner){return '<div class="f"><div class="lb">'+ico(ic,12)+t+'</div><div class="fi">'+inner+'</div></div>';}
+function qkRow(p,i){
+ var num=function(f,v,mx,l){return '<input type="number" min="0" max="'+mx+'" step="1" inputmode="numeric" data-f="'+f+'" data-i="'+i+'" value="'+(v||'')+'" placeholder="0" aria-label="'+l+'">';};
+ return '<div class="ux-qkr'+(QE_TRIED&&!qkSteps(p)?' err':'')+'" data-i="'+i+'"><div class="l1"><div class="mv"><button type="button" class="ux-ib" data-mv="-1" data-i="'+i+'"'+(i?'':' disabled')+' aria-label="Выше">'+ico('up')+'</button><button type="button" class="ux-ib" data-mv="1" data-i="'+i+'"'+(i<QE.length-1?'':' disabled')+' aria-label="Ниже">'+ico('down')+'</button></div>'+
+  '<input type="text" class="nmi" data-f="n" data-i="'+i+'" value="'+esc(p.n)+'" placeholder="'+esc(qkTxt(p,true).join(' · ')||'Название')+'" maxlength="24" aria-label="Название">'+
+  '<span class="ux-qc pv" data-pv>'+ico(qkIco(p),14)+'<span>'+esc(qkLabel(p)||'—')+'</span></span>'+
+  '<button type="button" class="ux-ib bad" data-del="'+i+'" aria-label="Удалить действие" data-tip="Удалить действие">'+ico('trash')+'</button></div><div class="l2">'+
+  qkFl('cal','Срок','<span class="pre">+</span>'+num('tm',p.tm,p.tu==='d'?3650:120,'Срок')+'<span class="us"><button type="button" data-tu="d" data-i="'+i+'" class="'+(p.tu==='d'?'on':'')+'">дн</button><button type="button" data-tu="m" data-i="'+i+'" class="'+(p.tu!=='d'?'on':'')+'">мес</button></span>')+
+  qkFl('dev','Устройства','<span class="pre">+</span>'+num('hw',p.hw,100,'Устройства')+'<span class="u">шт</span>')+
+  qkFl('wave','Лимит трафика','<span class="pre">+</span>'+num('tl',p.tl,100000,'Лимит трафика')+'<span class="u">ГБ</span>')+
+  '<div class="f"><div class="lb">'+ico('reset',12)+'Трафик</div><label class="fi sw">Сбросить<span class="switch sm"><input type="checkbox" data-f="rs" data-i="'+i+'"'+(p.rs?' checked':'')+'><span class="sl"></span></span></label></div>'+
+  '</div><div class="er">'+ico('alert',14)+'Выберите хотя бы одно изменение</div></div>';
+}
+function qkEdDraw(){
+ $('uxQkB').innerHTML='<div class="ux-qkl">'+QE.map(qkRow).join('')+'</div>'+(QE.length?'':'<div class="ux-qke">Список пуст — в карточке останется только кнопка настройки.</div>')+
+  '<button type="button" class="ux-qkadd" data-qk="add"'+(QE.length>=QK_MAX?' disabled':'')+'>'+ico('plus')+(QE.length>=QK_MAX?'Не больше '+QK_MAX+' действий':'Добавить действие')+'</button>';
+}
+function qkSync(i){
+ var r=$('uxQkB').querySelector('.ux-qkr[data-i="'+i+'"]'),p=QE&&QE[i];if(!r||!p)return;
+ r.classList.toggle('err',QE_TRIED&&!qkSteps(p));
+ r.querySelector('[data-pv]').innerHTML=ico(qkIco(p),14)+'<span>'+esc(qkLabel(p)||'—')+'</span>';
+ r.querySelector('.nmi').placeholder=qkTxt(p,true).join(' · ')||'Название';
+}
+function qkSave(){
+ var bad=-1;
+ QE.forEach(function(p,i){p.n=String(p.n||'').trim();p.tm=Math.min(p.tm||0,p.tu==='d'?3650:120);p.hw=Math.min(p.hw||0,100);p.tl=Math.min(p.tl||0,100000);p.rs=p.rs?1:0;if(bad<0&&!qkSteps(p))bad=i;});
+ if(bad>-1){QE_TRIED=true;qkEdDraw();var r=$('uxQkB').querySelectorAll('.ux-qkr')[bad];r.scrollIntoView({block:'nearest'});r.querySelector('[data-f="tm"]').focus();return;}
+ var ok=$('uxQkOk');ok.disabled=true;
+ post('users_quick',{list:JSON.stringify(QE)}).then(function(d){ok.disabled=false;if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Не сохранилось');return;}QK=d.list||[];C.quick=QK;qkEdClose();toast('Быстрые действия сохранены');if(CARD&&!CARD.create)drawCard();});
+}
+
 var CARD=null;
 function openCard(u,tab){CARD={u:u,tab:tab||'ov',create:false,F:null,restore:true,resetTr:!!C.reset,mw:null,devs:null,hist:null,sess:null,live:null,usage:null,ud:30,seq:0};drawCard();$('uxOv').classList.add('open');(innerWidth<=900?document.documentElement:document.body).style.overflow='hidden';cardPush();refreshCard();}
 function refreshCard(){if(!CARD||CARD.create)return;var su=CARD.u.su,s=++CARD.seq;loadMeta().then(function(){if(CARD&&!CARD.create&&CARD.seq===s){var f=$('uxForm'),sc=f?f.scrollTop:0;drawCard();f=$('uxForm');if(f)f.scrollTop=sc;}});getj('ua_user','&su='+encodeURIComponent(su)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;if(d.ok){putUser(d.user,d.mw);if(CARD.tab==='edit'&&CARD.F&&CARD.O&&CARD.O.upd!==d.user.upd&&!diffList().length)CARD.F=null;if(CARD.tab!=='edit'||!CARD.F)drawCard();render();}else{CARD.err=d.error;if(CARD.tab!=='edit')drawCard();}});}
@@ -1140,6 +1352,8 @@ function closeCard(force){
  $('uxOv').classList.remove('open');document.documentElement.style.overflow='';document.body.style.overflow='';CARD=null;
  if(cardPushed){cardPushed=false;history.back();}
 }
+function cardGo(to){if(CARD.tab==='edit'&&to!=='edit'&&CARD.F&&diffList().length){cfm({ic:'alert',tone:'warn',title:'Уйти без сохранения?',sub:'изменения в форме пропадут',ok:'Уйти',danger:true,onOk:function(){cfClose();CARD.F=null;CARD.tab=to;drawCard();}});return;}
+ CARD.tab=to;if(to==='edit'){CARD.F=null;CARD.restore=true;CARD.touched={};}drawCard();}
 var cardPushed=false;
 function cardPush(){if(!cardPushed&&matchMedia('(max-width:900px)').matches){history.pushState({uxCard:1},'');cardPushed=true;}}
 if(history.state&&history.state.uxCard)history.replaceState(null,'');
@@ -1147,6 +1361,7 @@ window.addEventListener('popstate',function(){
  if(!cardPushed)return;cardPushed=false;if(!CARD)return;
  var dlg=document.getElementById('uiDlg');
  if(dlg&&dlg.classList.contains('open')){}
+ else if($('uxQkOv').classList.contains('open'))qkEdClose();
  else if($('uxCfOv').classList.contains('open'))cfClose();
  else if($('uxMenu').classList.contains('open'))closeMenu();
  else if($('uxCols').classList.contains('open'))closeCols();
@@ -1157,15 +1372,14 @@ window.addEventListener('popstate',function(){
  if(CARD)cardPush();
 });
 function head(u){
- var off=u.st==='DISABLED',ini=u.un.replace(/[^a-zA-Zа-яА-Я0-9]/g,'').slice(0,2)||'?';
- return '<div class="ux-dh"><div class="r1"><div class="ux-av">'+esc(ini)+'</div><div style="min-width:0"><div class="nm">'+esc(u.un)+' '+pill(u)+(u.tag?' <span class="ux-tag">'+esc(u.tag)+'</span>':'')+'</div>'+
-  '<div class="id"><code data-copy="'+esc(u.su)+'" data-tip="shortUuid — нажмите, чтобы скопировать">'+esc(u.su)+'</code>'+(u.id?'<span>ID '+esc(u.id)+'</span>':'')+(u.cr?'<span>создан '+fd(u.cr*1000)+'</span>':'')+'</div></div>'+
-  '<button type="button" class="ux-ib x" data-close aria-label="Закрыть">'+ico('x',18)+'</button></div>'+
-  '<div class="r2"><button type="button" class="wb sm" data-a="copy"'+(u.lk?'':' disabled data-tip="Не задан адрес зеркала"')+'>'+ico('copy')+'Ссылка</button><button type="button" class="wb sm" data-a="qr"'+(u.lk?'':' disabled')+'>'+ico('qr')+'QR</button>'+
-  '<button type="button" class="wb sm" data-a="ext30" data-w="users:update">'+ico('calp')+'+30 дней</button>'+
-  '<button type="button" class="wb sm" data-a="reset" data-w="users:reset-traffic">'+ico('reset')+'Сбросить трафик</button>'+
-  '<button type="button" class="wb sm'+(off?'':' bad')+'" data-a="'+(off?'enable':'disable')+'" data-w="'+(off?'users:enable':'users:disable')+'">'+ico('power')+(off?'Включить':'Выключить')+'</button>'+
-  '<button type="button" class="ux-ib" data-a="menu" aria-label="Ещё действия" style="margin-left:auto">'+ico('more')+'</button></div></div>'+
+ var off=u.st==='DISABLED',ini=u.un.replace(/[^a-zA-Zа-яА-Я0-9]/g,'').slice(0,2)||'?',lk=function(t){return u.lk?' data-tip="'+t+'"':' disabled data-tip="Не задан адрес зеркала"';};
+ return '<div class="ux-dh"><div class="r1"><div class="ux-av">'+esc(ini)+'</div><div class="nmw"><div class="nm">'+esc(u.un)+' '+pill(u)+(u.tag?' <span class="ux-tag">'+esc(u.tag)+'</span>':'')+'</div>'+
+  '<div class="id"><code data-copy="'+esc(u.su)+'" data-tip="shortUuid — нажмите, чтобы скопировать">'+esc(u.su)+'</code>'+(u.id?'<span>ID '+esc(u.id)+'</span>':'')+'</div></div>'+
+  '<div class="ux-ha"><button type="button" class="ux-ib ux-hm" data-a="copy" aria-label="Скопировать ссылку подписки"'+lk('Скопировать ссылку подписки')+'>'+ico('link')+'</button>'+
+  '<button type="button" class="ux-ib ux-hm" data-a="qr" aria-label="QR-код подписки"'+lk('QR-код подписки')+'>'+ico('qr')+'</button>'+
+  '<button type="button" class="ux-ib ux-hm '+(off?'ok':'bad')+'" data-a="'+(off?'enable':'disable')+'" data-w="'+(off?'users:enable':'users:disable')+'" aria-label="'+(off?'Включить':'Выключить')+'" data-tip="'+(off?'Включить':'Выключить')+'">'+ico('power')+'</button>'+
+  '<button type="button" class="ux-ib" data-a="menu" aria-label="Ещё действия" data-tip="Ещё действия">'+ico('more')+'</button><span class="sep"></span>'+
+  '<button type="button" class="ux-ib x" data-close aria-label="Закрыть">'+ico('x',18)+'</button></div></div>'+qkBar(u)+'</div>'+
   '<div class="ux-tabs" role="tablist">'+[['ov','Обзор'],['edit','Изменить'],['dev','Устройства'],['sess','Сессии'],['anom','Аномалии'],['usage','Трафик'],['hist','История']].filter(function(t){return ((t[0]!=='sess'&&t[0]!=='anom')||SESS)&&(t[0]!=='usage'||USG);}).map(function(t){var sf=t[0]==='anom'?sesFlag(u):null;return '<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(CARD.tab===t[0]?'on':'')+'"'+(t[0]==='edit'&&!canW('users:update')?' disabled data-tip="'+esc(roTip('users:update'))+'"':'')+'>'+t[1]+(sf?'<span class="n '+(sf.lvl==='bad'?'b':'w')+'">'+sf.n+'</span>':'')+'</button>';}).join('')+'</div>';
 }
 function drawCard(){
@@ -1195,6 +1409,17 @@ function graceRows(u,g){
  if(g.ex!==null)R.push(['Внешний сквад',exName(u.ex)||'нет',exName(g.ex)||'нет']);
  return '<div class="ux-rt">'+R.map(function(r){return '<span class="k">'+r[0]+'</span><span class="a">'+esc(r[1])+'</span><span class="ar">→</span><span class="b">'+esc(r[2])+'</span>';}).join('')+'</div>';
 }
+function dkHtml(u){
+ var e=expMs(u),nx=CARD.pv||{},pv=function(k){return CARD.pv&&k.some(function(x){return x in nx;})?' pvw':'';};
+ var tl=('tl' in nx)?nx.tl:u.tl,used=('used' in nx)?nx.used:u.used,pc=tl?Math.min(100,used/tl*100):0,bc=tl?(pc>=100?'lv-b':(pc>=80?'lv-w':'')):'lv-i',he=hwEff(u);
+ var trP=pv(['tl','used']),exP=pv(['exp']),hwP=pv(['hw']);
+ var trD=trP?'→ '+fb(used)+(tl?' из '+fb(tl):''):(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'');
+ return '<div class="ux-dk'+(SESS&&SESS.on?' ux-dk5':'')+'">'+
+  (USG?'<div class="go'+trP+'" data-tab="usage" role="button" tabindex="0" data-tip="Открыть трафик по дням"><div class="k">Трафик'+ico('chev',13)+'</div>':'<div class="'+trP.trim()+'"><div class="k">Трафик</div>')+'<div class="v">'+fb(u.used)+'</div><div class="d">'+trD+'</div><div class="ux-bar '+bc+'"><i style="width:'+(tl?pc.toFixed(1):100)+'%"></i></div></div>'+
+  '<div class="'+exP.trim()+'"><div class="k">Истекает</div><div class="v">'+(u.exp?fd(e):'—')+'</div>'+(exP?'<div class="d">→ '+fd(nx.exp)+' · '+rel(nx.exp)+'</div>':'<div class="d" style="color:'+(e<now()?'var(--c-bad-fg)':(e-now()<7*DAY?'var(--c-warn-fg)':'var(--muted)'))+'">'+(u.exp?rel(e):'')+'</div>')+'</div>'+
+  '<div class="go'+hwP+'" data-tab="dev" role="button" tabindex="0" data-tip="Открыть список устройств"><div class="k">Устройства'+ico('chev',13)+'</div><div class="v">'+(CARD.devs?CARD.devs.length:'…')+(he.lim?' / '+he.lim:'')+'</div><div class="d">'+(hwP?'→ лимит '+nx.hw:'лимит: '+esc(he.d))+'</div></div>'+
+  (SESS&&SESS.on?sessTile(u)+anomTile(u):'<div><div class="k">Онлайн</div><div class="v" style="font-size:.98rem">'+(u.on?ago(u.on*1000):'—')+'</div><div class="d">'+(u.node?esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):'не подключался')+'</div></div>')+'</div>';
+}
 function ovHtml(u){
  var h='',e=expMs(u),mw=CARD.mw,g=isGr(u)?gInfo(u):null,fc=C.fc[u.su]||null;
  if(fc&&fc.at){
@@ -1209,33 +1434,30 @@ function ovHtml(u){
   '<p>'+(g.oexp?'Подписка истекла '+fdt(g.oexp*1000)+'. ':'')+'При продлении вернётся прежний тариф:</p>'+graceRows(u,g)+
   '<div class="acts"><button type="button" class="wb pri sm" data-a="restore" data-w="users:update">'+ico('back')+'Вернуть тариф и продлить…</button></div></div>';
  }
- var pc=u.tl?Math.min(100,u.used/u.tl*100):0,bc=u.tl?(pc>=100?'lv-b':(pc>=80?'lv-w':'')):'lv-i';
- h+='<div class="ux-dk'+(SESS&&SESS.on?' ux-dk5':'')+'">'+
-  (USG?'<div class="go" data-tab="usage" role="button" tabindex="0" data-tip="Открыть трафик по дням"><div class="k">Трафик'+ico('chev',13)+'</div>':'<div><div class="k">Трафик</div>')+'<div class="v">'+fb(u.used)+'</div><div class="d">'+(u.tl?'из '+fb(u.tl):'без лимита')+(STRAT_S[u.ts]?' · '+STRAT_S[u.ts]:'')+'</div><div class="ux-bar '+bc+'"><i style="width:'+(u.tl?pc.toFixed(1):100)+'%"></i></div></div>'+
-  '<div><div class="k">Истекает</div><div class="v">'+(u.exp?fd(e):'—')+'</div><div class="d" style="color:'+(e<now()?'var(--c-bad-fg)':(e-now()<7*DAY?'var(--c-warn-fg)':'var(--muted)'))+'">'+(u.exp?rel(e):'')+'</div></div>'+
-  '<div class="go" data-tab="dev" role="button" tabindex="0" data-tip="Открыть список устройств"><div class="k">Устройства'+ico('chev',13)+'</div><div class="v">'+(CARD.devs?CARD.devs.length:'…')+(hwEff(u).lim?' / '+hwEff(u).lim:'')+'</div><div class="d">лимит: '+esc(hwEff(u).d)+'</div></div>'+
-  (SESS&&SESS.on?sessTile(u)+anomTile(u):'<div><div class="k">Онлайн</div><div class="v" style="font-size:.98rem">'+(u.on?ago(u.on*1000):'—')+'</div><div class="d">'+(u.node?esc(nodeName(u.node)||'нода '+u.node.slice(0,8)):'не подключался')+'</div></div>')+'</div>';
- var sqs=u.sq.map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join(' ')||'<span class="m">нет</span>';
- var row=function(k,v){return '<dt>'+k+'</dt><dd>'+v+'</dd>';},emp='<span class="m">—</span>';
- h+='<div class="ux-sect">Панель<span class="sp"></span></div><dl class="ux-dl">'+
-  row('Внутренние сквады',sqs)+row('Внешний сквад',u.ex?esc(exName(u.ex)):emp)+
-  row('Сброс трафика',esc((STRAT.filter(function(s){return s[0]===u.ts;})[0]||['',u.ts])[1]))+row('Трафик за всё время',fb(u.life))+
-  row('Telegram ID',u.tg?'<code>'+esc(u.tg)+'</code>':emp)+row('Email',u.em?esc(u.em):emp)+row('Описание',u.desc?esc(u.desc):emp)+
-  row('Первое подключение',u.first?fdt(u.first*1000):emp)+row('Изменён',u.upd?fdt(Date.parse(u.upd))+' <span class="m">· '+ago(Date.parse(u.upd))+'</span>':emp)+'</dl>';
- var tile=function(ic,t,v,a){return '<div><span class="ic">'+ico(ic)+'</span><div class="tx"><div class="tt">'+t+'</div><div class="tv">'+v+'</div>'+(a?'<div class="ta">'+a+'</div>':'')+'</div></div>';};
- var lo='<span class="muted" style="font-weight:400">загрузка…</span>';
+ h+='<div id="uxDkW">'+dkHtml(u)+'</div>';
+ var sqs=u.sq.map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join(' ');
+ var emp='<span class="m">—</span>',cell=function(k,v,o){o=o||{};return '<div class="c'+(o.w?' w':'')+'"><div class="k">'+k+'</div><div class="v">'+(v||emp)+(o.cp?'<button type="button" class="ux-cpb" data-copy="'+esc(o.cp)+'" aria-label="Скопировать" data-tip="Скопировать">'+ico('copy',13)+'</button>':'')+'</div></div>';};
+ var eb=canW('users:update')?'<button type="button" class="ux-sl" data-tab="edit">':'<button type="button" class="ux-sl" disabled data-tip="'+esc(roTip('users:update'))+'">';
+ var ud=u.upd?Date.parse(u.upd):NaN;
+ h+='<div class="ux-sect">Панель<span class="sp"></span>'+eb+ico('edit',13)+'Изменить</button></div><div class="ux-pc">'+
+  cell('Внутренние сквады',sqs)+cell('Внешний сквад',u.ex?esc(exName(u.ex)):'')+cell('Сброс трафика',esc((STRAT.filter(function(x){return x[0]===u.ts;})[0]||['',u.ts])[1]))+
+  cell('Telegram ID',u.tg?'<code>'+esc(u.tg)+'</code>':'',{cp:u.tg?String(u.tg):''})+cell('Email',u.em?'<span>'+esc(u.em)+'</span>':'',{cp:u.em||''})+cell('Трафик за всё время',fb(u.life))+
+  cell('Создан',u.cr?fd(u.cr*1000):'')+cell('Первое подключение',u.first?fdt(u.first*1000):'')+cell('Изменён',isNaN(ud)?'':'<span data-tip="'+esc(fdt(ud))+'">'+cap(ago(ud))+'</span>')+
+  (u.desc?cell('Описание',esc(u.desc),{w:1}):'')+'</div>';
+ var lo='<span class="m">загрузка…</span>';
  var blk=mw?(mw.ov||[]).some(function(o){return o.r==='blocked';}):!!C.ovb[u.su];
- var served=blk?'<span style="color:var(--c-bad-fg)">Заглушка — блок в оверрайдах</span>':(g&&u.st==='ACTIVE'?'Конфиги грейс-сквада':(u.st==='ACTIVE'?'Конфиг панели':'Ответ панели — подписка не активна'));
- var lr=mw&&mw.last,decL={blocked:'блок',expired:'истёк',grace:'грейс',error:'ошибка'};
- var as=mw?mw.addsub:(C.as[u.su]||''),nl=mw?mw.nolog:!!C.nl[u.su];
- var wg=mw?(mw.wg.m?'Ручная привязка'+(mw.wg.a?' и из пула: '+mw.wg.a:''):(mw.wg.a?'Из пула: '+mw.wg.a:'<span class="muted" style="font-weight:400">не выдаётся</span>')):lo;
- var nov=mw?(mw.ov||[]).length:0;
- h+='<div class="ux-sect">Прослойка<span class="sp"></span></div><div class="ux-mw">'+
-  tile('layers','Что отдаётся',served,nov?'<a href="?tab=overrides" class="muted" style="font-size:.78rem">Оверрайды: '+nov+' →</a>':'')+
-  tile('send','Последний запрос',mw?(lr?esc(lr.app||'клиент не распознан')+' · '+ago(lr.t*1000):'<span class="muted" style="font-weight:400">запросов не было</span>'):lo,lr?'<span class="muted" style="font-size:.78rem">'+esc(lr.os||'')+(lr.dec&&decL[lr.dec]?(lr.os?' · ':'')+decL[lr.dec]:'')+'</span>':'')+
-  tile('link','Доп-подписка',as?'<span style="font-family:ui-monospace,monospace;font-size:.8rem">'+esc(as)+'</span>':'<span class="muted" style="font-weight:400">не привязана</span>','<button type="button" class="wb sm" data-a="addsub">'+(as?'Изменить':'Привязать')+'</button>')+
-  tile('net','WG / AWG',wg,'<a href="?tab=wg_pool" class="muted" style="font-size:.78rem">Открыть WG / AWG →</a>')+
-  tile('log','Лог запросов',nl?'Скрыт из лога':'Пишется в лог','<button type="button" class="wb sm" data-a="nolog">'+(nl?'Вернуть в лог':'Скрыть')+'</button> <a href="?tab=reqlog&amp;rl_hours=0&amp;rl_q='+encodeURIComponent(u.su)+'" class="muted" style="font-size:.78rem;margin-left:.4rem">Открыть лог →</a>')+'</div>';
+ var sv=blk?['Заглушка — блок в оверрайдах','bad','ban']:(g&&u.st==='ACTIVE'?['Конфиги грейс-сквада','vio','hour']:(u.st==='ACTIVE'?['Конфиг панели','ok','layers']:['Ответ панели — подписка не активна','warn','alert']));
+ var lr=mw&&mw.last,decL={blocked:['блок','st-bad'],expired:['истёк','st-bad'],grace:['грейс','st-vio'],error:['ошибка','st-warn']},dc=lr&&decL[lr.dec];
+ var as=mw?mw.addsub:(C.as[u.su]||''),nl=mw?mw.nolog:!!C.nl[u.su],nov=mw?(mw.ov||[]).length:0;
+ var wg=mw?(mw.wg.m?'Ручная привязка'+(mw.wg.a?' и из пула: '+mw.wg.a:''):(mw.wg.a?'Из пула: '+mw.wg.a:'<span class="m">не выдаётся</span>')):lo;
+ var row=function(ic,tn,k,v,sub,act){return '<div class="r"><span class="i'+(tn?' tn-'+tn:'')+'">'+ico(ic)+'</span><div class="t"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div><div class="a">'+act+'</div></div>';};
+ var lk=function(href,t){return '<a class="ux-lk" href="'+href+'">'+t+ico('chev',13)+'</a>';};
+ h+='<div class="ux-sect">Прослойка<span class="sp"></span></div><div class="ux-ml">'+
+  row(sv[2],sv[1],'Что отдаётся','<span class="tc-'+sv[1]+'">'+sv[0]+'</span>','',lk('?tab=overrides',nov?'Оверрайды · '+nov:'Оверрайды'))+
+  row('send','','Последний запрос',mw?(lr?esc(lr.app||'клиент не распознан')+(dc?' <span class="ux-pill '+dc[1]+'">'+dc[0]+'</span>':''):'<span class="m">запросов не было</span>'):lo,lr?esc([lr.os,ago(lr.t*1000)].filter(Boolean).join(' · ')):'',lk('?tab=reqlog&amp;rl_hours=0&amp;rl_q='+encodeURIComponent(u.su),'Лог'))+
+  row('link','','Доп-подписка',as?'<code>'+esc(as)+'</code>':'<span class="m">не привязана</span>','','<button type="button" class="wb sm" data-a="addsub">'+(as?'Изменить':'Привязать')+'</button>')+
+  row('net','','WG / AWG',wg,'',lk('?tab=wg_pool','Открыть'))+
+  row(nl?'eyeoff':'log','','Лог запросов',nl?'<span class="m">скрыт из лога</span>':'пишется','','<label class="switch sm" data-tip="'+(nl?'Вернуть в лог запросов':'Скрыть из лога запросов')+'"><input type="checkbox" data-nl aria-label="Писать запросы в лог"'+(nl?'':' checked')+'><span class="sl"></span></label>')+'</div>';
  return h;
 }
 function loadDevs(){var su=CARD.u.su;CARD.devs=false;getj('hwids','&uuid='+encodeURIComponent(CARD.u.rv)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.devs=d.ok?(d.devices||[]):[];CARD.devErr=d.ok?'':(d.error||'Ошибка');if(CARD.tab==='dev'||CARD.tab==='ov')drawCard();});}
@@ -1657,9 +1879,10 @@ document.addEventListener('click',function(e){
  if(t.closest('#uxDr')){
   if(t.closest('[data-close]')){closeCard();return;}
   var cp=t.closest('[data-copy]');if(cp){copy(cp.dataset.copy,'Скопировано');return;}
-  var tb=t.closest('[data-tab]');if(tb){if(tb.disabled)return;var to=tb.dataset.tab;if(CARD.tab==='edit'&&to!=='edit'&&CARD.F&&diffList().length){cfm({ic:'alert',tone:'warn',title:'Уйти без сохранения?',sub:'изменения в форме пропадут',ok:'Уйти',danger:true,onOk:function(){cfClose();CARD.F=null;CARD.tab=to;drawCard();}});return;}CARD.tab=to;if(to==='edit'){CARD.F=null;CARD.restore=true;CARD.touched={};}drawCard();return;}
+  var qc=t.closest('[data-q]');if(qc){if(!CARD.create)qkRun(CARD.u,+qc.dataset.q);return;}
+  var tb=t.closest('[data-tab]');if(tb){if(tb.disabled)return;cardGo(tb.dataset.tab);return;}
   var da=t.closest('[data-a]');if(da){if(da.disabled)return;var a2=da.dataset.a,cu=CARD.create?CARD.done:CARD.u;
-   if(a2==='menu'){if(menuFor)closeMenu();else openMenu(da,cu);return;}
+   if(a2==='menu'){if(menuFor)closeMenu();else openMenu(da,cu,true);return;}
    if(a2==='restore'){CARD.tab='edit';CARD.F=null;CARD.restore=true;CARD.touched={};drawCard();var fe=$('fExp');if(fe){fe.focus();fe.scrollIntoView({block:'center'});}return;}
    if(a2==='hwblock'){var dv=CARD.devs[+da.dataset.i],hw=String(dv.hwid||''),lc=hw.toLowerCase(),bl=C.hwb.indexOf(lc)>-1;
     cfm({ic:'ban',tone:bl?'ok':'bad',title:bl?'Снять блок устройства':'Заблокировать устройство',sub:'<b>'+esc(dv.deviceModel||dv.platform||'Устройство')+'</b> · '+esc(cu.un),notes:[bl?['check','ok','Клиент снова получит конфиг','']:['ban','bad','Клиент с этим HWID получит заглушку','снять можно здесь или в «Оверрайдах»']],hint:esc(hw),ok:bl?'Снять блок':'Заблокировать',danger:!bl,onOk:function(){busy(true);post('block_hwid',{hwid:hw,username:cu.un,block:bl?'0':'1'}).then(function(d){busy(false);if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка');return;}cfClose();if(bl)C.hwb=C.hwb.filter(function(x){return x!==lc;});else C.hwb.push(lc);toast(bl?'Блок снят':'Устройство заблокировано');drawCard();});}});return;}
@@ -1679,12 +1902,27 @@ document.addEventListener('click',function(e){
  }
 });
 $('uxCreate').addEventListener('click',function(){if(!this.disabled)openCreate();});
+$('uxQkOv').addEventListener('input',function(e){var t=e.target,i=+t.dataset.i,f=t.dataset.f;if(!f||!QE||!QE[i])return;if(f==='n')QE[i].n=t.value;else if(f==='rs')QE[i].rs=t.checked?1:0;else{var v=parseInt(t.value,10);QE[i][f]=v>0?v:0;}qkSync(i);});
+$('uxQkOv').addEventListener('click',function(e){var t=e.target;if(!QE)return;
+ if(t.id==='uxQkOv'||t.closest('[data-close="qk"]')){qkEdClose();return;}
+ var b=t.closest('button');if(!b||b.disabled)return;
+ if(b.dataset.tu){var i=+b.dataset.i;QE[i].tu=b.dataset.tu;b.parentNode.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b);});b.closest('.fi').querySelector('input').max=b.dataset.tu==='d'?3650:120;qkSync(i);return;}
+ if(b.dataset.mv){var a=+b.dataset.i,c=a+(+b.dataset.mv),x=QE[a];if(!QE[c])return;QE[a]=QE[c];QE[c]=x;qkEdDraw();return;}
+ if(b.dataset.del!==undefined){QE.splice(+b.dataset.del,1);qkEdDraw();return;}
+ if(b.dataset.qk==='add'){QE.push({n:'',tm:0,tu:'m',hw:0,tl:0,rs:0});qkEdDraw();var l=$('uxQkB').querySelector('.ux-qkr:last-child');if(l){l.scrollIntoView({block:'nearest'});l.querySelector('[data-f="tm"]').focus();}return;}
+ if(b.dataset.qk==='def'){QE=JSON.parse(JSON.stringify(C.quickdef||[]));qkEdDraw();return;}
+ if(b.id==='uxQkOk')qkSave();
+});
+var QK_HOVER=matchMedia('(hover:hover)').matches;
+document.addEventListener('mouseover',function(e){if(!QK_HOVER||!CARD||CARD.create)return;var q=e.target.closest&&e.target.closest('#uxDr [data-q]');qkPv(q?+q.dataset.q:null);});
+document.addEventListener('focusin',function(e){if(!CARD||CARD.create)return;var q=e.target.closest&&e.target.closest('#uxDr [data-q]');qkPv(q?+q.dataset.q:null);});
+document.addEventListener('change',function(e){var t=e.target;if(t.matches&&t.matches('#uxDr [data-nl]')&&CARD&&!CARD.create)doAction('nolog',CARD.u);});
 $('uxQ').addEventListener('input',function(){S.q=this.value.trim().toLowerCase();S.page=1;render();});
 $('uxSq').addEventListener('change',function(){S.sq=this.value;S.page=1;render();});
 $('uxTag').addEventListener('change',function(){S.tag=this.value;S.page=1;render();});
 document.addEventListener('change',function(e){var t=e.target;if(t.matches&&t.matches('#uxCols [data-col]')){var k=t.dataset.col;S.hide=S.hide.filter(function(x){return x!==k;});if(!t.checked)S.hide.push(k);applyCols();post('users_cols',{hide:S.hide.join(',')}).then(function(r){if(!r.ok)toast('Колонки не сохранились');});return;}if(t.id==='uxSize'){S.size=parseInt(t.value,10);S.page=1;try{localStorage.setItem('utbl_size',String(S.size));}catch(_){}render();}});
 document.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.ux-dk>.go')){e.preventDefault();e.target.closest('.ux-dk>.go').click();return;}});
-document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxCols').classList.contains('open')){closeCols();return;}if(anmOpen()){closeAnM();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
+document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxQkOv').classList.contains('open')){qkEdClose();return;}if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxCols').classList.contains('open')){closeCols();return;}if(anmOpen()){closeAnM();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
 window.addEventListener('resize',closeMenu);
 document.addEventListener('mouseover',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD)return;CARD.uht=uhN(r);uhlApply();});
 document.addEventListener('mouseout',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD||CARD.uht==null)return;if(e.relatedTarget&&r.contains(e.relatedTarget))return;CARD.uht=null;uhlApply();});
