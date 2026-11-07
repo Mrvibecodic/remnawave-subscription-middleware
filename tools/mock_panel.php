@@ -144,6 +144,12 @@ if ($path === '/api/hosts') {
 }
 // only_v2: панель 2.x — адресов 3.x у неё нет вовсе.
 if (!empty($state['only_v2']) && strpos($path, '/api/connections/') === 0) { mp_json(404, ['message' => 'Cannot ' . $_SERVER['REQUEST_METHOD'] . ' ' . $path, 'error' => 'Not Found', 'statusCode' => 404]); exit; }
+// IP в conns — строка или {"ip": "…", "ls": <unix>} (ls — lastSeen; 0 — как старая нода, 1970).
+function mp_ip($x): array
+{
+    return is_array($x) ? ['ip' => (string) $x['ip'], 'lastSeen' => gmdate('Y-m-d\TH:i:s.000\Z', (int) ($x['ls'] ?? time()))] : ['ip' => (string) $x, 'lastSeen' => gmdate('Y-m-d\TH:i:s.000\Z')];
+}
+
 if (preg_match('~^/api/(connections/by-node|ip-control/fetch-users-ips)/([^/]+)$~', $path, $m) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($nodes[$m[2]])) { mp_json(404, ['message' => 'Node not found', 'errorCode' => 'A011']); exit; }
     // start_fail_once: [<nodeUuid>] — первый старт задания по ноде отвечает 502, следующие — как обычно.
@@ -156,7 +162,7 @@ if (preg_match('~^/api/(connections/by-node|ip-control/fetch-users-ips)/([^/]+)$
 }
 if (preg_match('~^/api/(connections/by-node|ip-control/fetch-users-ips/result)/n-([^/]+)$~', $path, $m)) {
     $users = [];
-    foreach ((array) ($conns[$m[2]] ?? []) as $uid => $ips) $users[] = ['userId' => (string) $uid, 'ips' => array_map(static fn($ip) => ['ip' => $ip, 'lastSeen' => gmdate('Y-m-d\TH:i:s.000\Z')], (array) $ips)];
+    foreach ((array) ($conns[$m[2]] ?? []) as $uid => $ips) $users[] = ['userId' => (string) $uid, 'ips' => array_map('mp_ip', (array) $ips)];
     $slow = !empty($state['job_slow']);
     mp_json(200, ['response' => ['isCompleted' => !$slow, 'isFailed' => false, 'result' => $slow ? null : ['success' => true, 'nodeUuid' => $m[2], 'users' => $users]]]);
     exit;
@@ -172,7 +178,7 @@ if (preg_match('~^/api/(connections/by-user|ip-control/fetch-ips/result)/u-([^/]
     $out = [];
     foreach ($conns as $nu => $byUser) {
         $ips = (array) ($byUser[(string) $uid] ?? []);
-        if ($ips) $out[] = ['nodeUuid' => (string) $nu, 'nodeName' => (string) ($nodes[$nu]['name'] ?? $nu), 'countryCode' => (string) ($nodes[$nu]['cc'] ?? 'XX'), 'ips' => array_map(static fn($ip) => ['ip' => $ip, 'lastSeen' => gmdate('Y-m-d\TH:i:s.000\Z')], $ips)];
+        if ($ips) $out[] = ['nodeUuid' => (string) $nu, 'nodeName' => (string) ($nodes[$nu]['name'] ?? $nu), 'countryCode' => (string) ($nodes[$nu]['cc'] ?? 'XX'), 'ips' => array_map('mp_ip', $ips)];
     }
     mp_json(200, ['response' => ['isCompleted' => true, 'isFailed' => false, 'progress' => ['total' => count($nodes), 'completed' => count($nodes), 'percent' => 100], 'result' => ['success' => true, 'userId' => (int) $uid, 'nodes' => $out]]]);
     exit;
