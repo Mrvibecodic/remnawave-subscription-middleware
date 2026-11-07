@@ -33,13 +33,14 @@ function ua_quick_parse($v) {
     $a = is_array($v) ? $v : json_decode((string) $v, true);
     if (!is_array($a) || !array_is_list($a) || count($a) > 8) return null;
     $out = [];
+    $num = static fn($v) => is_int($v) ? $v : (is_string($v) && ctype_digit($v) ? (int) $v : -1);
     foreach ($a as $p) {
         if (!is_array($p)) return null;
         $tu = ($p['tu'] ?? 'm') === 'd' ? 'd' : 'm';
-        $tm = (int) ($p['tm'] ?? 0); $hw = (int) ($p['hw'] ?? 0); $tl = (int) ($p['tl'] ?? 0); $rs = empty($p['rs']) ? 0 : 1;
+        $tm = $num($p['tm'] ?? 0); $hw = $num($p['hw'] ?? 0); $tl = $num($p['tl'] ?? 0); $rs = empty($p['rs']) ? 0 : 1;
         if ($tm < 0 || $tm > ($tu === 'd' ? 3650 : 120) || $hw < 0 || $hw > 100 || $tl < 0 || $tl > 100000) return null;
         if (!$tm && !$hw && !$tl && !$rs) return null;
-        $n = trim((string) preg_replace('~[\x00-\x1F\x7F]~u', '', (string) ($p['n'] ?? '')));
+        $n = is_scalar($p['n'] ?? null) ? trim((string) preg_replace('~[\x00-\x1F\x7F]~u', '', (string) $p['n'])) : '';
         $out[] = ['n' => mb_substr($n, 0, 24), 'tm' => $tm, 'tu' => $tu, 'hw' => $hw, 'tl' => $tl, 'rs' => $rs];
     }
     return $out;
