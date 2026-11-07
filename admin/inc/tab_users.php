@@ -225,6 +225,7 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-ib:disabled:hover{background:none;border-color:transparent;color:var(--muted)}
 .ux-qa{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
 .ux-qa .ux-ib{width:28px;height:28px}
+.ux-dr[data-view=edit] .ux-qa{display:none}
 .ux-qc{box-sizing:border-box;display:inline-flex;align-items:center;gap:.38rem;max-width:100%;padding:.3rem .72rem .3rem .55rem;border-radius:999px;border:1px solid var(--line);background:var(--bg2);color:var(--text);font:inherit;font-size:.8rem;font-weight:600;line-height:1.25;white-space:nowrap;min-height:0;cursor:pointer}
 .ux-qc,.ux-qc:hover,.ux-qc:active{filter:none;transform:none}
 .ux-qc svg{width:14px;height:14px;flex:none;color:var(--accent-text)}
@@ -689,7 +690,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-qa{gap:.35rem}
 .ux-qc{padding:.42rem .7rem .42rem .55rem;font-size:.78rem}
 .ux-qa .ux-ib{width:34px;height:34px}
-.ux-dr[data-view=edit] .ux-qa,.ux-dr[data-view=edit] .ux-dh .id{display:none}
+.ux-dr[data-view=edit] .ux-dh .id{display:none}
 .ux-pc{grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem 1rem}
 .ux-ml>.r{padding:.55rem .7rem;gap:.6rem}
 .ux-ml .a .wb{min-height:34px}
@@ -1276,7 +1277,7 @@ function qkPlan(u,p){
   else notes.push(['alert','warn','Лимит трафика не меняется','трафик без лимита']);}
  if(p.rs||rsS){rows.push(['reset','Использовано',fb(u.used),'0 Б']);nx.used=0;if(u.st==='LIMITED')notes.push(['check','ok','Статус «Лимит» снимется','']);}
  var hint=p.tm?(g||expMs(u)<now()?'Срок считается от сегодня':'Срок прибавляется к дате окончания'):(qkSteps(p)===1&&p.rs?'Лимит и срок не меняются':'Срок не меняется');
- return{rows:rows,notes:notes,f:f,nx:nx,rsS:rsS,rsA:!!p.rs&&!rsS,hint:hint};
+ return{rows:rows,notes:notes,f:f,nx:nx,rsS:rsS,hint:hint};
 }
 function qkBar(u){
  if(!QK.length)return '<div class="ux-qa"><button type="button" class="wb sm" data-a="qcfg">'+ico('sliders')+'Быстрые действия</button></div>';
@@ -1305,16 +1306,19 @@ function qkApply(u,p,pl){
  post('ua_save',{su:su,fields:JSON.stringify(pl.f),upd:u.upd,reset:pl.rsS?'1':''}).then(function(d){
   if(!d.ok){busy(false);if(d.conflict&&d.user){cfClose();putUser(d.user,d.mw,su);render();if(CARD)drawCard();}if(window.uiAlert)uiAlert(d.conflict?'Пользователя изменили, пока страница была открыта. Данные обновлены — проверьте и повторите.':(d.error||'Ошибка'),d.conflict?'Данные устарели':'Панель не приняла');return;}
   if(d.user)putUser(d.user,d.mw,su);
-  if(pl.rsA)return reset(true,d.warn||'');
+  // Сброс внутри сохранения делается, только если грейс закрыл этот же запрос.
+  if(p.rs&&!d.grace_closed)return reset(true,d.warn||'');
   fin(d.warn||'');
  });
 }
 function qkEdit(){closeMenu();QE=JSON.parse(JSON.stringify(QK));QE_TRIED=false;$('uxQkI').innerHTML=ico('sliders',20);$('uxQkH').innerHTML=ico('info',14)+'Пустое поле — не меняется. Месяц — календарный.';qkEdDraw();$('uxQkOv').classList.add('open');}
 function qkEdClose(){$('uxQkOv').classList.remove('open');QE=null;}
+function qkErr(p){if(!qkSteps(p))return['tm','Выберите хотя бы одно изменение'];if(p.tm>(p.tu==='d'?3650:120))return['tm',p.tu==='d'?'Срок — не больше 3650 дней':'Срок — не больше 120 месяцев'];if(p.hw>100)return['hw','Устройств — не больше 100'];if(p.tl>100000)return['tl','Трафик — не больше 100 000 ГБ'];return null;}
 function qkFl(ic,t,inner){return '<div class="f"><div class="lb">'+ico(ic,12)+t+'</div><div class="fi">'+inner+'</div></div>';}
 function qkRow(p,i){
  var num=function(f,v,mx,l){return '<input type="number" min="0" max="'+mx+'" step="1" inputmode="numeric" data-f="'+f+'" data-i="'+i+'" value="'+(v||'')+'" placeholder="0" aria-label="'+l+'">';};
- return '<div class="ux-qkr'+(QE_TRIED&&!qkSteps(p)?' err':'')+'" data-i="'+i+'"><div class="l1"><div class="mv"><button type="button" class="ux-ib" data-mv="-1" data-i="'+i+'"'+(i?'':' disabled')+' aria-label="Выше">'+ico('up')+'</button><button type="button" class="ux-ib" data-mv="1" data-i="'+i+'"'+(i<QE.length-1?'':' disabled')+' aria-label="Ниже">'+ico('down')+'</button></div>'+
+ var er=QE_TRIED&&qkErr(p);
+ return '<div class="ux-qkr'+(er?' err':'')+'" data-i="'+i+'"><div class="l1"><div class="mv"><button type="button" class="ux-ib" data-mv="-1" data-i="'+i+'"'+(i?'':' disabled')+' aria-label="Выше">'+ico('up')+'</button><button type="button" class="ux-ib" data-mv="1" data-i="'+i+'"'+(i<QE.length-1?'':' disabled')+' aria-label="Ниже">'+ico('down')+'</button></div>'+
   '<input type="text" class="nmi" data-f="n" data-i="'+i+'" value="'+esc(p.n)+'" placeholder="'+esc(qkTxt(p,true).join(' · ')||'Название')+'" maxlength="24" aria-label="Название">'+
   '<span class="ux-qc pv" data-pv>'+ico(qkIco(p),14)+'<span>'+esc(qkLabel(p)||'—')+'</span></span>'+
   '<button type="button" class="ux-ib bad" data-del="'+i+'" aria-label="Удалить действие" data-tip="Удалить действие">'+ico('trash')+'</button></div><div class="l2">'+
@@ -1322,7 +1326,7 @@ function qkRow(p,i){
   qkFl('dev','Устройства','<span class="pre">+</span>'+num('hw',p.hw,100,'Устройства')+'<span class="u">шт</span>')+
   qkFl('wave','Лимит трафика','<span class="pre">+</span>'+num('tl',p.tl,100000,'Лимит трафика')+'<span class="u">ГБ</span>')+
   '<div class="f"><div class="lb">'+ico('reset',12)+'Трафик</div><label class="fi sw">Сбросить<span class="switch sm"><input type="checkbox" data-f="rs" data-i="'+i+'"'+(p.rs?' checked':'')+'><span class="sl"></span></span></label></div>'+
-  '</div><div class="er">'+ico('alert',14)+'Выберите хотя бы одно изменение</div></div>';
+  '</div><div class="er">'+ico('alert',14)+'<span>'+(er?esc(er[1]):'')+'</span></div></div>';
 }
 function qkEdDraw(){
  $('uxQkB').innerHTML='<div class="ux-qkl">'+QE.map(qkRow).join('')+'</div>'+(QE.length?'':'<div class="ux-qke">Список пуст — в карточке останется только кнопка настройки.</div>')+
@@ -1330,14 +1334,14 @@ function qkEdDraw(){
 }
 function qkSync(i){
  var r=$('uxQkB').querySelector('.ux-qkr[data-i="'+i+'"]'),p=QE&&QE[i];if(!r||!p)return;
- r.classList.toggle('err',QE_TRIED&&!qkSteps(p));
+ var er=QE_TRIED&&qkErr(p);r.classList.toggle('err',!!er);r.querySelector('.er span').textContent=er?er[1]:'';
  r.querySelector('[data-pv]').innerHTML=ico(qkIco(p),14)+'<span>'+esc(qkLabel(p)||'—')+'</span>';
  r.querySelector('.nmi').placeholder=qkTxt(p,true).join(' · ')||'Название';
 }
 function qkSave(){
  var bad=-1;
- QE.forEach(function(p,i){p.n=String(p.n||'').trim();p.tm=Math.min(p.tm||0,p.tu==='d'?3650:120);p.hw=Math.min(p.hw||0,100);p.tl=Math.min(p.tl||0,100000);p.rs=p.rs?1:0;if(bad<0&&!qkSteps(p))bad=i;});
- if(bad>-1){QE_TRIED=true;qkEdDraw();var r=$('uxQkB').querySelectorAll('.ux-qkr')[bad];r.scrollIntoView({block:'nearest'});r.querySelector('[data-f="tm"]').focus();return;}
+ QE.forEach(function(p,i){p.n=String(p.n||'').trim();p.rs=p.rs?1:0;if(bad<0&&qkErr(p))bad=i;});
+ if(bad>-1){QE_TRIED=true;qkEdDraw();var r=$('uxQkB').querySelectorAll('.ux-qkr')[bad];r.scrollIntoView({block:'nearest'});r.querySelector('[data-f="'+qkErr(QE[bad])[0]+'"]').focus();return;}
  var ok=$('uxQkOk');ok.disabled=true;
  post('users_quick',{list:JSON.stringify(QE)}).then(function(d){ok.disabled=false;if(!d.ok){if(window.uiAlert)uiAlert(d.error||'Ошибка','Не сохранилось');return;}QK=d.list||[];C.quick=QK;qkEdClose();toast('Быстрые действия сохранены');if(CARD&&!CARD.create)drawCard();});
 }
