@@ -54,4 +54,14 @@ t_eq('новое время — активность обновлена, сес�
 $rows = array_column(sess_user_rows(1), 'a', 'ip');
 t_eq('карточка получает активность', [$rows['1.2.3.4'] ?? null, $rows['5.5.5.5'] ?? null], [$t2, 0]);
 
+// Колонку не удалось добавить (у пользователя базы нет права ALTER) — сессии пишутся как раньше, без активности.
+$tt_pdo->exec('DROP TABLE conn_sess');
+$tt_pdo->exec($old);
+sess_act_ok(false);
+$mock([$N1 => ['1' => [['ip' => '1.2.3.4', 'ls' => $t2]]]]);
+t_eq('без колонки — опрос без ошибок', sess_collect(microtime(true) + 10), '');
+t_eq('без колонки — повторный опрос продлевает сессию', [sess_collect(microtime(true) + 10), (int) $tt_pdo->query('SELECT n FROM conn_sess WHERE uid = 1')->fetchColumn()], ['', 2]);
+t_eq('без колонки — карточка без активности', array_column(sess_user_rows(1), 'a', 'ip'), ['1.2.3.4' => 0]);
+sess_act_ok(true);
+
 t_done();
