@@ -105,9 +105,21 @@ function sess_ensure() {
     } catch (Throwable $e) { error_log('submw sess_poll retry column: ' . $e->getMessage()); }
     try {
         $cols = $ok ? db_table_columns($p, db_driver(), 'conn_sess') : [];
-        if ($cols && !in_array('act_ts', $cols, true)) $p->exec('ALTER TABLE conn_sess ADD COLUMN act_ts ' . (db_driver() === 'mysql' ? 'INT UNSIGNED' : 'INTEGER') . ' NOT NULL DEFAULT 0');
+        if ($cols && !in_array('act_ts', $cols, true)) {
+            sess_act_ok(false);
+            $p->exec('ALTER TABLE conn_sess ADD COLUMN act_ts ' . (db_driver() === 'mysql' ? 'INT UNSIGNED' : 'INTEGER') . ' NOT NULL DEFAULT 0');
+            sess_act_ok(true);
+        }
     } catch (Throwable $e) { error_log('submw conn_sess act_ts column: ' . $e->getMessage()); }
     return $ok;
+}
+
+// Есть ли в таблице сессий колонка активности. Нет — если её не удалось добавить (например, у пользователя базы нет
+// права ALTER): тогда сессии пишутся и показываются как раньше, только без времени активности.
+function sess_act_ok($set = null) {
+    static $v = true;
+    if ($set !== null) $v = (bool) $set;
+    return $v;
 }
 
 function sess_state() {
@@ -551,8 +563,9 @@ function sess_store(array $seen, $now, ?array &$cur = null) {
     if (!$p) return 'нет базы';
     $open = [];
     $cur = [];
+    $ha = sess_act_ok();
     try {
-        $st = $p->prepare('SELECT id, uid, node, ip, cc, asn, org, sub, act_ts FROM conn_sess WHERE last_ts >= ?');
+        $st = $p->prepare('SELECT id, uid, node, ip, cc, asn, org, sub' . ($ha ? ', act_ts' : '') . ' FROM conn_sess WHERE last_ts >= ?');
         $st->execute([$now - sess_gap()]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $open[(int) $r['uid'] . '|' . $r['node'] . '|' . $r['ip']] = $r;
     } catch (Throwable $e) { return 'чтение сессий: ' . $e->getMessage(); }
@@ -560,18 +573,18 @@ function sess_store(array $seen, $now, ?array &$cur = null) {
     if (function_exists('geonet_ensure') && geoip_ipinfo()) geonet_ensure();
     try {
         $p->beginTransaction();
-        $upd = $p->prepare('UPDATE conn_sess SET last_ts = ?, n = n + 1, act_ts = ? WHERE id = ?');
-        $ins = $p->prepare('INSERT INTO conn_sess (uid, node, ip, cc, asn, org, sub, start_ts, last_ts, n, act_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)');
+        $upd = $p->prepare('UPDATE conn_sess SET last_ts = ?, n = n + 1' . ($ha ? ', act_ts = ?' : '') . ' WHERE id = ?');
+        $ins = $p->prepare('INSERT INTO conn_sess (uid, node, ip, cc, asn, org, sub, start_ts, last_ts, n' . ($ha ? ', act_ts' : '') . ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1' . ($ha ? ', ?' : '') . ')');
         foreach ($seen as $k => [$uid, $node, $ip, $act]) {
             if (isset($open[$k])) {
                 $r = $open[$k];
-                $upd->execute([$now, max((int) $r['act_ts'], (int) $act), (int) $r['id']]);
+                $upd->execute($ha ? [$now, max((int) $r['act_ts'], (int) $act), (int) $r['id']] : [$now, (int) $r['id']]);
                 $cur[$uid][] = ['ip' => $ip, 'node' => $node, 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub']];
                 continue;
             }
             $g = function_exists('geoip_lookup') ? geoip_lookup($ip, 1) : [];
             $row = ['ip' => $ip, 'node' => $node, 'cc' => (string) ($g['cc'] ?? ''), 'asn' => (int) ($g['asn'] ?? 0), 'org' => (string) ($g['org'] ?? ''), 'sub' => (string) ($g['sub'] ?? '')];
-            $ins->execute([$uid, $node, $ip, $row['cc'], $row['asn'], $row['org'], $row['sub'], $now, $now, (int) $act]);
+            $ins->execute(array_merge([$uid, $node, $ip, $row['cc'], $row['asn'], $row['org'], $row['sub'], $now, $now], $ha ? [(int) $act] : []));
             $cur[$uid][] = $row;
         }
         $p->commit();
@@ -684,11 +697,11 @@ function sess_metrics(?array $uids = null, $days = null) {
 function sess_user_rows($uid, $days = 30, $limit = 600) {
     if (!sess_ensure() || !($p = db())) return [];
     try {
-        $st = $p->prepare('SELECT node, ip, cc, asn, org, sub, start_ts, last_ts, n, act_ts FROM conn_sess WHERE uid = ? AND last_ts >= ? ORDER BY last_ts DESC LIMIT ' . (int) $limit);
+        $st = $p->prepare('SELECT node, ip, cc, asn, org, sub, start_ts, last_ts, n' . (sess_act_ok() ? ', act_ts' : '') . ' FROM conn_sess WHERE uid = ? AND last_ts >= ? ORDER BY last_ts DESC LIMIT ' . (int) $limit);
         $st->execute([(int) $uid, time() - (int) $days * 86400]);
         $out = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $out[] = ['node' => (string) $r['node'], 'ip' => (string) $r['ip'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub'], 's' => (int) $r['start_ts'], 'e' => (int) $r['last_ts'], 'n' => (int) $r['n'], 'a' => (int) $r['act_ts']];
+            $out[] = ['node' => (string) $r['node'], 'ip' => (string) $r['ip'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub'], 's' => (int) $r['start_ts'], 'e' => (int) $r['last_ts'], 'n' => (int) $r['n'], 'a' => (int) ($r['act_ts'] ?? 0)];
         }
         $city = function_exists('geonet_cities') ? geonet_cities(array_unique(array_column($out, 'ip'))) : [];
         if ($city) foreach ($out as &$o) if (isset($city[$o['ip']])) $o['city'] = $city[$o['ip']];
