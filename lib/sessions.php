@@ -48,7 +48,7 @@ function sess_ddl($drv) {
             ip VARCHAR(45) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
             cc CHAR(2) NOT NULL DEFAULT '', asn INT UNSIGNED NOT NULL DEFAULT 0,
             org VARCHAR(128) NOT NULL DEFAULT '', sub VARCHAR(64) NOT NULL DEFAULT '',
-            start_ts INT UNSIGNED NOT NULL, last_ts INT UNSIGNED NOT NULL, n INT UNSIGNED NOT NULL DEFAULT 1,
+            start_ts INT UNSIGNED NOT NULL, last_ts INT UNSIGNED NOT NULL, n INT UNSIGNED NOT NULL DEFAULT 1, act_ts INT UNSIGNED NOT NULL DEFAULT 0,
             PRIMARY KEY (id), KEY idx_cs_uid (uid, last_ts), KEY idx_cs_last (last_ts)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE IF NOT EXISTS sess_poll (
@@ -72,7 +72,7 @@ function sess_ddl($drv) {
         "CREATE TABLE IF NOT EXISTS conn_sess (
             id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER NOT NULL, node TEXT NOT NULL, ip TEXT NOT NULL,
             cc TEXT NOT NULL DEFAULT '', asn INTEGER NOT NULL DEFAULT 0, org TEXT NOT NULL DEFAULT '', sub TEXT NOT NULL DEFAULT '',
-            start_ts INTEGER NOT NULL, last_ts INTEGER NOT NULL, n INTEGER NOT NULL DEFAULT 1
+            start_ts INTEGER NOT NULL, last_ts INTEGER NOT NULL, n INTEGER NOT NULL DEFAULT 1, act_ts INTEGER NOT NULL DEFAULT 0
         )",
         'CREATE INDEX IF NOT EXISTS idx_cs_uid ON conn_sess(uid, last_ts)',
         'CREATE INDEX IF NOT EXISTS idx_cs_last ON conn_sess(last_ts)',
@@ -103,6 +103,10 @@ function sess_ensure() {
         $cols = $ok ? db_table_columns($p, db_driver(), 'sess_poll') : [];
         if ($cols && !in_array('retry', $cols, true)) $p->exec('ALTER TABLE sess_poll ADD COLUMN retry TEXT NULL');
     } catch (Throwable $e) { error_log('submw sess_poll retry column: ' . $e->getMessage()); }
+    try {
+        $cols = $ok ? db_table_columns($p, db_driver(), 'conn_sess') : [];
+        if ($cols && !in_array('act_ts', $cols, true)) $p->exec('ALTER TABLE conn_sess ADD COLUMN act_ts ' . (db_driver() === 'mysql' ? 'INT UNSIGNED' : 'INTEGER') . ' NOT NULL DEFAULT 0');
+    } catch (Throwable $e) { error_log('submw conn_sess act_ts column: ' . $e->getMessage()); }
     return $ok;
 }
 
@@ -198,6 +202,12 @@ function sess_jobs_wait(array $jobs, callable $path, $deadline, &$reqs = 0) {
     }
     foreach ($pending as $k => $job) $out[$k] = false;
     return $out;
+}
+
+// Время последнего нового запроса с IP по данным Xray (lastSeen). 0 — неизвестно: старые ноды отдают 1970, будущее — расхождение часов ноды.
+function sess_seen_ts($ipr, $now) {
+    $t = is_array($ipr) ? strtotime((string) ($ipr['lastSeen'] ?? '')) : false;
+    return $t && $t > 946684800 ? min((int) $t, (int) $now) : 0;
 }
 
 function sess_ip_ok($ip) {
@@ -383,7 +393,7 @@ function sess_collect($deadline) {
             foreach ((array) ($u['ips'] ?? []) as $ipr) {
                 $ip = is_array($ipr) ? ($ipr['ip'] ?? '') : $ipr;
                 if (!sess_ip_ok($ip)) continue;
-                $seen[(int) $uid . '|' . $uuid . '|' . $ip] = [(int) $uid, (string) $uuid, (string) $ip];
+                $seen[(int) $uid . '|' . $uuid . '|' . $ip] = [(int) $uid, (string) $uuid, (string) $ip, sess_seen_ts($ipr, $now)];
             }
         }
     }
@@ -542,7 +552,7 @@ function sess_store(array $seen, $now, ?array &$cur = null) {
     $open = [];
     $cur = [];
     try {
-        $st = $p->prepare('SELECT id, uid, node, ip, cc, asn, org, sub FROM conn_sess WHERE last_ts >= ?');
+        $st = $p->prepare('SELECT id, uid, node, ip, cc, asn, org, sub, act_ts FROM conn_sess WHERE last_ts >= ?');
         $st->execute([$now - sess_gap()]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $open[(int) $r['uid'] . '|' . $r['node'] . '|' . $r['ip']] = $r;
     } catch (Throwable $e) { return 'чтение сессий: ' . $e->getMessage(); }
@@ -550,18 +560,18 @@ function sess_store(array $seen, $now, ?array &$cur = null) {
     if (function_exists('geonet_ensure') && geoip_ipinfo()) geonet_ensure();
     try {
         $p->beginTransaction();
-        $upd = $p->prepare('UPDATE conn_sess SET last_ts = ?, n = n + 1 WHERE id = ?');
-        $ins = $p->prepare('INSERT INTO conn_sess (uid, node, ip, cc, asn, org, sub, start_ts, last_ts, n) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)');
-        foreach ($seen as $k => [$uid, $node, $ip]) {
+        $upd = $p->prepare('UPDATE conn_sess SET last_ts = ?, n = n + 1, act_ts = ? WHERE id = ?');
+        $ins = $p->prepare('INSERT INTO conn_sess (uid, node, ip, cc, asn, org, sub, start_ts, last_ts, n, act_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)');
+        foreach ($seen as $k => [$uid, $node, $ip, $act]) {
             if (isset($open[$k])) {
                 $r = $open[$k];
-                $upd->execute([$now, (int) $r['id']]);
+                $upd->execute([$now, max((int) $r['act_ts'], (int) $act), (int) $r['id']]);
                 $cur[$uid][] = ['ip' => $ip, 'node' => $node, 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub']];
                 continue;
             }
             $g = function_exists('geoip_lookup') ? geoip_lookup($ip, 1) : [];
             $row = ['ip' => $ip, 'node' => $node, 'cc' => (string) ($g['cc'] ?? ''), 'asn' => (int) ($g['asn'] ?? 0), 'org' => (string) ($g['org'] ?? ''), 'sub' => (string) ($g['sub'] ?? '')];
-            $ins->execute([$uid, $node, $ip, $row['cc'], $row['asn'], $row['org'], $row['sub'], $now, $now]);
+            $ins->execute([$uid, $node, $ip, $row['cc'], $row['asn'], $row['org'], $row['sub'], $now, $now, (int) $act]);
             $cur[$uid][] = $row;
         }
         $p->commit();
@@ -674,11 +684,11 @@ function sess_metrics(?array $uids = null, $days = null) {
 function sess_user_rows($uid, $days = 30, $limit = 600) {
     if (!sess_ensure() || !($p = db())) return [];
     try {
-        $st = $p->prepare('SELECT node, ip, cc, asn, org, sub, start_ts, last_ts, n FROM conn_sess WHERE uid = ? AND last_ts >= ? ORDER BY last_ts DESC LIMIT ' . (int) $limit);
+        $st = $p->prepare('SELECT node, ip, cc, asn, org, sub, start_ts, last_ts, n, act_ts FROM conn_sess WHERE uid = ? AND last_ts >= ? ORDER BY last_ts DESC LIMIT ' . (int) $limit);
         $st->execute([(int) $uid, time() - (int) $days * 86400]);
         $out = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $out[] = ['node' => (string) $r['node'], 'ip' => (string) $r['ip'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub'], 's' => (int) $r['start_ts'], 'e' => (int) $r['last_ts'], 'n' => (int) $r['n']];
+            $out[] = ['node' => (string) $r['node'], 'ip' => (string) $r['ip'], 'cc' => (string) $r['cc'], 'asn' => (int) $r['asn'], 'org' => (string) $r['org'], 'sub' => (string) $r['sub'], 's' => (int) $r['start_ts'], 'e' => (int) $r['last_ts'], 'n' => (int) $r['n'], 'a' => (int) $r['act_ts']];
         }
         $city = function_exists('geonet_cities') ? geonet_cities(array_unique(array_column($out, 'ip'))) : [];
         if ($city) foreach ($out as &$o) if (isset($city[$o['ip']])) $o['city'] = $city[$o['ip']];
@@ -801,8 +811,7 @@ function sess_live($ref, &$err = '', $sq = null) {
         foreach ((array) ($n['ips'] ?? []) as $ipr) {
             $ip = is_array($ipr) ? ($ipr['ip'] ?? '') : $ipr;
             if (!sess_ip_ok($ip)) continue;
-            $seen = is_array($ipr) ? strtotime((string) ($ipr['lastSeen'] ?? '')) : false;
-            $ips[] = ['ip' => (string) $ip, 'seen' => $seen ? (int) $seen : 0] + sess_geo($ip);
+            $ips[] = ['ip' => (string) $ip, 'seen' => sess_seen_ts($ipr, time())] + sess_geo($ip);
         }
         if (!$ips) continue;
         $out[] = ['node' => $nu, 'name' => (string) ($n['nodeName'] ?? ($known[$nu]['n'] ?? '')), 'ncc' => strtoupper((string) ($n['countryCode'] ?? ($known[$nu]['cc'] ?? ''))), 'h' => array_values((array) ($known[$nu]['h'] ?? [])), 'ips' => $ips];

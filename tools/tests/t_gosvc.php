@@ -135,6 +135,7 @@ t_eq('опрос через Go без ошибок', sess_collect(microtime(true
 $r = $plog();
 t_eq('журнал: Go, все ноды', [$r['eng'], (int) $r['nodes'], (int) $r['ok'], (int) $r['conns']], ['go', 3, 3, 5]);
 t_eq('снимок через Go совпадает с PHP', $snap(), $php_snap);
+t_ok('через Go доходит время активности IP', (int) $tt_pdo->query('SELECT COUNT(*) FROM conn_sess WHERE act_ts > 0')->fetchColumn() > 0);
 t_ok('Go ходит по адресам 3.x', $logHas('POST /api/connections/by-node/' . $N1) && !$logHas('ip-control'));
 t_eq('бейдж: Go', go_view()['mode'], 'go');
 apistat_flush();

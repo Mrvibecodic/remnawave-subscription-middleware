@@ -609,6 +609,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-sr .nd{color:var(--muted);min-width:0;overflow-wrap:anywhere}
 .ux-sr .tm{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;font-size:.78rem}
 .ux-sr .tm b{color:var(--text);font-weight:600}
+.ux-act{display:block;font-size:.74rem;color:var(--muted);font-weight:400;cursor:help;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ux-sr.live .ip::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c-ok-fg);box-shadow:0 0 0 2px var(--c-ok-bg);margin-right:.4rem;vertical-align:1px}
 @media(max-width:600px){.ux-live>div{grid-template-columns:minmax(0,1fr) auto}.ux-live .pv{grid-column:1/3}.ux-live .wb{grid-column:1/3;justify-self:start}.ux-sr{grid-template-columns:minmax(0,1fr) auto}.ux-sr .nd{grid-column:1/3}}
 .ux-sect.ux-wr{flex-wrap:wrap}
@@ -1494,6 +1495,8 @@ function sInfo(sd,id){var n=sd&&sd.nodes&&sd.nodes[id];return{n:n&&n.n?n.n:(node
 function sNode(sd,id){var i=sInfo(sd,id);return i.h.length?i.h.join(', '):i.n;}
 function sTip(sd,id){var i=sInfo(sd,id);return i.h.length?'Нода: '+i.n:'';}
 function provHtml(x){var p=[];if(x.cc)p.push(flag(x.cc)||'<span class="ux-cc">'+esc(x.cc)+'</span>');p.push(x.org?'<b>'+esc(x.org)+'</b>':(x.asn?'<b>AS'+x.asn+'</b>':'<span>провайдер неизвестен</span>'));if(x.sub)p.push(esc(x.sub));if(x.city&&x.city!==x.sub)p.push(esc(x.city));return p.join(' · ');}
+var ACT_TIP='Когда с этого IP последний раз открылось новое соединение. Пока идёт долгая загрузка в одном соединении, время не меняется';
+function actTxt(a,e){var t=fdt(a*1000);return fd(a*1000)===fd(e*1000)?t.split(' в ')[1]:t.replace(' в ',' ');}
 function spanTxt(s,e){var a=fdt(s*1000),b=fdt(e*1000);if(fd(s*1000)===fd(e*1000))return a.replace(' в ',' ')+'–'+b.split(' в ')[1];return a.replace(' в ',' ')+' – '+b.replace(' в ',' ');}
 function netKey(ip){return ip.indexOf(':')>-1?'n6:'+ip.split(':').slice(0,3).join(':'):'n4:'+ip.split('.').slice(0,3).join('.');}
 function sessSum(rows,days){var t=now()/1000-days*86400,ips={},as={},nd={},sec=0;rows.forEach(function(r){if(r.e<t)return;ips[r.ip]=1;as[r.asn>0?'a'+r.asn:netKey(r.ip)]=1;nd[r.node]=1;sec+=Math.max(r.e,t)-Math.max(r.s,t)+SESS.every;});return{ip:Object.keys(ips).length,as:Object.keys(as).length,nd:Object.keys(nd).length,h:Math.round(sec/360)/10};}
@@ -1502,8 +1505,8 @@ function sessGroups(rows){
  rows.forEach(function(r){
   var gk=r.asn>0?'a'+r.asn:'i'+r.ip,g=G[gk]||(G[gk]={k:gk,cc:r.cc,asn:r.asn,org:r.org,R:{},e:0,ips:{}});
   if(r.e>g.e)g.e=r.e;g.ips[r.ip]=1;if(!g.org&&r.org)g.org=r.org;if(!g.cc&&r.cc)g.cc=r.cc;
-  var rk=r.sub||'',rg=g.R[rk]||(g.R[rk]={I:{},C:{}}),x=rg.I[r.ip]||(rg.I[r.ip]={ip:r.ip,nodes:{},s:r.s,e:r.e,n:0,sec:0,live:false});
-  if(r.city&&r.city!==rk)rg.C[r.city]=1;x.nodes[r.node]=1;x.s=Math.min(x.s,r.s);x.e=Math.max(x.e,r.e);x.n++;x.sec+=r.e-r.s+SESS.every;if(r.e>=lv)x.live=true;
+  var rk=r.sub||'',rg=g.R[rk]||(g.R[rk]={I:{},C:{}}),x=rg.I[r.ip]||(rg.I[r.ip]={ip:r.ip,nodes:{},s:r.s,e:r.e,n:0,sec:0,live:false,a:0});
+  if(r.city&&r.city!==rk)rg.C[r.city]=1;x.nodes[r.node]=1;if(r.a>x.a)x.a=r.a;x.s=Math.min(x.s,r.s);x.e=Math.max(x.e,r.e);x.n++;x.sec+=r.e-r.s+SESS.every;if(r.e>=lv)x.live=true;
  });
  return Object.keys(G).map(function(k){return G[k];}).sort(function(a,b){return b.e-a.e;});
 }
@@ -1513,7 +1516,7 @@ function liveHtml(){
  if(L.err)return '<div class="ux-warn">'+esc(L.err)+'</div>';
  if(!L.nodes.length)return '<div class="ux-empty" style="padding:1rem">Сейчас подключений нет'+(L.ts?' · '+fdt(L.ts*1000).replace(' в ',' '):'')+'</div>';
  var rows=[];
- L.nodes.forEach(function(n){n.ips.forEach(function(x){var lbl=n.h&&n.h.length?n.h.join(', '):(n.name||'нода '+String(n.node).slice(0,8));rows.push('<div><span class="nd"'+(n.h&&n.h.length?' data-tip="'+esc(hostTip(n.name,n.h))+'"':'')+'>'+(n.ncc&&!hasFlag(lbl)?flag(n.ncc):'')+'<span>'+esc(lbl)+'</span></span><span class="ip">'+esc(x.ip)+'</span><span class="pv">'+provHtml(x)+'</span><button type="button" class="wb sm" data-a="sdrop" data-ip="'+esc(x.ip)+'" data-w="'+esc(SESS.sc.drop)+'">'+ico('ban')+'Сбросить</button></div>');});});
+ L.nodes.forEach(function(n){n.ips.forEach(function(x){var lbl=n.h&&n.h.length?n.h.join(', '):(n.name||'нода '+String(n.node).slice(0,8));rows.push('<div><span class="nd"'+(n.h&&n.h.length?' data-tip="'+esc(hostTip(n.name,n.h))+'"':'')+'>'+(n.ncc&&!hasFlag(lbl)?flag(n.ncc):'')+'<span>'+esc(lbl)+'</span></span><span class="ip">'+esc(x.ip)+'</span><span class="pv">'+provHtml(x)+(x.seen?'<span class="ux-act" data-tip="'+ACT_TIP+'">активность '+ago(x.seen*1000)+'</span>':'')+'</span><button type="button" class="wb sm" data-a="sdrop" data-ip="'+esc(x.ip)+'" data-w="'+esc(SESS.sc.drop)+'">'+ico('ban')+'Сбросить</button></div>');});});
  return '<div class="ux-live">'+rows.join('')+'</div><div class="muted" style="font-size:.76rem;margin:-.1rem 0 .4rem">Снимок '+fdt(L.ts*1000).replace(' в ',' ')+' · IP остаётся в списке, пока с него открыто соединение.</div>';
 }
 function sessHtml(u){
@@ -1535,7 +1538,7 @@ function sessHtml(u){
   var regs=Object.keys(g.R).sort(function(a,b){return(a===''?1:0)-(b===''?1:0)||a.localeCompare(b);});
   return '<details class="ux-sg"'+(open?' open':'')+'><summary>'+ico('chev',14).replace('<svg','<svg class="ch"')+(g.cc?flag(g.cc):'')+'<span class="sp">'+esc(g.org||(g.asn?'AS'+g.asn:'Провайдер неизвестен'))+(g.asn&&g.org?' <span class="muted" style="font-weight:500">AS'+g.asn+'</span>':'')+'</span><span class="st">'+Object.keys(g.ips).length+' IP · '+ago(g.e*1000)+'</span></summary>'+
    regs.map(function(rk){var ips=Object.keys(g.R[rk].I).map(function(k){return g.R[rk].I[k];}).sort(function(a,b){return b.e-a.e;});
-    return '<div class="rg">'+(regs.length>1||rk?'<div class="rt">'+(rk?esc(rk):'регион неизвестен')+(Object.keys(g.R[rk].C).length?' <span class="muted" style="font-weight:500">· '+esc(Object.keys(g.R[rk].C).sort().join(', '))+'</span>':'')+'</div>':'')+ips.map(function(x){var ids=Object.keys(x.nodes),nn=ids.map(function(id){return sNode(sd,id);}).join(', '),tp=ids.map(function(id){return sTip(sd,id);}).filter(Boolean).join('; ');tp=tp?tp+(ids.some(function(id){return sInfo(sd,id).h.length>1;})?HT_MANY:''):nn;return '<div class="ux-sr'+(x.live?' live':'')+'"><span class="ip">'+esc(x.ip)+'</span><span class="nd"'+(tp?' data-tip="'+esc(tp)+'"':'')+'>'+esc(nn)+'</span><span class="tm"><b>'+spanTxt(x.s,x.e)+'</b><br>'+x.n+' '+plural(x.n,'сессия','сессии','сессий')+' · '+(Math.round(x.sec/360)/10)+' ч</span></div>';}).join('')+'</div>';
+    return '<div class="rg">'+(regs.length>1||rk?'<div class="rt">'+(rk?esc(rk):'регион неизвестен')+(Object.keys(g.R[rk].C).length?' <span class="muted" style="font-weight:500">· '+esc(Object.keys(g.R[rk].C).sort().join(', '))+'</span>':'')+'</div>':'')+ips.map(function(x){var ids=Object.keys(x.nodes),nn=ids.map(function(id){return sNode(sd,id);}).join(', '),tp=ids.map(function(id){return sTip(sd,id);}).filter(Boolean).join('; ');tp=tp?tp+(ids.some(function(id){return sInfo(sd,id).h.length>1;})?HT_MANY:''):nn;return '<div class="ux-sr'+(x.live?' live':'')+'"><span class="ip">'+esc(x.ip)+'</span><span class="nd"'+(tp?' data-tip="'+esc(tp)+'"':'')+'>'+esc(nn)+'</span><span class="tm"><b>'+spanTxt(x.s,x.e)+'</b><br>'+x.n+' '+plural(x.n,'сессия','сессии','сессий')+' · '+(Math.round(x.sec/360)/10)+' ч'+(x.a?'<span class="ux-act" data-tip="'+ACT_TIP+'">активность '+actTxt(x.a,x.e)+'</span>':'')+'</span></div>';}).join('')+'</div>';
    }).join('')+'</details>';
  }).join('');
  return h;
