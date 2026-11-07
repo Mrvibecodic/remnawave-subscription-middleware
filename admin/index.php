@@ -448,6 +448,15 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
+    if ($a === 'users_quick' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $l = ua_quick_parse((string) ($_POST['list'] ?? ''));
+        if ($l === null) { echo json_encode(['ok' => false, 'error' => 'Неверный список действий'], JSON_UNESCAPED_UNICODE); exit(); }
+        if (!set_setting('users_quick', json_encode($l, JSON_UNESCAPED_UNICODE))) { echo json_encode(['ok' => false, 'error' => 'База данных недоступна'], JSON_UNESCAPED_UNICODE); exit(); }
+        echo json_encode(['ok' => true, 'list' => $l], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
     if ($a === 'toggle_nolog' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $su = trim($_POST['short_uuid'] ?? '');

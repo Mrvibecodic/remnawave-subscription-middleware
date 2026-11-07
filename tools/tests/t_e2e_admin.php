@@ -68,6 +68,17 @@ t_ok('пользователи: по умолчанию все колонки в
 t_eq('пользователи: скрытые колонки сохраняются', $ucols('sq,on'), '["sq","on"]');
 t_eq('пользователи: чужие колонки отбрасываются, имя скрыть нельзя', $ucols('nm,hack,id'), '["id"]');
 t_eq('пользователи: пустой список — все видны', $ucols(''), '[]');
+$uquick = static function (string $v) use ($mw, $jar, $m): array {
+    [, , $r] = t_http('POST', $mw . '/admin/index.php?ajax=users_quick', ['content-type' => 'application/x-www-form-urlencoded'], http_build_query(['csrf' => $m[1], 'list' => $v]), $jar);
+    [, , $p] = t_http('GET', $mw . '/admin/index.php?tab=users', [], null, $jar);
+    return [json_decode($r, true)['ok'] ?? null, preg_match('~"quick":(\[[^\]]*\])~', $p, $mm) ? $mm[1] : ''];
+};
+t_ok('пользователи: быстрые действия по умолчанию', strpos($page, '"quick":[{"n":"","tm":1,"tu":"m","hw":0,"tl":0,"rs":0},{"n":"","tm":3,') !== false);
+t_eq('пользователи: быстрые действия сохраняются', $uquick('[{"n":"  Квартал ","tm":3,"tu":"m","rs":1},{"tm":7,"tu":"d","hw":2,"tl":50}]'), [true, '[{"n":"Квартал","tm":3,"tu":"m","hw":0,"tl":0,"rs":1},{"n":"","tm":7,"tu":"d","hw":2,"tl":50,"rs":0}]']);
+t_eq('пользователи: действие без изменений не принимается', $uquick('[{"n":"пусто"}]')[0], false);
+t_eq('пользователи: срок больше допустимого не принимается', $uquick('[{"tm":121,"tu":"m"}]')[0], false);
+t_eq('пользователи: больше 8 действий не принимается', $uquick(json_encode(array_fill(0, 9, ['tm' => 1])))[0], false);
+t_eq('пользователи: пустой список действий сохраняется', $uquick('[]'), [true, '[]']);
 t_ok('пользователи: «Сессии и аномалии» по умолчанию свёрнуты', strpos($page, '<section class="coll collapsed" data-coll="users_sess"') !== false);
 $N = '11111111-1111-4111-8111-111111111111';
 file_put_contents($state, json_encode(['users' => ['AbCdEfGhIjKlMnOp' => ['status' => 'ACTIVE', 'node' => $N]], 'nodes' => [$N => ['name' => 'Amsterdam', 'cc' => 'NL']], 'hosts' => [['remark' => 'NL · WS', 'address' => 'ams.example.net', 'nodes' => [$N]]]]));
