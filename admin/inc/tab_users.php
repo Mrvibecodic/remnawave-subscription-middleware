@@ -846,6 +846,7 @@ html[data-theme="light"] .hv-tl input[type=date],html[data-theme="light"] .hv-po
  .hv-hi{grid-template-columns:20px minmax(0,1fr)}
  .hv-hi .cur,.hv-hi .why{grid-column:2;text-align:left}
  .hv-b .hv-pk.in{margin:.15rem .55rem .7rem}
+ .hv-pa{flex-wrap:wrap}.hv-pa .s{flex:1 1 100%}
 }
 
 .ux-pre button.on{background:var(--accent-light);border-color:var(--accent);color:var(--accent-text)}
@@ -896,15 +897,14 @@ button.ux-lk.hv-go:hover{background:var(--hover);color:var(--accent-text)}
 .hv-sw button .e{font-size:.7rem;color:var(--muted);font-weight:400}
 .hv-pf+.hv-pf{border-top:1px dashed var(--line)}
 /* пресеты */
-.fm-ps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.4rem}
-.fm-ps.n3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.fm-ps button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:.15rem;padding:.5rem .6rem;border:1px solid var(--line);border-radius:10px;background:var(--bg2);min-width:0}
+.fm-ps{display:flex;flex-wrap:wrap;gap:.35rem}
+.fm-ps button{all:unset;box-sizing:border-box;cursor:pointer;padding:.38rem .75rem;border:1px solid var(--line);border-radius:999px;background:var(--bg2);font-size:.82rem;font-weight:600;color:var(--text-strong);white-space:nowrap}
 .fm-ps button:hover{border-color:var(--accent)}
-.fm-ps button b{font-size:.82rem;color:var(--text-strong);font-weight:600}
-.fm-ps button span{font-size:.72rem;color:var(--muted);line-height:1.35}
-.fm-ps button.on{background:var(--accent-light);border-color:var(--accent)}
-.fm-ps button.on b{color:var(--accent-text)}
+.fm-ps button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.fm-ps button.on{background:var(--accent-light);border-color:var(--accent);color:var(--accent-text)}
 .fm-ps button.own{border-style:dashed}
+.fm-ps button.own.on{border-style:solid}
+.fm-pd{margin-top:.45rem;font-size:.78rem;color:var(--muted);line-height:1.45}
 /* свои значения */
 .fm-own{margin-top:.7rem;padding:.7rem .75rem;border:1px solid var(--line);border-radius:10px;background:var(--bg2);display:flex;flex-direction:column;gap:.65rem}
 .fm-f{display:grid;grid-template-columns:11rem minmax(0,1fr);gap:.7rem;align-items:center}
@@ -944,7 +944,6 @@ button.ux-lk.hv-go:hover{background:var(--hover);color:var(--accent-text)}
  .hv-pr:before{left:.85rem}
  .hv-pr .l1{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"k x" "v v" "t t";row-gap:.4rem}
  .hv-pr .l1>.hv-pk2{grid-area:k}.hv-pr .l1>.hv-v{grid-area:v}.hv-pr .l1>.hv-tw{grid-area:t}.hv-pr .l1>.hv-x{grid-area:x}
- .fm-ps,.fm-ps.n3{grid-template-columns:1fr 1fr}
  .fm-f{grid-template-columns:1fr;gap:.3rem}
  .fm-pk{grid-template-columns:1.1rem minmax(0,1fr) 30px;grid-template-areas:"n t x" ". v v" ". d d"}
  .fm-pk .no{grid-area:n}.fm-pk select{grid-area:t}.fm-pk .val{grid-area:v}.fm-pk .dl{grid-area:d}.fm-pk .ux-ib{grid-area:x}
@@ -970,19 +969,20 @@ button.ux-lk.hv-go:hover{background:var(--hover);color:var(--accent-text)}
 .fm-f.col>.k small{display:inline;margin-left:.4rem}
 .hv-sm{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.72rem;color:var(--muted);line-height:1.4}
 /* что уйдёт клиенту */
-.fm-ps button code.m{display:block;margin-top:.3rem;padding-top:.3rem;border-top:1px dashed var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.7rem;color:var(--text);line-height:1.4;word-break:break-word;background:none;border-radius:0}
-.fm-ps button.on code.m{color:var(--accent-text);border-top-color:color-mix(in srgb,var(--accent) 45%,transparent)}
 .fm-pv{margin-top:.7rem;border:1px solid var(--line);border-radius:10px;background:var(--bg2);overflow:hidden}
 .fm-pv .t{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .4rem;padding:.45rem .7rem;border-bottom:1px solid var(--line);font-size:.78rem;color:var(--text-strong);font-weight:600}
 .fm-pv .t svg{width:14px;height:14px;color:var(--accent-text)}
-.fm-pv .t span{white-space:nowrap}
-.fm-pv .t code{margin-left:auto;font-weight:400;font-size:.72rem;color:var(--muted);overflow-wrap:anywhere}
-.fm-pv pre{margin:0;padding:.55rem .7rem;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.74rem;line-height:1.5;color:var(--muted);white-space:pre;overflow-x:auto;background:var(--card)}
-.fm-pv .our{color:var(--accent-text)}
-.fm-pv .pn{color:var(--muted)}
-.fm-pv .er{color:var(--c-bad-fg)}
-.fm-pv .mk{margin-left:.6rem;font-family:inherit;font-size:.66rem;font-weight:600;padding:.02rem .4rem;border-radius:5px;background:var(--accent-light);color:var(--accent-text);vertical-align:1px}
-.fm-pv .mk.pn{background:var(--hover);color:var(--muted)}
+.fm-pv .t>span{white-space:nowrap}
+.fm-pv .t .lgs{margin-left:auto;display:flex;gap:.7rem;flex-wrap:wrap;font-weight:400;font-size:.72rem;color:var(--muted)}
+.fm-pv .t .lg{display:inline-flex;align-items:center;gap:.3rem;cursor:help}
+.fm-pv .t .sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+.fm-pv .t .sw.our{background:color-mix(in srgb,var(--accent) 22%,transparent);box-shadow:inset 2px 0 0 var(--accent)}
+.fm-pv .t .sw.pn{background:var(--hover);box-shadow:inset 0 0 0 1px var(--line)}
+.fm-pv pre .ln{display:block;min-width:max-content;padding:0 .7rem}
+.fm-pv pre .ln.our{color:var(--accent-text);background:color-mix(in srgb,var(--accent) 10%,transparent);box-shadow:inset 2px 0 0 var(--accent)}
+.fm-pv pre .ln.pn{color:var(--muted)}
+.fm-pv pre .ln.er{color:var(--c-bad-fg)}
+.fm-pv pre{margin:0;padding:.55rem 0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.74rem;line-height:1.5;color:var(--muted);white-space:pre;overflow-x:auto;background:var(--card)}
 .fm-pv .f{padding:.45rem .7rem;border-top:1px solid var(--line);font-size:.74rem;color:var(--muted);line-height:1.45}
 .fm-pv .f code{font-size:.7rem;padding:0 .25rem;border-radius:4px;background:var(--card);border:1px solid var(--line)}
     </style>
@@ -1888,9 +1888,13 @@ function hvSetP(K,p,h){K.p=p;K.v=hvDefault(p,h);K.js=false;K.json=null;K.f=p==='
 function hvRg(path,a,b,unit){var o=CARD.hvpk.f,ps=path.split('.');for(var i=0;i<ps.length;i++)o=o[ps[i]];
  var g=function(k){var x=o[k];return Number.isFinite(x)?x:'';};
  return '<span class="fm-rg">'+(a===''?'':(a||'от')+' ')+'<input type="text" inputmode="numeric" data-hvrg="'+path+'.0" value="'+g(0)+'" aria-label="'+esc(a||'от')+'"> '+(b||'до')+' <input type="text" inputmode="numeric" data-hvrg="'+path+'.1" value="'+g(1)+'" aria-label="'+esc(b||'до')+'">'+(unit?' '+unit:'')+'</span>';}
+// Пресеты — короткие кнопки; что делает и что уйдёт клиенту — в подсказке у каждой и строкой под рядом у выбранной.
 function hvPresets(p,h){var K=CARD.hvpk,P2=HVPR[p]||{},ks=Object.keys(P2).filter(function(k){return p!=='frag'||!!P2[k].tls===!!(h.caps&&h.caps.hello);});
- return '<div class="fm-ps'+(ks.length===2?' n3':'')+'">'+ks.map(function(k){return '<button type="button" data-hv="pr" data-v="'+k+'" class="'+(K.v===k?'on':'')+'"><b>'+esc(P2[k].n)+'</b><span>'+esc(P2[k].d)+'</span><code class="m">'+esc(hvTxt(p,{settings:P2[k].s}))+'</code></button>';}).join('')+
-  '<button type="button" data-hv="pr" data-v="own" class="own'+(K.v==='own'?' on':'')+'"><b>Свои значения</b><span>'+(p==='frag'?'что резать, длина, паузы — или JSON':'пакеты, паузы, повтор — или JSON')+'</span></button></div>';}
+ var own=p==='frag'?'Что резать, длина кусков, паузы — или JSON маски':'Пакеты, паузы, повтор или файл скрипта — или JSON маски';
+ var chip=function(k,n,tip){var on=K.v===k;return '<button type="button" data-hv="pr" data-v="'+k+'" class="'+(k==='own'?'own':'')+(on?' on':'')+'" aria-pressed="'+(on?'true':'false')+'" data-tip="'+esc(tip)+'">'+esc(n)+'</button>';};
+ var cur=K.v&&K.v!=='own'?P2[K.v]:null,d=cur?cur.d.charAt(0).toUpperCase()+cur.d.slice(1):(K.v==='own'?own:'');
+ return '<div class="fm-ps" role="group" aria-label="Значение">'+ks.map(function(k){return chip(k,P2[k].n,P2[k].d+' — '+hvTxt(p,{settings:P2[k].s}));}).join('')+chip('own','Свои значения',own)+'</div>'+
+  (d?'<div class="fm-pd">'+esc(d)+'</div>':'');}
 function hvJsonBox(p){var K=CARD.hvpk;return '<textarea class="fm-js" id="hvJs" spellcheck="false" aria-label="JSON маски">'+esc(K.json)+'</textarea>'+
  '<span class="fm-h">Одна маска <code>'+(p==='frag'?'fragment':'noise')+'</code> в формате Xray 26.10.31 — проверится при сохранении по правилам ядра.</span>';}
 function hvOwnFrag(h){var K=CARD.hvpk,f=K.f,hello=f.m==='hello';
@@ -1938,19 +1942,25 @@ function hvNotes(p,h){
  if(p==='noise'&&h.proto==='ss')n.push(['i','Для Shadowsocks шум уходит только с UDP-трафиком.']);
  return '<div class="fm-nts" id="hvNts">'+n.map(function(x){return '<div class="fm-nt '+x[0]+'">'+ico(x[0]==='w'?'alert':'info',14)+'<span>'+x[1]+'</span></div>';}).join('')+'</div>';
 }
+// Превью «Уйдёт клиенту»: код — ровно то, что уйдёт; что от прослойки, а что из панели — подсветкой строк и обозначениями в шапке, не текстом в коде.
 function hvPv(p,h){
- var K=CARD.hvpk,hd=function(t){return '<div class="t">'+ico('send',14)+'<span>Уйдёт клиенту</span><code>'+t+'</code></div>';};
+ var K=CARD.hvpk,ln=function(t,k){return '<span class="ln'+(k?' '+k:'')+'">'+esc(t)+'</span>';};
+ var hd=function(pn){return '<div class="t">'+ico('send',14)+'<span>Уйдёт клиенту</span><span class="lgs"><span class="lg" data-tip="Подсвечено то, что подставит прослойка — только для этого пользователя"><i class="sw our"></i>от прослойки</span>'+
+  (pn?'<span class="lg" data-tip="Маски хоста из панели — уходят как есть"><i class="sw pn"></i>из панели</span>':'')+'</span></div>';};
  if(p==='fp'){var k1=h.sec==='reality'?'realitySettings':'tlsSettings';
-  return '<div class="fm-pv" id="hvPv">'+hd('streamSettings.'+k1)+'<pre>'+(K.v?'<span class="our">"fingerprint": "'+esc(K.v)+'"</span><span class="mk">подмена</span>':'<span class="pn">выберите отпечаток</span>')+'</pre><div class="f">В ссылке '+esc(h.ln||'')+' — <code>fp='+esc(K.v||'…')+'</code>; в mihomo — <code>client-fingerprint</code>, в sing-box — <code>utls.fingerprint</code></div></div>';}
+  return '<div class="fm-pv" id="hvPv">'+hd(false)+'<pre>'+(K.v?ln('"fingerprint": "'+K.v+'"','our'):ln('выберите отпечаток','pn'))+'</pre>'+
+   '<div class="f">Xray JSON — <code>streamSettings.'+k1+'</code>; в ссылке '+esc(h.ln||'')+' — <code>fp='+esc(K.v||'…')+'</code>; в mihomo — <code>client-fingerprint</code>, в sing-box — <code>utls.fingerprint</code></div></div>';}
  var m=hvErr()?null:hvMask(),k=p==='frag'?'tcp':'udp',pm=(h.pm||{})[k]||[],last=['udphop','xicmp'],mine=p==='frag'?'fragment':'noise',rows;
  if(p==='frag')rows=[{our:1}].concat(pm.filter(function(t){return t!==mine;}).map(function(t){return {pm:t};}));
  else rows=pm.filter(function(t){return t!==mine&&last.indexOf(t)<0;}).map(function(t){return {pm:t};}).concat([{our:1}]).concat(pm.filter(function(t){return last.indexOf(t)>-1;}).map(function(t){return {pm:t};}));
- var ind=function(t,n){var sp=new Array(n+1).join(' ');return t.split('\n').map(function(l){return sp+l;}).join('\n');};
- var body=rows.map(function(r,i){var c=i<rows.length-1?',':'';
-  if(r.our)return m?'<span class="our">'+esc(ind(JSON.stringify(m,null,2),4))+c+'</span><span class="mk">подмена</span>':'    <span class="er">маска с ошибкой — не уйдёт, пока не исправить</span>';
-  return '<span class="pn">    { "type": "'+esc(r.pm)+'", "settings": { … } }'+c+'</span><span class="mk pn">из панели</span>';}).join('\n');
- return '<div class="fm-pv" id="hvPv">'+hd('streamSettings.finalmask')+'<pre>{\n  "'+k+'": [\n'+body+'\n  ]\n}</pre>'+
-  '<div class="f">'+(h.proto==='ss'?'В ссылке <code>ss://</code> параметров нет — маска уйдёт только в Xray JSON':(h.ln?'В ссылке '+esc(h.ln)+' — тот же объект finalmask в параметре <code>fm</code>':'В ссылках — тот же объект finalmask в параметре <code>fm</code>'))+'</div></div>';
+ var out=[ln('{'),ln('  "'+k+'": [')];
+ rows.forEach(function(r,i){var c=i<rows.length-1?',':'';
+  if(r.our){if(m){var ls=JSON.stringify(m,null,2).split('\n');ls.forEach(function(l,j){out.push(ln('    '+l+(j===ls.length-1?c:''),'our'));});}
+   else out.push(ln('    маска с ошибкой — не уйдёт, пока не исправить','er'));return;}
+  out.push(ln('    { "type": "'+r.pm+'", "settings": { … } }'+c,'pn'));});
+ out.push(ln('  ]'),ln('}'));
+ return '<div class="fm-pv" id="hvPv">'+hd(rows.length>1)+'<pre>'+out.join('')+'</pre>'+
+  '<div class="f">Xray JSON — <code>streamSettings.finalmask</code>; '+(h.proto==='ss'?'в ссылке <code>ss://</code> параметров нет — маска уйдёт только в Xray JSON':(h.ln?'в ссылке '+esc(h.ln)+' — тот же объект в параметре <code>fm</code>':'в ссылках — тот же объект в параметре <code>fm</code>'))+'</div></div>';
 }
 function hvForm(h){var K=CARD.hvpk,p=K.p;
  if(p==='fp')return '<div class="hv-pf"><div class="lb">Отпечаток TLS'+(h.sec==='reality'?'<span class="hv-rn">с REALITY работают только эти</span>':'')+'</div><div class="hv-fp">'+hvFps(h.sec).map(function(x){var pn=x===h.fp;return '<button type="button" data-hv="fp" data-v="'+esc(x)+'" class="'+(pn?'pn':(K.v===x?'on':''))+'"'+(pn?' disabled data-tip="Сейчас в панели — менять не на что"':'')+'>'+esc(x)+(pn?'<span class="pd"></span>':'')+'</button>';}).join('')+'</div>'+hvPv('fp',h)+'</div>';
