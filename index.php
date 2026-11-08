@@ -431,7 +431,7 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && !$is_page && 
     && ($hv_rows = hostov_rows_for($short_uuid)) && !grace_is_active($short_uuid)) {
     [$response, $hv_hits] = hostov_apply($response, $format, $hv_rows);
     $hv_notes[] = [$hv_rows, $hv_hits];
-    foreach ($hv_hits as $hv) $log_hv[] = [$hv[1], $hv[2], $hv[3]];
+    foreach ($hv_hits as $hv) $log_hv[] = [$hv[1], $hv[2], $hv[3], $hv[4] ?? 'fp', $hv[5] ?? 0, mb_substr((string) ($hv[6] ?? ''), 0, 120), $hv[7] ?? ''];
 }
 
 $log_wg = 0;
@@ -500,7 +500,7 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
                 if ($hv_b !== '' && $hv_b !== $short_uuid && !$is_page && function_exists('hostov_rows_for') && ($hv_rows = hostov_rows_for($hv_b))) {
                     [$addsub_body, $hv_hits] = hostov_apply($addsub_body, detect_body_format($addsub_body, $format), $hv_rows);
                     $hv_notes[] = [$hv_rows, $hv_hits];
-                    foreach ($hv_hits as $hv) $log_hv[] = [$hv[1], $hv[2], $hv[3]];
+                    foreach ($hv_hits as $hv) $log_hv[] = [$hv[1], $hv[2], $hv[3], $hv[4] ?? 'fp', $hv[5] ?? 0, mb_substr((string) ($hv[6] ?? ''), 0, 120), $hv[7] ?? ''];
                 }
                 $response = addsub_merge($response, $addsub_body, $format, $short_uuid);
                 $as_in = $response !== $as_pre;
@@ -552,7 +552,7 @@ if (!$skip_log) {
         'grace' => $is_grace ? 1 : 0,
         'dv'    => reqlog_device($ua_hwid_vals),
         'chan'  => chan_active() ? 1 : null,
-        'hv'    => $log_hv ? ['c' => count($log_hv), 'h' => array_slice($log_hv, 0, 6)] : null,
+        'hv'    => $log_hv && function_exists('hostov_log_meta') ? hostov_log_meta($log_hv) : null,
     ];
     if ((int) $http_code >= 400) {
         // Ответ панели ушёл клиенту как есть, но выдачей это не было — «error», а не «normal».

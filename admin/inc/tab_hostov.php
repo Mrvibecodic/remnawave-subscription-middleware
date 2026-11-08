@@ -87,13 +87,28 @@ table.hv-tb{width:100%;border-collapse:collapse;font-size:.86rem}
 .hv-ib svg{width:16px;height:16px}
 .hv-ib.bad{color:var(--c-bad-fg)}.hv-ib.bad:hover{background:var(--c-bad-bg);border-color:transparent;color:var(--c-bad-fg)}
 .hvtab .card{margin-bottom:1.25rem}
+.hv-tb .hv-pc{display:flex;flex-direction:column;gap:.2rem;min-width:0}
+.hv-tb .hv-pc .k{display:inline-flex;align-items:center;gap:.35rem;font-size:.74rem;color:var(--muted)}
+.hv-tb .hv-pc .k svg{width:13px;height:13px}
+.hv-tb .hv-nv{flex-wrap:wrap;white-space:normal;row-gap:.1rem}
+.hv-tb .hv-nv b{white-space:nowrap}
+.hv-tb .hv-nv .s{color:var(--muted);font-size:.74rem;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-word}
+.hv-was{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;color:var(--muted);text-decoration:line-through}
+.hv-was.t{font-family:inherit;font-size:.78rem}
+.hv-xo{font-size:.68rem;font-weight:600;padding:.02rem .4rem;border-radius:5px;background:var(--c-info-bg);color:var(--c-info-fg);white-space:nowrap}
+.hv-tools select.fm-fsel{height:38px;min-height:38px;width:auto;padding-top:0;padding-bottom:0;font-size:.84rem;margin:0}
+@media(min-width:821px){.hv-tools .srch{flex:1 1 12rem;max-width:19rem}}
 
     </style>
     <div class="hvtab" id="hvTab"></div>
     <script>
 (function(){
-var R=<?= json_encode($hv_rows, $hv_jf) ?>,CSRF=<?= json_encode((string) $token, $hv_jf) ?>,F='all',Q='';
-var P={server:'<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',arrr:'<path d="M5 12h14M13 6l6 6-6 6"/>',trash:'<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',pencil:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'};
+var R=<?= json_encode($hv_rows, $hv_jf) ?>,CSRF=<?= json_encode((string) $token, $hv_jf) ?>,F='all',Q='',FP='';
+var PN={fp:'Отпечаток TLS',frag:'Фрагментация',noise:'Шум'};
+var P={server:'<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',arrr:'<path d="M5 12h14M13 6l6 6-6 6"/>',trash:'<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',pencil:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+ fp:'<path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M9 6.8a6 6 0 0 1 9 5.2c0 .47 0 1.17-.02 2"/>',
+ frag:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/>',
+ noise:'<path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/>'};
 function ico(n,w){return '<svg viewBox="0 0 24 24" width="'+(w||16)+'" height="'+(w||16)+'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(P[n]||'')+'</svg>';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function pl(n,a,b,c){var x=n%10,y=n%100;return x===1&&y!==11?a:(x>=2&&x<=4&&(y<10||y>=20)?b:c);}
@@ -103,26 +118,30 @@ function now(){return Date.now()/1000;}
 function ago(t){var s=now()-t;return s<120?'только что':s<3600?Math.round(s/60)+' мин назад':s<86400?Math.round(s/3600)+' ч назад':Math.round(s/86400)+' '+pl(Math.round(s/86400),'день','дня','дней')+' назад';}
 function left(t){var s=t-now();if(s<86400)return 'через '+Math.max(1,Math.round(s/3600))+' ч';var d=Math.round(s/86400);return 'через '+d+' '+pl(d,'день','дня','дней');}
 function st(o){if(o.till&&o.till<=now())return 'exp';return o.st==='part'?'ok':(o.st==='inv'?'bad':o.st);}
+function act(s){return s==='ok'||s==='wait'||s==='na';}
 function draw(){
- var box=document.getElementById('hvTab'),n={ok:0,wait:0,exp:0,bad:0},us={};
- R.forEach(function(o){var s=st(o);n[s]++;if(s==='ok'||s==='wait')us[o.su]=1;});
+ var box=document.getElementById('hvTab'),n={ok:0,wait:0,exp:0,bad:0,na:0},us={};
+ R.forEach(function(o){var s=st(o);n[s]=(n[s]||0)+1;if(act(s))us[o.su]=1;});
  var nu=Object.keys(us).length,off=n.exp+n.bad;
- var h='<div class="hv-kpis"><div class="hv-kpi"><div class="k">Действуют</div><div class="v">'+(n.ok+n.wait)+'</div><div class="d">у '+nu+' '+pl(nu,'пользователя','пользователей','пользователей')+'</div></div>'+
+ var h='<div class="hv-kpis"><div class="hv-kpi"><div class="k">Действуют</div><div class="v">'+(n.ok+n.wait+n.na)+'</div><div class="d">у '+nu+' '+pl(nu,'пользователя','пользователей','пользователей')+'</div></div>'+
   '<div class="hv-kpi'+(n.wait?' w':'')+'"><div class="k">Ещё не уходили</div><div class="v">'+n.wait+'</div><div class="d">приложение не обновляло подписку</div></div>'+
-  '<div class="hv-kpi m"><div class="k">Не действуют</div><div class="v">'+off+'</div><div class="d">срок вышел или подмена не срабатывает</div></div></div>';
+  '<div class="hv-kpi m"><div class="k">Не действуют</div><div class="v">'+off+'</div><div class="d">срок вышел, хоста нет или значение не подходит</div></div></div>';
  h+='<div class="card"><div class="loghead"><h2>Подмена хостов <span class="muted" style="font-weight:400;font-size:.78rem">для тестов, панель не меняется</span></h2></div>'+
-  '<div class="hv-intro" style="margin:.8rem 0 1rem"><span class="ic">'+ico('server',20)+'</span><p>Подмена меняет параметры выбранного хоста в подписке <b>одного пользователя</b> — например, отпечаток TLS, чтобы проверить его на своём устройстве. Добавить подмену — в карточке пользователя, вкладка «Изменить».</p></div>';
+  '<div class="hv-intro" style="margin:.8rem 0 1rem"><span class="ic">'+ico('server',20)+'</span><p>Подмена меняет клиентские параметры выбранного хоста в подписке <b>одного пользователя</b> — отпечаток TLS, фрагментацию или шум, — чтобы проверить их на своём устройстве. Фрагментация и шум действуют только в клиентах на ядре Xray. Добавить подмену — в карточке пользователя, вкладка «Изменить».</p></div>';
  if(!R.length){box.innerHTML=h+'<div class="hv-emp"><span class="ic">'+ico('server',22)+'</span><b>Подмен нет</b>Все пользователи получают хосты как в панели.</div></div>';return;}
- var q=Q.toLowerCase(),L=R.filter(function(o){var s=st(o);if(F==='act'&&s!=='ok'&&s!=='wait')return false;if(F==='wait'&&s!=='wait')return false;if(F==='off'&&s!=='exp'&&s!=='bad')return false;return !q||(o.un+' '+o.su+' '+o.n).toLowerCase().indexOf(q)>-1;});
+ var q=Q.toLowerCase(),L=R.filter(function(o){var s=st(o);if(F==='act'&&!act(s))return false;if(F==='wait'&&s!=='wait')return false;if(F==='off'&&act(s))return false;if(FP&&o.p!==FP)return false;return !q||(o.un+' '+o.su+' '+o.n).toLowerCase().indexOf(q)>-1;});
  h+='<div class="hv-tools"><div class="srch">'+ico('search',16)+'<input type="text" id="hvQ" placeholder="пользователь, shortUuid или хост" aria-label="Поиск" value="'+esc(Q)+'"></div>'+
-  '<div class="hv-sg" role="group" aria-label="Фильтр">'+[['all','Все',R.length],['act','Действуют',n.ok+n.wait],['wait','Не уходили',n.wait],['off','Не действуют',off]].map(function(f){return '<button type="button" data-f="'+f[0]+'" class="'+(F===f[0]?'on':'')+'">'+f[1]+'<span class="c">'+f[2]+'</span></button>';}).join('')+'</div>'+
+  '<select class="fm-fsel" id="hvP" aria-label="Параметр"><option value="">Все параметры</option>'+['fp','frag','noise'].map(function(p){return '<option value="'+p+'"'+(FP===p?' selected':'')+'>'+PN[p]+'</option>';}).join('')+'</select>'+
+  '<div class="hv-sg" role="group" aria-label="Фильтр">'+[['all','Все',R.length],['act','Действуют',n.ok+n.wait+n.na],['wait','Не уходили',n.wait],['off','Не действуют',off]].map(function(f){return '<button type="button" data-f="'+f[0]+'" class="'+(F===f[0]?'on':'')+'">'+f[1]+'<span class="c">'+f[2]+'</span></button>';}).join('')+'</div>'+
   '<span class="sp"></span><button type="button" class="btn danger" id="hvClr"'+(off?'':' disabled')+'>'+ico('trash',15)+'Удалить недействующие'+(off?' · '+off:'')+'</button></div>';
- h+='<div class="hv-tw2"><table class="hv-tb"><thead><tr><th>Пользователь</th><th>Хост</th><th>Отпечаток TLS</th><th>Срок</th><th class="c-ls">Последняя выдача</th><th></th></tr></thead><tbody>'+
-  (L.length?L.map(function(o){var s=st(o),off=s==='exp'||s==='bad',lk='?tab=users&card='+encodeURIComponent(o.su)+'&ct=edit';
-   var lx=s==='bad'?'<span class="hv-pill b">'+(o.st==='inv'?'не работает с REALITY':(o.lh&&o.lh>=o.at?'неделю не уходила':'хоста не было в выдаче'))+'</span>'+(o.ma?'<span class="a">'+esc(o.ma)+'</span>':''):(s==='exp'?'<span class="hv-pill m">срок вышел</span>':(s==='wait'?'<span class="hv-pill w">ещё не уходила</span>':'<span>'+ago(o.lh)+'</span>'+(o.la?'<span class="a">'+esc(o.la)+'</span>':'')+(o.st==='part'?'<span class="a">в '+esc(o.ma||'другом приложении')+' хоста нет</span>':'')));
+ h+='<div class="hv-tw2"><table class="hv-tb"><thead><tr><th>Пользователь</th><th>Хост</th><th>Что меняется</th><th>Срок</th><th class="c-ls">Последняя выдача</th><th></th></tr></thead><tbody>'+
+  (L.length?L.map(function(o){var s=st(o),off=!act(s),lk='?tab=users&card='+encodeURIComponent(o.su)+'&ct=edit';
+   var lx=s==='bad'?'<span class="hv-pill b">'+(o.st==='inv'?'не работает с REALITY':(o.lh&&o.lh>=o.at?'неделю не уходила':'хоста не было в выдаче'))+'</span>'+(o.ma?'<span class="a">'+esc(o.ma)+'</span>':''):(s==='exp'?'<span class="hv-pill m">срок вышел</span>':(s==='wait'?'<span class="hv-pill w">ещё не уходила</span>':s==='na'?'<span>'+ago(o.nt)+'</span><span class="a">'+esc(o.nap||'клиент')+' — '+(o.p==='frag'?'без фрагментации':'без шума')+', не Xray</span>':'<span>'+ago(o.lh)+'</span>'+(o.la?'<span class="a">'+esc(o.la)+'</span>':'')+(o.st==='part'?'<span class="a">в '+esc(o.ma||'другом приложении')+' хоста нет</span>':'')));
    return '<tr class="'+(off?'off':'')+'"><td class="c-us"><a class="hv-un" href="'+lk+'" data-tip="Открыть карточку"><span class="n">'+esc(o.un||o.su)+'</span><span class="s">'+esc(o.su)+'</span></a></td>'+
    '<td class="c-hs" data-l="Хост"><span class="hv-hn">'+esc(o.n)+'</span></td>'+
-   '<td class="c-vl" data-l="Отпечаток TLS"><span class="hv-nv">'+(o.pv?'<span class="hv-was" data-tip="Сейчас в панели">'+esc(o.pv)+'</span><span class="hv-ar">'+ico('arrr',14)+'</span>':'')+'<b>'+esc(o.v)+'</b></span></td>'+
+   '<td class="c-vl" data-l="Что меняется"><span class="hv-pc"><span class="k">'+ico(o.p,13)+(PN[o.p]||esc(o.p))+(o.p!=='fp'?' <span class="hv-xo" data-tip="Действует только в клиентах на ядре Xray">только Xray</span>':'')+'</span><span class="hv-nv">'+
+    (o.p==='fp'?(o.pv?'<span class="hv-was" data-tip="Сейчас в панели">'+esc(o.pv)+'</span><span class="hv-ar">'+ico('arrr',14)+'</span>':''):'<span class="hv-was t" data-tip="'+(o.pv?'В панели: '+esc(o.pv):'Сейчас в панели')+'">'+(o.pv?'из панели':'нет')+'</span><span class="hv-ar">'+ico('arrr',14)+'</span>')+
+    '<b>'+esc(o.vn||o.v)+'</b>'+(o.mt?'<span class="s">'+esc(o.mt)+'</span>':'')+'</span></span></td>'+
    '<td class="c-tl" data-l="Срок"><span class="tl">'+(o.till?(o.till<=now()?'истёк '+fdt(o.till):'до '+fdt(o.till)+'<span class="r">'+left(o.till)+'</span>'):'<span class="muted">без срока</span>')+'</span></td>'+
    '<td class="c-ls" data-l="Последняя выдача"><span class="lst">'+lx+'</span></td>'+
    '<td class="c-ac"><span class="acts"><a class="hv-ib" href="'+lk+'" data-tip="Открыть карточку пользователя" aria-label="Открыть карточку">'+ico('pencil')+'</a><button type="button" class="hv-ib bad" data-del="'+o.id+'" data-tip="Снять подмену" aria-label="Снять подмену">'+ico('trash')+'</button></span></td></tr>';}).join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:1.4rem">Ничего не найдено</td></tr>')+
@@ -137,6 +156,7 @@ box.addEventListener('click',function(e){var t=e.target,b;
  if((b=t.closest('[data-del]'))){post('hv_del',{id:b.getAttribute('data-del'),all:'1'}).then(function(d){done(d,'Подмена снята — хост снова как в панели');});return;}
  if(t.closest('#hvClr')&&!t.closest('#hvClr').disabled){var go=function(){post('hv_clear',{}).then(function(d){done(d,'Недействующие подмены удалены');});};if(window.uiConfirm)uiConfirm('Удалить подмены, у которых вышел срок или которые не срабатывают?',go,'Удалить',true);else go();}
 });
+box.addEventListener('change',function(e){if(e.target.id==='hvP'){FP=e.target.value;draw();}});
 box.addEventListener('input',function(e){if(e.target.id!=='hvQ')return;Q=e.target.value;var p=e.target.selectionStart;draw();var q=document.getElementById('hvQ');q.focus();q.setSelectionRange(p,p);});
 draw();
 })();

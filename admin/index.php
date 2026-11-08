@@ -496,15 +496,15 @@ if (isset($_GET['ajax']) && is_auth()) {
 
     if (in_array($a, ['hv_save', 'hv_set', 'hv_del', 'hv_clear'], true)) {
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok() || !function_exists('hostov_save')) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
-        $err = '';
+        $err = ''; $warn = '';
         $su = trim((string) ($_POST['su'] ?? ''));
         $id = (int) ($_POST['id'] ?? 0);
         if ($id > 0) $su = hostov_short_of($id);
         if ($a === 'hv_save') {
             $hj = json_decode((string) ($_POST['host'] ?? ''), true);
-            $ok = hostov_save($su, is_array($hj) ? $hj : [], 'fp', (string) ($_POST['v'] ?? ''), (int) ($_POST['till'] ?? 0), (int) ($_POST['uid'] ?? 0), (string) ($_POST['un'] ?? ''), $err);
+            $ok = hostov_save($su, is_array($hj) ? $hj : [], (string) ($_POST['p'] ?? 'fp'), (string) ($_POST['v'] ?? ''), (int) ($_POST['till'] ?? 0), (int) ($_POST['uid'] ?? 0), (string) ($_POST['un'] ?? ''), $err, isset($_POST['mask']) ? (string) $_POST['mask'] : null, $warn);
         } elseif ($a === 'hv_set') {
-            $ok = $id > 0 && hostov_set($id, isset($_POST['v']) ? (string) $_POST['v'] : null, (int) ($_POST['till'] ?? 0), isset($_POST['till']), $err);
+            $ok = $id > 0 && hostov_set($id, isset($_POST['v']) ? (string) $_POST['v'] : null, (int) ($_POST['till'] ?? 0), isset($_POST['till']), $err, isset($_POST['mask']) ? (string) $_POST['mask'] : null, $warn);
         } elseif ($a === 'hv_del') {
             $ok = $id > 0 && hostov_del($id);
         } else {
@@ -512,7 +512,7 @@ if (isset($_GET['ajax']) && is_auth()) {
             echo json_encode(['ok' => true, 'n' => $n, 'all' => hostov_list()], JSON_UNESCAPED_UNICODE);
             exit();
         }
-        echo json_encode(['ok' => (bool) $ok, 'error' => $ok ? '' : ($err ?: 'Не сохранилось'), 'hv' => $su !== '' ? hostov_list($su) : [], 'all' => ($_POST['all'] ?? '') === '1' ? hostov_list() : null], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => (bool) $ok, 'error' => $ok ? '' : ($err ?: 'Не сохранилось'), 'warn' => $ok ? (string) $warn : '', 'hv' => $su !== '' ? hostov_list($su) : [], 'all' => ($_POST['all'] ?? '') === '1' ? hostov_list() : null], JSON_UNESCAPED_UNICODE);
         exit();
     }
 

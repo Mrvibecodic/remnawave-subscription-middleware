@@ -238,7 +238,7 @@ $csrf = $cm[1] ?? '';
 $j = json_decode($j, true);
 t_ok('хосты пользователя из панели', ($j['ok'] ?? false) && count($j['hosts']) === 2 && $j['uid'] === 11, json_encode($j, JSON_UNESCAPED_UNICODE));
 t_eq('хосты: имя для пользователя, шаблон и uuid из панели', [$j['hosts'][0]['name'] ?? '', $j['hosts'][0]['rmk'] ?? '', $j['hosts'][0]['uuid'] ?? ''], [$DE . ' · 30 дн.', $DE . ' · {{DAYS_LEFT}} дн.', md5($DE . ' · {{DAYS_LEFT}} дн.')]);
-t_eq('хосты: Hysteria2 без отпечатка, заглушка 0.0.0.0 и ключи без хоста скрыты', [$j['hosts'][0]['fp'] ?? '', $j['hosts'][0]['sec'] ?? '', $j['hosts'][1]['no'] ?? ''], ['chrome', 'reality', 'Hysteria2 — отпечатка нет']);
+t_eq('хосты: Hysteria2 без отпечатка, заглушка 0.0.0.0 и ключи без хоста скрыты', [$j['hosts'][0]['fp'] ?? '', $j['hosts'][0]['sec'] ?? '', $j['hosts'][1]['no'] ?? ''], ['chrome', 'reality', 'У Hysteria2 отпечатка TLS нет']);
 [, , $j2] = t_http('GET', $mw . '/admin/index.php?ajax=hv_hosts&uid=12', [], null, $jar);
 t_eq('хосты: нет права у токена', json_decode($j2, true)['why'] ?? '', 'right');
 $post = static function (string $a, array $f) use ($mw, $jar, $csrf) {

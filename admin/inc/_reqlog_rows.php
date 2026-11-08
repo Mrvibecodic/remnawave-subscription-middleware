@@ -218,13 +218,23 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $who = $name !== '' ? h($name) : ($su !== '' ? '<code>' . h($su) . '</code>' : '<span class="muted">—</span>');
         $hv = is_array($meta['hv'] ?? null) ? $meta['hv'] : [];
         $hv_n = (int) ($hv['c'] ?? 0);
-        $hv_tag = $hv_n > 0 ? ' <span class="tag hv-tag" data-tip="Подмена хостов: ' . $hv_n . '">подмена</span>' : '';
+        $hv_na = 0;
+        foreach ((array) ($hv['h'] ?? []) as $x) if (is_array($x) && !empty($x[4])) $hv_na++;
+        $hv_tag = $hv_n > 0 ? ' <span class="tag hv-tag" data-tip="Подмена хостов: ' . h($hv_n > $hv_na ? ($hv_n - $hv_na) . ' — применено' . ($hv_na ? ', ещё ' . $hv_na . ' — только для клиентов на Xray' : '') : 'не применена — формат без масок Xray') . '">подмена</span>' : '';
         $hv_row = '';
         if ($hv_n > 0) {
             $hv_l = [];
+            $hv_pn = ['fp' => 'отпечаток TLS', 'frag' => 'фрагментация', 'noise' => 'шум'];
             foreach ((array) ($hv['h'] ?? []) as $x) {
                 if (!is_array($x) || count($x) < 3) continue;
-                $hv_l[] = '<span>' . h((string) $x[0]) . ' · отпечаток TLS ' . ((string) $x[1] !== '' ? '<span class="hv-was">' . h((string) $x[1]) . '</span> → ' : '') . '<b class="mono">' . h((string) $x[2]) . '</b></span>';
+                $p = (string) ($x[3] ?? 'fp');
+                $hd = h((string) $x[0]) . ' · ' . ($hv_pn[$p] ?? h($p));
+                if (!empty($x[4])) {
+                    $hv_l[] = '<span>' . $hd . ' <span class="dim">— не ' . ($p === 'noise' ? 'применён' : 'применена') . ': в формате ' . h((string) ($x[6] ?? '') ?: 'клиента') . ' масок Xray нет, хост ушёл как в панели</span></span>';
+                    continue;
+                }
+                $was = (string) $x[1] !== '' ? '<span class="hv-was">' . h((string) $x[1]) . '</span> → ' : ($p === 'fp' ? '' : '<span class="hv-was">нет</span> → ');
+                $hv_l[] = '<span>' . $hd . ' ' . $was . '<b class="mono">' . h((string) $x[2]) . '</b>' . ((string) ($x[5] ?? '') !== '' ? ' <span class="dim mono">' . h((string) $x[5]) . '</span>' : '') . '</span>';
             }
             if ($hv_n > count($hv_l)) $hv_l[] = '<span class="dim">и ещё ' . ($hv_n - count($hv_l)) . '</span>';
             $hv_row = '<div class="xr"><span class="l">Подмена хостов</span><span class="v hv-xv">' . implode('', $hv_l) . '</span></div>';
