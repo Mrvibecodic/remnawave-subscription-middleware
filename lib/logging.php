@@ -79,7 +79,7 @@ function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null,
     if (!($p = db())) return;
     ensure_reqlog_hwid();
     $extra = [];
-    foreach (['er', 'as', 'wg', 'grace', 'sub', 'chan', 'dv'] as $k) {
+    foreach (['er', 'as', 'wg', 'grace', 'sub', 'chan', 'dv', 'hv'] as $k) {
         if (isset($meta[$k]) && $meta[$k] !== '' && $meta[$k] !== null && $meta[$k] !== []) $extra[$k] = $meta[$k];
     }
     try {

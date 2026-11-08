@@ -115,6 +115,11 @@ if ($to_panel) {
 if ($query) $target_url .= '?' . $query;
 
 $strip_conditional = !$junk_path && (addsub_enabled() || squadconf_any() || (pagekeys_active() && subpage_is_browser($_SERVER['HTTP_USER_AGENT'] ?? '')));
+// Подмена хостов меняет тело: на 304 от панели приложение так и осталось бы с телом без подмены.
+if (!$strip_conditional && !$junk_path && function_exists('hostov_any') && hostov_any()) {
+    $hv_segs = path_segments($path);
+    $strip_conditional = $hv_segs && hostov_rows_for($hv_segs[0]);
+}
 $conditional_hdrs = ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range'];
 
 $request_headers = [];
@@ -418,6 +423,17 @@ if ($do_substitute) {
 
 $response_premod = $response;
 
+$log_hv = [];
+$hv_notes = [];
+// В грейсе у пользователя хосты грейс-сквада — его подменам там не к чему относиться.
+if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && !$is_page && !$panel_hwid_block
+    && (int) $http_code >= 200 && (int) $http_code < 300 && function_exists('hostov_rows_for')
+    && ($hv_rows = hostov_rows_for($short_uuid)) && !grace_is_active($short_uuid)) {
+    [$response, $hv_hits] = hostov_apply($response, $format, $hv_rows);
+    $hv_notes[] = [$hv_rows, $hv_hits];
+    foreach ($hv_hits as $hv) $log_hv[] = [$hv[1], $hv[2], $hv[3]];
+}
+
 $log_wg = 0;
 $log_as = ['s' => 'off'];
 if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && squadconf_any()
@@ -480,6 +496,12 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
                 if (addsub_stub_on_traffic()) $response = addsub_inject_stub($response, $format, addsub_stub_label());
             } else {
                 $as_pre = $response;
+                $hv_b = (string) ($log_as['su'] ?? '');
+                if ($hv_b !== '' && $hv_b !== $short_uuid && !$is_page && function_exists('hostov_rows_for') && ($hv_rows = hostov_rows_for($hv_b))) {
+                    [$addsub_body, $hv_hits] = hostov_apply($addsub_body, detect_body_format($addsub_body, $format), $hv_rows);
+                    $hv_notes[] = [$hv_rows, $hv_hits];
+                    foreach ($hv_hits as $hv) $log_hv[] = [$hv[1], $hv[2], $hv[3]];
+                }
                 $response = addsub_merge($response, $addsub_body, $format, $short_uuid);
                 $as_in = $response !== $as_pre;
                 $log_as['s'] = 'on';
@@ -530,6 +552,7 @@ if (!$skip_log) {
         'grace' => $is_grace ? 1 : 0,
         'dv'    => reqlog_device($ua_hwid_vals),
         'chan'  => chan_active() ? 1 : null,
+        'hv'    => $log_hv ? ['c' => count($log_hv), 'h' => array_slice($log_hv, 0, 6)] : null,
     ];
     if ((int) $http_code >= 400) {
         // Ответ панели ушёл клиенту как есть, но выдачей это не было — «error», а не «normal».
@@ -551,3 +574,12 @@ if (!$skip_log) {
 }
 
 if ($short_uuid !== '' && !$junk_path) $GLOBALS['submw_grace_touch'] = [$short_uuid, $expire_ts];
+
+if ($hv_notes) {
+    $hv_cl  = reqlog_client($ua, reqlog_device($ua_hwid_vals));
+    $hv_app = trim(implode(' · ', array_filter([(string) ($hv_cl['app'] ?? ''), (string) ($hv_cl['os'] ?? '')])));
+    register_shutdown_function(static function () use ($hv_notes, $hv_app) {
+        if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+        foreach ($hv_notes as [$rows, $hits]) hostov_note($rows, $hits, $hv_app);
+    });
+}

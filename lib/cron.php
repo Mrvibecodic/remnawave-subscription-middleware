@@ -15,7 +15,7 @@ function cron_tasks() {
     return [
         'grace'   => ['Проверки грейса', 60, false],
         'reports' => ['Отчёты: срок хранения и геобазы', 3600, false],
-        'cleanup' => ['Чистка метрик, мусорных адресов и чата', 3600, false],
+        'cleanup' => ['Чистка метрик, мусорных адресов, чата и подмен', 3600, false],
         'brand'   => ['Брендинг из панели', 3600, false],
         'update'  => ['Проверка обновлений', 3600, true],
     ] + (function_exists('cron_task_sessions') ? ['sessions' => ['Сессии: опрос нод', sess_every(), false]] : [])
@@ -191,6 +191,7 @@ function cron_task_cleanup($ctx) {
     junk_prune($p);
     chat_gc();
     if (function_exists('apistat_prune')) apistat_prune();
+    if (function_exists('hostov_prune')) hostov_prune();
     // Уборка папки бэкапов: файлы «скачать сейчас», недописанные куски и брошенный временный конфиг.
     if (function_exists('backup_list')) backup_list();
     return '';

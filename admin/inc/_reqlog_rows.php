@@ -216,12 +216,25 @@ function reqlog_render_rows(array $rows, array $ctx) {
         [$left, $lcls] = rl_left($exp);
 
         $who = $name !== '' ? h($name) : ($su !== '' ? '<code>' . h($su) . '</code>' : '<span class="muted">—</span>');
+        $hv = is_array($meta['hv'] ?? null) ? $meta['hv'] : [];
+        $hv_n = (int) ($hv['c'] ?? 0);
+        $hv_tag = $hv_n > 0 ? ' <span class="tag hv-tag" data-tip="Подмена хостов: ' . $hv_n . '">подмена</span>' : '';
+        $hv_row = '';
+        if ($hv_n > 0) {
+            $hv_l = [];
+            foreach ((array) ($hv['h'] ?? []) as $x) {
+                if (!is_array($x) || count($x) < 3) continue;
+                $hv_l[] = '<span>' . h((string) $x[0]) . ' · отпечаток TLS ' . ((string) $x[1] !== '' ? '<span class="hv-was">' . h((string) $x[1]) . '</span> → ' : '') . '<b class="mono">' . h((string) $x[2]) . '</b></span>';
+            }
+            if ($hv_n > count($hv_l)) $hv_l[] = '<span class="dim">и ещё ' . ($hv_n - count($hv_l)) . '</span>';
+            $hv_row = '<div class="xr"><span class="l">Подмена хостов</span><span class="v hv-xv">' . implode('', $hv_l) . '</span></div>';
+        }
         $sub = $name !== '' && $su !== '' ? '<span class="su">' . h($su) . '</span>' : '';
 
         $out .= '<tr class="rowb" data-i="' . $i . '">'
               . '<td><span class="tgl">›</span></td>'
               . '<td class="dim mono rl-time" data-label="Время" data-ts="' . (int) ($r['ts_epoch'] ?? 0) . '">' . h(mb_substr((string) ($r['ts'] ?? ''), 11)) . ($dup > 1 ? '<span class="rep">×' . $dup . '</span>' : '') . '</td>'
-              . '<td data-label="Решение">' . rl_dec_tag($dec, true, $meta) . '</td>'
+              . '<td data-label="Решение">' . rl_dec_tag($dec, true, $meta) . $hv_tag . '</td>'
               . '<td data-label="Доп. подписка">' . rl_as_badge($as) . '</td>'
               . '<td data-label="Пользователь"><span class="u-cell"><span class="nm">' . $who . '</span>' . $sub . '</span></td>'
               . '<td data-label="Клиент"><span class="cl"><span class="c1"><span class="nm">' . ($cl['app'] !== '' ? h($cl['app']) : '<span class="dim">—</span>') . '</span>' . rl_cv_dot($cv) . '</span>'
@@ -259,6 +272,7 @@ function reqlog_render_rows(array $rows, array $ctx) {
               . '<div class="xr"><span class="l">Статус</span><span class="v">' . (($u['status'] ?? '') !== '' ? '<span class="tag ' . h((string) $u['status']) . '">' . h((string) $u['status']) . '</span>' : '<span class="dim">неизвестен</span>') . '</span></div>'
               . '<div class="xr"><span class="l">Expire</span><span class="v">' . ($exp > 0 ? '<span class="mono rl-dt" data-ts="' . $exp . '">' . h(date('Y-m-d H:i', $exp)) . '</span> · <span class="' . $lcls . '">' . h($left) . '</span>' : '—') . '</span></div>'
               . '<div class="xr"><span class="l">Решение</span><span class="v">' . rl_dec_tag($dec, false, $meta) . ' — ' . h(rl_dec_why($dec, $meta)) . '</span></div>'
+              . $hv_row
               . '</div>'
               . '<div class="xcol"><div class="xh">Клиент</div>'
               . '<div class="xr"><span class="l">Приложение</span><span class="v">' . ($cl['app'] !== '' ? h($cl['app']) : '—') . '</span></div>'
