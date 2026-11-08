@@ -258,7 +258,7 @@ function panel_ref_spec($name) {
             $out = [];
             foreach (panel_ref_list($d, 'hosts') as $h) {
                 if (!is_array($h)) continue;
-                $row = panel_ref_pick($h, ['uuid', 'remark', 'address', 'port', 'isDisabled', 'securityLayer']);
+                $row = panel_ref_pick($h, ['uuid', 'remark', 'address', 'port', 'sni', 'isDisabled', 'securityLayer']);
                 $row['inbound'] = (string) ($h['inbound']['configProfileInboundUuid'] ?? '');
                 $row['tags'] = array_values(array_filter(array_map('strval', (array) ($h['tags'] ?? [])), 'strlen'));
                 // С 3.4 — internalSquads {mode, squads}, в 3.0–3.3 — excludedInternalSquads (то же, что EXCLUDE).

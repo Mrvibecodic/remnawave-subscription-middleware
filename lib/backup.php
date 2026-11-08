@@ -569,7 +569,7 @@ function backup_ensure_schema() {
     }
     foreach (['ensure_metrics_tables', 'ensure_forward_log', 'ensure_panel_write_log', 'ensure_grace_table', 'ensure_chat_tables', 'ensure_wg_user_cache',
               'ensure_reqlog_hwid', 'whlog_ensure_meta', 'rep_ensure', 'sess_ensure', 'apistat_ensure', 'pr_snap_ensure', 'geonet_ensure', 'junk_ensure',
-              'addsub_ensure', 'addsub_swap_ensure', 'app_ensure', 'chan_ensure', 'fc_ensure', 'squadconf_ensure', 'squadconf_cache_ensure', 'wglease_ensure'] as $f) {
+              'addsub_ensure', 'addsub_swap_ensure', 'app_ensure', 'chan_ensure', 'fc_ensure', 'squadconf_ensure', 'squadconf_cache_ensure', 'wglease_ensure', 'hostov_ensure'] as $f) {
         if (function_exists($f)) { try { $f(); } catch (Throwable $e) {} }
     }
     if (function_exists('admin_cache_ensure')) { try { admin_cache_ensure($p); } catch (Throwable $e) {} }

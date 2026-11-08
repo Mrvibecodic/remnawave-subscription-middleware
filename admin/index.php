@@ -476,9 +476,43 @@ if (isset($_GET['ajax']) && is_auth()) {
         $su = trim((string) ($_GET['su'] ?? ''));
         $ue = ''; $uc = 0;
         $u = $su !== '' ? ua_fetch($su, $ue, $uc) : null;
-        $r = $u ? ['ok' => true, 'user' => ua_norm($u), 'mw' => ua_mw($su, (string) ($u['username'] ?? ''))] : ['ok' => false, 'error' => $ue ?: 'Пустой shortUuid'];
+        $r = $u ? ['ok' => true, 'user' => ua_norm($u), 'mw' => ua_mw($su, (string) ($u['username'] ?? ''), (int) ($u['id'] ?? 0))] : ['ok' => false, 'error' => $ue ?: 'Пустой shortUuid'];
         if (is_array($r['user'] ?? null)) $r['user']['nh'] = ua_user_nh($r['user'], $r['mw']['grace'] ?? null);
         echo json_encode($r, JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'hv_list') {
+        echo json_encode(['ok' => function_exists('hostov_list'), 'hv' => function_exists('hostov_list') ? hostov_list(trim((string) ($_GET['su'] ?? ''))) : []], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'hv_hosts') {
+        $why = '';
+        $r = function_exists('hostov_hosts') ? hostov_hosts((int) ($_GET['uid'] ?? 0), $why) : null;
+        echo json_encode($r ? ['ok' => true] + $r : ['ok' => false, 'why' => $why ?: 'panel'], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if (in_array($a, ['hv_save', 'hv_set', 'hv_del', 'hv_clear'], true)) {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok() || !function_exists('hostov_save')) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $err = '';
+        $su = trim((string) ($_POST['su'] ?? ''));
+        $id = (int) ($_POST['id'] ?? 0);
+        if ($id > 0) $su = hostov_short_of($id);
+        if ($a === 'hv_save') {
+            $hj = json_decode((string) ($_POST['host'] ?? ''), true);
+            $ok = hostov_save($su, is_array($hj) ? $hj : [], 'fp', (string) ($_POST['v'] ?? ''), (int) ($_POST['till'] ?? 0), (int) ($_POST['uid'] ?? 0), (string) ($_POST['un'] ?? ''), $err);
+        } elseif ($a === 'hv_set') {
+            $ok = $id > 0 && hostov_set($id, isset($_POST['v']) ? (string) $_POST['v'] : null, (int) ($_POST['till'] ?? 0), isset($_POST['till']), $err);
+        } elseif ($a === 'hv_del') {
+            $ok = $id > 0 && hostov_del($id);
+        } else {
+            $n = hostov_clear_off();
+            echo json_encode(['ok' => true, 'n' => $n, 'all' => hostov_list()], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+        echo json_encode(['ok' => (bool) $ok, 'error' => $ok ? '' : ($err ?: 'Не сохранилось'), 'hv' => $su !== '' ? hostov_list($su) : [], 'all' => ($_POST['all'] ?? '') === '1' ? hostov_list() : null], JSON_UNESCAPED_UNICODE);
         exit();
     }
 
@@ -2152,7 +2186,7 @@ if ($tab === 'pagekeys') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'backup' => 'Бэкап и восстановление', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Геобазы'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'hostov' => 'Подмена хостов', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'backup' => 'Бэкап и восстановление', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Геобазы'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 // function_exists: прежний апдейтер пишет admin/index.php раньше lib/branding.php.
 if ($db_ok && function_exists('brand_refresh_if_stale')) brand_refresh_if_stale();
@@ -2299,6 +2333,7 @@ $nav = [
     'panel_rules' => ['Правила панели', '<path d="m3 16 4 4 4-4" /> <path d="M7 20V4" /> <path d="M11 4h10" /> <path d="M11 8h7" /> <path d="M11 12h4" />'],
     'hwid'      => ['HWID', '<path d="M18.9 7a8 8 0 0 1 1.1 5v1a6 6 0 0 0 .8 3" /> <path d="M8 11a4 4 0 0 1 8 0v1a10 10 0 0 0 2 6" /> <path d="M12 11v2a14 14 0 0 0 2.5 8" /> <path d="M8 15a18 18 0 0 0 1.8 6" /> <path d="M4.9 19a22 22 0 0 1 -.9 -7v-1a8 8 0 0 1 12 -6.95" />'],
     'overrides' => ['Оверрайды', '<path d="M3 4a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M15 16a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M21 11v-3a2 2 0 0 0 -2 -2h-6l3 3m0 -6l-3 3" /> <path d="M3 13v3a2 2 0 0 0 2 2h6l-3 -3m0 6l3 -3" />'],
+    'hostov'    => ['Подмена хостов', '<rect x="2" y="2" width="20" height="8" rx="2" /> <rect x="2" y="14" width="20" height="8" rx="2" /> <path d="M6 6h.01" /> <path d="M6 18h.01" />'],
     'squad_configs' => ['Доп. конфиги', '<path d="M11.35 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v5.35" /> <path d="M14 2v5a1 1 0 0 0 1 1h5" /> <path d="M14 19h6" /> <path d="M17 16v6" />'],
     'wg_pool'   => ['WG / AWG', '<rect x="16" y="16" width="6" height="6" rx="1" /> <rect x="2" y="16" width="6" height="6" rx="1" /> <rect x="9" y="2" width="6" height="6" rx="1" /> <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /> <path d="M12 12V8" />'],
     'addsub'    => ['Слияние подписок', '<path d="M3 7h5l3.5 5h9.5" /> <path d="M3 17h5l3.495 -5" /> <path d="M18 15l3 -3l-3 -3" />'],
@@ -2329,7 +2364,7 @@ $nav_sections = [
     ['l' => 'Clod Clash',       'coll' => true,  'k' => 'clod',   'items' => ['clod', 'reports']],
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog'] : ['webhooks', 'whlog']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
-    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'panel_rules', 'hwid', 'overrides', 'squad_configs', 'wg_pool', 'addsub', 'pagekeys']],
+    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'panel_rules', 'hwid', 'overrides', 'hostov', 'squad_configs', 'wg_pool', 'addsub', 'pagekeys']],
     ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => array_merge(['sysinfo', 'update', 'migrate'], function_exists('backup_create') ? ['backup'] : [])],
 ];
 function submw_ui_cookie() {
@@ -2500,6 +2535,8 @@ navHidSync();
 
 <?php elseif ($tab === 'overrides'): ?>
     <?php include __DIR__ . '/inc/tab_overrides.php'; ?>
+<?php elseif ($tab === 'hostov'): ?>
+    <?php include __DIR__ . '/inc/tab_hostov.php'; ?>
 
 <?php elseif ($tab === 'squad_configs'): ?>
     <?php include __DIR__ . '/inc/tab_squad_configs.php'; ?>

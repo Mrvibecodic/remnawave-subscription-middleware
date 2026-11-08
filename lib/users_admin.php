@@ -314,11 +314,16 @@ function ua_grace_map() {
     return $out;
 }
 
-function ua_mw($short, $username = '') {
+function ua_mw($short, $username = '', $uid = 0) {
     $short = (string) $short;
-    $out = ['grace' => ua_grace_info($short), 'ov' => [], 'addsub' => '', 'nolog' => nolog_is_set($short), 'wg' => ['m' => 0, 'a' => 0], 'last' => null, 'fc' => fc_view(fc_get($short))];
+    $out = ['grace' => ua_grace_info($short), 'ov' => [], 'addsub' => '', 'nolog' => nolog_is_set($short), 'wg' => ['m' => 0, 'a' => 0], 'last' => null, 'fc' => fc_view(fc_get($short)), 'hv' => []];
     $p = db();
     if (!$p || $short === '') return $out;
+    if (function_exists('hostov_any') && hostov_any()) {
+        // Без вебхуков перевыпуск подписки в панели оставил бы подмены на старом shortUuid.
+        if ((int) $uid > 0) hostov_rekey((int) $uid, $short);
+        $out['hv'] = hostov_list($short);
+    }
     try {
         $st = $p->prepare("SELECT match_type, match_value, reason, source FROM overrides WHERE (match_type = 'shortuuid' AND match_value = ?) OR (match_type = 'username' AND LOWER(match_value) = ?)");
         $st->execute([$short, mb_strtolower((string) $username)]);
@@ -501,6 +506,7 @@ function ua_action($short, $act) {
             nolog_set($short, false);
             grace_cleanup($short);
             wglease_purge_user($short);
+            if (function_exists('hostov_purge_user')) hostov_purge_user($short);
             squadconf_cache_drop($short);
             addsub_cache_drop($short);
             panel_users_patch($u, true);

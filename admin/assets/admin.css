@@ -203,6 +203,9 @@
     .tag.webhook,.tag.reactivate{background:var(--c-info-bg);color:var(--c-info-fg)}
     .tag.manual{background:var(--c-violet-bg);color:var(--c-violet-fg)}
     .tag.error,.tag.set_expired{background:var(--c-bad-bg);color:var(--c-bad-fg)}
+    .tag.hv-tag{background:var(--c-violet-bg);color:var(--c-violet-fg)}
+    .hv-was{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;color:var(--muted);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--muted) 60%,transparent)}
+    .hv-xv{display:flex;flex-direction:column;gap:.15rem}
     .flash{background:var(--c-ok-bg);border:1px solid var(--c-ok-fg);color:var(--c-ok-fg);padding:.7rem 1rem;margin-bottom:1rem}
     .warn{background:var(--c-bad-bg);border:1px solid var(--c-bad-fg);color:var(--c-bad-fg);padding:.7rem 1rem;margin-bottom:1rem}
     .info{background:var(--bg2);border:1px solid var(--line);padding:.85rem 1rem;margin-bottom:1rem}

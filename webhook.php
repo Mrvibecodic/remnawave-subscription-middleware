@@ -126,6 +126,8 @@ if ($short_uuid !== '') squadconf_cache_drop($short_uuid);
 if ($short_uuid !== '') addsub_cache_drop($short_uuid);
 if ($short_uuid !== '' && addsub_is_secondary($short_uuid, $username)) { addsub_cache_drop_by_target($short_uuid); addsub_cache_drop_main_of($username); }
 
+if ($short_uuid !== '' && $event === 'user.revoked' && function_exists('hostov_rekey')) hostov_rekey((int) ($data['id'] ?? 0), $short_uuid);
+
 if ($short_uuid !== '' && $event !== 'user.deleted' && function_exists('chan_index_add') && chan_enabled()) {
     try { chan_index_add($short_uuid); } catch (Throwable $e) { error_log('submw chan index add: ' . $e->getMessage()); }
 }
@@ -144,6 +146,7 @@ if ($short_uuid !== '') {
         grace_cleanup($short_uuid);
         fc_del($short_uuid);
         wglease_purge_user($short_uuid);
+        if (function_exists('hostov_purge_user')) hostov_purge_user($short_uuid);
         if (function_exists('chan_index_drop')) {
             try { chan_index_drop($short_uuid); chan_state_drop($short_uuid); rep_forget($short_uuid); }
             catch (Throwable $e) { error_log('submw chan index drop: ' . $e->getMessage()); }

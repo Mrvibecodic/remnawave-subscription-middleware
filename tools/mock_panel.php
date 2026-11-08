@@ -62,6 +62,17 @@ if (preg_match('~^/api/sub/([A-Za-z0-9_-]+)~', $path, $m)) {
         echo base64_encode('vless://00000000-0000-0000-0000-000000000000@0.0.0.0:1?type=tcp#limit');
         exit;
     }
+    // bodies: {"clash"|"singbox"|"xray"|"base64": тело} — готовое тело подписки по типу клиента; etag и 304 — как у панели.
+    if (is_array($u['bodies'] ?? null)) {
+        $k = $clash ? 'clash' : (preg_match('/sing-box|hiddify/', $ua) ? 'singbox' : (preg_match('/happ|xray/', $ua) ? 'xray' : 'base64'));
+        $body = (string) ($u['bodies'][$k] ?? '');
+        $etag = '"' . md5($body) . '"';
+        header('etag: ' . $etag);
+        if (($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) { http_response_code(304); exit; }
+        header('content-type: ' . ($k === 'clash' ? 'text/yaml' : ($k === 'base64' ? 'text/plain' : 'application/json')) . '; charset=utf-8');
+        echo $body;
+        exit;
+    }
     $nodes = $st === 'ACTIVE' ? 3 : 1;
     if ($clash) {
         header('content-type: text/yaml; charset=utf-8');
@@ -133,7 +144,7 @@ if ($path === '/api/hosts') {
     //   "isq": {"mode": "EXCLUDE|ALLOW_ONLY", "squads": […]} — как 3.4+, иначе "exsq": […] — как 3.0–3.3}]
     $out = [];
     foreach ((array) ($state['hosts'] ?? []) as $h) {
-        $row = ['uuid' => md5((string) ($h['remark'] ?? '')), 'remark' => (string) ($h['remark'] ?? ''), 'address' => (string) ($h['address'] ?? ''), 'port' => 443, 'isDisabled' => !empty($h['off']), 'nodes' => array_values((array) ($h['nodes'] ?? [])), 'tags' => array_values((array) ($h['tags'] ?? [])),
+        $row = ['uuid' => md5((string) ($h['remark'] ?? '')), 'remark' => (string) ($h['remark'] ?? ''), 'address' => (string) ($h['address'] ?? ''), 'port' => (int) ($h['port'] ?? 443), 'sni' => $h['sni'] ?? null, 'isDisabled' => !empty($h['off']), 'nodes' => array_values((array) ($h['nodes'] ?? [])), 'tags' => array_values((array) ($h['tags'] ?? [])),
             'inbound' => ['configProfileUuid' => null, 'configProfileInboundUuid' => $h['inb'] ?? null], 'isHidden' => !empty($h['hid'])];
         if (isset($h['isq'])) $row['internalSquads'] = $h['isq'];
         else $row['excludedInternalSquads'] = array_values((array) ($h['exsq'] ?? []));
@@ -385,6 +396,15 @@ if ($path === '/api/system/stats') {
     $on = 0;
     foreach ($nodes as $n) if (empty($n['off'])) $on++;
     mp_json(200, ['response' => ['users' => ['statusCounts' => ['ACTIVE' => count($users), 'LIMITED' => 0, 'EXPIRED' => 0, 'DISABLED' => 0], 'totalUsers' => count($users)], 'onlineStats' => ['onlineNow' => 0, 'lastDay' => 0, 'lastWeek' => 0], 'nodes' => ['totalOnline' => $on]]]);
+    exit;
+}
+
+// ckeys: {"<userId>": [ссылки] | "403"} — ключи подключения пользователя.
+if (preg_match('~^/api/subscriptions/connection-keys/(\d+)$~', $path, $m)) {
+    $ck = $state['ckeys'][$m[1]] ?? null;
+    if ($ck === '403') { mp_json(403, ['message' => 'Forbidden', 'statusCode' => 403]); exit; }
+    if (!is_array($ck)) { mp_json(404, ['message' => 'User not found', 'statusCode' => 404]); exit; }
+    mp_json(200, ['response' => ['enabledKeys' => array_values($ck), 'hiddenKeys' => [], 'disabledKeys' => []]]);
     exit;
 }
 
