@@ -791,9 +791,16 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .hv-hi.on{background:var(--accent-light)}
 .hv-hi.dis{cursor:not-allowed;background:var(--card)}
 .hv-hi.dis .hv-h{opacity:.55}
-.hv-hi .rd{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);display:inline-block;position:relative}
-.hv-hi.on .rd{border-color:var(--accent)}
-.hv-hi.on .rd:after{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--accent)}
+.hv-hi .cv{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
+.hv-hi .cv svg{width:15px;height:15px;transition:transform .15s ease}
+.hv-hi.on .cv{color:var(--accent-text)}
+.hv-hi.on .cv svg{transform:rotate(90deg)}
+.hv-hi.dis .cv{opacity:.35}
+.hv-hx{border-top:1px solid var(--line);box-shadow:inset 3px 0 0 var(--accent)}
+.hv-hx>.hv-pf:first-child{border-top:0}
+.hv-b .hv-pk.in{margin:.15rem .8rem .8rem}
+.hv-bh .hv-lk.on{background:var(--accent-light)}
+@media(prefers-reduced-motion:reduce){.hv-hi .cv svg{transition:none}}
 .hv-hi .cur{font-size:.76rem;color:var(--muted);white-space:nowrap;text-align:right}
 .hv-hi .cur b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text);font-weight:600}
 .hv-hi .why{font-size:.74rem;color:var(--muted);white-space:nowrap}
@@ -838,6 +845,7 @@ html[data-theme="light"] .hv-tl input[type=date],html[data-theme="light"] .hv-po
  .hv-pk .ph .s{display:none}
  .hv-hi{grid-template-columns:20px minmax(0,1fr)}
  .hv-hi .cur,.hv-hi .why{grid-column:2;text-align:left}
+ .hv-b .hv-pk.in{margin:.15rem .55rem .7rem}
 }
 
 .ux-pre button.on{background:var(--accent-light);border-color:var(--accent);color:var(--accent-text)}
@@ -965,9 +973,10 @@ button.ux-lk.hv-go:hover{background:var(--hover);color:var(--accent-text)}
 .fm-ps button code.m{display:block;margin-top:.3rem;padding-top:.3rem;border-top:1px dashed var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.7rem;color:var(--text);line-height:1.4;word-break:break-word;background:none;border-radius:0}
 .fm-ps button.on code.m{color:var(--accent-text);border-top-color:color-mix(in srgb,var(--accent) 45%,transparent)}
 .fm-pv{margin-top:.7rem;border:1px solid var(--line);border-radius:10px;background:var(--bg2);overflow:hidden}
-.fm-pv .t{display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;border-bottom:1px solid var(--line);font-size:.78rem;color:var(--text-strong);font-weight:600}
+.fm-pv .t{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .4rem;padding:.45rem .7rem;border-bottom:1px solid var(--line);font-size:.78rem;color:var(--text-strong);font-weight:600}
 .fm-pv .t svg{width:14px;height:14px;color:var(--accent-text)}
-.fm-pv .t code{margin-left:auto;font-weight:400;font-size:.72rem;color:var(--muted)}
+.fm-pv .t span{white-space:nowrap}
+.fm-pv .t code{margin-left:auto;font-weight:400;font-size:.72rem;color:var(--muted);overflow-wrap:anywhere}
 .fm-pv pre{margin:0;padding:.55rem .7rem;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.74rem;line-height:1.5;color:var(--muted);white-space:pre;overflow-x:auto;background:var(--card)}
 .fm-pv .our{color:var(--accent-text)}
 .fm-pv .pn{color:var(--muted)}
@@ -1749,9 +1758,10 @@ function hvBlocks(){
   // строки отпечатка из первой версии без протокола: возможности хоста — по строке, где он записан
   var it=g[h].slice().sort(function(a,b){return HVPS.indexOf(a.p)-HVPS.indexOf(b.p);}),f=it.filter(function(o){return o.proto;})[0]||it[0],cp=hvCaps(f.sec,f.trk,f.proto);
   var free=HVPS.filter(function(p){return cp[p]&&!hvUsed(h,p);}),off=it.every(function(o){var s=hvSt(o)[0];return s===''||s==='bad';});
-  return '<div class="hv-b'+(off?' off':'')+'"><div class="hv-bh"><div class="hv-h"><div class="n">'+esc(f.n)+'</div><div class="m">'+hvChips(f.sec,f.tr,f.proto)+'</div></div>'+
-   (free.length&&!CARD.hvpk?'<button type="button" class="hv-lk" data-hv="addh" data-h="'+esc(h)+'" data-tip="Ещё: '+free.map(function(p){return HVSH[p];}).join(', ')+'">'+ico('plus',14)+'Параметр</button>':'')+'</div>'+
-   it.map(hvPrRow).join('')+'</div>';
+  var K=CARD.hvpk,ad=!!(K&&K.at==='blk'&&K.h===h);
+  return '<div class="hv-b'+(off?' off':'')+'" data-hb="'+esc(h)+'"><div class="hv-bh"><div class="hv-h"><div class="n">'+esc(f.n)+'</div><div class="m">'+hvChips(f.sec,f.tr,f.proto)+'</div></div>'+
+   (free.length?'<button type="button" class="hv-lk'+(ad?' on':'')+'" data-hv="addh" data-h="'+esc(h)+'" aria-expanded="'+(ad?'true':'false')+'" data-tip="'+(ad?'Скрыть':'Ещё: '+free.map(function(p){return HVSH[p];}).join(', '))+'">'+ico('plus',14)+'Параметр</button>':'')+'</div>'+
+   it.map(function(o){return hvPrRow(o)+(K&&K.ed===o.id?hvEdPanel():'');}).join('')+(ad?hvBlkAdd():'')+'</div>';
  }).join('');
 }
 
@@ -1944,48 +1954,79 @@ function hvPv(p,h){
 }
 function hvForm(h){var K=CARD.hvpk,p=K.p;
  if(p==='fp')return '<div class="hv-pf"><div class="lb">Отпечаток TLS'+(h.sec==='reality'?'<span class="hv-rn">с REALITY работают только эти</span>':'')+'</div><div class="hv-fp">'+hvFps(h.sec).map(function(x){var pn=x===h.fp;return '<button type="button" data-hv="fp" data-v="'+esc(x)+'" class="'+(pn?'pn':(K.v===x?'on':''))+'"'+(pn?' disabled data-tip="Сейчас в панели — менять не на что"':'')+'>'+esc(x)+(pn?'<span class="pd"></span>':'')+'</button>';}).join('')+'</div>'+hvPv('fp',h)+'</div>';
- return '<div class="hv-pf">'+(K.ed?'':'<div class="lb">'+HVPN[p]+' для <b>'+esc(h.name)+'</b></div>')+hvPresets(p,h)+(K.v==='own'?(p==='frag'?hvOwnFrag(h):hvOwnNoise()):'')+hvPv(p,h)+hvNotes(p,h)+'</div>';
+ return '<div class="hv-pf">'+hvPresets(p,h)+(K.v==='own'?(p==='frag'?hvOwnFrag(h):hvOwnNoise()):'')+hvPv(p,h)+hvNotes(p,h)+'</div>';
 }
 function hvTerm(){var K=CARD.hvpk;return '<div class="hv-pf"><div class="row2"><div><div class="lb">Срок</div><div class="hv-tl"><div class="ux-pre">'+HVTL.map(function(t){return '<button type="button" data-hv="tl" data-t="'+t[0]+'" class="'+(!K.d&&K.t===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div></div></div>'+
  '<div><div class="lb"><label for="hvPd">или до даты</label></div><div class="hv-tl"><input type="date" id="hvPd" value="'+esc(K.d||'')+'"></div></div></div></div>';}
+// Настройки подмены раскрываются прямо под хостом: в списке хостов, в блоке хоста («+ Параметр») или под строкой при правке.
+function hvSetup(hs){
+ var K=CARD.hvpk,c=hs.caps||{};
+ var f='<div class="hv-pf"><div class="lb">Что меняем</div><div class="hv-sw">'+HVPS.map(function(p){var u=hvUsed(hs.uuid,p);
+   if(!c[p]||u)return '<button type="button" class="dis" disabled data-tip="'+esc(u?'Уже есть подмена — меняется в блоке хоста':((hs.why||{})[p]||''))+'">'+ico(HVPI[p],15)+HVPN[p]+(u?'<span class="e">· есть</span>':'')+'</button>';
+   return '<button type="button" data-hv="pw" data-v="'+p+'" class="'+(K.p===p?'on':'')+'">'+ico(HVPI[p],15)+HVPN[p]+'</button>';}).join('')+'</div></div>';
+ if(K.p)f+=hvForm(hs)+hvTerm();
+ return f+'<div class="hv-pa"><span class="s" id="hvPaS">'+hvPaTxt()+'</span><button type="button" class="wb sm" data-hv="cancel">Отмена</button><button type="button" class="wb sm pri" id="hvAdd" data-hv="add"'+(hvCanSave()?'':' disabled')+'>'+ico('plus',15)+'Добавить</button></div>';
+}
+function hvHMsg(H){
+ if(H.why==='right')return '<div class="hv-msg"><span class="ic bad">'+ico('key2',16)+'</span><div><b>У токена нет права смотреть хосты пользователя</b>Нужны права «subscriptions: connection-keys» и «hosts: list». Выдайте их токену в панели и проверьте снова.<div class="acts"><a class="wb sm" href="?tab=connection">'+ico('ext',15)+'Права токена</a><button type="button" class="wb sm" data-hv="retry">'+ico('refresh',15)+'Проверить снова</button><button type="button" class="wb sm" data-hv="cancel">Закрыть</button></div></div></div>';
+ return '<div class="hv-msg"><span class="ic bad">'+ico('alert',16)+'</span><div><b>'+(H.why==='nouser'?'Панель не нашла пользователя':'Панель не ответила')+'</b>Список хостов не загрузился. Уже заданные подмены продолжают работать.<div class="acts"><button type="button" class="wb sm pri" data-hv="retry">'+ico('refresh',15)+'Повторить</button><button type="button" class="wb sm" data-hv="cancel">Закрыть</button></div></div></div>';
+}
+function hvEdPanel(){
+ var K=CARD.hvpk,he=hvHostOf(K);if(!he)return '';
+ return '<div class="hv-pk in"><div class="ph">'+ico(HVPI[K.p],16)+'Изменить: '+HVSH[K.p]+'</div>'+hvForm(he)+
+  '<div class="hv-pa"><span class="s" id="hvPaS">'+hvPaTxt()+'</span><button type="button" class="wb sm" data-hv="cancel">Отмена</button><button type="button" class="wb sm pri" id="hvAdd" data-hv="save"'+(hvCanSave()?'':' disabled')+'>'+ico('check',15)+'Сохранить</button></div></div>';
+}
+function hvBlkAdd(){
+ var H=CARD.hvh,K=CARD.hvpk,hd='<div class="ph">'+ico('plus',16)+'Новый параметр</div>';
+ if(!H)return '<div class="hv-pk in">'+hd+'<div class="hv-pa"><span class="s">Загружаю хосты из панели…</span><button type="button" class="wb sm" data-hv="cancel">Отмена</button></div></div>';
+ if(!H.ok)return '<div class="hv-pk in">'+hd+hvHMsg(H)+'</div>';
+ var hs=hvHostOf(K);
+ if(!hs)return '<div class="hv-pk in">'+hd+'<div class="hv-msg"><span class="ic info">'+ico('info',16)+'</span><div><b>Хоста сейчас нет у пользователя</b>Панель не отдаёт этот хост пользователю — добавить к нему нечего.<div class="acts"><button type="button" class="wb sm" data-hv="cancel">Закрыть</button></div></div></div></div>';
+ return '<div class="hv-pk in">'+hd+hvSetup(hs)+'</div>';
+}
 function hvPick(){
  var H=CARD.hvh,K=CARD.hvpk;
- if(K.ed){var he=hvHostOf(K);if(!he)return '';
-  return '<div class="hv-pk"><div class="ph">'+ico(HVPI[K.p],16)+'Изменить: '+HVSH[K.p]+' · '+esc(he.name)+'</div>'+hvForm(he)+
-   '<div class="hv-pa"><span class="s" id="hvPaS">'+hvPaTxt()+'</span><button type="button" class="wb sm" data-hv="cancel">Отмена</button><button type="button" class="wb sm pri" id="hvAdd" data-hv="save"'+(hvCanSave()?'':' disabled')+'>'+ico('check',15)+'Сохранить</button></div></div>';}
  var head='<div class="ph">'+ico('server',16)+'Хосты пользователя в панели<span class="sp"></span><span class="s">отпечаток, фрагментация, шум</span></div>';
  if(!H)return '<div class="hv-pk">'+head+'<div class="hv-hl"><div class="hv-sk"></div><div class="hv-sk"></div><div class="hv-sk"></div></div><div class="hv-pa"><span class="s">Загружаю хосты из панели…</span><button type="button" class="wb sm" data-hv="cancel">Отмена</button></div></div>';
- if(!H.ok){
-  if(H.why==='right')return '<div class="hv-pk">'+head+'<div class="hv-msg"><span class="ic bad">'+ico('key2',16)+'</span><div><b>У токена нет права смотреть хосты пользователя</b>Нужны права «subscriptions: connection-keys» и «hosts: list». Выдайте их токену в панели и проверьте снова.<div class="acts"><a class="wb sm" href="?tab=connection">'+ico('ext',15)+'Права токена</a><button type="button" class="wb sm" data-hv="retry">'+ico('refresh',15)+'Проверить снова</button><button type="button" class="wb sm" data-hv="cancel">Закрыть</button></div></div></div></div>';
-  return '<div class="hv-pk">'+head+'<div class="hv-msg"><span class="ic bad">'+ico('alert',16)+'</span><div><b>'+(H.why==='nouser'?'Панель не нашла пользователя':'Панель не ответила')+'</b>Список хостов не загрузился. Уже заданные подмены продолжают работать.<div class="acts"><button type="button" class="wb sm pri" data-hv="retry">'+ico('refresh',15)+'Повторить</button><button type="button" class="wb sm" data-hv="cancel">Закрыть</button></div></div></div></div>';
- }
+ if(!H.ok)return '<div class="hv-pk">'+head+hvHMsg(H)+'</div>';
  if(!H.hosts.length)return '<div class="hv-pk">'+head+'<div class="hv-msg"><span class="ic info">'+ico('info',16)+'</span><div><b>Хостов нет</b>Панель не отдаёт пользователю ни одного хоста.<div class="acts"><button type="button" class="wb sm" data-hv="cancel">Закрыть</button></div></div></div></div>';
  var list=H.hosts.map(function(h,i){
-  var c=h.caps||{},av=HVPS.filter(function(p){return c[p];}),fr=av.filter(function(p){return !hvUsed(h.uuid,p);}),dis=!fr.length,on=K.h===h.uuid;
-  return '<div class="hv-hi'+(on?' on':'')+(dis?' dis':'')+'" data-hv="host" data-i="'+i+'" role="radio" aria-checked="'+(on?'true':'false')+'"'+(dis?' aria-disabled="true"':' tabindex="0"')+'><span class="rd"></span>'+
+  var c=h.caps||{},av=HVPS.filter(function(p){return c[p];}),fr=av.filter(function(p){return !hvUsed(h.uuid,p);}),dis=!fr.length,on=!dis&&K.h===h.uuid;
+  return '<div class="hv-hi'+(on?' on':'')+(dis?' dis':'')+'" data-hv="host" data-i="'+i+'" role="button" aria-expanded="'+(on?'true':'false')+'"'+(dis?' aria-disabled="true"':' tabindex="0"')+'><span class="cv">'+ico('chev',15)+'</span>'+
    '<div class="hv-h"><div class="n">'+esc(h.name)+'</div><div class="m">'+hvChips(h.sec,h.tr,h.proto)+'</div></div>'+
-   (!av.length?'<span class="why">'+esc(h.no||'менять нечего')+'</span>':(dis?'<span class="why">всё уже подменено</span>':'<span class="ps">'+av.map(function(p){var u=hvUsed(h.uuid,p);return '<span class="'+(u?'u':'')+'"'+(u?' data-tip="Уже есть подмена"':'')+'>'+HVSH[p]+'</span>';}).join('')+'</span>'))+'</div>';
+   (!av.length?'<span class="why">'+esc(h.no||'менять нечего')+'</span>':(dis?'<span class="why">всё уже подменено</span>':'<span class="ps">'+av.map(function(p){var u=hvUsed(h.uuid,p);return '<span class="'+(u?'u':'')+'"'+(u?' data-tip="Уже есть подмена"':'')+'>'+HVSH[p]+'</span>';}).join('')+'</span>'))+'</div>'+
+   (on?'<div class="hv-hx">'+hvSetup(h)+'</div>':'');
  }).join('');
- var f='',hs=hvHostOf(K);
- if(hs){var c=hs.caps||{};
-  f+='<div class="hv-pf"><div class="lb">Что меняем у <b>'+esc(hs.name)+'</b></div><div class="hv-sw">'+HVPS.map(function(p){var u=hvUsed(hs.uuid,p);
-   if(!c[p]||u)return '<button type="button" class="dis" disabled data-tip="'+esc(u?'Уже есть подмена — меняется в списке выше':((hs.why||{})[p]||''))+'">'+ico(HVPI[p],15)+HVPN[p]+(u?'<span class="e">· есть</span>':'')+'</button>';
-   return '<button type="button" data-hv="pw" data-v="'+p+'" class="'+(K.p===p?'on':'')+'">'+ico(HVPI[p],15)+HVPN[p]+'</button>';}).join('')+'</div></div>';
-  if(K.p)f+=hvForm(hs)+hvTerm();
- }
- return '<div class="hv-pk">'+head+'<div class="hv-hl" role="radiogroup" aria-label="Хост">'+list+'</div><div class="hv-pn">Хостов, которые панель исключила из формата ссылок (Xray base64), здесь нет.</div>'+f+
-  '<div class="hv-pa"><span class="s" id="hvPaS">'+hvPaTxt()+'</span><button type="button" class="wb sm" data-hv="cancel">Отмена</button><button type="button" class="wb sm pri" id="hvAdd" data-hv="add"'+(hvCanSave()?'':' disabled')+'>'+ico('plus',15)+'Добавить</button></div></div>';
+ return '<div class="hv-pk">'+head+'<div class="hv-hl" role="group" aria-label="Хосты">'+list+'</div><div class="hv-pn">Хостов, которые панель исключила из формата ссылок (Xray base64), здесь нет.</div>'+
+  '<div class="hv-pa"><span class="s">'+(K.h?'':'Нажмите на хост — настройки откроются под ним')+'</span><button type="button" class="wb sm" data-hv="cancel">Закрыть</button></div></div>';
 }
 function hvSec(){
  var L=CARD.mw?(CARD.mw.hv||[]):null,h='<div class="ux-fs" id="hvSec"><div class="t">'+ico('server')+'Подмена хостов<span class="sp"></span><span class="hv-imm">сохраняется сразу · панель не меняется</span></div>'+
   '<div class="hv-note">Меняет клиентские параметры выбранных хостов — отпечаток TLS, фрагментацию, шум — только в подписке этого пользователя, для тестов. Серверы второй подписки и доп. конфиги прослойки не трогает.</div>';
  if(L===null)return h+'<div class="ux-load">Загрузка…</div></div>';
  if(L.length)h+='<div class="hv-list">'+hvBlocks()+'</div>';
- else if(!CARD.hvpk)h+='<div class="hv-empty"><span class="ic">'+ico('server',17)+'</span><div><b>Подмен нет</b>Пользователь получает хосты как в панели.</div></div>';
- h+=CARD.hvpk?hvPick():'<div class="hv-add"><button type="button" class="wb sm" data-hv="open">'+ico('plus',15)+'Добавить подмену</button></div>';
+ else if(!(CARD.hvpk&&CARD.hvpk.at==='list'))h+='<div class="hv-empty"><span class="ic">'+ico('server',17)+'</span><div><b>Подмен нет</b>Пользователь получает хосты как в панели.</div></div>';
+ h+=CARD.hvpk&&CARD.hvpk.at==='list'?hvPick():'<div class="hv-add"><button type="button" class="wb sm" data-hv="open">'+ico('plus',15)+'Добавить подмену</button></div>';
  return h+'</div>';
 }
-function hvRedraw(){var s=$('hvSec');if(s&&CARD&&!CARD.create)s.outerHTML=hvSec();}
+function hvRedraw0(){var s=$('hvSec');if(s&&CARD&&!CARD.create)s.outerHTML=hvSec();}
+// Блок перерисовывается целиком, поэтому любая перерисовка держит что-то на месте экрана:
+// нажатый элемент (HVCLK), а если нажатия не было — первый видимый хост, блок или открытые настройки.
+var HVCLK='';
+function hvRedraw(){var sel=HVCLK||hvAutoSel();if(sel)hvRedrawAt(sel);else hvRedraw0();}
+function hvClkSel(b){
+ if(!b.closest('#hvSec'))return '';var sel='[data-hv="'+b.dataset.hv+'"]';
+ ['v','i','id','h','t'].forEach(function(a){if(b.dataset[a]!==undefined)sel+='[data-'+a+'="'+CSS.escape(b.dataset[a])+'"]';});
+ return document.querySelectorAll('#hvSec '+sel).length===1?sel:'';
+}
+function hvAutoSel(){
+ var s=$('hvSec'),sc=s&&hvScroller(s);if(!sc)return '';var vr=sc.getBoundingClientRect(),xs=s.querySelectorAll('[data-hb],.hv-hi[data-i],.hv-hx,.hv-pk.in'),first='';
+ for(var i=0;i<xs.length;i++){var x=xs[i],r=x.getBoundingClientRect();if(r.bottom<=vr.top||r.top>=vr.bottom)continue;
+  var sel=x.dataset.hb!==undefined?'.hv-b[data-hb="'+CSS.escape(x.dataset.hb)+'"]':(x.dataset.i!==undefined?'.hv-hi[data-i="'+x.dataset.i+'"]':(x.classList.contains('hv-hx')?'.hv-hx':'.hv-pk.in'));
+  // верх целиком на экране — лучший якорь; иначе первый частично видимый
+  if(r.top>=vr.top)return sel;if(!first)first=sel;}
+ return first;
+}
 function hvLive(){var e=$('hvErr');if(e)e.innerHTML=hvErrHtml();var a=$('hvAdd');if(a)a.disabled=!hvCanSave();var s=$('hvPaS');if(s)s.textContent=hvPaTxt();
  var pv=$('hvPv'),K=CARD&&CARD.hvpk,h=K&&hvHostOf(K);if(pv&&h)pv.outerHTML=hvPv(K.p,h);var nt=$('hvNts');if(nt&&h)nt.outerHTML=hvNotes(K.p,h);}
 function hvOvRow(mw){
@@ -2003,7 +2044,34 @@ function hvOvRow(mw){
 function hvFresh(){var su=CARD.u.su;getj('hv_list','&su='+encodeURIComponent(su)).then(function(d){if(!d.ok||!CARD||CARD.create||CARD.u.su!==su||!CARD.mw)return;CARD.mw.hv=d.hv||[];if(CARD.tab==='edit')hvRedraw();else if(CARD.tab==='ov')drawCard();});}
 function hvLoad(then){var su=CARD.u.su;CARD.hvh=null;hvRedraw();getj('hv_hosts','&uid='+encodeURIComponent(CARD.u.id||0)).then(function(d){if(!CARD||CARD.create||CARD.u.su!==su)return;CARD.hvh=d;if(then)then();hvRedraw();});}
 function hvDone(d,msg){if(!d||!d.ok){if(window.uiAlert)uiAlert((d&&d.error)||'Ошибка','Подмена не сохранилась');return false;}if(CARD&&CARD.mw)CARD.mw.hv=d.hv||[];hvRedraw();if(d.warn&&window.uiAlert)uiAlert(d.warn,'Сохранено — проверьте ядро клиента');else if(msg)toast(msg);return true;}
-function hvScroll(sel){setTimeout(function(){var e=document.querySelector('#uxDr '+sel);if(e)e.scrollIntoView({block:'nearest',behavior:'smooth'});},40);}
+function hvScroller(el){for(var e=el&&el.parentElement;e&&e!==document.body;e=e.parentElement){var o=getComputedStyle(e).overflowY;if(o==='auto'||o==='scroll')return e;}return null;}
+// Запас внизу прокрутки: когда внизу длинного списка что-то сворачивается, прокрутке не во что упереться — без запаса всё съехало бы вниз.
+// Запас убывает сам, пока прокручивают вверх, и не двигает видимое.
+function hvSpacer(sc,px){var e=$('hvSp');if(px<1){if(e)e.remove();return;}if(!e||e.parentElement!==sc){if(e)e.remove();e=document.createElement('div');e.id='hvSp';e.setAttribute('aria-hidden','true');e.style.cssText='margin:0;padding:0;border:0;flex:none';sc.appendChild(e);}e.style.height=Math.ceil(px)+'px';}
+document.addEventListener('scroll',function(){var e=$('hvSp');if(!e)return;var sc=e.parentElement,need=sc.getBoundingClientRect().bottom-e.getBoundingClientRect().top;if(need<e.offsetHeight-1)hvSpacer(sc,need);},true);
+// Сдвинуть прокрутку так, чтобы элемент n снова оказался на высоте t (где был до перерисовки).
+function hvHold(t,n){
+ if(!n)return;var d=n.getBoundingClientRect().top-t;if(Math.abs(d)<1)return;var sc=hvScroller(n);
+ if(!sc){window.scrollBy(0,d);return;}
+ for(var i=0;i<3&&Math.abs(d)>=1;i++){
+  var want=sc.scrollTop+d,max=sc.scrollHeight-sc.clientHeight;if(want>max){var sp=$('hvSp'),h=sp&&sp.parentElement===sc?sp.offsetHeight:0;hvSpacer(sc,h+want-max);}
+  sc.scrollTop=want;d=n.getBoundingClientRect().top-t;
+ }
+}
+// Перерисовка без рывка: элемент sel (обычно тот, на который нажали) остаётся там же на экране, даже если выше или ниже что-то свернулось.
+function hvRedrawAt(sel){
+ var a=sel&&document.querySelector('#hvSec '+sel),t=a?a.getBoundingClientRect().top:0,sc=hvScroller($('hvSec'));
+ // свою привязку прокрутки браузера выключаем: она срабатывает кадром позже и сдвигает уже выставленное
+ if(sc)sc.style.overflowAnchor='none';hvRedraw0();
+ var n=a&&document.querySelector('#hvSec '+sel);if(!n)return null;hvHold(t,n);return n;
+}
+// Раскрытое под элементом ушло за нижний край — плавно показать его начало (не выше самого элемента). Если видно — ничего не двигать.
+function hvReveal(el){
+ if(!el)return;var nx=el.nextElementSibling,p=nx&&/hv-hx|hv-pk/.test(nx.className)?nx:el.closest('.hv-pr')?el.closest('.hv-pr').nextElementSibling:(el.closest('.hv-b')?el.closest('.hv-b').querySelector('.hv-pk.in'):null);if(!p)return;
+ var sc=hvScroller(el);if(!sc)return;var vr=sc.getBoundingClientRect(),r=p.getBoundingClientRect();
+ if(r.top>vr.bottom-120){var e=el.getBoundingClientRect(),d=Math.min(e.top-vr.top-12,r.top+Math.min(r.height,320)-(vr.bottom-16));if(d>0)sc.scrollTo({top:sc.scrollTop+d,behavior:'smooth'});}
+}
+function hvSelOf(b){var k=b.dataset.hv;if(k==='host')return '[data-hv="host"][data-i="'+b.dataset.i+'"]';if(k==='ed')return '[data-hv="ed"][data-id="'+b.dataset.id+'"]';if(k==='addh')return '[data-hv="addh"][data-h="'+CSS.escape(b.dataset.h)+'"]';return '';}
 var HVPOP=null;
 function hvPopClose(){if(HVPOP){HVPOP.remove();HVPOP=null;}}
 function hvPopOpen(btn,id){
@@ -2016,19 +2084,27 @@ function hvPopOpen(btn,id){
  HVPOP.style.left=x+'px';HVPOP.style.top=y+'px';
 }
 function hvDateTs(v){if(!v)return 0;var t=new Date(v+'T23:59:59').getTime();return isNaN(t)?0:Math.floor(t/1000);}
-function hvNewPk(){return {h:null,p:null,v:null,f:null,js:false,json:null,t:'0',d:'',ed:0};}
+function hvNewPk(at){return {h:null,p:null,v:null,f:null,js:false,json:null,t:'0',d:'',ed:0,at:at||'list'};}
 function hvPickHost(K,uuid){var hs=null;((CARD.hvh&&CARD.hvh.hosts)||[]).forEach(function(h){if(h.uuid===uuid)hs=h;});if(!hs)return;K.h=uuid;var c=hs.caps||{},p=HVPS.filter(function(x){return c[x]&&!hvUsed(uuid,x);})[0]||null;if(p)hvSetP(K,p,hs);else{K.p=null;K.v=null;}}
 function hvMaskPost(K){return K.p!=='fp'&&K.v==='own'?JSON.stringify(hvMask()):null;}
-function hvAct(b){
+function hvAct(b){HVCLK=hvClkSel(b);try{hvAct0(b);}finally{HVCLK='';}}
+function hvAct0(b){
  var k=b.dataset.hv,K=CARD.hvpk;
  if(k==='go'){cardGo('edit');setTimeout(function(){var s=$('hvSec');if(s)s.scrollIntoView({block:'start',behavior:'smooth'});},60);return;}
- if(k==='open'){CARD.hvpk=hvNewPk();if(!CARD.hvh||!CARD.hvh.ok)hvLoad();else hvRedraw();hvScroll('.hv-pk');return;}
- if(k==='addh'){var uu=b.dataset.h;CARD.hvpk=hvNewPk();var go=function(){hvPickHost(CARD.hvpk,uu);};if(!CARD.hvh||!CARD.hvh.ok)hvLoad(go);else{go();hvRedraw();}hvScroll('.hv-pk .hv-sw');return;}
- if(k==='cancel'){CARD.hvpk=null;hvRedraw();return;}
- if(k==='retry'){hvLoad();return;}
+ if(k==='open'){CARD.hvpk=hvNewPk('list');if(!CARD.hvh||!CARD.hvh.ok)hvLoad();else hvRedraw();return;}
+ if(k==='addh'){var uu=b.dataset.h,sl=hvSelOf(b);
+  if(K&&K.at==='blk'&&K.h===uu){CARD.hvpk=null;hvRedrawAt(sl);return;}
+  CARD.hvpk=hvNewPk('blk');CARD.hvpk.h=uu;var go=function(){if(CARD.hvpk&&CARD.hvpk.at==='blk'&&CARD.hvpk.h===uu)hvPickHost(CARD.hvpk,uu);};
+  if(!CARD.hvh||!CARD.hvh.ok)hvLoad(go);else go();hvReveal(hvRedrawAt(sl));return;}
+ if(k==='cancel'){var hx=b.closest('.hv-hx'),hi=hx&&hx.previousElementSibling;
+  if(K&&K.at==='list'&&hi&&hi.dataset.hv==='host'){K.h=null;K.p=null;K.v=null;K.f=null;K.js=false;K.json=null;hvRedrawAt(hvSelOf(hi));return;}
+  var cs=K&&(K.ed?'[data-hv="ed"][data-id="'+K.ed+'"]':(K.at==='blk'&&K.h?'[data-hv="addh"][data-h="'+CSS.escape(K.h)+'"]':(K.h?'.hv-hi.on':'')));CARD.hvpk=null;hvRedrawAt(cs);return;}
+ if(k==='retry'){var KR=CARD.hvpk;hvLoad(KR&&KR.at==='blk'?function(){if(CARD.hvpk===KR)hvPickHost(KR,KR.h);}:null);return;}
  if(hvActRow(b))return;
  if(!K)return;
- if(k==='host'){if(b.classList.contains('dis')||!CARD.hvh||!CARD.hvh.hosts)return;var hh=CARD.hvh.hosts[+b.dataset.i];if(!hh)return;hvPickHost(K,hh.uuid);hvRedraw();return;}
+ if(k==='host'){if(b.classList.contains('dis')||!CARD.hvh||!CARD.hvh.hosts)return;var hh=CARD.hvh.hosts[+b.dataset.i];if(!hh)return;var hsl=hvSelOf(b);
+  if(K.h===hh.uuid){K.h=null;K.p=null;K.v=null;K.f=null;K.js=false;K.json=null;hvRedrawAt(hsl);return;}
+  hvPickHost(K,hh.uuid);var hn=hvRedrawAt(hsl);hvReveal(hn);if(hn)hn.focus({preventScroll:true});return;}
  if(k==='pw'){if(b.disabled)return;var hs=hvHostOf(K);if(hs)hvSetP(K,b.dataset.v,hs);hvRedraw();return;}
  if(k==='fp'){if(b.disabled)return;K.v=b.dataset.v;hvRedraw();return;}
  if(k==='pr'){var v=b.dataset.v,hs2=hvHostOf(K);
@@ -2048,7 +2124,13 @@ function hvAct(b){
  if(k==='add'){
   if(b.disabled||!hvCanSave())return;var hs3=hvHostOf(K);if(!hs3)return;
   var till=K.d?hvDateTs(K.d):(+K.t?Math.floor(now()/1000)+(+K.t)*86400:0),u=CARD.u,mk=hvMaskPost(K),pd={su:u.su,uid:CARD.hvh.uid||u.id||0,un:u.un,host:JSON.stringify(hs3),p:K.p,v:K.v,till:till};if(mk!==null)pd.mask=mk;b.disabled=true;
-  post('hv_save',pd).then(function(d){if(!CARD||CARD.u.su!==u.su)return;if(d&&d.ok)CARD.hvpk=null;if(!hvDone(d,'Подмена сохранена — уйдёт при следующем обновлении подписки'))b.disabled=false;});
+  var hbs=K.at==='blk'?'[data-hv="addh"][data-h="'+CSS.escape(K.h)+'"]':'';
+  post('hv_save',pd).then(function(d){if(!CARD||CARD.u.su!==u.su)return;
+   if(!(d&&d.ok)){hvDone(d);b.disabled=false;return;}
+   CARD.hvpk=null;var ab=hbs&&document.querySelector('#hvSec '+hbs),bh0=ab&&ab.closest('.hv-b').querySelector('.hv-bh'),at0=bh0?bh0.getBoundingClientRect().top:0;
+   hvDone(d,'Подмена сохранена — уйдёт при следующем обновлении подписки');
+   var nb=document.querySelector('#hvSec .hv-b[data-hb="'+CSS.escape(hs3.uuid)+'"]');if(!nb)return;
+   if(bh0)hvHold(at0,nb.querySelector('.hv-bh'));else nb.scrollIntoView({block:'nearest',behavior:'smooth'});});
   return;}
  if(k==='save'){
   if(b.disabled||!hvCanSave())return;var su0=CARD.u.su,mk2=hvMaskPost(K),pd2={id:K.ed,v:K.v};if(mk2!==null)pd2.mask=mk2;b.disabled=true;
@@ -2058,9 +2140,10 @@ function hvAct(b){
 function hvActRow(b){
  var k=b.dataset.hv;
  if(k==='ed'){var id=+b.dataset.id,o=hvL().filter(function(x){return x.id===id;})[0];if(!o)return;
-  var K={h:o.h,p:o.p,v:o.v,f:null,js:false,json:null,t:'0',d:'',ed:id},s=o.m&&o.m.settings;
+  if(CARD.hvpk&&CARD.hvpk.ed===id){CARD.hvpk=null;hvRedrawAt(hvSelOf(b));return true;}
+  var K={h:o.h,p:o.p,v:o.v,f:null,js:false,json:null,t:'0',d:'',ed:id,at:'ed'},s=o.m&&o.m.settings;
   if(o.v==='own'){K.f=hvFields(o.p,s);if(!K.f){K.js=true;K.json=JSON.stringify(o.m,null,2);}}else K.f=hvFields(o.p,(HVPR[o.p][o.v]||{}).s);
-  CARD.hvpk=K;hvRedraw();hvScroll('.hv-pk');return true;}
+  CARD.hvpk=K;hvReveal(hvRedrawAt(hvSelOf(b)));return true;}
  if(k==='del'){var su=CARD.u.su;post('hv_del',{id:b.dataset.id}).then(function(d){if(CARD&&CARD.u.su===su){if(CARD.hvpk&&CARD.hvpk.ed===+b.dataset.id)CARD.hvpk=null;hvDone(d,'Подмена снята — параметр снова как в панели');}});return true;}
  if(k==='till'){hvPopOpen(b,+b.dataset.id);return true;}
  return false;
