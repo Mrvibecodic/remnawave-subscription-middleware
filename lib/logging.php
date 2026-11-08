@@ -75,6 +75,17 @@ function nolog_set($short_uuid, $on) {
     return set_setting('nolog_shortuuids', json_encode(array_keys($set), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 }
 
+// meta строки лога — до 500 символов. Обрезка посреди JSON потеряла бы всю строку, поэтому лишнее убирается целиком:
+// сначала подробности подмен хостов, потом поля с конца.
+function log_meta_json(array $extra) {
+    $f = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+    $j = (string) json_encode($extra, $f);
+    if (mb_strlen($j) <= 500) return $j;
+    if (isset($extra['hv']['h'])) { $extra['hv']['h'] = []; $j = (string) json_encode($extra, $f); }
+    while (mb_strlen($j) > 500 && count($extra) > 1) { array_pop($extra); $j = (string) json_encode($extra, $f); }
+    return mb_strlen($j) <= 500 ? $j : null;
+}
+
 function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null, $hwid = '', array $meta = []) {
     if (!($p = db())) return;
     ensure_reqlog_hwid();
@@ -99,7 +110,7 @@ function log_request($ip, $short_uuid, $path, $ua, $decision, $expire_ts = null,
             isset($meta['fmt']) && $meta['fmt'] !== '' ? mb_substr((string) $meta['fmt'], 0, 16) : null,
             isset($meta['ctype']) && $meta['ctype'] !== '' ? mb_substr((string) $meta['ctype'], 0, 128) : null,
             isset($meta['bytes']) ? max(0, (int) $meta['bytes']) : null,
-            $extra ? mb_substr((string) json_encode($extra, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0, 500) : null,
+            $extra ? log_meta_json($extra) : null,
         ]);
         if (random_int(1, 200) === 1) {
             $keep = request_log_retention();

@@ -14,11 +14,25 @@ set_setting('hostov_table', '1');
 set_setting('hostov_n', '1');
 
 t_ok('таблица первой версии дополнена', hostov_ensure());
-t_eq('флаг версии', setting('hostov_table', ''), '2');
+t_eq('флаг версии', setting('hostov_table', ''), '3');
 $r = hostov_rows_for('AbCdEfGhIjKlMnOp');
-t_eq('строка на месте, новые колонки пустые', [$r[0]['val'] ?? '', $r[0]['host_apat'] ?? null, $r[0]['miss_app'] ?? null], ['safari', '', '']);
+t_eq('строка на месте, новые колонки пустые', [$r[0]['val'] ?? '', $r[0]['host_apat'] ?? null, $r[0]['miss_app'] ?? null, $r[0]['host_proto'] ?? null, (array_key_exists('mval', $r[0]) ? $r[0]['mval'] : 'x'), (array_key_exists('na_at', $r[0]) ? $r[0]['na_at'] : 'x'), $r[0]['na_fmt'] ?? null], ['safari', '', '', '', null, null, '']);
 [$b, $h] = hostov_apply('vless://u@de1:443?security=reality&type=tcp&fp=chrome#DE', 'base64', $r);
 t_ok('старая строка работает по адресу', count($h) === 1 && strpos($b, 'fp=safari') !== false, $b);
 t_eq('статус считается', hostov_list('AbCdEfGhIjKlMnOp')[0]['st'] ?? '', 'wait');
+
+// Таблица второй версии (с шаблонами адреса и SNI, без масок) — тоже дополняется
+db()->exec('DROP TABLE IF EXISTS host_ovr');
+db()->exec($mysql
+    ? "CREATE TABLE host_ovr (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, short_uuid VARCHAR(64) NOT NULL, user_id BIGINT NULL, username VARCHAR(64) NOT NULL DEFAULT '', host_uuid VARCHAR(64) NOT NULL, host_name VARCHAR(255) NOT NULL DEFAULT '', host_rmk VARCHAR(255) NOT NULL DEFAULT '', host_addr VARCHAR(255) NOT NULL DEFAULT '', host_apat VARCHAR(255) NOT NULL DEFAULT '', host_port INT NOT NULL DEFAULT 0, host_sec VARCHAR(16) NOT NULL DEFAULT '', host_tr VARCHAR(16) NOT NULL DEFAULT '', host_sni VARCHAR(255) NOT NULL DEFAULT '', host_snipat VARCHAR(255) NOT NULL DEFAULT '', param VARCHAR(16) NOT NULL, pv VARCHAR(64) NOT NULL DEFAULT '', val VARCHAR(255) NOT NULL, till INT UNSIGNED NULL, created_at INT UNSIGNED NOT NULL, vat INT UNSIGNED NOT NULL, last_hit INT UNSIGNED NULL, last_app VARCHAR(128) NOT NULL DEFAULT '', last_miss INT UNSIGNED NULL, miss_app VARCHAR(128) NOT NULL DEFAULT '', UNIQUE KEY uq_host_ovr (short_uuid, host_uuid, param)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    : "CREATE TABLE host_ovr (id INTEGER PRIMARY KEY AUTOINCREMENT, short_uuid TEXT NOT NULL, user_id INTEGER NULL, username TEXT NOT NULL DEFAULT '', host_uuid TEXT NOT NULL, host_name TEXT NOT NULL DEFAULT '', host_rmk TEXT NOT NULL DEFAULT '', host_addr TEXT NOT NULL DEFAULT '', host_apat TEXT NOT NULL DEFAULT '', host_port INTEGER NOT NULL DEFAULT 0, host_sec TEXT NOT NULL DEFAULT '', host_tr TEXT NOT NULL DEFAULT '', host_sni TEXT NOT NULL DEFAULT '', host_snipat TEXT NOT NULL DEFAULT '', param TEXT NOT NULL, pv TEXT NOT NULL DEFAULT '', val TEXT NOT NULL, till INTEGER NULL, created_at INTEGER NOT NULL, vat INTEGER NOT NULL, last_hit INTEGER NULL, last_app TEXT NOT NULL DEFAULT '', last_miss INTEGER NULL, miss_app TEXT NOT NULL DEFAULT '', UNIQUE (short_uuid, host_uuid, param))");
+db()->exec("INSERT INTO host_ovr (short_uuid, host_uuid, host_name, host_rmk, host_addr, host_apat, host_port, host_sec, host_tr, param, val, created_at, vat) VALUES ('AbCdEfGhIjKlMnOp', 'h1', 'DE', 'DE', 'de1', 'de1', 443, 'reality', 'tcp', 'fp', 'firefox', 1, 1)");
+set_setting('hostov_table', '2');
+t_ok('вторая версия дополнена', hostov_ensure(true));
+t_eq('флаг версии после второй', setting('hostov_table', ''), '3');
+$r = hostov_rows_for('AbCdEfGhIjKlMnOp', true);
+t_eq('строка второй версии работает', [$r[0]['val'] ?? '', array_key_exists('mval', $r[0]) ? $r[0]['mval'] : 'x'], ['firefox', null]);
+[$b, $h] = hostov_apply('vless://u@de1:443?security=reality&type=tcp&fp=chrome#DE', 'base64', $r);
+t_ok('и подменяется', count($h) === 1 && strpos($b, 'fp=firefox') !== false, $b);
 
 t_done();
