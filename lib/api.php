@@ -194,24 +194,6 @@ function remnawave_delete_hwid($ref, $hwid) {
     ]);
 }
 
-function remnawave_hwid_top_users(&$error = '') {
-    $error = '';
-    $all = [];
-    $start = 0; $size = 100; $guard = 0;
-    do {
-        [$ok, $code, $data, $e] = remnawave_api_get("/api/hwid/devices/top-users?size={$size}&start={$start}");
-        if (!$ok) { $error = $e ?: ('HTTP ' . $code); break; }
-        $resp = $data['response'] ?? $data;
-        $rows = $resp['users'] ?? (is_array($resp) ? $resp : []);
-        $total = (int) ($resp['total'] ?? count($rows));
-        if (!is_array($rows)) $rows = [];
-        foreach ($rows as $r) $all[] = $r;
-        $start += $size;
-        $guard++;
-    } while (count($all) < $total && $guard < 150 && count($rows) > 0);
-    return $all;
-}
-
 function remnawave_hwid_all_devices(&$error = '') {
     $error = '';
     $all = [];

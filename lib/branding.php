@@ -83,25 +83,8 @@ function remnawave_branding(&$error = '') {
         $resp = $data['response'] ?? $data;
         $name = brand_find_title($resp);
         $logo = brand_find_logo($resp);
-    } elseif ($error === '') {
-        $error = ($e ?: ('HTTP ' . $code)) . ' /api/auth/status';
-    }
-    if ($name === '' || $logo === '') {
-        [$ok2, $code2, $data2, $e2] = remnawave_api_get('/api/remnawave-settings');
-        if ($ok2 && is_array($data2)) {
-            $resp2 = $data2['response'] ?? $data2;
-            $b = (is_array($resp2) && isset($resp2['brandingSettings']) && is_array($resp2['brandingSettings'])) ? $resp2['brandingSettings'] : [];
-            if ($name === '') $name = trim((string) ($b['title'] ?? ''));
-            if ($logo === '') $logo = trim((string) ($b['logoUrl'] ?? ''));
-        } elseif ($name === '' && $logo === '') {
-            $msg = ($e2 ?: ('HTTP ' . $code2)) . ' /api/remnawave-settings';
-            if ((int) $code2 === 403 && strpos(remnawave_url(), 'http://') === 0) {
-                $msg .= ' — 403 по внутреннему http: нужен образ прослойки с bypass-заголовками, обновите docker-образ. Имя и лого можно задать вручную ниже.';
-            } else {
-                $msg .= ' — проверьте URL и API-токен панели. Имя и лого можно задать вручную ниже.';
-            }
-            $error = $msg;
-        }
+    } else {
+        $error = ($e ?: ('HTTP ' . $code)) . ' /api/auth/status — проверьте URL панели и доступ к ней. Имя и лого можно задать вручную ниже.';
     }
     return ['name' => $name, 'logo' => $logo, 'name_score' => $name !== '' ? 3 : 0];
 }
