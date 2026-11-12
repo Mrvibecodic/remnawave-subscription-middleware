@@ -1,0 +1,249 @@
+<?php
+declare(strict_types=1);
+
+require __DIR__ . '/_boot.php';
+
+$p = db();
+
+// Апгрейд: таблица чата без колонки сайта — колонка добавляется сама, повторный вызов ничего не ломает.
+$p->exec('ALTER TABLE chat_sessions DROP COLUMN site');
+set_setting('chat_tables', '1');
+set_setting('chat_site_col', '');
+$p->exec("INSERT INTO chat_sessions (token, ip) VALUES ('" . str_repeat('a', 32) . "', '10.0.0.1')");
+t_ok('апгрейд: до миграции колонки нет', !db_has_cols($p, 'chat_sessions', ['site']));
+t_ok('апгрейд: таблицы готовы', ensure_chat_tables());
+t_ok('апгрейд: колонка добавлена', db_has_cols($p, 'chat_sessions', ['site']));
+t_eq('апгрейд: флаг выставлен', setting('chat_site_col', ''), '1');
+t_eq('апгрейд: старый диалог цел и без сайта', $p->query("SELECT site FROM chat_sessions WHERE ip = '10.0.0.1'")->fetchColumn(), null);
+$l = chat_sessions_list(10);
+t_ok('апгрейд: список диалогов отдаёт пустой сайт', count($l) === 1 && array_key_exists('site', $l[0]) && $l[0]['site'] === null);
+$p->exec('DELETE FROM chat_sessions');
+
+// Адрес сайта приводится к виду, в котором браузер шлёт Origin.
+foreach ([
+    'example.com'                    => 'https://example.com',
+    ' HTTPS://Example.COM/shop?a=1 ' => 'https://example.com',
+    'http://example.com'             => 'http://example.com',
+    'https://example.com:443'        => 'https://example.com',
+    'http://example.com:80/'         => 'http://example.com',
+    'https://example.com:8443'       => 'https://example.com:8443',
+    'http://localhost:3000'          => 'http://localhost:3000',
+    'https://[::1]:8443'             => '',
+    'sub.shop.example.com/'          => 'https://sub.shop.example.com',
+    ''                               => '',
+    'ftp://example.com'              => '',
+    'javascript:alert(1)'            => '',
+    'https://user:pw@example.com'    => '',
+    'https://exa mple.com'           => '',
+    'https://example.com;x'          => '',
+    "https://example.com\nx"         => '',
+    'https://*.example.com'          => '',
+    'intranet'                       => '',
+    'example.'                       => '',
+    '.example.com'                   => '',
+    'localhost'                      => 'https://localhost',
+    '192.168.1.10:8080'              => 'https://192.168.1.10:8080',
+    "https://example.com 'self'"     => '',
+] as $in => $want) {
+    t_eq('адрес сайта: ' . json_encode($in, JSON_UNESCAPED_UNICODE), chat_embed_origin($in), $want);
+}
+if (function_exists('idn_to_ascii')) t_eq('адрес сайта: кириллический домен', chat_embed_origin('пример.рф'), 'https://xn--e1afmkfd.xn--p1ai');
+[$ok, $bad] = chat_embed_parse_sites("example.com\nhttps://example.com/\n  shop.example.com, ftp://x.y ;; http://a.b:8080\n???");
+t_eq('список сайтов: без повторов, в порядке ввода', $ok, ['https://example.com', 'https://shop.example.com', 'http://a.b:8080']);
+t_eq('список сайтов: непонятные строки названы', $bad, ['ftp://x.y', '???']);
+t_eq('список сайтов: не больше 50', count(chat_embed_parse_sites(implode("\n", array_map(static fn($i) => "s{$i}.example.com", range(1, 80))))[0]), 50);
+
+$site  = 'https://shop.example.com';
+$other = 'https://blog.example.com';
+$evil  = 'https://evil.example.net';
+$mw = t_serve($tt_root, $tt_root . '/tools/tests/_router.php', [], ['opcache.enable' => '0']);
+$form = ['content-type' => 'application/x-www-form-urlencoded'];
+$api = static function (string $q, array $h = [], ?string $body = null) use ($mw): array {
+    [$c, $hd, $b] = t_http($body === null ? 'GET' : 'POST', $mw . '/chat.php' . $q, $h, $body);
+    return [$c, json_decode($b, true), $hd];
+};
+$e = '&e=' . rawurlencode($site);
+$cn = 'submw_chat_e' . substr(hash('sha256', $site), 0, 8);
+
+// По умолчанию всё выключено.
+[$c, $h, $b] = t_http('GET', $mw . '/chat.php?widget=1');
+t_ok('выключено: загрузчик пустой и не кэшируется', $c === 200 && strpos($b, 'iframe') === false && ($h['cache-control'] ?? '') === 'no-store');
+[$c, $h] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($site));
+t_ok('выключено: страница виджета закрыта', $c === 403 && strpos($h['content-security-policy'] ?? '', "frame-ancestors 'none'") !== false);
+[$c, $j] = $api('?api=open' . $e, $form, '');
+t_ok('выключено: запросы виджета отклоняются', $c === 403 && ($j['error'] ?? '') === 'embed off');
+[$c, $j] = $api('?api=open', $form, '');
+t_ok('выключено: чат заглушки отвечает как раньше', $c === 403 && ($j['error'] ?? '') === 'chat disabled');
+
+// Включён только внешний виджет, чат на заглушке выключен.
+t_settings(['chat_embed_enabled' => '1', 'chat_embed_sites' => "{$site}\n{$other}", 'chat_embed_design' => 'lk', 'chat_greeting' => 'Здравствуйте!', 'chat_agent_name' => 'Оператор <b>"А"</b>', 'chat_widget_preset' => '2', 'chat_widget_position' => 'left']);
+[$c, $h, $b] = t_http('GET', $mw . '/chat.php?widget=1');
+t_ok('загрузчик: отдаётся скриптом', $c === 200 && strpos($h['content-type'] ?? '', 'application/javascript') === 0 && strpos($b, "createElement('iframe')") !== false);
+t_ok('загрузчик: кэшируется ненадолго', ($h['cache-control'] ?? '') === 'public, max-age=300');
+t_ok('загрузчик: слушает только свою страницу', strpos($b, 'e.origin!==org||e.source!==f.contentWindow') !== false);
+[, , $b3] = t_http('GET', $mw . '/chat.php?widget=1', ['host' => 'evil.example.net']);
+t_ok('загрузчик: кэшируемый ответ не зависит от заголовка Host', $b3 === $b && strpos($b, (string) parse_url($mw, PHP_URL_PORT)) === false);
+[$c2, , $b2] = t_http('GET', $mw . '/chat.php?widget=lkmin');
+t_ok('загрузчик: один и тот же для любого дизайна, дизайн берёт из своего адреса', $c2 === 200 && $b2 === $b && strpos($b, "searchParams.get('widget')") !== false);
+
+[$c, $h, $b] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($site));
+$csp = $h['content-security-policy'] ?? '';
+t_eq('страница виджета: открывается для разрешённого сайта', $c, 200);
+t_ok('страница виджета: встраивать можно только на этот сайт', (bool) preg_match('~frame-ancestors https://shop\.example\.com$~', $csp), $csp);
+t_ok('страница виджета: X-Frame-Options не ставится', !isset($h['x-frame-options']));
+t_ok('страница виджета: не кэшируется и не отдаёт адрес наружу', ($h['cache-control'] ?? '') === 'no-store' && ($h['referrer-policy'] ?? '') === 'no-referrer');
+t_ok('страница виджета: скрипт и стили разрешены только свои', preg_match("~script-src 'nonce-([^']+)'; style-src 'nonce-\\1'~", $csp, $m) && substr_count($b, 'nonce="' . htmlspecialchars($m[1], ENT_QUOTES) . '"') === 2 && substr_count($b, '<script') === 1 && substr_count($b, '<style') === 1);
+t_ok('страница виджета: без встроенных style-атрибутов и обработчиков', !preg_match('~\sstyle="|\son[a-z]+="~', $b));
+t_ok('страница виджета: выбранный дизайн, вид кнопки и сторона', strpos($b, 'class="w d-lk pos-left pre2"') !== false);
+t_ok('страница виджета: имя агента экранировано', strpos($b, 'Оператор &lt;b&gt;&quot;А&quot;&lt;/b&gt;') !== false && strpos($b, '<b>"А"</b>') === false);
+t_ok('страница виджета: сайт попал в настройки скрипта', strpos($b, '"site":"https:\/\/shop.example.com"') !== false);
+foreach (chat_embed_designs() as $d) {
+    t_settings(['chat_embed_design' => $d]);
+    [$c, , $b] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($other));
+    t_ok('страница виджета: дизайн ' . $d, $c === 200 && strpos($b, 'class="w d-' . $d . ' ') !== false);
+}
+t_settings(['chat_embed_design' => 'нет такого']);
+[, , $b] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($site));
+t_ok('страница виджета: неизвестный дизайн — первый', strpos($b, 'class="w d-rw ') !== false);
+t_settings(['chat_embed_design' => 'rw']);
+foreach (['lk' => 'lk', 'lkmin' => 'lkmin', 'rw' => 'rw', '1' => 'rw', 'x"><script>' => 'rw', '' => 'rw'] as $d => $want) {
+    [$c, , $b] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($site) . '&d=' . rawurlencode((string) $d));
+    t_ok('страница виджета: дизайн из кода вставки ' . json_encode((string) $d) . ' → ' . $want, $c === 200 && strpos($b, 'class="w d-' . $want . ' ') !== false && strpos($b, '<script>') === false);
+}
+t_ok('само раскрытие: по умолчанию через 2 секунды', chat_embed_autoopen() === 2 && strpos($b, '"auto":2') !== false);
+foreach (['0' => 0, '5' => 5, '-3' => 0, '999' => 60, 'abc' => 0] as $v => $want) {
+    t_settings(['chat_embed_autoopen' => (string) $v]);
+    unset($GLOBALS['submw_settings_cache']);
+    [, , $b] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($site));
+    t_ok('само раскрытие: настройка ' . json_encode((string) $v) . ' → ' . $want, chat_embed_autoopen() === $want && strpos($b, '"auto":' . $want . '}') !== false);
+}
+foreach (['чужой сайт' => $evil, 'без сайта' => '', 'сайт с другой схемой' => 'http://shop.example.com', 'сайт с другим портом' => 'https://shop.example.com:8443'] as $name => $s) {
+    [$c, $h] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($s));
+    t_ok('страница виджета: ' . $name . ' — отказ', $c === 403 && strpos($h['content-security-policy'] ?? '', "frame-ancestors 'none'") !== false);
+}
+
+[$c, $j] = $api('?api=open', $form, '');
+t_ok('чат заглушки выключен — без метки сайта запросы не идут', $c === 403 && ($j['error'] ?? '') === 'chat disabled');
+foreach (['чужой сайт' => $evil, 'пустой' => '', 'мусор' => "x'\"><"] as $name => $s) {
+    [$c, $j] = $api('?api=open&e=' . rawurlencode($s), $form, '');
+    t_ok('запрос виджета: ' . $name . ' — отказ', $c === 403 && ($j['error'] ?? '') === 'embed off');
+}
+foreach (['e[]=' . rawurlencode($site) => 'embed off', 'e[a][b]=1' => 'embed off'] as $qs => $want) {
+    [$c, $j] = $api('?api=open&' . $qs, $form, '');
+    t_ok('запрос виджета: массив вместо сайта (' . $qs . ') — отказ без ошибок PHP', $c === 403 && ($j['error'] ?? '') === $want);
+}
+foreach (['embed=1&site[]=' . rawurlencode($site) => 403, 'embed[]=1&site=' . rawurlencode($site) => 403, 'embed=1&site=' . rawurlencode($site) . '&d[]=lk' => 200] as $qs => $want) {
+    [$c, , $b] = t_http('GET', $mw . '/chat.php?' . $qs);
+    t_ok('страница виджета: массив в параметрах (' . $qs . ') — код ' . $want . ' без ошибок PHP', $c === $want && ($want !== 200 || strpos($b, 'class="w d-rw ') !== false));
+}
+[$c, $j] = $api('?api=send' . $e, $form + ['sec-fetch-site' => 'cross-site'], 'body=x');
+t_ok('запрос виджета с чужой страницы — отказ', $c === 403 && ($j['error'] ?? '') === 'origin');
+[$c, $j] = $api('?api=send' . $e, $form + ['sec-fetch-site' => 'same-site'], 'body=x');
+t_ok('запрос виджета с соседнего поддомена — отказ', $c === 403 && ($j['error'] ?? '') === 'origin');
+t_eq('отклонённые запросы диалогов не создали', (int) $p->query('SELECT COUNT(*) FROM chat_sessions')->fetchColumn(), 0);
+
+[$c, $j] = $api('?api=open' . $e, $form + ['sec-fetch-site' => 'same-origin'], '');
+t_ok('виджет: нового посетителя встречает приветствие', $c === 200 && $j['ok'] === true && $j['exists'] === false && $j['greeting'] === 'Здравствуйте!');
+[$c, $j, $h] = $api('?api=send' . $e, $form + ['sec-fetch-site' => 'same-origin', 'x-forwarded-proto' => 'https'], 'body=' . rawurlencode('Привет с сайта'));
+$tok = (string) ($j['token'] ?? '');
+t_ok('виджет: первое сообщение создаёт диалог и отдаёт ключ', $c === 200 && $j['ok'] === true && (bool) preg_match('/^[a-f0-9]{32}$/', $tok));
+$ck = $h['set-cookie'] ?? '';
+t_ok('виджет: cookie для стороннего сайта', strpos($ck, $cn . '=' . $tok . ';') === 0 && strpos($ck, 'SameSite=None') !== false && strpos($ck, 'Secure') !== false && strpos($ck, 'Partitioned') !== false && strpos($ck, 'HttpOnly') !== false, $ck);
+$row = $p->query('SELECT * FROM chat_sessions ORDER BY id DESC LIMIT 1')->fetch();
+t_eq('виджет: у диалога записан сайт', $row['site'] ?? null, $site);
+t_eq('виджет: список диалогов показывает сайт', chat_sessions_list(10)[0]['site'] ?? null, $site);
+t_ok('виджет: сайт виден оператору в Telegram', strpos(chat_tg_format_history($row, chat_messages_last((int) $row['id'], 20)), "🌐 shop.example.com") !== false);
+
+[$c, $j] = $api('?api=open' . $e, $form + ['x-chat-token' => $tok], '');
+t_ok('виджет: диалог находится по ключу без cookie', $c === 200 && $j['exists'] === true && $j['token'] === $tok && count($j['messages']) === 2 && $j['messages'][1]['body'] === 'Привет с сайта');
+[$c, $j] = $api('?api=open' . $e, $form + ['cookie' => $cn . '=' . $tok], '');
+t_ok('виджет: диалог находится по cookie без ключа', $c === 200 && $j['exists'] === true && count($j['messages']) === 2);
+[$c, $j] = $api('?api=open&e=' . rawurlencode($other), $form + ['cookie' => $cn . '=' . $tok], '');
+t_ok('виджет: cookie одного сайта не открывает диалог на другом', $c === 200 && $j['exists'] === false);
+[$c, $j] = $api('?api=open' . $e, $form + ['cookie' => 'submw_chat=' . $tok], '');
+t_ok('виджет: cookie чата заглушки не подходит', $c === 200 && $j['exists'] === false);
+[$c, $j] = $api('?api=open' . $e, $form + ['x-chat-token' => str_repeat('0', 32), 'cookie' => $cn . '=' . $tok], '');
+t_ok('виджет: негодный ключ не подменяется cookie', $c === 200 && $j['exists'] === false);
+chat_add_message((int) $row['id'], 'agent', 'admin', 'Ответ оператора');
+[$c, $j] = $api('?api=poll&after=0' . $e, ['x-chat-token' => $tok]);
+t_ok('виджет: ответ оператора приходит опросом', $c === 200 && $j['ok'] === true && end($j['messages'])['body'] === 'Ответ оператора' && end($j['messages'])['sender'] === 'agent');
+[$c, $j, $h] = $api('?api=send' . $e, $form + ['x-chat-token' => $tok, 'x-forwarded-proto' => 'https'], 'body=' . rawurlencode('Второе'));
+t_ok('виджет: следующее сообщение идёт в тот же диалог', $c === 200 && $j['token'] === $tok && !isset($h['set-cookie']) && (int) $p->query('SELECT COUNT(*) FROM chat_sessions')->fetchColumn() === 1);
+[$c, $j, $h] = $api('?api=send' . $e, $form, 'body=' . rawurlencode('Без https'));
+t_ok('виджет: без HTTPS cookie не ставится, ключ отдаётся', $c === 200 && !isset($h['set-cookie']) && preg_match('/^[a-f0-9]{32}$/', (string) ($j['token'] ?? '')) === 1);
+chat_session_delete((int) $row['id']);
+[$c, $j] = $api('?api=poll&after=0' . $e, ['x-chat-token' => $tok]);
+t_ok('виджет: удалённый оператором диалог сбрасывается', $c === 200 && ($j['gone'] ?? false) === true);
+[$c, $j] = $api('?api=send' . '&e=' . rawurlencode($other), $form, 'body=' . rawurlencode('С другого сайта'));
+t_eq('виджет: второй разрешённый сайт получает свою метку', $p->query('SELECT site FROM chat_sessions ORDER BY id DESC LIMIT 1')->fetchColumn(), $other);
+
+// Сайт убрали из списка — его виджет перестаёт работать, остальные живут.
+t_settings(['chat_embed_sites' => $other]);
+[$c] = $api('?api=open' . $e, $form + ['x-chat-token' => $tok], '');
+t_eq('сайт убран из списка: запросы отклоняются', $c, 403);
+[$c] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($site));
+t_eq('сайт убран из списка: страница закрыта', $c, 403);
+[$c] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($other));
+t_eq('сайт убран из списка: другой сайт работает', $c, 200);
+t_settings(['chat_embed_sites' => '']);
+[$c] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($other));
+t_eq('пустой список сайтов: виджет закрыт для всех', $c, 403);
+
+// Чат на заглушке ведёт себя как раньше и о внешнем виджете не знает.
+t_settings(['chat_enabled' => '1', 'chat_embed_enabled' => '0']);
+$p->exec('DELETE FROM chat_sessions');
+[$c, $j, $h] = $api('?api=send', $form + ['sec-fetch-site' => 'cross-site'], 'body=' . rawurlencode('С заглушки'));
+$ck = $h['set-cookie'] ?? '';
+t_ok('заглушка: ответ без ключа', $c === 200 && $j === ['ok' => true, 'id' => $j['id']]);
+t_ok('заглушка: прежняя cookie', strpos($ck, 'submw_chat=') === 0 && stripos($ck, 'SameSite=Lax') !== false && stripos($ck, 'Partitioned') === false, $ck);
+t_eq('заглушка: диалог без сайта', $p->query('SELECT site FROM chat_sessions ORDER BY id DESC LIMIT 1')->fetchColumn(), null);
+preg_match('/submw_chat=([a-f0-9]{32})/', $ck, $m);
+[$c, $j] = $api('?api=open', $form + ['x-chat-token' => str_repeat('0', 32), 'cookie' => 'submw_chat=' . $m[1]], '');
+t_ok('заглушка: заголовок с ключом не учитывается', $c === 200 && $j['exists'] === true);
+[$c, $j] = $api('?api=open' . $e, $form, '');
+t_ok('заглушка включена, виджет выключен: запросы виджета отклоняются', $c === 403 && ($j['error'] ?? '') === 'embed off');
+[, , $b] = t_http('GET', $mw . '/');
+t_ok('заглушка: встроенный чат на месте и в прежнем виде', strpos($b, 'id="swcWrap"') !== false && strpos($b, "var API = '/chat.php';") !== false && strpos($b, 'd-rw') === false);
+
+// Настройки в админке.
+set_setting('update_state', json_encode(['checked_at' => time()]));
+t_settings(['geoip_auto' => '0']);
+$jar = t_admin_login($mw);
+[$c, , $page] = t_http('GET', $mw . '/admin/index.php?tab=chat', [], null, $jar);
+t_ok('админка: блок виджета на вкладке чата', $c === 200 && strpos($page, 'name="chat_embed_enabled"') !== false && strpos($page, 'name="chat_embed_sites"') !== false && substr_count($page, 'name="chat_embed_design"') === 3);
+t_ok('админка: код для вставки с выбранным дизайном', strpos($page, htmlspecialchars('<script src="https://' . parse_url($mw, PHP_URL_HOST) . ':' . parse_url($mw, PHP_URL_PORT) . '/chat.php?widget=rw" async></script>', ENT_QUOTES)) !== false);
+t_ok('админка: поле времени само раскрытия', strpos($page, 'name="chat_embed_autoopen"') !== false);
+preg_match('~name="csrf" value="([0-9a-f]+)"~', $page, $m);
+$save = static function (array $f) use ($mw, $jar, $m, $form): string {
+    [, , $r] = t_http('POST', $mw . '/admin/index.php', $form, http_build_query(['csrf' => $m[1], 'action' => 'save_chat_cfg', 'xhr' => '1', 'chat_poll_interval' => '4'] + $f), $jar);
+    unset($GLOBALS['submw_settings_cache']);
+    return (string) (json_decode($r, true)['msg'] ?? '');
+};
+$msg = $save(['chat_embed_enabled' => 'on', 'chat_embed_design' => 'lkmin', 'chat_embed_sites' => "Shop.Example.com/path\r\nhttps://blog.example.com\r\nне сайт!\r\nshop.example.com"]);
+t_eq('админка: сайты сохранены в едином виде', setting('chat_embed_sites', ''), "https://shop.example.com\nhttps://blog.example.com");
+t_ok('админка: непонятные строки названы в сообщении', strpos($msg, 'не похоже на адрес сайта, пропущено: не, сайт!') !== false, $msg);
+t_eq('админка: виджет включён', setting('chat_embed_enabled', ''), '1');
+t_eq('админка: дизайн сохранён', setting('chat_embed_design', ''), 'lkmin');
+t_eq('админка: без поля времени само раскрытие — 2 секунды', setting('chat_embed_autoopen', ''), '2');
+$save(['chat_embed_enabled' => 'on', 'chat_embed_design' => 'lkmin', 'chat_embed_sites' => 'shop.example.com', 'chat_embed_autoopen' => '400']);
+t_eq('админка: время само раскрытия ограничено минутой', setting('chat_embed_autoopen', ''), '60');
+$save(['chat_embed_enabled' => 'on', 'chat_embed_design' => 'lkmin', 'chat_embed_sites' => "shop.example.com\nblog.example.com", 'chat_embed_autoopen' => '0']);
+t_eq('админка: само раскрытие выключается нулём', setting('chat_embed_autoopen', ''), '0');
+[, , $page] = t_http('GET', $mw . '/admin/index.php?tab=chat', [], null, $jar);
+t_ok('админка: код для вставки следует за выбранным дизайном', strpos($page, '/chat.php?widget=lkmin&quot; async') !== false);
+$save(['chat_embed_enabled' => 'on', 'chat_embed_design' => '<script>', 'chat_embed_sites' => 'shop.example.com']);
+t_eq('админка: чужое значение дизайна не принимается', setting('chat_embed_design', ''), 'rw');
+$save(['chat_embed_enabled' => 'on', 'chat_embed_design' => ['lk'], 'chat_embed_sites' => ['evil.example.net']]);
+t_ok('админка: массивы в полях виджета не принимаются', setting('chat_embed_design', '') === 'rw' && setting('chat_embed_sites', '') === '');
+$save(['chat_embed_enabled' => 'on', 'chat_embed_design' => 'rw', 'chat_embed_sites' => 'shop.example.com']);
+$save(['chat_enabled' => 'on']);
+t_ok('админка: форма без полей виджета его не трогает', setting('chat_embed_enabled', '') === '1' && setting('chat_embed_sites', '') === 'https://shop.example.com');
+$save(['chat_embed_sites' => 'shop.example.com']);
+t_eq('админка: выключатель снимается', setting('chat_embed_enabled', ''), '0');
+[, , $r] = t_http('POST', $mw . '/admin/index.php', $form, http_build_query(['csrf' => 'bad', 'action' => 'save_chat_cfg', 'xhr' => '1', 'chat_embed_enabled' => 'on', 'chat_embed_sites' => 'evil.example.net']), $jar);
+unset($GLOBALS['submw_settings_cache']);
+t_ok('админка: без CSRF настройки виджета не меняются', setting('chat_embed_enabled', '') === '0' && setting('chat_embed_sites', '') === 'https://shop.example.com');
+[, , $r] = t_http('GET', $mw . '/admin/index.php?ajax=chat_sessions', [], null, $jar);
+t_ok('админка: список диалогов отдаёт поле сайта', array_key_exists('site', json_decode($r, true)['sessions'][0] ?? []));
+
+t_done();

@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     last_msg_at TEXT NULL,
     unread_agent INTEGER NOT NULL DEFAULT 0,
     tg_msg_id INTEGER NULL,
+    site TEXT NULL,
     UNIQUE(token)
 );
 CREATE INDEX IF NOT EXISTS idx_chat_last ON chat_sessions(last_msg_at);
