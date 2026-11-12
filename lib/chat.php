@@ -61,6 +61,21 @@ function chat_embed_code($design = '') {
     return '<script src="https://' . $host . '/chat.php?widget=' . (in_array($design, chat_embed_designs(), true) ? $design : chat_embed_design()) . '" async></script>';
 }
 
+function chat_subpage_enabled() { return setting('chat_subpage', '0') === '1'; }
+function chat_subpage_design() { $v = (string) setting('chat_subpage_design', 'rw'); return in_array($v, chat_embed_designs(), true) ? $v : 'rw'; }
+
+function chat_subpage_apply($html) {
+    if (!is_string($html) || !chat_subpage_enabled()) return $html;
+    $pos = strripos($html, '</body>');
+    if ($pos === false) return $html;
+    return substr_replace($html, '<script src="/chat.php?widget=' . chat_subpage_design() . '" async></script>', $pos, 0);
+}
+
+// Страница подписки живёт на домене самой прослойки: её адрес совпадает с Origin запроса окна, список сайтов для неё не нужен.
+function chat_embed_own($origin) {
+    return chat_subpage_enabled() && $origin !== '' && chat_embed_origin($_SERVER['HTTP_ORIGIN'] ?? null) === $origin;
+}
+
 function chat_site_host($site) { return (string) preg_replace('~^https?://~', '', (string) $site); }
 
 function chat_tg_enabled() { return setting('chat_tg_enabled', '0') === '1'; }

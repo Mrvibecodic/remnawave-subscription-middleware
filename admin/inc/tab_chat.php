@@ -4,6 +4,7 @@ $c_pos    = chat_widget_position();
 $c_color  = chat_widget_color();
 $c_design = chat_embed_design();
 $c_sites  = chat_embed_sites();
+$c_spd    = chat_subpage_design();
 ?>
     <style>
         .cb-presets{display:flex;gap:.7rem;flex-wrap:wrap;margin:.3rem 0}
@@ -42,6 +43,7 @@ $c_sites  = chat_embed_sites();
         .cs-ex textarea{min-height:76px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82rem}
         .cs-ex .codeblk{margin:0}
         .cs-ex .codeblk pre{white-space:pre-wrap;word-break:break-all}
+        @media(max-width:560px){.cs-b .set-row.cs-sp{flex-wrap:wrap}.cs-b .set-row.cs-sp>.set-info{flex:1 1 100%}.cs-b .set-row.cs-sp>select{flex:1 1 auto;width:auto}}
         .cd-pre{flex:1 1 150px;min-width:0}
         .cd-th{height:126px;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;margin-bottom:.55rem}
         .cd-th i{display:block;box-sizing:border-box}
@@ -244,6 +246,15 @@ $c_sites  = chat_embed_sites();
                     <label class="switch"><input type="checkbox" name="chat_embed_enabled" <?= chat_embed_enabled()?'checked':'' ?>><span class="sl"></span></label>
                 </div>
                 <div class="cs-b">
+                    <div class="set-row cs-sp">
+                        <div class="set-info"><div class="set-t">Чат на странице подписки</div><div class="set-d">Прослойка сама добавит окно на страницу подписки в браузере. Код, список сайтов и выключатель блока для этого не нужны.</div></div>
+                        <select name="chat_subpage_design" aria-label="Дизайн окна на странице подписки">
+                            <option value="rw" <?= $c_spd==='rw'?'selected':'' ?>>Remnawave</option>
+                            <option value="lk" <?= $c_spd==='lk'?'selected':'' ?>>Кабинет — классика</option>
+                            <option value="lkmin" <?= $c_spd==='lkmin'?'selected':'' ?>>Кабинет — минимализм</option>
+                        </select>
+                        <label class="switch"><input type="checkbox" name="chat_subpage" <?= chat_subpage_enabled()?'checked':'' ?>><span class="sl"></span></label>
+                    </div>
                     <div class="info" id="cbExNoSites"<?= (chat_embed_enabled() && !$c_sites) ? '' : ' hidden' ?>>Добавьте хотя бы один сайт — пока список пуст, виджет нигде не откроется.</div>
                     <div class="cs-ex">
                         <div>

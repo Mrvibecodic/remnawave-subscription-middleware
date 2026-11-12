@@ -44,10 +44,11 @@ function subpage_external_proxy($path, $query) {
 
     $headers = [];
     $pk = pagekeys_active() && strpos('/' . ltrim((string) $path, '/'), '/assets/') !== 0;
+    $cw = function_exists('chat_subpage_enabled') && chat_subpage_enabled() && strpos('/' . ltrim((string) $path, '/'), '/assets/') !== 0;
     if (function_exists('getallheaders')) {
         foreach (getallheaders() as $k => $v) {
             if (strtolower($k) === 'host') continue;
-            if ($pk && in_array(strtolower($k), ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range'], true)) continue;
+            if (($pk || $cw) && in_array(strtolower($k), ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range'], true)) continue;
             $headers[] = "$k: $v";
         }
     }
@@ -93,6 +94,7 @@ function subpage_external_proxy($path, $query) {
     }
     $resp_orig = $resp;
     if ($pk && $is_html && $code === 200 && is_string($resp)) $resp = pagekeys_apply($resp);
+    if ($cw && $is_html && $code === 200 && is_string($resp)) $resp = chat_subpage_apply($resp);
     $modified = ($resp !== $resp_orig);
 
     http_response_code($code ?: 200);
