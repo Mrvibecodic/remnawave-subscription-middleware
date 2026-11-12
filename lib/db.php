@@ -188,7 +188,7 @@ function install_statements_sqlite() {
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_seen TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_msg_at TEXT NULL, unread_agent INTEGER NOT NULL DEFAULT 0,
-            tg_msg_id INTEGER NULL, site TEXT NULL, UNIQUE(token)
+            tg_msg_id INTEGER NULL, site TEXT NULL, sub_user TEXT NULL, sub_short TEXT NULL, UNIQUE(token)
         )",
         "CREATE INDEX IF NOT EXISTS idx_chat_last ON chat_sessions(last_msg_at)",
         "CREATE TABLE IF NOT EXISTS chat_messages (
@@ -248,7 +248,7 @@ function install_statements_mysql() {
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_seen TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_msg_at TIMESTAMP NULL, unread_agent INT UNSIGNED NOT NULL DEFAULT 0,
-            tg_msg_id BIGINT NULL, site VARCHAR(190) NULL,
+            tg_msg_id BIGINT NULL, site VARCHAR(190) NULL, sub_user VARCHAR(190) NULL, sub_short VARCHAR(64) NULL,
             PRIMARY KEY (id), UNIQUE KEY uniq_token (token), KEY idx_chat_last (last_msg_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE TABLE IF NOT EXISTS chat_messages (

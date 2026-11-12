@@ -46,13 +46,16 @@ if (isset($_GET['inbound'])) {
 if (isset($_GET['widget']) || isset($_GET['embed'])) {
     require __DIR__ . '/lib/chat_embed.php';
     if (isset($_GET['widget'])) chat_embed_loader();
-    else chat_embed_page($_GET['embed'] === '1' ? ($_GET['site'] ?? '') : '', $_GET['d'] ?? '');
+    else chat_embed_page($_GET['embed'] === '1' ? ($_GET['site'] ?? '') : '', $_GET['d'] ?? '', $_GET['u'] ?? '');
     exit();
 }
 
 $embed = isset($_GET['e']) ? chat_embed_origin($_GET['e']) : null;
+$acct  = null;
 if ($embed !== null) {
-    if (!(chat_embed_enabled() && chat_embed_site_ok($embed)) && !chat_embed_own($embed)) chat_json(['ok' => false, 'error' => 'embed off'], 403);
+    $own = chat_embed_own($embed);
+    if (!(chat_embed_enabled() && chat_embed_site_ok($embed)) && !$own) chat_json(['ok' => false, 'error' => 'embed off'], 403);
+    if ($own) $acct = chat_subpage_ident($_GET['u'] ?? null);
     // Запросы виджета шлёт только его собственная страница: чужой сайт не должен писать в чат посетителя его cookie.
     $sfs = strtolower((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? ''));
     if ($sfs !== '' && $sfs !== 'same-origin') chat_json(['ok' => false, 'error' => 'origin'], 403);
@@ -64,7 +67,8 @@ chat_maybe_gc();
 
 $api = $_GET['api'] ?? '';
 // У каждого сайта своя cookie: поддомены одного домена делят хранилище cookie, а диалоги у них раздельные.
-$cookie_name = $embed !== null ? 'submw_chat_e' . substr(hash('sha256', $embed), 0, 8) : 'submw_chat';
+// На странице подписки диалог свой у каждой учётной записи: с одного устройства могут открывать несколько подписок.
+$cookie_name = $embed !== null ? 'submw_chat_e' . substr(hash('sha256', $embed . ($acct ? "\n" . $acct['short'] : '')), 0, 8) : 'submw_chat';
 
 function chat_set_cookie($name, $token, $third_party = false) {
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
@@ -118,12 +122,14 @@ if ($api === 'send') {
     if (!chat_rate_ok($session)) chat_json(['ok' => false, 'error' => 'rate'], 429);
     if (!$session) {
         if (chat_recent_sessions_from_ip(client_ip()) >= chat_max_sessions_per_ip()) chat_json(['ok' => false, 'error' => 'rate'], 429);
-        $session = chat_session_create(client_ip(), $_SERVER['HTTP_USER_AGENT'] ?? '', (string) $embed);
+        $session = chat_session_create(client_ip(), $_SERVER['HTTP_USER_AGENT'] ?? '', (string) $embed, $acct);
         if (!$session) chat_json(['ok' => false, 'error' => 'cannot create'], 500);
         chat_set_cookie($cookie_name, $session['token'], $embed !== null);
         if (chat_greeting() !== '') chat_add_message($session['id'], 'agent', 'system', chat_greeting());
     } elseif (chat_session_msg_count($session['id']) >= chat_max_msgs_per_session()) {
         chat_json(['ok' => false, 'error' => 'limit'], 429);
+    } elseif ($acct && empty($session['sub_short'])) {
+        chat_session_set_acct($session['id'], $acct);
     }
     $id = chat_add_message($session['id'], 'visitor', 'site', $body);
     if (!$id) chat_json(['ok' => false, 'error' => 'store failed'], 500);

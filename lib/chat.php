@@ -68,7 +68,48 @@ function chat_subpage_apply($html) {
     if (!is_string($html) || !chat_subpage_enabled()) return $html;
     $pos = strripos($html, '</body>');
     if ($pos === false) return $html;
-    return substr_replace($html, '<script src="/chat.php?widget=' . chat_subpage_design() . '" async></script>', $pos, 0);
+    $own = chat_subpage_owner($html);
+    $tok = $own ? chat_subpage_token($own['short'], $own['user']) : '';
+    return substr_replace($html, '<script src="/chat.php?widget=' . chat_subpage_design() . '"' . ($tok !== '' ? ' data-u="' . $tok . '"' : '') . ' async></script>', $pos, 0);
+}
+
+// Чья это страница: subscription-page кладёт данные учётной записи в саму страницу (тот же блок читают «Ключи на странице»).
+function chat_subpage_owner($html) {
+    if (!preg_match('~<div\b[^>]*\bid\s*=\s*["\']sbpg["\'][^>]*>~i', (string) $html, $tm)) return null;
+    if (!preg_match('~\bdata-panel\s*=\s*"([A-Za-z0-9+/=]*)"~', $tm[0], $dm)) return null;
+    $raw = base64_decode($dm[1], true);
+    $doc = ($raw === false || $raw === '') ? null : json_decode($raw, true);
+    $r = is_array($doc) ? ($doc['response'] ?? null) : null;
+    if (!is_array($r) || (isset($r['isFound']) && $r['isFound'] !== true) || !is_array($r['user'] ?? null)) return null;
+    $short = is_string($r['user']['shortUuid'] ?? null) ? trim($r['user']['shortUuid']) : '';
+    $user  = is_string($r['user']['username'] ?? null) ? trim($r['user']['username']) : '';
+    return $short !== '' ? ['short' => $short, 'user' => $user] : null;
+}
+
+function chat_subpage_key() {
+    $v = (string) setting('chat_subpage_key', '');
+    if ($v === '') { $v = bin2hex(random_bytes(32)); set_setting('chat_subpage_key', $v); }
+    return $v;
+}
+
+function chat_b64u($s) { return rtrim(strtr(base64_encode((string) $s), '+/', '-_'), '='); }
+
+// Метка страницы подписки: подписана ключом установки и живёт сутки, поэтому окно не может приписать диалог чужой учётной записи.
+function chat_subpage_token($short, $user, $now = null) {
+    $short = trim((string) $short);
+    $user  = trim((string) $user);
+    if ($short === '' || strlen($short) > 64 || strlen($user) > 190 || preg_match('~[\x00-\x1f]~', $short . $user)) return '';
+    $p = $short . "\n" . $user . "\n" . (($now === null ? time() : (int) $now) + 86400);
+    return chat_b64u($p) . '.' . chat_b64u(hash_hmac('sha256', $p, chat_subpage_key(), true));
+}
+
+function chat_subpage_ident($tok, $now = null) {
+    if (!is_string($tok) || strlen($tok) > 600 || !preg_match('~^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$~', $tok, $m)) return null;
+    $p = base64_decode(strtr($m[1], '-_', '+/'), true);
+    if ($p === false || !hash_equals(chat_b64u(hash_hmac('sha256', $p, chat_subpage_key(), true)), $m[2])) return null;
+    $a = explode("\n", $p);
+    if (count($a) !== 3 || $a[0] === '' || (int) $a[2] < ($now === null ? time() : (int) $now)) return null;
+    return ['short' => $a[0], 'user' => $a[1]];
 }
 
 // Страница подписки живёт на домене самой прослойки: её адрес совпадает с Origin запроса окна, список сайтов для неё не нужен.
@@ -128,6 +169,8 @@ function ensure_chat_tables() {
                     unread_agent INT UNSIGNED NOT NULL DEFAULT 0,
                     tg_msg_id BIGINT NULL,
                     site VARCHAR(190) NULL,
+                    sub_user VARCHAR(190) NULL,
+                    sub_short VARCHAR(64) NULL,
                     PRIMARY KEY (id),
                     UNIQUE KEY uniq_token (token),
                     KEY idx_last (last_msg_at)
@@ -157,6 +200,8 @@ function ensure_chat_tables() {
                     unread_agent INTEGER NOT NULL DEFAULT 0,
                     tg_msg_id INTEGER NULL,
                     site TEXT NULL,
+                    sub_user TEXT NULL,
+                    sub_short TEXT NULL,
                     UNIQUE(token)
                 )");
                 $p->exec("CREATE INDEX IF NOT EXISTS idx_chat_last ON chat_sessions(last_msg_at)");
@@ -185,6 +230,13 @@ function ensure_chat_tables() {
         try { $p->exec('ALTER TABLE chat_sessions ADD COLUMN site ' . (db_driver() === 'mysql' ? 'VARCHAR(190)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
         if (db_has_cols($p, 'chat_sessions', ['site'])) set_setting('chat_site_col', '1');
     }
+    if (setting('chat_acct_col', '') !== '1') {
+        $my = db_driver() === 'mysql';
+        foreach (['sub_user' => $my ? 'VARCHAR(190)' : 'TEXT', 'sub_short' => $my ? 'VARCHAR(64)' : 'TEXT'] as $c => $t) {
+            try { $p->exec("ALTER TABLE chat_sessions ADD COLUMN $c $t NULL"); } catch (Throwable $e) {}
+        }
+        if (db_has_cols($p, 'chat_sessions', ['sub_user', 'sub_short'])) set_setting('chat_acct_col', '1');
+    }
     $done = true;
     return true;
 }
@@ -212,7 +264,12 @@ function chat_session_by_id($id) {
     } catch (Throwable $e) { return null; }
 }
 
-function chat_session_create($ip, $ua, $site = '') {
+function chat_session_set_acct($id, $acct) {
+    if (!is_array($acct) || ($acct['short'] ?? '') === '' || setting('chat_acct_col', '') !== '1' || !($p = db())) return;
+    try { $p->prepare('UPDATE chat_sessions SET sub_user = ?, sub_short = ? WHERE id = ?')->execute([mb_substr((string) ($acct['user'] ?? ''), 0, 190), mb_substr((string) $acct['short'], 0, 64), (int) $id]); } catch (Throwable $e) {}
+}
+
+function chat_session_create($ip, $ua, $site = '', $acct = null) {
     if (!ensure_chat_tables() || !($p = db())) return null;
     $token = chat_token_new();
     try {
@@ -221,7 +278,9 @@ function chat_session_create($ip, $ua, $site = '') {
         if ($site !== '' && setting('chat_site_col', '') === '1') {
             try { $p->prepare('UPDATE chat_sessions SET site = ? WHERE token = ?')->execute([mb_substr((string) $site, 0, 190), $token]); } catch (Throwable $e) {}
         }
-        return chat_session_by_token($token);
+        $s = chat_session_by_token($token);
+        if ($s && $acct) { chat_session_set_acct($s['id'], $acct); $s = chat_session_by_token($token); }
+        return $s;
     } catch (Throwable $e) { error_log('submw chat_session_create: ' . $e->getMessage()); return null; }
 }
 
@@ -396,6 +455,7 @@ function chat_sessions_list($limit = 100) {
     if (!ensure_chat_tables() || !($p = db())) return $out;
     try {
         $sql = 'SELECT s.id, s.token, s.name, s.ip, s.status, s.unread_agent, ' . (setting('chat_site_col', '') === '1' ? 's.site' : 'NULL AS site') . ',
+                       ' . (setting('chat_acct_col', '') === '1' ? 's.sub_user, s.sub_short' : 'NULL AS sub_user, NULL AS sub_short') . ',
                        ' . sql_epoch('s.created_at') . ' AS created_ts,
                        ' . sql_epoch('s.last_msg_at') . ' AS last_ts,
                        (SELECT body FROM chat_messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_body
