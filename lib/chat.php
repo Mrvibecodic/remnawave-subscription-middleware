@@ -420,12 +420,25 @@ function chat_session_set_tg_msg($id, $mid) {
     catch (Throwable $e) {}
 }
 
+// Откуда пришёл диалог: страница подписки (и чья), сайт с виджетом или страница-заглушка.
+// Заглушка называется, только когда включён ещё какой-то источник: иначе все диалоги с неё и строка лишняя.
+// Короткий идентификатор подписки наружу не уходит: по нему открывается сама подписка.
+function chat_tg_source_line($session) {
+    $esc = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+    $user = trim((string) ($session['sub_user'] ?? ''));
+    if ($user !== '') return '🌐 Страница подписки · <code>' . $esc($user) . '</code>';
+    if (trim((string) ($session['sub_short'] ?? '')) !== '') return '🌐 Страница подписки';
+    if (!empty($session['site'])) return '🌐 ' . $esc(chat_site_host($session['site']));
+    return (chat_embed_enabled() || chat_subpage_enabled()) ? '🌐 Страница-заглушка' : '';
+}
+
 function chat_tg_format_history($session, $msgs, $note = '') {
     $esc = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     $who = $session['name'] ? $session['name'] : ($session['ip'] ?: 'гость');
     $agent = chat_agent_name();
     $lines = ["💬 <b>" . $esc($who) . "</b>  <code>#s" . (int) $session['id'] . "</code>"];
-    if (!empty($session['site'])) $lines[] = "🌐 " . $esc(chat_site_host($session['site']));
+    $src = chat_tg_source_line($session);
+    if ($src !== '') $lines[] = $src;
     if ($note !== '') $lines[] = "<i>" . $esc($note) . "</i>";
     $lines[] = "──────────";
     $body = [];
@@ -704,6 +717,7 @@ function chat_webhook_out($session, $sender, $body) {
         'name'       => $session['name'],
         'ip'         => $session['ip'],
         'site'       => (string) ($session['site'] ?? ''),
+        'sub_user'   => (string) ($session['sub_user'] ?? ''),
         'sender'     => $sender,
         'body'       => $body,
         'ts'         => time(),
