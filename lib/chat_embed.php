@@ -19,8 +19,8 @@ if(!cs||!cs.src)return;
 try{u=new URL(cs.src,location.href);}catch(e){return;}
 var org=u.origin,f=document.createElement('iframe'),st={open:false,w:0,h:0,pos:'right'},
     mq=window.matchMedia?window.matchMedia('(max-width:520px)'):{matches:false},vv=window.visualViewport;
-var dz=u.searchParams?u.searchParams.get('widget')||'':'';
-f.src=org+u.pathname+'?embed=1&site='+encodeURIComponent(location.origin)+(/^[a-z]{2,8}$/.test(dz)?'&d='+dz:'');
+var dz=u.searchParams?u.searchParams.get('widget')||'':'',au=cs.getAttribute('data-u')||'';
+f.src=org+u.pathname+'?embed=1&site='+encodeURIComponent(location.origin)+(/^[a-z]{2,8}$/.test(dz)?'&d='+dz:'')+(/^[\w.-]{20,600}$/.test(au)?'&u='+au:'');
 f.title='Чат поддержки';
 f.setAttribute('allowtransparency','true');
 // color-scheme:light — иначе на сайте с тёмной схемой браузер заливает прозрачный iframe непрозрачным фоном.
@@ -48,20 +48,23 @@ if(document.body)mount();else document.addEventListener('DOMContentLoaded',mount
 <?php
 }
 
-function chat_embed_page($site, $design = '') {
+function chat_embed_page($site, $design = '', $u = '') {
     $origin = chat_embed_origin($site);
     header('X-Robots-Tag: noindex');
     header('Cache-Control: no-store');
     header('Referrer-Policy: no-referrer');
     header('X-Content-Type-Options: nosniff');
     $listed = chat_embed_enabled() && chat_embed_site_ok($origin);
-    if (!$listed && !(chat_subpage_enabled() && $origin !== '')) {
+    // Окно для страницы подписки открывает только страница того же домена: чужой сайт получает отказ, а не страницу.
+    $own = chat_subpage_enabled() && $origin !== '' && in_array(strtolower((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '')), ['', 'same-origin'], true);
+    if (!$listed && !$own) {
         http_response_code(403);
         header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
         header('Content-Type: text/plain; charset=utf-8');
         echo 'off';
         return;
     }
+    $acct = $own ? chat_subpage_ident($u) : null;
     $nonce = base64_encode(random_bytes(16));
     header("Content-Security-Policy: default-src 'none'; script-src 'nonce-{$nonce}'; style-src 'nonce-{$nonce}'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors " . ($listed ? $origin : "'self'"));
     header('Content-Type: text/html; charset=utf-8');
@@ -76,6 +79,8 @@ function chat_embed_page($site, $design = '') {
         'greeting' => chat_greeting(),
         'poll'     => chat_poll_interval(),
         'auto'     => chat_embed_autoopen(),
+        'u'        => $acct ? (string) $u : '',
+        'ak'       => $acct ? substr(hash('sha256', $acct['short']), 0, 8) : '',
     ], $nonce);
 }
 
@@ -93,6 +98,8 @@ function chat_embed_html(array $c, $nonce) {
         'greeting' => (string) ($c['greeting'] ?? ''),
         'poll'     => (int) ($c['poll'] ?? 4),
         'auto'     => (int) ($c['auto'] ?? 0),
+        'u'        => (string) ($c['u'] ?? ''),
+        'ak'       => (string) ($c['ak'] ?? ''),
     ];
     $json = json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     $esc = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
@@ -247,7 +254,7 @@ svg{flex:none;display:block}
 (function(){
     'use strict';
     var CFG = <?= $json ?>;
-    var SITE = CFG.site, API = location.pathname, KEY = 'submw_chat_tok:' + SITE, framed = window.parent !== window;
+    var SITE = CFG.site, API = location.pathname, KEY = 'submw_chat_tok:' + SITE + (CFG.ak ? ':' + CFG.ak : ''), framed = window.parent !== window;
     var $ = function(id){ return document.getElementById(id); };
     var root = $('w'), lnch = $('lnch'), msgs = $('msgs'), inp = $('in'), snd = $('snd'), bdg = $('bdg'), ava = $('ava');
     var tok = '', lastId = 0, seen = {}, opened = false, want = false, started = false, has = false, busy = false, timer = null, unread = 0, noteEl = null;
@@ -274,7 +281,7 @@ svg{flex:none;display:block}
         o.credentials = 'same-origin';
         o.headers = o.headers || {};
         if (tok) o.headers['X-Chat-Token'] = tok;
-        return fetch(API + q + '&e=' + encodeURIComponent(SITE), o).then(function(r){ return r.json(); });
+        return fetch(API + q + '&e=' + encodeURIComponent(SITE) + (CFG.u ? '&u=' + CFG.u : ''), o).then(function(r){ return r.json(); });
     }
     function bubble(cls, text){
         var el = document.createElement('div');

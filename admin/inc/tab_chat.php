@@ -86,6 +86,7 @@ $c_spd    = chat_subpage_design();
         .cd-lkmin .cd-in{border-radius:5px;background:#eef0f3}
         .cd-lkmin .cd-sn{border-radius:5px;background:#2f6bff}
         .cb-site{color:var(--accent-text)}
+        .cb-acct svg{vertical-align:-1px;margin-right:.2rem}
         .cb-chat{display:grid;grid-template-columns:300px 1fr;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;height:560px}
         @media(max-width:760px){.cb-chat{grid-template-columns:1fr;height:auto}}
         .cb-list{border-right:1px solid var(--line);overflow-y:auto;background:var(--bg2)}
@@ -309,6 +310,8 @@ $c_spd    = chat_subpage_design();
     cbMq.addEventListener('change',function(){if(cbMq.matches&&cbCur&&!cbPushed){history.pushState({cbChat:cbCur},'');cbPushed=true;}cbFit();});
     function cbEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
     function cbSite(u){return String(u||'').replace(/^https?:\/\//,'');}
+    var CB_UI='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    function cbAcct(s){var a=s&&(s.sub_user||s.sub_short);return a?'<span class="cb-site cb-acct" data-tip="Учётная запись в панели. Диалог начат с её страницы подписки">'+CB_UI+cbEsc(a)+'</span>':'';}
     function cbLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);function p(n){return(n<10?'0':'')+n;}return p(d.getHours())+':'+p(d.getMinutes());}
     document.querySelectorAll('.cb-pre').forEach(function(el){el.addEventListener('click',function(){el.parentNode.querySelectorAll('.cb-pre').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');});});
     function cbRenderList(rows){
@@ -320,7 +323,8 @@ $c_spd    = chat_subpage_design();
         box.innerHTML=rows.map(function(s){
             var nm=s.name||('IP '+(s.ip||'—'));
             var pv=(s.last_body||'').slice(0,46);
-            var st=s.site?'<span class="cb-site">'+cbEsc(cbSite(s.site))+'</span> · ':'';
+            var ac=cbAcct(s);
+            var st=ac?ac+' · ':(s.site?'<span class="cb-site">'+cbEsc(cbSite(s.site))+'</span> · ':'');
             var un=parseInt(s.unread_agent,10)||0;
             return '<div class="cb-sess'+(s.id==cbCur?' sel':'')+'" data-id="'+s.id+'" onclick="cbOpen('+s.id+')">'+
                    '<div class="cb-st"><span class="cb-sn">'+cbEsc(nm)+'</span>'+(un?'<span class="cb-unread">'+un+'</span>':'<span class="cb-sp">'+cbLocal(s.last_ts)+'</span>')+'</div>'+
@@ -360,7 +364,7 @@ $c_spd    = chat_subpage_design();
         cbCur=id;cbLast=0;cbSeen={};
         document.querySelectorAll('.cb-sess').forEach(function(x){x.classList.toggle('sel',x.getAttribute('data-id')==id);});
         var s=(CB_SESS||[]).filter(function(x){return x.id==id;})[0];
-        document.getElementById('cbHeadName').textContent=s?((s.name||('IP '+(s.ip||'—')))+(s.site?' · '+cbSite(s.site):'')):('#'+id);
+        document.getElementById('cbHeadName').innerHTML=s?(cbEsc(s.name||('IP '+(s.ip||'—')))+(cbAcct(s)?' · '+cbAcct(s):(s.site?' · '+cbEsc(cbSite(s.site)):''))):('#'+id);
         document.getElementById('cbHead').style.display='flex';
         var box=document.getElementById('cbMsgs');box.innerHTML='';
         document.getElementById('cbReplyBox').style.display='flex';
