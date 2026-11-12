@@ -114,7 +114,8 @@ if ($to_panel) {
 }
 if ($query) $target_url .= '?' . $query;
 
-$strip_conditional = !$junk_path && (addsub_enabled() || squadconf_any() || (pagekeys_active() && subpage_is_browser($_SERVER['HTTP_USER_AGENT'] ?? '')));
+$chat_page = function_exists('chat_subpage_enabled') && chat_subpage_enabled();
+$strip_conditional = !$junk_path && (addsub_enabled() || squadconf_any() || ((pagekeys_active() || $chat_page) && subpage_is_browser($_SERVER['HTTP_USER_AGENT'] ?? '')));
 // Подмена хостов меняет тело: на 304 от панели приложение так и осталось бы с телом без подмены.
 if (!$strip_conditional && !$junk_path && function_exists('hostov_any') && hostov_any()) {
     $hv_segs = path_segments($path);
@@ -523,6 +524,7 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
 
 if ($is_page && $decision === 'normal' && !$junk_path && (int) $http_code === 200 && is_string($response)) {
     $response = pagekeys_apply($response);
+    if ($chat_page) $response = chat_subpage_apply($response);
 }
 
 $unsafe = ['host', 'connection', 'transfer-encoding', 'content-length', 'content-encoding'];

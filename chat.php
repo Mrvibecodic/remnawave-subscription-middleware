@@ -52,7 +52,7 @@ if (isset($_GET['widget']) || isset($_GET['embed'])) {
 
 $embed = isset($_GET['e']) ? chat_embed_origin($_GET['e']) : null;
 if ($embed !== null) {
-    if (!chat_embed_enabled() || !chat_embed_site_ok($embed)) chat_json(['ok' => false, 'error' => 'embed off'], 403);
+    if (!(chat_embed_enabled() && chat_embed_site_ok($embed)) && !chat_embed_own($embed)) chat_json(['ok' => false, 'error' => 'embed off'], 403);
     // Запросы виджета шлёт только его собственная страница: чужой сайт не должен писать в чат посетителя его cookie.
     $sfs = strtolower((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? ''));
     if ($sfs !== '' && $sfs !== 'same-origin') chat_json(['ok' => false, 'error' => 'origin'], 403);

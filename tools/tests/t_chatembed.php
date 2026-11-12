@@ -205,6 +205,76 @@ t_ok('заглушка включена, виджет выключен: запр
 [, , $b] = t_http('GET', $mw . '/');
 t_ok('заглушка: встроенный чат на месте и в прежнем виде', strpos($b, 'id="swcWrap"') !== false && strpos($b, "var API = '/chat.php';") !== false && strpos($b, 'd-rw') === false);
 
+// Чат на странице подписки: прослойка сама вставляет виджет, свой домен в список сайтов не вписывают.
+t_settings(['chat_enabled' => '0', 'chat_embed_enabled' => '0', 'chat_embed_sites' => '', 'chat_subpage' => '0']);
+$page_html = "<!doctype html><html><head><title>x</title></head><body><div id=\"root\"></div><script>var s='</body>';</script></body></html>";
+t_eq('страница подписки: выключено — HTML не меняется', chat_subpage_apply($page_html), $page_html);
+t_settings(['chat_subpage' => '1']);
+unset($GLOBALS['submw_settings_cache']);
+$tag = '<script src="/chat.php?widget=rw" async></script>';
+t_eq('страница подписки: виджет встаёт перед последним </body>', chat_subpage_apply($page_html), substr($page_html, 0, -14) . $tag . '</body></html>');
+t_eq('страница подписки: тег в верхнем регистре', chat_subpage_apply('<HTML><BODY>x</BODY></HTML>'), '<HTML><BODY>x' . $tag . '</BODY></HTML>');
+t_eq('страница подписки: без </body> HTML не меняется', chat_subpage_apply('{"not":"html"}'), '{"not":"html"}');
+t_eq('страница подписки: не строка — без изменений', chat_subpage_apply(false), false);
+t_settings(['chat_subpage_design' => 'lkmin']);
+unset($GLOBALS['submw_settings_cache']);
+t_ok('страница подписки: выбранный дизайн в адресе скрипта', strpos(chat_subpage_apply($page_html), '/chat.php?widget=lkmin"') !== false);
+t_settings(['chat_subpage_design' => 'rw']);
+
+$own = 'https://sub.example.org';
+[$c, $h, $b] = t_http('GET', $mw . '/chat.php?widget=rw');
+t_ok('страница подписки: загрузчик работает и без виджета для других сайтов', $c === 200 && strpos($b, "createElement('iframe')") !== false);
+[$c, $h] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($own));
+t_ok('страница подписки: окно отдаётся только для вставки на своём домене', $c === 200 && (bool) preg_match("~frame-ancestors 'self'$~", $h['content-security-policy'] ?? ''), $h['content-security-policy'] ?? '');
+$eo = '&e=' . rawurlencode($own);
+[$c, $j] = $api('?api=open' . $eo, $form + ['origin' => $own], '');
+t_ok('страница подписки: запрос окна со своего домена принят', $c === 200 && $j['ok'] === true && $j['exists'] === false);
+[$c, $j] = $api('?api=open' . $eo, $form + ['origin' => 'HTTPS://Sub.Example.Org:443'], '');
+t_ok('страница подписки: Origin сравнивается в едином виде', $c === 200 && $j['ok'] === true);
+foreach (['без Origin' => [], 'Origin другого сайта' => ['origin' => $evil], 'Origin с другим портом' => ['origin' => $own . ':8443'], 'Origin null' => ['origin' => 'null']] as $name => $hh) {
+    [$c, $j] = $api('?api=open' . $eo, $form + $hh, '');
+    t_ok('страница подписки: ' . $name . ' — отказ', $c === 403 && ($j['error'] ?? '') === 'embed off');
+}
+[$c, $j] = $api('?api=open&e=' . rawurlencode($evil), $form + ['origin' => $own], '');
+t_ok('страница подписки: чужой сайт под своим Origin — отказ', $c === 403);
+[$c, $j] = $api('?api=send' . $eo, $form + ['origin' => $own, 'sec-fetch-site' => 'cross-site'], 'body=x');
+t_ok('страница подписки: запрос с чужой страницы — отказ', $c === 403 && ($j['error'] ?? '') === 'origin');
+[$c, $j] = $api('?api=send' . $eo, $form + ['origin' => $own, 'sec-fetch-site' => 'same-origin'], 'body=' . rawurlencode('Со страницы подписки'));
+$tok2 = (string) ($j['token'] ?? '');
+t_ok('страница подписки: сообщение создаёт диалог', $c === 200 && $j['ok'] === true && $tok2 !== '');
+t_eq('страница подписки: у диалога сайт — домен прослойки', $p->query('SELECT site FROM chat_sessions ORDER BY id DESC LIMIT 1')->fetchColumn(), $own);
+[$c, $j] = $api('?api=poll&after=0' . $eo, $form + ['origin' => $own, 'x-chat-token' => $tok2], '');
+t_ok('страница подписки: опрос окна (POST) отдаёт переписку', $c === 200 && $j['ok'] === true && end($j['messages'])['body'] === 'Со страницы подписки');
+t_settings(['chat_subpage' => '0']);
+[$c] = $api('?api=open' . $eo, $form + ['origin' => $own, 'x-chat-token' => $tok2], '');
+t_eq('страница подписки: выключили — запросы окна отклоняются', $c, 403);
+[$c] = t_http('GET', $mw . '/chat.php?embed=1&site=' . rawurlencode($own));
+t_eq('страница подписки: выключили — окно закрыто', $c, 403);
+
+// Страница подписки из контейнера subscription-page проходит через прослойку: виджет вставляется по пути.
+file_put_contents($tt_root . '/data/mock_subpage.php', '<?php
+$html = "<!doctype html><html><head><title>sub</title></head><body><div id=\"root\"></div></body></html>";
+if (strpos($_SERVER["REQUEST_URI"], "/assets/") === 0) { header("Content-Type: application/javascript"); echo "var a=\"</body>\";"; return; }
+header("ETag: \"v1\""); header("Content-Type: text/html; charset=utf-8");
+if (($_SERVER["HTTP_IF_NONE_MATCH"] ?? "") === "\"v1\"") { http_response_code(304); return; }
+echo $html;');
+$sp = t_serve($tt_root . '/data', $tt_root . '/data/mock_subpage.php');
+$src_html = '<!doctype html><html><head><title>sub</title></head><body><div id="root"></div></body></html>';
+t_settings(['sub_source' => 'panel', 'subpage_external_url' => $sp, 'pagekeys_mode' => 'off']);
+$ua = ['user-agent' => 'Mozilla/5.0 (X11; Linux x86_64) Chrome/130.0 Safari/537.36'];
+[$c, $h, $b] = t_http('GET', $mw . '/AbCdEfGhIjKlMnOp', $ua);
+t_ok('через прослойку, чат выключен: страница как у источника, ETag на месте', $c === 200 && $b === $src_html && ($h['etag'] ?? '') === '"v1"');
+[$c, , $b] = t_http('GET', $mw . '/AbCdEfGhIjKlMnOp', $ua + ['if-none-match' => '"v1"']);
+t_eq('через прослойку, чат выключен: условный запрос доходит до источника (304)', $c, 304);
+t_settings(['chat_subpage' => '1']);
+[$c, $h, $b] = t_http('GET', $mw . '/AbCdEfGhIjKlMnOp', $ua);
+t_ok('через прослойку, чат включён: виджет вставлен, ETag убран', $c === 200 && $b === str_replace('</body>', $tag . '</body>', $src_html) && !isset($h['etag']));
+[$c, , $b] = t_http('GET', $mw . '/AbCdEfGhIjKlMnOp', $ua + ['if-none-match' => '"v1"']);
+t_ok('через прослойку, чат включён: браузер не остаётся со старой страницей из кэша', $c === 200 && strpos($b, $tag) !== false);
+[$c, , $b] = t_http('GET', $mw . '/assets/app.js', $ua);
+t_ok('через прослойку: файлы страницы не трогаются', $c === 200 && $b === 'var a="</body>";');
+t_settings(['chat_subpage' => '0', 'sub_source' => 'mirror', 'subpage_external_url' => '']);
+
 // Настройки в админке.
 set_setting('update_state', json_encode(['checked_at' => time()]));
 t_settings(['geoip_auto' => '0']);
@@ -213,6 +283,7 @@ $jar = t_admin_login($mw);
 t_ok('админка: блок виджета на вкладке чата', $c === 200 && strpos($page, 'name="chat_embed_enabled"') !== false && strpos($page, 'name="chat_embed_sites"') !== false && substr_count($page, 'name="chat_embed_design"') === 3);
 t_ok('админка: код для вставки с выбранным дизайном', strpos($page, htmlspecialchars('<script src="https://' . parse_url($mw, PHP_URL_HOST) . ':' . parse_url($mw, PHP_URL_PORT) . '/chat.php?widget=rw" async></script>', ENT_QUOTES)) !== false);
 t_ok('админка: поле времени само раскрытия', strpos($page, 'name="chat_embed_autoopen"') !== false);
+t_ok('админка: выключатель чата на странице подписки', strpos($page, 'name="chat_subpage"') !== false && strpos($page, 'name="chat_subpage_design"') !== false);
 preg_match('~name="csrf" value="([0-9a-f]+)"~', $page, $m);
 $save = static function (array $f) use ($mw, $jar, $m, $form): string {
     [, , $r] = t_http('POST', $mw . '/admin/index.php', $form, http_build_query(['csrf' => $m[1], 'action' => 'save_chat_cfg', 'xhr' => '1', 'chat_poll_interval' => '4'] + $f), $jar);
@@ -231,6 +302,10 @@ $save(['chat_embed_enabled' => 'on', 'chat_embed_design' => 'lkmin', 'chat_embed
 t_eq('админка: само раскрытие выключается нулём', setting('chat_embed_autoopen', ''), '0');
 [, , $page] = t_http('GET', $mw . '/admin/index.php?tab=chat', [], null, $jar);
 t_ok('админка: код для вставки следует за выбранным дизайном', strpos($page, '/chat.php?widget=lkmin&quot; async') !== false);
+$save(['chat_embed_sites' => '', 'chat_subpage' => 'on', 'chat_subpage_design' => 'lk']);
+t_ok('админка: чат на странице подписки включается отдельно от виджета', setting('chat_subpage', '') === '1' && setting('chat_subpage_design', '') === 'lk' && setting('chat_embed_enabled', '') === '0');
+$save(['chat_embed_sites' => '', 'chat_subpage_design' => ['x']]);
+t_ok('админка: чат на странице подписки выключается, чужой дизайн не принимается', setting('chat_subpage', '') === '0' && setting('chat_subpage_design', '') === 'rw');
 $save(['chat_embed_enabled' => 'on', 'chat_embed_design' => '<script>', 'chat_embed_sites' => 'shop.example.com']);
 t_eq('админка: чужое значение дизайна не принимается', setting('chat_embed_design', ''), 'rw');
 $save(['chat_embed_enabled' => 'on', 'chat_embed_design' => ['lk'], 'chat_embed_sites' => ['evil.example.net']]);

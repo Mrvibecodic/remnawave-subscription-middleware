@@ -1660,6 +1660,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
             set_setting('chat_embed_enabled', isset($_POST['chat_embed_enabled']) ? '1' : '0');
             set_setting('chat_embed_design', in_array($_POST['chat_embed_design'] ?? '', chat_embed_designs(), true) ? $_POST['chat_embed_design'] : 'rw');
             set_setting('chat_embed_autoopen', (string) max(0, min(60, (int) ($_POST['chat_embed_autoopen'] ?? 2))));
+            set_setting('chat_subpage', isset($_POST['chat_subpage']) ? '1' : '0');
+            set_setting('chat_subpage_design', in_array($_POST['chat_subpage_design'] ?? '', chat_embed_designs(), true) ? $_POST['chat_subpage_design'] : 'rw');
             [$es_ok, $es_bad] = chat_embed_parse_sites($_POST['chat_embed_sites']);
             set_setting('chat_embed_sites', implode("\n", $es_ok));
             if ($es_bad) $msg .= ' · не похоже на адрес сайта, пропущено: ' . implode(', ', $es_bad);

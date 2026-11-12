@@ -3,7 +3,7 @@
 function chat_embed_loader() {
     header('Content-Type: application/javascript; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
-    if (!chat_embed_enabled()) {
+    if (!chat_embed_enabled() && !chat_subpage_enabled()) {
         header('Cache-Control: no-store');
         echo "/* off */\n";
         return;
@@ -54,7 +54,8 @@ function chat_embed_page($site, $design = '') {
     header('Cache-Control: no-store');
     header('Referrer-Policy: no-referrer');
     header('X-Content-Type-Options: nosniff');
-    if (!chat_embed_enabled() || !chat_embed_site_ok($origin)) {
+    $listed = chat_embed_enabled() && chat_embed_site_ok($origin);
+    if (!$listed && !(chat_subpage_enabled() && $origin !== '')) {
         http_response_code(403);
         header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
         header('Content-Type: text/plain; charset=utf-8');
@@ -62,7 +63,7 @@ function chat_embed_page($site, $design = '') {
         return;
     }
     $nonce = base64_encode(random_bytes(16));
-    header("Content-Security-Policy: default-src 'none'; script-src 'nonce-{$nonce}'; style-src 'nonce-{$nonce}'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors {$origin}");
+    header("Content-Security-Policy: default-src 'none'; script-src 'nonce-{$nonce}'; style-src 'nonce-{$nonce}'; img-src https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors " . ($listed ? $origin : "'self'"));
     header('Content-Type: text/html; charset=utf-8');
     echo chat_embed_html([
         'site'     => $origin,
@@ -331,7 +332,7 @@ svg{flex:none;display:block}
     function poll(){
         if (busy || !has || document.hidden) return;
         busy = true;
-        api('?api=poll&after=' + lastId).then(function(d){
+        api('?api=poll&after=' + lastId, {method: 'POST'}).then(function(d){
             busy = false;
             if (!d) return;
             if (d.gone) { reset(); return; }
