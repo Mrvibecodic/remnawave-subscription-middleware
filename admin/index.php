@@ -1656,6 +1656,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
         if (($_POST['chat_webhook_secret'] ?? '') !== '') set_setting('chat_webhook_secret', trim($_POST['chat_webhook_secret']));
         $msg = 'Настройки чата сохранены';
         if ($hook_bad) $msg .= ' · адрес для вебхука бота не сохранён: нужен вид https://домен — оставлен прежний';
+        if (isset($_POST['chat_embed_sites'])) {
+            set_setting('chat_embed_enabled', isset($_POST['chat_embed_enabled']) ? '1' : '0');
+            set_setting('chat_embed_design', in_array($_POST['chat_embed_design'] ?? '', chat_embed_designs(), true) ? $_POST['chat_embed_design'] : 'rw');
+            set_setting('chat_embed_autoopen', (string) max(0, min(60, (int) ($_POST['chat_embed_autoopen'] ?? 2))));
+            [$es_ok, $es_bad] = chat_embed_parse_sites($_POST['chat_embed_sites']);
+            set_setting('chat_embed_sites', implode("\n", $es_ok));
+            if ($es_bad) $msg .= ' · не похоже на адрес сайта, пропущено: ' . implode(', ', $es_bad);
+        }
         if (chat_tg_enabled() && chat_tg_token() !== '') {
             [$wok, $wres, $werr] = chat_tg_set_webhook(chat_tg_webhook_url());
             $msg .= $wok ? ' · вебхук бота установлен' : (' · вебхук НЕ установлен: ' . $werr);

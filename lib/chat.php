@@ -13,6 +13,56 @@ function chat_widget_color() {
 function chat_widget_text() { $v = trim((string) setting('chat_widget_text', '')); return $v !== '' ? $v : 'Напишите нам'; }
 function chat_poll_interval() { return max(2, min(30, (int) setting('chat_poll_interval', '4'))); }
 
+function chat_embed_enabled() { return setting('chat_embed_enabled', '0') === '1'; }
+function chat_embed_designs() { return ['rw', 'lk', 'lkmin']; }
+function chat_embed_design() { $v = (string) setting('chat_embed_design', 'rw'); return in_array($v, chat_embed_designs(), true) ? $v : 'rw'; }
+function chat_embed_autoopen() { return max(0, min(60, (int) setting('chat_embed_autoopen', '2'))); }
+
+// Адрес сайта в том виде, в каком браузер шлёт Origin: схема, хост в нижнем регистре, порт только нестандартный.
+function chat_embed_origin($v) {
+    if (!is_string($v)) return '';
+    $v = mb_strtolower(trim($v));
+    if ($v === '' || strlen($v) > 300) return '';
+    if (!preg_match('~^[a-z][a-z0-9+.-]*://~', $v)) $v = 'https://' . $v;
+    $u = parse_url($v);
+    if (!is_array($u) || !in_array($u['scheme'] ?? '', ['http', 'https'], true) || isset($u['user']) || isset($u['pass'])) return '';
+    $host = (string) ($u['host'] ?? '');
+    if (preg_match('/[^\x00-\x7f]/', $host)) {
+        $a = function_exists('idn_to_ascii') ? idn_to_ascii($host, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46) : false;
+        if (!is_string($a) || $a === '') return '';
+        $host = $a;
+    }
+    if (!preg_match('/^(localhost|[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z0-9-]*[a-z0-9])$/', $host)) return '';
+    $port = (int) ($u['port'] ?? 0);
+    if ($port === ($u['scheme'] === 'https' ? 443 : 80)) $port = 0;
+    return $u['scheme'] . '://' . $host . ($port ? ':' . $port : '');
+}
+
+function chat_embed_parse_sites($raw) {
+    $ok = [];
+    $bad = [];
+    foreach (preg_split('/[\s,;]+/u', is_string($raw) ? $raw : '', -1, PREG_SPLIT_NO_EMPTY) ?: [] as $line) {
+        $o = chat_embed_origin($line);
+        if ($o === '') $bad[] = mb_substr($line, 0, 60);
+        elseif (count($ok) < 50) $ok[$o] = true;
+    }
+    return [array_keys($ok), $bad];
+}
+
+function chat_embed_sites() { return chat_embed_parse_sites(setting('chat_embed_sites', ''))[0]; }
+
+function chat_embed_site_ok($origin) {
+    $o = chat_embed_origin($origin);
+    return $o !== '' && in_array($o, chat_embed_sites(), true);
+}
+
+function chat_embed_code($design = '') {
+    $host = mirror_domain() ?: ($_SERVER['HTTP_HOST'] ?? '');
+    return '<script src="https://' . $host . '/chat.php?widget=' . (in_array($design, chat_embed_designs(), true) ? $design : chat_embed_design()) . '" async></script>';
+}
+
+function chat_site_host($site) { return (string) preg_replace('~^https?://~', '', (string) $site); }
+
 function chat_tg_enabled() { return setting('chat_tg_enabled', '0') === '1'; }
 function chat_tg_token() { return trim((string) setting('chat_tg_bot_token', '')); }
 function chat_tg_chat_id() { return trim((string) setting('chat_tg_chat_id', '')); }
@@ -62,6 +112,7 @@ function ensure_chat_tables() {
                     last_msg_at TIMESTAMP NULL,
                     unread_agent INT UNSIGNED NOT NULL DEFAULT 0,
                     tg_msg_id BIGINT NULL,
+                    site VARCHAR(190) NULL,
                     PRIMARY KEY (id),
                     UNIQUE KEY uniq_token (token),
                     KEY idx_last (last_msg_at)
@@ -90,6 +141,7 @@ function ensure_chat_tables() {
                     last_msg_at TEXT NULL,
                     unread_agent INTEGER NOT NULL DEFAULT 0,
                     tg_msg_id INTEGER NULL,
+                    site TEXT NULL,
                     UNIQUE(token)
                 )");
                 $p->exec("CREATE INDEX IF NOT EXISTS idx_chat_last ON chat_sessions(last_msg_at)");
@@ -113,6 +165,10 @@ function ensure_chat_tables() {
     if (setting('chat_tg_msgid_col', '') !== '1') {
         try { $p->exec('ALTER TABLE chat_sessions ADD COLUMN tg_msg_id BIGINT NULL'); } catch (Throwable $e) {}
         if (db_has_cols($p, 'chat_sessions', ['tg_msg_id'])) set_setting('chat_tg_msgid_col', '1');
+    }
+    if (setting('chat_site_col', '') !== '1') {
+        try { $p->exec('ALTER TABLE chat_sessions ADD COLUMN site ' . (db_driver() === 'mysql' ? 'VARCHAR(190)' : 'TEXT') . ' NULL'); } catch (Throwable $e) {}
+        if (db_has_cols($p, 'chat_sessions', ['site'])) set_setting('chat_site_col', '1');
     }
     $done = true;
     return true;
@@ -141,12 +197,15 @@ function chat_session_by_id($id) {
     } catch (Throwable $e) { return null; }
 }
 
-function chat_session_create($ip, $ua) {
+function chat_session_create($ip, $ua, $site = '') {
     if (!ensure_chat_tables() || !($p = db())) return null;
     $token = chat_token_new();
     try {
         $st = $p->prepare('INSERT INTO chat_sessions (token, ip, user_agent) VALUES (?, ?, ?)');
         $st->execute([$token, mb_substr((string) $ip, 0, 45), mb_substr((string) $ua, 0, 255)]);
+        if ($site !== '' && setting('chat_site_col', '') === '1') {
+            try { $p->prepare('UPDATE chat_sessions SET site = ? WHERE token = ?')->execute([mb_substr((string) $site, 0, 190), $token]); } catch (Throwable $e) {}
+        }
         return chat_session_by_token($token);
     } catch (Throwable $e) { error_log('submw chat_session_create: ' . $e->getMessage()); return null; }
 }
@@ -292,6 +351,7 @@ function chat_tg_format_history($session, $msgs, $note = '') {
     $who = $session['name'] ? $session['name'] : ($session['ip'] ?: 'гость');
     $agent = chat_agent_name();
     $lines = ["💬 <b>" . $esc($who) . "</b>  <code>#s" . (int) $session['id'] . "</code>"];
+    if (!empty($session['site'])) $lines[] = "🌐 " . $esc(chat_site_host($session['site']));
     if ($note !== '') $lines[] = "<i>" . $esc($note) . "</i>";
     $lines[] = "──────────";
     $body = [];
@@ -320,7 +380,7 @@ function chat_sessions_list($limit = 100) {
     $out = [];
     if (!ensure_chat_tables() || !($p = db())) return $out;
     try {
-        $sql = 'SELECT s.id, s.token, s.name, s.ip, s.status, s.unread_agent,
+        $sql = 'SELECT s.id, s.token, s.name, s.ip, s.status, s.unread_agent, ' . (setting('chat_site_col', '') === '1' ? 's.site' : 'NULL AS site') . ',
                        ' . sql_epoch('s.created_at') . ' AS created_ts,
                        ' . sql_epoch('s.last_msg_at') . ' AS last_ts,
                        (SELECT body FROM chat_messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_body
@@ -568,6 +628,7 @@ function chat_webhook_out($session, $sender, $body) {
         'session_id' => (int) $session['id'],
         'name'       => $session['name'],
         'ip'         => $session['ip'],
+        'site'       => (string) ($session['site'] ?? ''),
         'sender'     => $sender,
         'body'       => $body,
         'ts'         => time(),

@@ -43,15 +43,39 @@ if (isset($_GET['inbound'])) {
     chat_json(['ok' => $ok, 'error' => $err], $ok ? 200 : 400);
 }
 
-if (!chat_enabled()) chat_json(['ok' => false, 'error' => 'chat disabled'], 403);
+if (isset($_GET['widget']) || isset($_GET['embed'])) {
+    require __DIR__ . '/lib/chat_embed.php';
+    if (isset($_GET['widget'])) chat_embed_loader();
+    else chat_embed_page($_GET['embed'] === '1' ? ($_GET['site'] ?? '') : '', $_GET['d'] ?? '');
+    exit();
+}
+
+$embed = isset($_GET['e']) ? chat_embed_origin($_GET['e']) : null;
+if ($embed !== null) {
+    if (!chat_embed_enabled() || !chat_embed_site_ok($embed)) chat_json(['ok' => false, 'error' => 'embed off'], 403);
+    // Запросы виджета шлёт только его собственная страница: чужой сайт не должен писать в чат посетителя его cookie.
+    $sfs = strtolower((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? ''));
+    if ($sfs !== '' && $sfs !== 'same-origin') chat_json(['ok' => false, 'error' => 'origin'], 403);
+} elseif (!chat_enabled()) {
+    chat_json(['ok' => false, 'error' => 'chat disabled'], 403);
+}
 
 chat_maybe_gc();
 
 $api = $_GET['api'] ?? '';
-$cookie_name = 'submw_chat';
+// У каждого сайта своя cookie: поддомены одного домена делят хранилище cookie, а диалоги у них раздельные.
+$cookie_name = $embed !== null ? 'submw_chat_e' . substr(hash('sha256', $embed), 0, 8) : 'submw_chat';
 
-function chat_set_cookie($name, $token) {
+function chat_set_cookie($name, $token, $third_party = false) {
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    if ($third_party) {
+        // Окно на чужом сайте — сторонний контекст: cookie доходит только как SameSite=None; Secure, а Partitioned держит её отдельно для каждого сайта.
+        // setcookie() в PHP 8.3 не знает Partitioned, поэтому заголовок собирается вручную.
+        if ($secure || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') {
+            header('Set-Cookie: ' . $name . '=' . $token . '; Max-Age=' . (30 * 86400) . '; Path=/; Secure; HttpOnly; SameSite=None; Partitioned', false);
+        }
+        return;
+    }
     setcookie($name, $token, [
         'expires'  => time() + 30 * 86400,
         'path'     => '/',
@@ -62,6 +86,7 @@ function chat_set_cookie($name, $token) {
 }
 
 $token   = $_COOKIE[$cookie_name] ?? '';
+if ($embed !== null && !empty($_SERVER['HTTP_X_CHAT_TOKEN'])) $token = (string) $_SERVER['HTTP_X_CHAT_TOKEN'];
 $session = $token !== '' ? chat_session_by_token($token) : null;
 
 if ($api === 'open') {
@@ -93,9 +118,9 @@ if ($api === 'send') {
     if (!chat_rate_ok($session)) chat_json(['ok' => false, 'error' => 'rate'], 429);
     if (!$session) {
         if (chat_recent_sessions_from_ip(client_ip()) >= chat_max_sessions_per_ip()) chat_json(['ok' => false, 'error' => 'rate'], 429);
-        $session = chat_session_create(client_ip(), $_SERVER['HTTP_USER_AGENT'] ?? '');
+        $session = chat_session_create(client_ip(), $_SERVER['HTTP_USER_AGENT'] ?? '', (string) $embed);
         if (!$session) chat_json(['ok' => false, 'error' => 'cannot create'], 500);
-        chat_set_cookie($cookie_name, $session['token']);
+        chat_set_cookie($cookie_name, $session['token'], $embed !== null);
         if (chat_greeting() !== '') chat_add_message($session['id'], 'agent', 'system', chat_greeting());
     } elseif (chat_session_msg_count($session['id']) >= chat_max_msgs_per_session()) {
         chat_json(['ok' => false, 'error' => 'limit'], 429);
@@ -104,7 +129,7 @@ if ($api === 'send') {
     if (!$id) chat_json(['ok' => false, 'error' => 'store failed'], 500);
     try { chat_dispatch_visitor_message($session, $body); }
     catch (Throwable $e) { error_log('submw chat dispatch: ' . $e->getMessage()); }
-    chat_json(['ok' => true, 'id' => $id]);
+    chat_json($embed !== null ? ['ok' => true, 'id' => $id, 'token' => $session['token']] : ['ok' => true, 'id' => $id]);
 }
 
 if ($api === 'poll') {

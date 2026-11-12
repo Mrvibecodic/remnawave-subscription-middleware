@@ -2,6 +2,8 @@
 $c_preset = chat_widget_preset();
 $c_pos    = chat_widget_position();
 $c_color  = chat_widget_color();
+$c_design = chat_embed_design();
+$c_sites  = chat_embed_sites();
 ?>
     <style>
         .cb-presets{display:flex;gap:.7rem;flex-wrap:wrap;margin:.3rem 0}
@@ -14,7 +16,7 @@ $c_color  = chat_widget_color();
         .cb-bar{padding:.6rem 1.2rem;border-radius:12px 12px 0 0;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600}
         .cb-pre .cb-lbl{font-size:.8rem;color:var(--muted)}
         .cs-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:start;margin-top:.9rem}
-        @media(min-width:1200px){.cs-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto 1fr;grid-template-areas:"w tg" "fb tg"}.cs-g-w{grid-area:w}.cs-g-tg{grid-area:tg}.cs-g-fb{grid-area:fb}}
+        @media(min-width:1200px){.cs-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto 1fr auto;grid-template-areas:"w tg" "fb tg" "ex ex"}.cs-g-w{grid-area:w}.cs-g-tg{grid-area:tg}.cs-g-fb{grid-area:fb}.cs-g-ex{grid-area:ex}}
         .cs-grp{border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:1rem 1.1rem 1.1rem;min-width:0}
         .cs-h{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding-bottom:.8rem;margin-bottom:.9rem;border-bottom:1px solid var(--line)}
         .cs-h .switch{margin-top:.15rem}
@@ -32,6 +34,56 @@ $c_color  = chat_widget_color();
         @media(max-width:560px){.cs-b .set-row>select{width:100%}}
         .cs-btns{display:flex;gap:.6rem;flex-wrap:wrap}
         .cs-note{font-size:.8rem}
+        .cs-ex{display:grid;grid-template-columns:minmax(0,1fr);gap:.85rem 1.4rem}
+        @media(min-width:900px){.cs-ex{grid-template-columns:minmax(0,5fr) minmax(0,6fr)}}
+        .cs-ex>div>*{margin-top:0;margin-bottom:0}
+        .cs-ex>div>*+*{margin-top:.85rem}
+        .cs-ex label{margin:0 0 .3rem}
+        .cs-ex textarea{min-height:76px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82rem}
+        .cs-ex .codeblk{margin:0}
+        .cs-ex .codeblk pre{white-space:pre-wrap;word-break:break-all}
+        .cd-pre{flex:1 1 150px;min-width:0}
+        .cd-th{height:126px;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;margin-bottom:.55rem}
+        .cd-th i{display:block;box-sizing:border-box}
+        .cd-th .cd-hd{display:flex;align-items:center;gap:6px;padding:7px 8px}
+        .cd-av{width:16px;height:16px;flex:none}
+        .cd-nm{width:46px;height:5px;border-radius:3px}
+        .cd-th .cd-bd{flex:1;display:flex;flex-direction:column;gap:5px;padding:8px}
+        .cd-a,.cd-v{height:14px}
+        .cd-a{width:58%}
+        .cd-v{width:46%;align-self:flex-end}
+        .cd-th .cd-ft{display:flex;gap:5px;padding:6px 8px}
+        .cd-in{flex:1;height:13px}
+        .cd-sn{width:13px;height:13px;flex:none}
+        .cd-rw{background-color:#161b23;background-image:linear-gradient(to right,rgba(128,128,128,.08) 1px,transparent 1px),linear-gradient(to bottom,rgba(128,128,128,.08) 1px,transparent 1px);background-size:20px 20px}
+        .cd-rw .cd-hd{border-bottom:1px solid rgba(255,255,255,.07)}
+        .cd-rw .cd-av{border-radius:5px;background:rgba(34,211,238,.18);border:1px solid rgba(34,211,238,.4)}
+        .cd-rw .cd-nm{background:#fff}
+        .cd-rw .cd-a,.cd-rw .cd-v{border-radius:5px}
+        .cd-rw .cd-a{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12)}
+        .cd-rw .cd-v{background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.32)}
+        .cd-rw .cd-ft{border-top:1px solid rgba(255,255,255,.07)}
+        .cd-rw .cd-in{border-radius:5px;border:1px solid rgba(255,255,255,.12)}
+        .cd-rw .cd-sn{border-radius:5px;border:1px solid #3bc9db}
+        .cd-lk{background:radial-gradient(circle at 0 0,rgba(91,140,255,.42),transparent 55%),radial-gradient(circle at 100% 100%,rgba(157,123,255,.36),transparent 55%),#0b0f17}
+        .cd-lk .cd-hd{border-bottom:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05)}
+        .cd-lk .cd-av{border-radius:50%;background:linear-gradient(120deg,#5b8cff,#9d7bff)}
+        .cd-lk .cd-nm{background:#eef2f8}
+        .cd-lk .cd-a{border-radius:7px 7px 7px 3px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+        .cd-lk .cd-v{border-radius:7px 7px 3px 7px;background:linear-gradient(120deg,#5b8cff,#9d7bff)}
+        .cd-lk .cd-ft{border-top:1px solid rgba(255,255,255,.1)}
+        .cd-lk .cd-in{border-radius:5px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1)}
+        .cd-lk .cd-sn{border-radius:5px;background:linear-gradient(120deg,#5b8cff,#9d7bff)}
+        .cd-lkmin{background:#f4f5f7}
+        .cd-lkmin .cd-hd{border-bottom:1px solid #e4e7ec}
+        .cd-lkmin .cd-av{border-radius:5px;background:#2f6bff}
+        .cd-lkmin .cd-nm{background:#0f1115}
+        .cd-lkmin .cd-a{border-radius:7px 7px 7px 3px;background:#fff;border:1px solid #e4e7ec}
+        .cd-lkmin .cd-v{border-radius:7px 7px 3px 7px;background:#2f6bff}
+        .cd-lkmin .cd-ft{border-top:1px solid #e4e7ec}
+        .cd-lkmin .cd-in{border-radius:5px;background:#eef0f3}
+        .cd-lkmin .cd-sn{border-radius:5px;background:#2f6bff}
+        .cb-site{color:var(--accent-text)}
         .cb-chat{display:grid;grid-template-columns:300px 1fr;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;height:560px}
         @media(max-width:760px){.cb-chat{grid-template-columns:1fr;height:auto}}
         .cb-list{border-right:1px solid var(--line);overflow-y:auto;background:var(--bg2)}
@@ -185,6 +237,37 @@ $c_color  = chat_widget_color();
                     Заголовок подписи входящих: <code>X-Chat-Signature: sha256=HMAC(body, входящий_секрет)</code>. Входящий секрет: <code><?= h(chat_inbound_secret()) ?></code></p>
                 </div>
             </div>
+
+            <div class="cs-grp cs-g-ex">
+                <div class="cs-h">
+                    <div class="set-info"><div class="cs-t">Виджет для других сайтов</div><div class="set-d">Чат подключается к любому вашему сайту одной строкой кода. Работает отдельно от чата на странице-заглушке.</div></div>
+                    <label class="switch"><input type="checkbox" name="chat_embed_enabled" <?= chat_embed_enabled()?'checked':'' ?>><span class="sl"></span></label>
+                </div>
+                <div class="cs-b">
+                    <div class="info" id="cbExNoSites"<?= (chat_embed_enabled() && !$c_sites) ? '' : ' hidden' ?>>Добавьте хотя бы один сайт — пока список пуст, виджет нигде не откроется.</div>
+                    <div class="cs-ex">
+                        <div>
+                            <div><label for="cbExSites">Сайты, где разрешён виджет <span class="hint">по одному в строке. Адрес с www и без www — два разных сайта</span></label><textarea id="cbExSites" name="chat_embed_sites" rows="3" spellcheck="false" placeholder="https://example.com"><?= h(implode("\n", $c_sites)) ?></textarea></div>
+                            <div><label>Код для вставки <span class="hint">на страницы сайта перед &lt;/body&gt;. Дизайн записан в коде: для другого дизайна выберите его и скопируйте код заново</span></label><div class="codeblk"><button type="button" class="copybtn" onclick="uiCopy(this.nextElementSibling.textContent,this)">Копировать</button><pre id="cbExCode"><?= h(chat_embed_code()) ?></pre></div></div>
+                            <div class="set-row">
+                                <div class="set-info"><div class="set-t">Раскрывать окно само через, сек</div><div class="set-d">0 — не раскрывать. Свёрнутое посетителем окно само больше не раскрывается. На телефоне — только по нажатию.</div></div>
+                                <input type="number" min="0" max="60" name="chat_embed_autoopen" value="<?= (int) chat_embed_autoopen() ?>">
+                            </div>
+                        </div>
+                        <div>
+                            <div>
+                                <label>Дизайн окна</label>
+                                <div class="cb-presets">
+                                    <label class="cb-pre cd-pre <?= $c_design==='rw'?'sel':'' ?>"><input type="radio" name="chat_embed_design" value="rw" <?= $c_design==='rw'?'checked':'' ?>><div class="cd-th cd-rw"><i class="cd-hd"><i class="cd-av"></i><i class="cd-nm"></i></i><i class="cd-bd"><i class="cd-a"></i><i class="cd-v"></i><i class="cd-a"></i></i><i class="cd-ft"><i class="cd-in"></i><i class="cd-sn"></i></i></div><div class="cb-lbl">Remnawave — как страница подписки</div></label>
+                                    <label class="cb-pre cd-pre <?= $c_design==='lk'?'sel':'' ?>"><input type="radio" name="chat_embed_design" value="lk" <?= $c_design==='lk'?'checked':'' ?>><div class="cd-th cd-lk"><i class="cd-hd"><i class="cd-av"></i><i class="cd-nm"></i></i><i class="cd-bd"><i class="cd-a"></i><i class="cd-v"></i><i class="cd-a"></i></i><i class="cd-ft"><i class="cd-in"></i><i class="cd-sn"></i></i></div><div class="cb-lbl">Кабинет — классика</div></label>
+                                    <label class="cb-pre cd-pre <?= $c_design==='lkmin'?'sel':'' ?>"><input type="radio" name="chat_embed_design" value="lkmin" <?= $c_design==='lkmin'?'checked':'' ?>><div class="cd-th cd-lkmin"><i class="cd-hd"><i class="cd-av"></i><i class="cd-nm"></i></i><i class="cd-bd"><i class="cd-a"></i><i class="cd-v"></i><i class="cd-a"></i></i><i class="cd-ft"><i class="cd-in"></i><i class="cd-sn"></i></i></div><div class="cb-lbl">Кабинет — минимализм</div></label>
+                                </div>
+                            </div>
+                            <p class="muted cs-note">Имя и фото агента, приветствие, вид и положение кнопки берутся из блока «Включить чат на сайте». Цвета задаёт дизайн; у минимализма тема та же, что на устройстве посетителя.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
             </div>
 
             <div style="margin-top:1.25rem"><button type="submit">💾 Сохранить настройки чата</button></div>
@@ -214,8 +297,9 @@ $c_color  = chat_widget_color();
     window.addEventListener('popstate',function(){if(cbPushed){cbPushed=false;cbClose();}});
     cbMq.addEventListener('change',function(){if(cbMq.matches&&cbCur&&!cbPushed){history.pushState({cbChat:cbCur},'');cbPushed=true;}cbFit();});
     function cbEsc(s){var d=document.createElement('div');d.textContent=(s==null?'':s);return d.innerHTML.replace(/"/g,'&quot;');}
+    function cbSite(u){return String(u||'').replace(/^https?:\/\//,'');}
     function cbLocal(ep){ep=parseInt(ep,10);if(!ep)return '';var d=new Date(ep*1000);function p(n){return(n<10?'0':'')+n;}return p(d.getHours())+':'+p(d.getMinutes());}
-    document.querySelectorAll('.cb-pre').forEach(function(el){el.addEventListener('click',function(){document.querySelectorAll('.cb-pre').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');});});
+    document.querySelectorAll('.cb-pre').forEach(function(el){el.addEventListener('click',function(){el.parentNode.querySelectorAll('.cb-pre').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');});});
     function cbRenderList(rows){
         var box=document.getElementById('cbList');
         var sig=cbCur+'|'+JSON.stringify(rows);
@@ -225,10 +309,11 @@ $c_color  = chat_widget_color();
         box.innerHTML=rows.map(function(s){
             var nm=s.name||('IP '+(s.ip||'—'));
             var pv=(s.last_body||'').slice(0,46);
+            var st=s.site?'<span class="cb-site">'+cbEsc(cbSite(s.site))+'</span> · ':'';
             var un=parseInt(s.unread_agent,10)||0;
             return '<div class="cb-sess'+(s.id==cbCur?' sel':'')+'" data-id="'+s.id+'" onclick="cbOpen('+s.id+')">'+
                    '<div class="cb-st"><span class="cb-sn">'+cbEsc(nm)+'</span>'+(un?'<span class="cb-unread">'+un+'</span>':'<span class="cb-sp">'+cbLocal(s.last_ts)+'</span>')+'</div>'+
-                   '<div class="cb-sp">'+cbEsc(pv)+'</div></div>';
+                   '<div class="cb-sp">'+st+cbEsc(pv)+'</div></div>';
         }).join('');
     }
     function cbLoadSessions(){
@@ -264,7 +349,7 @@ $c_color  = chat_widget_color();
         cbCur=id;cbLast=0;cbSeen={};
         document.querySelectorAll('.cb-sess').forEach(function(x){x.classList.toggle('sel',x.getAttribute('data-id')==id);});
         var s=(CB_SESS||[]).filter(function(x){return x.id==id;})[0];
-        document.getElementById('cbHeadName').textContent=s?(s.name||('IP '+(s.ip||'—'))):('#'+id);
+        document.getElementById('cbHeadName').textContent=s?((s.name||('IP '+(s.ip||'—')))+(s.site?' · '+cbSite(s.site):'')):('#'+id);
         document.getElementById('cbHead').style.display='flex';
         var box=document.getElementById('cbMsgs');box.innerHTML='';
         document.getElementById('cbReplyBox').style.display='flex';
@@ -338,5 +423,12 @@ $c_color  = chat_widget_color();
     document.getElementById('cbReply').addEventListener('input',cbGrow);
     if(history.state&&history.state.cbChat){if(cbMq.matches){cbPushed=true;cbOpen(history.state.cbChat);}else history.replaceState(null,'');}
     cbRenderList(CB_SESS);
+    (function(){
+        var on=document.querySelector('[name=chat_embed_enabled]'),ta=document.getElementById('cbExSites'),box=document.getElementById('cbExNoSites');
+        function upd(){box.hidden=!(on.checked&&!ta.value.trim());}
+        on.addEventListener('change',upd);ta.addEventListener('input',upd);
+        var code=document.getElementById('cbExCode');
+        document.querySelectorAll('[name=chat_embed_design]').forEach(function(r){r.addEventListener('change',function(){code.textContent=code.textContent.replace(/widget=[a-z0-9]+/,'widget='+r.value);});});
+    })();
     setInterval(function(){if(!document.hidden){cbPollMsgs();cbLoadSessions();}},5000);
     </script>
