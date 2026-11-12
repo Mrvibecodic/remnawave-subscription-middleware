@@ -353,6 +353,64 @@ t_ok('учётная запись: массив вместо метки — бе
 t_ok('учётная запись: диалог без метки получает её со следующим сообщением со своей страницы', $c === 200 && $p->query("SELECT sub_user FROM chat_sessions WHERE token = '$tf'")->fetchColumn() === 'alice_01');
 $row = array_values(array_filter(chat_sessions_list(10), static fn($r) => $r['token'] === $tb))[0];
 t_ok('учётная запись: список диалогов для админки отдаёт её', $row['sub_user'] === 'bob_02' && $row['sub_short'] === 'ZyXwVuTsRqPoNmLk');
+// Оператор в Telegram и внешний бот по вебхуку видят, откуда пришёл диалог и чья это подписка.
+$tg_log = $tt_root . '/data/mock_tg_chat.log';
+$wh_log = $tt_root . '/data/mock_hook.log';
+file_put_contents($tt_root . '/data/mock_tg_chat.json', '{}');
+file_put_contents($tt_root . '/data/mock_hook.php', '<?php file_put_contents(__DIR__ . "/mock_hook.log", json_encode(["sig" => $_SERVER["HTTP_X_CHAT_SIGNATURE"] ?? "", "body" => file_get_contents("php://input")]) . "\n", FILE_APPEND); echo "ok";');
+$tg_srv = t_serve($tt_root . '/tools', $tt_root . '/tools/tests/_mock_tg.php', ['MOCK_TG' => $tt_root . '/data/mock_tg_chat.json', 'MOCK_TG_LOG' => $tg_log, 'MOCK_TG_DIR' => $tt_root . '/data']);
+$wh_srv = t_serve($tt_root . '/data', $tt_root . '/data/mock_hook.php');
+t_settings(['chat_tg_enabled' => '1', 'chat_tg_bot_token' => '123456789:' . str_repeat('A', 35), 'chat_tg_chat_id' => '-100123', 'chat_tg_api_base' => $tg_srv, 'chat_tg_down_ts' => '0',
+            'chat_webhook_enabled' => '1', 'chat_webhook_url' => $wh_srv . '/hook', 'chat_webhook_secret' => 'whsec']);
+$tg_last = static function () use ($tg_log): string {
+    $t = '';
+    foreach (@file($tg_log) ?: [] as $l) { $j = json_decode($l, true); if (($j['m'] ?? '') === 'sendMessage') $t = (string) $j['text']; }
+    return $t;
+};
+$wh_last = static function () use ($wh_log): array {
+    $l = @file($wh_log) ?: [];
+    $j = $l ? json_decode((string) end($l), true) : null;
+    return is_array($j) ? ['sig' => $j['sig'], 'raw' => $j['body'], 'j' => json_decode($j['body'], true)] : ['sig' => '', 'raw' => '', 'j' => []];
+};
+$sid = static fn(string $tok): int => (int) $p->query("SELECT id FROM chat_sessions WHERE token = '$tok'")->fetchColumn();
+[$c] = $api('?api=send' . $eo . '&u=' . $ua_tok, $so + ['x-chat-token' => $ta], 'body=' . rawurlencode('Вопрос со страницы подписки'));
+$t = $tg_last();
+t_ok('бот: у диалога со страницы подписки названы источник и пользователь подписки', $c === 200 && strpos($t, "💬 <b>127.0.0.1</b>  <code>#s" . $sid($ta) . "</code>\n\n🌐 Страница подписки · <code>alice_01</code>\n\n──────────") === 0, $t);
+t_ok('бот: домен прослойки у такого диалога не дублируется', strpos($t, 'sub.example.org') === false);
+$w = $wh_last();
+t_ok('вебхук: сайт и пользователь подписки в полях', ($w['j']['site'] ?? null) === $own && ($w['j']['sub_user'] ?? null) === 'alice_01' && ($w['j']['body'] ?? '') === 'Вопрос со страницы подписки', $w['raw']);
+t_ok('вебхук и бот: короткий идентификатор подписки наружу не уходит', strpos($w['raw'], 'AbCdEfGhIjKlMnOp') === false && strpos($t, 'AbCdEfGhIjKlMnOp') === false, $w['raw']);
+t_eq('вебхук: подпись считается по всему телу с новыми полями', $w['sig'], 'sha256=' . hash_hmac('sha256', $w['raw'], 'whsec'));
+t_eq('вебхук: прежние поля на месте и в прежнем порядке', array_keys($w['j']), ['token', 'session_id', 'name', 'ip', 'site', 'sub_user', 'sender', 'body', 'ts']);
+[$c, $j] = $api('?api=send' . $eo, $so, 'body=' . rawurlencode('Страница без данных пользователя'));
+$tn = (string) ($j['token'] ?? '');
+$t = $tg_last();
+$w = $wh_last();
+t_ok('бот: диалог со своего домена без учётной записи — назван сайт', $c === 200 && strpos($t, "<code>#s" . $sid($tn) . "</code>\n\n🌐 sub.example.org\n\n──────────") !== false && strpos($t, 'Страница подписки') === false, $t);
+t_ok('вебхук: без учётной записи поле пользователя пустое', ($w['j']['site'] ?? null) === $own && ($w['j']['sub_user'] ?? null) === '');
+[$c] = $api('?api=send' . $eo . '&u=' . $ub_tok, $so + ['x-chat-token' => $tn], 'body=' . rawurlencode('Метка появилась'));
+$t = $tg_last();
+$w = $wh_last();
+t_ok('бот: подпись, появившаяся позже, видна уже в этом сообщении', $c === 200 && strpos($t, "<code>#s" . $sid($tn) . "</code>\n\n🌐 Страница подписки · <code>bob_02</code>") !== false, $t);
+t_ok('вебхук: подпись, появившаяся позже, уходит уже с этим сообщением', ($w['j']['sub_user'] ?? null) === 'bob_02' && strpos($w['raw'], 'ZyXwVuTsRqPoNmLk') === false);
+t_settings(['chat_enabled' => '1']);
+[$c, $j, $h] = $api('?api=send', $form, 'body=' . rawurlencode('С заглушки, включена страница подписки'));
+preg_match('/submw_chat=([a-f0-9]{32})/', $h['set-cookie'] ?? '', $mm);
+$t = $tg_last();
+$w = $wh_last();
+t_ok('бот: рядом с другими источниками заглушка названа', $c === 200 && strpos($t, "<code>#s" . $sid($mm[1] ?? '') . "</code>\n\n🌐 Страница-заглушка\n\n──────────") !== false, $t);
+t_ok('вебхук: у диалога с заглушки сайт и пользователь пустые', ($w['j']['site'] ?? null) === '' && ($w['j']['sub_user'] ?? null) === '');
+t_settings(['chat_subpage' => '0']);
+[$c] = $api('?api=send', $form + ['cookie' => 'submw_chat=' . ($mm[1] ?? '')], 'body=' . rawurlencode('Только заглушка'));
+$t = $tg_last();
+t_ok('бот: когда источник один (только заглушка), сообщение прежнее — без строки источника', $c === 200 && strpos($t, "💬 <b>127.0.0.1</b>  <code>#s" . $sid($mm[1] ?? '') . "</code>\n\n──────────") === 0 && strpos($t, '🌐') === false, $t);
+t_settings(['chat_subpage' => '1', 'chat_enabled' => '0', 'chat_tg_enabled' => '0', 'chat_webhook_enabled' => '0', 'chat_webhook_url' => '', 'chat_tg_api_base' => '']);
+unset($GLOBALS['submw_settings_cache']);
+t_eq('бот: имя пользователя экранируется', chat_tg_source_line(['sub_user' => '<b>x</b>&', 'sub_short' => 'Zy', 'site' => $own]), '🌐 Страница подписки · <code>&lt;b&gt;x&lt;/b&gt;&amp;</code>');
+t_eq('бот: без имени — источник назван, идентификатор подписки не показан', chat_tg_source_line(['sub_user' => ' ', 'sub_short' => 'ZyXw', 'site' => $own]), '🌐 Страница подписки');
+t_eq('бот: сайт с виджетом — строка прежняя', chat_tg_source_line(['site' => $site]), '🌐 shop.example.com');
+t_eq('бот: диалог из базы без колонок учётной записи — без ошибок', chat_tg_source_line(['site' => null]), '🌐 Страница-заглушка');
+
 // Метка действует только на домене самой прослойки: окно на чужом сайте из списка шлёт запросы с тем же Origin, но сайт у него другой.
 t_settings(['chat_embed_enabled' => '1', 'chat_embed_sites' => $site]);
 [$c, $j] = $api('?api=send' . $e . '&u=' . $ua_tok, $form + ['origin' => $own, 'sec-fetch-site' => 'same-origin'], 'body=' . rawurlencode('С чужого сайта с меткой'));

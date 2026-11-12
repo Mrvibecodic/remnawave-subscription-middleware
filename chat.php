@@ -130,6 +130,7 @@ if ($api === 'send') {
         chat_json(['ok' => false, 'error' => 'limit'], 429);
     } elseif ($acct && empty($session['sub_short'])) {
         chat_session_set_acct($session['id'], $acct);
+        $session = chat_session_by_token($session['token']) ?: $session;
     }
     $id = chat_add_message($session['id'], 'visitor', 'site', $body);
     if (!$id) chat_json(['ok' => false, 'error' => 'store failed'], 500);
