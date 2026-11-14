@@ -1,4 +1,4 @@
-FROM php:8.3-fpm-bookworm
+FROM php:8.5-fpm-bookworm
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends nginx; \
