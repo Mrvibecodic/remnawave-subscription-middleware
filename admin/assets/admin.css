@@ -214,6 +214,9 @@
     .hv-xd>.r{display:flex;flex-direction:column;gap:.15rem;margin-top:.25rem}
     .flash{background:var(--c-ok-bg);border:1px solid var(--c-ok-fg);color:var(--c-ok-fg);padding:.7rem 1rem;margin-bottom:1rem}
     .warn{background:var(--c-bad-bg);border:1px solid var(--c-bad-fg);color:var(--c-bad-fg);padding:.7rem 1rem;margin-bottom:1rem}
+    .warn-bar{display:flex;gap:.8rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+    .warn-bar.mid{align-items:center}
+    .warn-bar-act{display:flex;gap:.5rem;flex-wrap:wrap}
     .info{background:var(--bg2);border:1px solid var(--line);padding:.85rem 1rem;margin-bottom:1rem}
     .muted{color:var(--muted);font-size:.88rem;line-height:1.5}
     .row{display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end}
