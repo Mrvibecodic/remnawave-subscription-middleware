@@ -2556,15 +2556,16 @@ navHidSync();
 <?php $inst_pend = json_decode((string) setting('install_pending', ''), true); if (is_array($inst_pend) && $inst_pend): ?>
 <div class="warn" style="display:flex;gap:.8rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap"><div><b>Установка завершена с предупреждениями:</b> <?= h(implode('; ', array_map(fn($k, $v) => (['subpage' => 'страница подписки', 'origin' => 'origin', 'webhook' => 'вебхук'][$k] ?? $k) . ' — ' . $v, array_keys($inst_pend), $inst_pend))) ?>. Проверки повторяются на вкладке <a href="?tab=connection">«Подключение»</a>.</div><a class="btn ghost" href="?tab=<?= h($tab) ?>&amp;inst_pending_ack=1&amp;csrf=<?= h(csrf_token()) ?>">Закрыть</a></div>
 <?php endif; ?>
-<?php $dn_file = docs_note_file(); if ($dn_file !== null): ?>
-<div id="docsNote" data-f="<?= h($dn_file[0]) ?>" data-s="<?= (int) $dn_file[1] ?>" data-csrf="<?= h(csrf_token()) ?>"<?= setting('docs_note', '') === 'open' ? '' : ' hidden' ?>>
+<?php // В приложении всё вне /admin/ отвечает 404: проверка пути оттуда ничего не значит, показываем только уже найденное.
+$dn_file = docs_note_file(); $dn_app = app_tunnel(); if ($dn_file !== null && (!$dn_app || setting('docs_note', '') === 'open')): ?>
+<div id="docsNote" data-f="<?= $dn_app ? '' : h($dn_file[0]) ?>" data-s="<?= (int) $dn_file[1] ?>" data-csrf="<?= h(csrf_token()) ?>"<?= setting('docs_note', '') === 'open' ? '' : ' hidden' ?>>
 <div class="warn" style="display:flex;gap:.8rem;align-items:center;justify-content:space-between;flex-wrap:wrap"><div><b>Папка docs открыта снаружи:</b> по адресу <code>/docs/</code> её видит любой. Закройте этот путь в веб-сервере.</div><div style="display:flex;gap:.5rem;flex-wrap:wrap"><button type="button" class="btn" onclick="help('docs_close')">Как закрыть</button><button type="button" class="btn ghost" id="docsNoteX">Закрыть</button></div></div>
 </div>
 <script>(function(){var w=document.getElementById('docsNote'),off=false;
 function save(st){var f=new FormData();f.append('csrf',w.dataset.csrf);f.append('st',st);fetch('?ajax=docs_note',{method:'POST',body:f,credentials:'same-origin'}).catch(function(){});}
 document.getElementById('docsNoteX').addEventListener('click',function(){off=true;w.hidden=true;save('ok');});
 // Без cookie — как посторонний. Открыто, только если пришёл сам файл; сбой сервера или сети ничего не решает.
-fetch('../docs/'+encodeURIComponent(w.dataset.f)+'?_='+Date.now(),{cache:'no-store',credentials:'omit'}).then(function(r){
+if(w.dataset.f)fetch('../docs/'+encodeURIComponent(w.dataset.f)+'?_='+Date.now(),{cache:'no-store',credentials:'omit'}).then(function(r){
 if(r.status===200)return r.arrayBuffer().then(function(b){return b.byteLength===+w.dataset.s;});
 return r.status>=400&&r.status<500&&r.status!==408&&r.status!==429?false:null;
 }).then(function(open){if(off||open===null)return;if(!open){w.hidden=true;save('ok');}else if(w.hidden){w.hidden=false;save('open');}}).catch(function(){});

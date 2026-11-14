@@ -43,6 +43,15 @@ t_eq('чужое значение не пишется', [$post($mw, $jar, ['csrf
 t_eq('путь открыт: состояние запомнено', [$post($mw, $jar, ['csrf' => $csrf, 'st' => 'open']), $stored()], [200, 'open']);
 t_ok('путь открыт: полоса видна сразу, без повторной проверки', (bool) preg_match('~<div id="docsNote"[^>]*data-csrf="[0-9a-f]+">~', $page($mw, $jar)));
 
+$app  = t_serve($tt_root, $tt_root . '/tools/tests/_router_app.php', ['SUBMW_DOCKER' => ''], ['opcache.enable' => '0']);
+$ajar = t_admin_login($app);
+$ab   = $page($app, $ajar);
+t_ok('в приложении, путь уже найден открытым: полоса видна, проверки пути нет', (bool) preg_match('~<div id="docsNote" data-f="" [^>]*data-csrf="[0-9a-f]+">~', $ab));
+db()->exec("DELETE FROM settings WHERE k = 'docs_note'");
+$ab = $page($app, $ajar);
+t_ok('в приложении, проверки ещё не было: полосы и проверки нет', strpos($ab, '</html>') !== false && strpos($ab, 'id="docsNote"') === false);
+set_setting('docs_note', 'open');
+
 t_eq('путь закрыт или полосу убрали: состояние запомнено', [$post($mw, $jar, ['csrf' => $csrf, 'st' => 'ok']), $stored()], [200, 'ok']);
 t_ok('после этого полосы нет', strpos($page($mw, $jar), 'id="docsNote"') === false);
 t_eq('«открыт» после «закрыт» не возвращает полосу', [$post($mw, $jar, ['csrf' => $csrf, 'st' => 'open']), $stored()], [200, 'ok']);
