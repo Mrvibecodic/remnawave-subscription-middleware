@@ -408,6 +408,14 @@ if (preg_match('~^/api/subscriptions/connection-keys/(\d+)$~', $path, $m)) {
     exit;
 }
 
+// hwdev: {"<uuid пользователя>": [{"hwid", "platform", "osVersion", "deviceModel", "userAgent", "createdAt", "updatedAt"}] | "403"} — устройства HWID.
+if (preg_match('~^/api/hwid/devices/([^/]+)$~', $path, $m) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+    $hd = $state['hwdev'][rawurldecode($m[1])] ?? [];
+    if ($hd === '403') { mp_json(403, ['message' => 'Forbidden', 'statusCode' => 403]); exit; }
+    mp_json(200, ['response' => ['total' => count($hd), 'devices' => array_values((array) $hd)]]);
+    exit;
+}
+
 if ($path === '/api/system/metadata') {
     mp_json(200, ['response' => ['version' => (string) ($state['version'] ?? '2.8.1'), 'build' => ['time' => '2026-01-01T00:00:00Z', 'number' => '1'], 'git' => ['backend' => ['commitSha' => 'test', 'branch' => 'main', 'commitUrl' => '']]]]);
     exit;

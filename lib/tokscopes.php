@@ -48,7 +48,7 @@ function tokscope_catalog() {
         ['s' => 'system:test-srr-matcher', 'm' => 'POST', 'p' => '/api/system/testers/srr-matcher', 'b' => '{"responseRules":{"version":"1","rules":[]}}', 'w' => 'Проверка черновика и карта клиентов в «Правилах ответа панели»', 'need' => false],
         ['s' => 'subscription-template:list', 'm' => 'GET', 'p' => '/api/subscription-templates', 'w' => 'Поиск шаблона xray-json для доп. конфигов', 'need' => $pool && squadconf_xray_json_enabled()],
         ['s' => 'subscription-template:get', 'm' => 'GET', 'p' => '/api/subscription-templates/submw-probe', 'w' => 'Тело шаблона xray-json для доп. конфигов', 'need' => $pool && squadconf_xray_json_enabled()],
-        ['s' => 'subscriptions:connection-keys', 'm' => 'GET', 'p' => '/api/subscriptions/connection-keys/0', 'w' => 'Хосты пользователя для «Подмены хостов» в карточке', 'need' => false],
+        ['s' => 'subscriptions:connection-keys', 'm' => 'GET', 'p' => '/api/subscriptions/connection-keys/0', 'w' => 'Хосты пользователя для «Подмены параметров» в карточке', 'need' => false],
         ['s' => 'subscriptions:by-short-uuid-protected', 'm' => 'GET', 'p' => '/api/subscriptions/by-short-uuid/' . $rnd, 'w' => 'Хосты панели и серверы второй подписки для «Ключей на странице»', 'need' => pagekeys_active() && (pagekeys_with_panel() || (pagekeys_with_addsub() && addsub_enabled()))],
     ], $usage, $conn);
 }

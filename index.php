@@ -116,10 +116,12 @@ if ($query) $target_url .= '?' . $query;
 
 $chat_page = function_exists('chat_subpage_enabled') && chat_subpage_enabled();
 $strip_conditional = !$junk_path && (addsub_enabled() || squadconf_any() || ((pagekeys_active() || $chat_page) && subpage_is_browser($_SERVER['HTTP_USER_AGENT'] ?? '')));
-// Подмена хостов меняет тело: на 304 от панели приложение так и осталось бы с телом без подмены.
-if (!$strip_conditional && !$junk_path && function_exists('hostov_any') && hostov_any()) {
+// Подмена параметров меняет тело: на 304 от панели приложение так и осталось бы с телом без подмены.
+// Устройству, которому подмен не назначено, 304 проходит как раньше.
+// function_exists('hostov_pick'): если index.php сменился раньше lib/hostov.php, подмены не применяются — тело уходит как от панели.
+if (!$strip_conditional && !$junk_path && function_exists('hostov_pick') && hostov_any()) {
     $hv_segs = path_segments($path);
-    $strip_conditional = $hv_segs && hostov_rows_for($hv_segs[0]);
+    $strip_conditional = $hv_segs && hostov_pick(hostov_rows_for($hv_segs[0]), $_SERVER['HTTP_USER_AGENT'] ?? '');
 }
 $conditional_hdrs = ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range'];
 
@@ -426,13 +428,17 @@ $response_premod = $response;
 
 $log_hv = [];
 $hv_notes = [];
+$hv_sub = [];
 // В грейсе у пользователя хосты грейс-сквада — его подменам там не к чему относиться.
 if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && !$is_page && !$panel_hwid_block
-    && (int) $http_code >= 200 && (int) $http_code < 300 && function_exists('hostov_rows_for')
+    && (int) $http_code >= 200 && (int) $http_code < 300 && function_exists('hostov_pick')
     && ($hv_rows = hostov_rows_for($short_uuid)) && !grace_is_active($short_uuid)) {
-    [$response, $hv_hits] = hostov_apply($response, $format, $hv_rows);
-    $hv_notes[] = [$hv_rows, $hv_hits];
-    foreach ($hv_hits as $hv) $log_hv[] = [$hv[1], $hv[2], $hv[3], $hv[4] ?? 'fp', $hv[5] ?? 0, mb_substr((string) ($hv[6] ?? ''), 0, 120), $hv[7] ?? ''];
+    [$hv_rows, $hv_sub] = hostov_split(hostov_pick($hv_rows, $ua));
+    if ($hv_rows) {
+        [$response, $hv_hits] = hostov_apply($response, $format, $hv_rows, $ua);
+        $hv_notes[] = [$hv_rows, $hv_hits];
+        foreach ($hv_hits as $hv) $log_hv[] = hostov_log_row($hv);
+    }
 }
 
 $log_wg = 0;
@@ -498,10 +504,11 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
             } else {
                 $as_pre = $response;
                 $hv_b = (string) ($log_as['su'] ?? '');
-                if ($hv_b !== '' && $hv_b !== $short_uuid && !$is_page && function_exists('hostov_rows_for') && ($hv_rows = hostov_rows_for($hv_b))) {
-                    [$addsub_body, $hv_hits] = hostov_apply($addsub_body, detect_body_format($addsub_body, $format), $hv_rows);
+                // Уровень логов пользователя B сюда не идёт: это параметр всего конфига, а конфиг — пользователя A.
+                if ($hv_b !== '' && $hv_b !== $short_uuid && !$is_page && function_exists('hostov_pick') && ($hv_rows = hostov_split(hostov_pick(hostov_rows_for($hv_b), $ua))[0])) {
+                    [$addsub_body, $hv_hits] = hostov_apply($addsub_body, detect_body_format($addsub_body, $format), $hv_rows, $ua);
                     $hv_notes[] = [$hv_rows, $hv_hits];
-                    foreach ($hv_hits as $hv) $log_hv[] = [$hv[1], $hv[2], $hv[3], $hv[4] ?? 'fp', $hv[5] ?? 0, mb_substr((string) ($hv[6] ?? ''), 0, 120), $hv[7] ?? ''];
+                    foreach ($hv_hits as $hv) $log_hv[] = hostov_log_row($hv);
                 }
                 $response = addsub_merge($response, $addsub_body, $format, $short_uuid);
                 $as_in = $response !== $as_pre;
@@ -520,6 +527,12 @@ if ($decision === 'normal' && $short_uuid !== '' && !$junk_path && addsub_enable
             $log_as['rm'] = (int) $GLOBALS['addsub_swap_stat']['rm'];
         }
     } catch (Throwable $e) { $log_as['s'] = 'err'; error_log('submw addsub: ' . $e->getMessage()); }
+}
+
+if ($hv_sub && is_string($response)) {
+    [$response, $hv_hits] = hostov_apply_log($response, $format, $hv_sub);
+    $hv_notes[] = [$hv_sub, $hv_hits];
+    foreach ($hv_hits as $hv) $log_hv[] = hostov_log_row($hv);
 }
 
 if ($is_page && $decision === 'normal' && !$junk_path && (int) $http_code === 200 && is_string($response)) {

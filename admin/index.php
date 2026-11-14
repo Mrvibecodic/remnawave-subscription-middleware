@@ -269,6 +269,8 @@ if (isset($_GET['ajax']) && is_auth()) {
         $uuid = $_GET['uuid'] ?? '';
         $err = '';
         $devices = $uuid !== '' ? remnawave_user_hwids($uuid, $err) : [];
+        // для выбора «кому» в подмене параметров: клиент устройства и что его ядру не отправить
+        if (function_exists('hostov_dev_info')) foreach ($devices as $i => $d) if (is_array($d)) $devices[$i]['hv'] = hostov_dev_info($d['userAgent'] ?? '');
         echo json_encode(['ok' => $err === '', 'error' => $err, 'devices' => $devices], JSON_UNESCAPED_UNICODE);
         exit();
     }
@@ -494,19 +496,30 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
-    if (in_array($a, ['hv_save', 'hv_set', 'hv_del', 'hv_clear'], true)) {
-        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok() || !function_exists('hostov_save')) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+    if (in_array($a, ['hv_save', 'hv_set', 'hv_del', 'hv_scope', 'hv_clear'], true)) {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !csrf_ok() || !function_exists('hostov_rescope')) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $err = ''; $warn = '';
         $su = trim((string) ($_POST['su'] ?? ''));
-        $id = (int) ($_POST['id'] ?? 0);
+        // Подмена на несколько устройств — несколько строк: срок, значение, снятие и смена «кому» приходят списком id.
+        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string) ($_POST['id'] ?? ''))))));
+        $id = $ids[0] ?? 0;
         if ($id > 0) $su = hostov_short_of($id);
+        $apps = json_decode((string) ($_POST['apps'] ?? ''), true);
+        $apps = is_array($apps) ? $apps : [];
         if ($a === 'hv_save') {
             $hj = json_decode((string) ($_POST['host'] ?? ''), true);
-            $ok = hostov_save($su, is_array($hj) ? $hj : [], (string) ($_POST['p'] ?? 'fp'), (string) ($_POST['v'] ?? ''), (int) ($_POST['till'] ?? 0), (int) ($_POST['uid'] ?? 0), (string) ($_POST['un'] ?? ''), $err, isset($_POST['mask']) ? (string) $_POST['mask'] : null, $warn);
+            $ok = hostov_save($su, is_array($hj) ? $hj : [], (string) ($_POST['p'] ?? 'fp'), (string) ($_POST['v'] ?? ''), (int) ($_POST['till'] ?? 0), (int) ($_POST['uid'] ?? 0), (string) ($_POST['un'] ?? ''), $err, isset($_POST['mask']) ? (string) $_POST['mask'] : null, $warn, $apps);
         } elseif ($a === 'hv_set') {
-            $ok = $id > 0 && hostov_set($id, isset($_POST['v']) ? (string) $_POST['v'] : null, (int) ($_POST['till'] ?? 0), isset($_POST['till']), $err, isset($_POST['mask']) ? (string) $_POST['mask'] : null, $warn);
+            $ok = $id > 0;
+            foreach ($ids as $one) {
+                if (hostov_short_of($one) !== $su) continue;
+                $ok = hostov_set($one, isset($_POST['v']) ? (string) $_POST['v'] : null, (int) ($_POST['till'] ?? 0), isset($_POST['till']), $err, isset($_POST['mask']) ? (string) $_POST['mask'] : null, $warn) && $ok;
+            }
         } elseif ($a === 'hv_del') {
-            $ok = $id > 0 && hostov_del($id);
+            $ok = $id > 0;
+            foreach ($ids as $one) if (hostov_short_of($one) === $su) $ok = hostov_del($one) && $ok;
+        } elseif ($a === 'hv_scope') {
+            $ok = $id > 0 && hostov_rescope($ids, $apps, $err);
         } else {
             $n = hostov_clear_off();
             echo json_encode(['ok' => true, 'n' => $n, 'all' => hostov_list()], JSON_UNESCAPED_UNICODE);
@@ -2196,7 +2209,7 @@ if ($tab === 'pagekeys') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'hostov' => 'Подмена хостов', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'backup' => 'Бэкап и восстановление', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Геобазы'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'hostov' => 'Подмена параметров', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'backup' => 'Бэкап и восстановление', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Геобазы'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 // function_exists: прежний апдейтер пишет admin/index.php раньше lib/branding.php.
 if ($db_ok && function_exists('brand_refresh_if_stale')) brand_refresh_if_stale();
@@ -2343,7 +2356,7 @@ $nav = [
     'panel_rules' => ['Правила панели', '<path d="m3 16 4 4 4-4" /> <path d="M7 20V4" /> <path d="M11 4h10" /> <path d="M11 8h7" /> <path d="M11 12h4" />'],
     'hwid'      => ['HWID', '<path d="M18.9 7a8 8 0 0 1 1.1 5v1a6 6 0 0 0 .8 3" /> <path d="M8 11a4 4 0 0 1 8 0v1a10 10 0 0 0 2 6" /> <path d="M12 11v2a14 14 0 0 0 2.5 8" /> <path d="M8 15a18 18 0 0 0 1.8 6" /> <path d="M4.9 19a22 22 0 0 1 -.9 -7v-1a8 8 0 0 1 12 -6.95" />'],
     'overrides' => ['Оверрайды', '<path d="M3 4a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M15 16a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M21 11v-3a2 2 0 0 0 -2 -2h-6l3 3m0 -6l-3 3" /> <path d="M3 13v3a2 2 0 0 0 2 2h6l-3 -3m0 6l3 -3" />'],
-    'hostov'    => ['Подмена хостов', '<rect x="2" y="2" width="20" height="8" rx="2" /> <rect x="2" y="14" width="20" height="8" rx="2" /> <path d="M6 6h.01" /> <path d="M6 18h.01" />'],
+    'hostov'    => ['Подмена параметров', '<rect x="2" y="2" width="20" height="8" rx="2" /> <rect x="2" y="14" width="20" height="8" rx="2" /> <path d="M6 6h.01" /> <path d="M6 18h.01" />'],
     'squad_configs' => ['Доп. конфиги', '<path d="M11.35 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v5.35" /> <path d="M14 2v5a1 1 0 0 0 1 1h5" /> <path d="M14 19h6" /> <path d="M17 16v6" />'],
     'wg_pool'   => ['WG / AWG', '<rect x="16" y="16" width="6" height="6" rx="1" /> <rect x="2" y="16" width="6" height="6" rx="1" /> <rect x="9" y="2" width="6" height="6" rx="1" /> <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /> <path d="M12 12V8" />'],
     'addsub'    => ['Слияние подписок', '<path d="M3 7h5l3.5 5h9.5" /> <path d="M3 17h5l3.495 -5" /> <path d="M18 15l3 -3l-3 -3" />'],

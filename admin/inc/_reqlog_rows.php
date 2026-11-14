@@ -220,24 +220,36 @@ function reqlog_render_rows(array $rows, array $ctx) {
         $hv_n = (int) ($hv['c'] ?? 0);
         $hv_na = 0;
         foreach ((array) ($hv['h'] ?? []) as $x) if (is_array($x) && !empty($x[4])) $hv_na++;
-        $hv_tag = $hv_n > 0 ? ' <span class="tag hv-tag" data-tip="Подмена хостов: ' . h($hv_n > $hv_na ? ($hv_n - $hv_na) . ' — применено' . ($hv_na ? ', ещё ' . $hv_na . ' — только для клиентов на Xray' : '') : 'не применена — формат без масок Xray') . '">подмена</span>' : '';
+        $hv_tag = $hv_n > 0 ? ' <span class="tag hv-tag" data-tip="Подмены: ' . h($hv_n > $hv_na ? ($hv_n - $hv_na) . ' — применено' . ($hv_na ? ', ещё ' . $hv_na . ' — в этом формате не действуют' : '') : 'не применены — в этом формате не действуют') . '">подмена</span>' : '';
         $hv_row = '';
         if ($hv_n > 0) {
-            $hv_l = [];
-            $hv_pn = ['fp' => 'отпечаток TLS', 'frag' => 'фрагментация', 'noise' => 'шум'];
+            $hv_l = []; $hv_nl = [];
+            $hv_pn = ['fp' => 'отпечаток TLS', 'frag' => 'фрагментация', 'noise' => 'шум', 'log' => 'уровень логов'];
+            $hv_lv = static fn($v) => (string) $v === 'off' ? 'выключены' : (string) $v;
             foreach ((array) ($hv['h'] ?? []) as $x) {
                 if (!is_array($x) || count($x) < 3) continue;
                 $p = (string) ($x[3] ?? 'fp');
-                $hd = h((string) $x[0]) . ' · ' . ($hv_pn[$p] ?? h($p));
+                $hd = ($p === 'log' ? 'Вся подписка' : h((string) $x[0])) . ' · ' . ($hv_pn[$p] ?? h($p)) . (!empty($x[7]) ? ' <span class="dim">· не для всех устройств</span>' : '');
+                $hv_nl[] = !empty($x[4]);
                 if (!empty($x[4])) {
-                    $hv_l[] = '<span>' . $hd . ' <span class="dim">— не ' . ($p === 'noise' ? 'применён' : 'применена') . ': в формате ' . h((string) ($x[6] ?? '') ?: 'клиента') . ' масок Xray нет, хост ушёл как в панели</span></span>';
+                    $hv_l[] = '<span>' . $hd . ' <span class="dim">— ' . ($p === 'log' ? 'не применён: в ссылках настроек ядра нет' : 'не ' . ($p === 'noise' ? 'применён' : 'применена') . ': в формате ' . h((string) ($x[6] ?? '') ?: 'клиента') . ' масок Xray нет, хост ушёл как в панели') . '</span></span>';
+                    continue;
+                }
+                if ($p === 'log') {
+                    $hv_l[] = '<span>' . $hd . ' <span class="hv-was">' . h((string) $x[1] !== '' ? $hv_lv($x[1]) : 'нет') . '</span> → <b class="mono">' . h($hv_lv($x[2])) . '</b></span>';
                     continue;
                 }
                 $was = (string) $x[1] !== '' ? '<span class="hv-was">' . h((string) $x[1]) . '</span> → ' : ($p === 'fp' ? '' : '<span class="hv-was">нет</span> → ');
                 $hv_l[] = '<span>' . $hd . ' ' . $was . '<b class="mono">' . h((string) $x[2]) . '</b>' . ((string) ($x[5] ?? '') !== '' ? ' <span class="dim mono">' . h((string) $x[5]) . '</span>' : '') . '</span>';
             }
-            if ($hv_n > count($hv_l)) $hv_l[] = '<span class="dim">и ещё ' . ($hv_n - count($hv_l)) . '</span>';
-            $hv_row = '<div class="xr"><span class="l">Подмена хостов</span><span class="v hv-xv">' . implode('', $hv_l) . '</span></div>';
+            // Видна последняя созданная подмена (она в списке первая), остальные свёрнуты.
+            $hv_more = max(0, $hv_n - 1);
+            $hv_rest = array_slice($hv_l, 1);
+            if ($hv_n > count($hv_l)) $hv_rest[] = '<span class="dim">и ещё ' . ($hv_n - count($hv_l)) . '</span>';
+            $hv_mna = count(array_filter(array_slice($hv_nl, 1)));
+            $hv_row = $hv_l ? '<div class="xr"><span class="l">Подмены</span><span class="v hv-xv">' . $hv_l[0]
+                . ($hv_more > 0 && $hv_rest ? '<details class="hv-xd"><summary><span class="a">Ещё ' . $hv_more . ($hv_mna ? ' · ' . $hv_mna . ' не ' . ($hv_mna === 1 ? 'применена' : 'применены') : '') . '</span><span class="b">Свернуть</span></summary><div class="r">' . implode('', $hv_rest) . '</div></details>' : '')
+                . '</span></div>' : '';
         }
         $sub = $name !== '' && $su !== '' ? '<span class="su">' . h($su) . '</span>' : '';
 

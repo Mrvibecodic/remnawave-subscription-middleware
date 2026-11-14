@@ -7,6 +7,11 @@ function hostov_fp_values($sec = null) {
     return ['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', '360', 'qq', 'random', 'randomized'];
 }
 
+// Уровень логов — параметр всей подписки, а не хоста. Общая шкала; у каждого ядра свои ключ и слова (см. hostov_apply_log).
+function hostov_log_values() {
+    return ['off', 'error', 'warning', 'info', 'debug'];
+}
+
 function hostov_fp_ok(array $r) {
     return in_array((string) ($r['val'] ?? ''), hostov_fp_values((string) ($r['host_sec'] ?? '')), true);
 }
@@ -60,6 +65,7 @@ function hostov_mask_of(array $r) {
 function hostov_row_ok(array $r) {
     $p = (string) ($r['param'] ?? '');
     if ($p === 'fp') return hostov_fp_ok($r);
+    if ($p === 'log') return (string) ($r['host_uuid'] ?? '') === '' && in_array((string) ($r['val'] ?? ''), hostov_log_values(), true);
     if ($p !== 'frag' && $p !== 'noise') return false;
     $m = hostov_mask_of($r);
     if (!$m || ($m['type'] ?? '') !== ($p === 'frag' ? 'fragment' : 'noise') || !is_array($m['settings'] ?? null) || !$m['settings']) return false;
@@ -258,7 +264,8 @@ function hostov_ddl($drv) {
             till INT UNSIGNED NULL, created_at INT UNSIGNED NOT NULL, vat INT UNSIGNED NOT NULL,
             last_hit INT UNSIGNED NULL, last_app VARCHAR(128) NOT NULL DEFAULT '', last_miss INT UNSIGNED NULL, miss_app VARCHAR(128) NOT NULL DEFAULT '',
             na_at INT UNSIGNED NULL, na_app VARCHAR(128) NOT NULL DEFAULT '', na_fmt VARCHAR(16) NOT NULL DEFAULT '',
-            UNIQUE KEY uq_host_ovr (short_uuid, host_uuid, param),
+            app_k VARCHAR(32) NOT NULL DEFAULT '', app_lbl VARCHAR(64) NOT NULL DEFAULT '',
+            UNIQUE KEY uq_host_ovr (short_uuid, app_k, host_uuid, param),
             KEY idx_host_ovr_uid (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"];
     }
@@ -274,7 +281,8 @@ function hostov_ddl($drv) {
         till INTEGER NULL, created_at INTEGER NOT NULL, vat INTEGER NOT NULL,
         last_hit INTEGER NULL, last_app TEXT NOT NULL DEFAULT '', last_miss INTEGER NULL, miss_app TEXT NOT NULL DEFAULT '',
         na_at INTEGER NULL, na_app TEXT NOT NULL DEFAULT '', na_fmt TEXT NOT NULL DEFAULT '',
-        UNIQUE (short_uuid, host_uuid, param)
+        app_k TEXT NOT NULL DEFAULT '', app_lbl TEXT NOT NULL DEFAULT '',
+        UNIQUE (short_uuid, app_k, host_uuid, param)
     )", 'CREATE INDEX IF NOT EXISTS idx_host_ovr_uid ON host_ovr (user_id)'];
 }
 
@@ -285,7 +293,55 @@ function hostov_cols_add() {
         'host_apat' => $s(255), 'host_sni' => $s(255), 'host_snipat' => $s(255), 'miss_app' => $s(128),
         'host_proto' => $s(16), 'host_pm' => $s(255), 'mval' => ['TEXT NULL', 'TEXT NULL'],
         'na_at' => ['INT UNSIGNED NULL', 'INTEGER NULL'], 'na_app' => $s(128), 'na_fmt' => $s(16),
+        'app_k' => $s(32), 'app_lbl' => $s(64),
     ];
+}
+
+// Ключ таблицы: на хост и параметр — одна общая подмена (app_k пуст) и по одной на клиент.
+function hostov_key_ok($p, $drv) {
+    try {
+        if ($drv === 'mysql') {
+            $c = [];
+            foreach ($p->query("SHOW INDEX FROM host_ovr WHERE Key_name = 'uq_host_ovr'")->fetchAll(PDO::FETCH_ASSOC) as $r) $c[(int) $r['Seq_in_index']] = strtolower((string) $r['Column_name']);
+            ksort($c);
+            return array_values($c) === ['short_uuid', 'app_k', 'host_uuid', 'param'];
+        }
+        $st = $p->query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'host_ovr'");
+        $sql = (string) $st->fetchColumn();
+        $st->closeCursor();
+        return (bool) preg_match('~UNIQUE\s*\(\s*short_uuid\s*,\s*app_k\s*,\s*host_uuid\s*,\s*param\s*\)~i', $sql);
+    } catch (Throwable $e) { return false; }
+}
+
+// Прежний ключ (пользователь, хост, параметр) меняется на новый. Смотрим на саму таблицу, а не на флаг версии:
+// флаг переезжает с настройками при переносе базы и из бэкапа и может с ней не совпасть.
+function hostov_key_fix($p, $drv) {
+    if (hostov_key_ok($p, $drv)) return;
+    if ($drv === 'mysql') {
+        $has = false;
+        try { $has = (bool) $p->query("SHOW INDEX FROM host_ovr WHERE Key_name = 'uq_host_ovr'")->fetchAll(PDO::FETCH_ASSOC); } catch (Throwable $e) {}
+        try { $p->exec('ALTER TABLE host_ovr ' . ($has ? 'DROP INDEX uq_host_ovr, ' : '') . 'ADD UNIQUE KEY uq_host_ovr (short_uuid, app_k, host_uuid, param)'); }
+        catch (Throwable $e) { if (!hostov_key_ok($p, $drv)) throw $e; }
+        return;
+    }
+    // SQLite ключ таблицы не меняет — таблица пересобирается. Второй такой же запрос дождётся первого и увидит готовую.
+    $p->exec('BEGIN IMMEDIATE');
+    try {
+        if (!hostov_key_ok($p, $drv)) {
+            $cols = static function ($t) use ($p) { $o = []; foreach ($p->query('PRAGMA table_info(' . $t . ')')->fetchAll(PDO::FETCH_ASSOC) as $r) $o[] = (string) $r['name']; return $o; };
+            $p->exec('DROP TABLE IF EXISTS host_ovr_new');
+            $p->exec(preg_replace('~^CREATE TABLE IF NOT EXISTS host_ovr\b~', 'CREATE TABLE host_ovr_new', hostov_ddl('sqlite')[0]));
+            $c = implode(', ', array_values(array_intersect($cols('host_ovr_new'), $cols('host_ovr'))));
+            $p->exec("INSERT INTO host_ovr_new ($c) SELECT $c FROM host_ovr");
+            $p->exec('DROP TABLE host_ovr');
+            $p->exec('ALTER TABLE host_ovr_new RENAME TO host_ovr');
+            $p->exec('CREATE INDEX IF NOT EXISTS idx_host_ovr_uid ON host_ovr (user_id)');
+        }
+        $p->exec('COMMIT');
+    } catch (Throwable $e) {
+        try { $p->exec('ROLLBACK'); } catch (Throwable $e2) {}
+        throw $e;
+    }
 }
 
 function hostov_ensure($again = false) {
@@ -293,7 +349,7 @@ function hostov_ensure($again = false) {
     if ($again) $ok = null;
     if ($ok !== null) return $ok;
     if (!function_exists('db') || !($p = db())) return false;
-    if (setting('hostov_table', '') === '3') return $ok = true;
+    if (setting('hostov_table', '') === '4') return $ok = true;
     try {
         $drv = db_driver();
         foreach (hostov_ddl($drv) as $sql) {
@@ -303,8 +359,10 @@ function hostov_ensure($again = false) {
             try { $p->query('SELECT ' . $col . ' FROM host_ovr LIMIT 1'); continue; } catch (Throwable $e) {}
             $p->exec('ALTER TABLE host_ovr ADD COLUMN ' . $col . ' ' . $t[$drv === 'mysql' ? 0 : 1]);
         }
+        hostov_key_fix($p, $drv);
         $p->query('SELECT id, ' . implode(', ', array_keys(hostov_cols_add())) . ' FROM host_ovr LIMIT 1');
-        set_setting('hostov_table', '3');
+        if (!hostov_key_ok($p, $drv)) throw new RuntimeException('unique key');
+        set_setting('hostov_table', '4');
         $ok = true;
     } catch (Throwable $e) { error_log('submw host_ovr table: ' . $e->getMessage()); $ok = false; }
     return $ok;
@@ -351,6 +409,65 @@ function hostov_rows_for($short, $fresh = false) {
         }
     } catch (Throwable $e) { error_log('submw host_ovr read: ' . $e->getMessage()); }
     return $memo[$short] = $out;
+}
+
+// ---- кому: все устройства пользователя или выбранные ----
+
+// Устройство в запросе узнаётся по клиенту из User-Agent — имени без версии и ОС. Пусто — клиент не распознан: ему только общие подмены.
+// Ключ сравнивается целиком: длинное имя не обрезается до общего с другим клиентом начала, а сворачивается с хешем.
+function hostov_client_key($ua) {
+    $c = function_exists('reqlog_client') ? reqlog_client((string) $ua) : [];
+    $k = strtolower(trim((string) ($c['key'] ?? '')));
+    if (!preg_match('~^[a-z0-9._/-]+$~', $k)) return '';
+    return strlen($k) <= 32 ? $k : substr($k, 0, 24) . '-' . substr(md5($k), 0, 7);
+}
+
+// Можно ли отправить параметр клиенту с таким ядром: пусто — да, иначе причина. Маски Xray не понимают mihomo и sing-box.
+function hostov_fits($param, $core) {
+    if ($param !== 'frag' && $param !== 'noise') return '';
+    $core = (string) $core;
+    if ($core !== 'mihomo' && $core !== 'sing-box') return '';
+    return $core . ': ' . ($param === 'frag' ? 'фрагментации' : 'шума') . ' там нет';
+}
+
+function hostov_core($ua) {
+    return function_exists('squadconf_ua_core') ? (string) squadconf_ua_core((string) $ua) : '';
+}
+
+// Устройство пользователя из панели для выбора «кому»: k — ключ клиента, l — клиент без версии, a — с версией,
+// no — параметры, которые его ядру не отправить.
+function hostov_dev_info($ua) {
+    $ua = trim((string) $ua);
+    $c = function_exists('reqlog_client') ? reqlog_client($ua) : [];
+    $a = (string) ($c['app'] ?? ''); $v = (string) ($c['ver'] ?? '');
+    $l = $v !== '' && substr($a, -strlen($v) - 1) === ' ' . $v ? substr($a, 0, -strlen($v) - 1) : $a;
+    $k = hostov_client_key($ua);
+    $no = [];
+    foreach (['frag', 'noise'] as $p) if (($w = hostov_fits($p, hostov_core($ua))) !== '') $no[$p] = $w;
+    return ['k' => $k, 'l' => $k !== '' ? mb_substr($l, 0, 64) : '', 'a' => $k !== '' ? mb_substr($a, 0, 64) : '', 'no' => (object) $no];
+}
+
+// Подмены для этого запроса: общие и своего клиента; на один хост и параметр подмена клиента важнее общей.
+function hostov_pick(array $rows, $ua) {
+    $any = false;
+    foreach ($rows as $r) if ((string) ($r['app_k'] ?? '') !== '') { $any = true; break; }
+    if (!$any) return $rows;
+    $k = hostov_client_key($ua);
+    $own = [];
+    if ($k !== '') foreach ($rows as $r) if ((string) $r['app_k'] === $k) $own[$r['host_uuid'] . "\0" . $r['param']] = true;
+    $out = [];
+    foreach ($rows as $r) {
+        $a = (string) ($r['app_k'] ?? '');
+        if ($a === '' ? !isset($own[$r['host_uuid'] . "\0" . $r['param']]) : ($k !== '' && $a === $k)) $out[] = $r;
+    }
+    return $out;
+}
+
+// [подмены хостов, подмены всей подписки]
+function hostov_split(array $rows) {
+    $h = []; $s = [];
+    foreach ($rows as $r) { if ((string) ($r['param'] ?? '') === 'log') $s[] = $r; else $h[] = $r; }
+    return [$h, $s];
 }
 
 // ---- сопоставление узлов выдачи с хостами панели ----
@@ -472,11 +589,19 @@ function hostov_assign(array $nodes, array $rows) {
 
 // ---- подмена в теле ----
 
-// Попадание: [id подмены, имя узла, было, стало, параметр, не применима (1 — формат без масок Xray), значения маски, формат].
+// Попадание: [id подмены, имя узла, было, стало, параметр, не применима (1 — в этой выдаче параметра нет), значения маски, формат,
+// когда подмена создана, 1 — подмена не для всех устройств].
 function hostov_hit(array $r, $name, $old, $na = 0, $fmt = '') {
     $p = (string) ($r['param'] ?? 'fp');
-    return [(int) $r['id'], (string) $name, (string) $old, $p === 'fp' ? (string) $r['val'] : hostov_preset_label($p, (string) $r['val']),
-            $p, $na ? 1 : 0, $p === 'fp' ? '' : hostov_mask_txt($p, hostov_mask_of($r)), (string) $fmt];
+    $plain = $p === 'fp' || $p === 'log';
+    return [(int) $r['id'], (string) $name, (string) $old, $plain ? (string) $r['val'] : hostov_preset_label($p, (string) $r['val']),
+            $p, $na ? 1 : 0, $plain ? '' : hostov_mask_txt($p, hostov_mask_of($r)), (string) $fmt,
+            (int) ($r['created_at'] ?? 0), (string) ($r['app_k'] ?? '') !== '' ? 1 : 0];
+}
+
+// Попадание для лога запросов: [имя узла, было, стало, параметр, не применима, значения маски, формат, не для всех устройств, когда создана, id].
+function hostov_log_row(array $h) {
+    return [$h[1], $h[2], $h[3], $h[4] ?? 'fp', $h[5] ?? 0, mb_substr((string) ($h[6] ?? ''), 0, 120), $h[7] ?? '', (int) ($h[9] ?? 0), (int) ($h[8] ?? 0), (int) ($h[0] ?? 0)];
 }
 
 function hostov_by_param(array $rows) {
@@ -485,23 +610,104 @@ function hostov_by_param(array $rows) {
     return $g;
 }
 
-// Возвращает [тело, попадания]. Ошибка разбора — тело как было.
-function hostov_apply($body, $format, array $rows) {
-    $rows = array_values(array_filter($rows, 'hostov_row_ok'));
+// Возвращает [тело, попадания]. Ошибка разбора — тело как было. $ua — клиент запроса.
+function hostov_apply($body, $format, array $rows, $ua = '') {
+    $rows = array_values(array_filter($rows, static fn($r) => (string) ($r['param'] ?? '') !== 'log' && hostov_row_ok($r)));
     if (!$rows || !is_string($body) || $body === '') return [$body, []];
     try {
+        // Подмена, поставленная на устройство, не уходит клиенту, чьё ядро этот параметр не понимает, — в каком бы формате он ни получил подписку.
+        $skip = [];
+        $core = hostov_core($ua);
+        foreach ($rows as $i => $r) {
+            if ((string) ($r['app_k'] ?? '') === '' || hostov_fits((string) $r['param'], $core) === '') continue;
+            $skip[] = hostov_hit($r, (string) $r['host_name'], '', 1, $core);
+            unset($rows[$i]);
+        }
+        $rows = array_values($rows);
+        if (!$rows) return [$body, $skip];
         $kind = function_exists('squadconf_body_kind') ? squadconf_body_kind($body, $format) : ($format === 'clash' ? 'clash' : 'links');
         if ($kind === 'clash' || $kind === 'singbox') {
             $fp = hostov_by_param($rows)['fp'] ?? [];
             [$out, $hits] = $fp ? ($kind === 'clash' ? hostov_apply_clash($body, $fp) : hostov_apply_singbox($body, $fp)) : [$body, []];
             // Маски Xray (фрагментация, шум) в форматы mihomo и sing-box не попадают — «не применима», а не «хоста не было».
             foreach ($rows as $r) if ($r['param'] !== 'fp') $hits[] = hostov_hit($r, (string) $r['host_name'], '', 1, $kind === 'clash' ? 'mihomo' : 'sing-box');
-            return [$out, $hits];
+            return [$out, array_merge($hits, $skip)];
         }
-        if ($kind === 'links') return hostov_apply_links($body, $rows);
-        return hostov_apply_xray($body, $rows);
+        [$out, $hits] = $kind === 'links' ? hostov_apply_links($body, $rows) : hostov_apply_xray($body, $rows);
+        return [$out, array_merge($hits, $skip)];
     } catch (Throwable $e) {
         error_log('submw host_ovr apply: ' . $e->getMessage());
+        return [$body, []];
+    }
+}
+
+// sing-box незнакомых ключей не принимает, поэтому его конфиг узнаётся и без route / inbounds: у исходящих «type», а не «protocol».
+function hostov_is_singbox($o) {
+    if (!is_object($o) || !isset($o->outbounds) || !is_array($o->outbounds) || !isset($o->outbounds[0]) || !is_object($o->outbounds[0])) return false;
+    return isset($o->outbounds[0]->type) && !isset($o->outbounds[0]->protocol);
+}
+
+// Уровень логов — в готовом теле, после доп. конфигов и слияния со второй подпиской. Ставится только в распознанный конфиг,
+// ключом и словом его ядра; всё остальное уходит как пришло. «Было» — в общей шкале (off — логи выключены).
+function hostov_apply_log($body, $format, array $rows) {
+    $row = null;
+    foreach ($rows as $r) if ((string) ($r['param'] ?? '') === 'log' && hostov_row_ok($r)) { $row = $r; break; }
+    if ($row === null || !is_string($body) || $body === '') return [$body, []];
+    $v = (string) $row['val'];
+    try {
+        $kind = function_exists('squadconf_body_kind') ? squadconf_body_kind($body, $format) : ($format === 'clash' ? 'clash' : 'links');
+        if ($kind === 'clash') {
+            // Формат «clash» бывает назван по клиенту, а не по телу: строку получает только конфиг mihomo.
+            if (!preg_match('~^(proxies|proxy-providers|proxy-groups)[ \t]*:~m', $body)) return [$body, []];
+            $val = $v === 'off' ? 'silent' : $v;
+            if (preg_match('~^log-level:[ \t]*([^\r\n]*)~m', $body, $m, PREG_OFFSET_CAPTURE)) {
+                $old = strtolower(hostov_yaml_scalar($m[1][0]));
+                $out = substr($body, 0, $m[0][1]) . 'log-level: ' . $val . substr($body, $m[0][1] + strlen($m[0][0]));
+            } else {
+                $old = '';
+                $eol = strpos($body, "\r\n") !== false ? "\r\n" : "\n";
+                preg_match('~^(?:\xEF\xBB\xBF)?(?:---[ \t]*\r?\n)?~', $body, $d);
+                $at = strlen($d[0] ?? '');
+                $out = substr($body, 0, $at) . 'log-level: ' . $val . $eol . substr($body, $at);
+            }
+            return [$out, [hostov_hit($row, '', $old === 'silent' ? 'off' : $old)]];
+        }
+        if ($kind === 'links') {
+            // Ссылки — настроек ядра в них нет. Тело, которое и не ссылки, остаётся без отметки.
+            $t = trim($body);
+            $d = strpos($t, '://') === false ? base64_decode(preg_replace('~\s+~', '', $t), true) : $t;
+            return [$body, is_string($d) && strpos($d, '://') !== false ? [hostov_hit($row, '', '', 1, 'ссылки')] : []];
+        }
+        $o = json_decode($body);
+        if ($kind === 'singbox' || hostov_is_singbox($o)) {
+            if (!hostov_is_singbox($o)) return [$body, []];
+            $lg = isset($o->log) && is_object($o->log) ? $o->log : null;
+            $old = !$lg ? '' : (!empty($lg->disabled) ? 'off' : strtolower((string) ($lg->level ?? '')));
+            if (!$lg) { $lg = new stdClass(); $o->log = $lg; }
+            if ($v === 'off') $lg->disabled = true;
+            else { $lg->level = $v === 'warning' ? 'warn' : $v; $lg->disabled = false; }
+            $out = json_encode($o, hostov_json_flags($body));
+            return $out === false ? [$body, []] : [$out, [hostov_hit($row, '', $old === 'warn' ? 'warning' : $old)]];
+        }
+        $list = is_array($o) ? $o : (is_object($o) ? [$o] : null);
+        if ($list === null) return [$body, []];
+        $n = 0; $old = '';
+        foreach ($list as $cfg) {
+            if (!is_object($cfg) || !isset($cfg->outbounds) || !is_array($cfg->outbounds) || hostov_is_singbox($cfg)) continue;
+            $lg = isset($cfg->log) && is_object($cfg->log) ? $cfg->log : null;
+            if (!$lg) { $lg = new stdClass(); $cfg->log = $lg; }
+            // Xray читает ключ без учёта регистра: шаблон с «logLevel» получил бы два ключа.
+            $key = 'loglevel';
+            foreach (array_keys(get_object_vars($lg)) as $k) if (strtolower((string) $k) === 'loglevel') { $key = (string) $k; break; }
+            if (!$n) $old = strtolower(is_string($lg->$key ?? null) ? $lg->$key : '');
+            $lg->$key = $v === 'off' ? 'none' : $v;
+            $n++;
+        }
+        if (!$n) return [$body, []];
+        $out = json_encode(is_array($o) ? $list : $list[0], hostov_json_flags($body));
+        return $out === false ? [$body, []] : [$out, [hostov_hit($row, '', $old === 'none' ? 'off' : $old)]];
+    } catch (Throwable $e) {
+        error_log('submw host_ovr log: ' . $e->getMessage());
         return [$body, []];
     }
 }
@@ -951,11 +1157,19 @@ function hostov_log_meta(array $log_hv, $budget = 340) {
     if (!$log_hv) return null;
     $f = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
     $len = static fn($h) => mb_strlen((string) json_encode(['c' => count($log_hv), 'h' => $h], $f));
+    // Последняя созданная подмена — первой: в карточке запроса на виду она, остальные свёрнуты.
+    $log_hv = array_values($log_hv);
+    $ord = array_keys($log_hv);
+    usort($ord, static fn($a, $b) => ((int) ($log_hv[$b][8] ?? 0) <=> (int) ($log_hv[$a][8] ?? 0)) ?: ((int) ($log_hv[$b][9] ?? 0) <=> (int) ($log_hv[$a][9] ?? 0)) ?: ($a <=> $b));
     $h = [];
-    foreach ($log_hv as $x) {
-        $x = array_values($x);
-        if (($x[3] ?? 'fp') === 'fp') $x = array_slice($x, 0, 3);
-        else $x = [mb_substr((string) $x[0], 0, 48), mb_substr((string) $x[1], 0, 60), (string) $x[2], (string) $x[3], (int) ($x[4] ?? 0), mb_substr((string) ($x[5] ?? ''), 0, 90), (string) ($x[6] ?? '')];
+    foreach ($ord as $oi) {
+        $x = array_values($log_hv[$oi]);
+        $own = !empty($x[7]);
+        if (($x[3] ?? 'fp') === 'fp' && !$own) $x = array_slice($x, 0, 3);
+        else {
+            $x = [mb_substr((string) $x[0], 0, 48), mb_substr((string) $x[1], 0, 60), (string) $x[2], (string) ($x[3] ?? 'fp'), (int) ($x[4] ?? 0), mb_substr((string) ($x[5] ?? ''), 0, 90), (string) ($x[6] ?? '')];
+            if ($own) $x[] = 1;
+        }
         $x[0] = mb_substr((string) $x[0], 0, 48);
         $try = array_merge($h, [$x]);
         if ($len($try) > $budget && count($x) > 3) { $x[5] = ''; $x[1] = $x[1] !== '' ? '…' : ''; $try = array_merge($h, [$x]); }
@@ -970,7 +1184,7 @@ function hostov_note(array $rows, array $hits, $app) {
     $hit = []; $na = [];
     foreach ($hits as $h) {
         if (!empty($h[5])) $na[(int) $h[0]] = (string) ($h[7] ?? '');
-        else $hit[(int) $h[0]] = true;
+        else $hit[(int) $h[0]] = (string) ($h[2] ?? '');
     }
     $now = time();
     $app = mb_substr((string) $app, 0, 128);
@@ -979,9 +1193,12 @@ function hostov_note(array $rows, array $hits, $app) {
         $up = $p->prepare('UPDATE host_ovr SET last_hit = ?, last_app = ? WHERE id = ?');
         $um = $p->prepare('UPDATE host_ovr SET last_miss = ?, miss_app = ? WHERE id = ?');
         $un = $p->prepare('UPDATE host_ovr SET na_at = ?, na_app = ?, na_fmt = ? WHERE id = ?');
+        // Что было в шаблоне панели, у уровня логов видно только из самой выдачи.
+        $ul = $p->prepare('UPDATE host_ovr SET last_hit = ?, last_app = ?, pv = ? WHERE id = ?');
         foreach ($rows as $r) {
             $id = (int) $r['id'];
-            if (isset($hit[$id])) $up->execute([$now, $app, $id]);
+            if (isset($hit[$id]) && (string) ($r['param'] ?? '') === 'log') $ul->execute([$now, $app, mb_substr($hit[$id], 0, 64), $id]);
+            elseif (isset($hit[$id])) $up->execute([$now, $app, $id]);
             elseif (isset($na[$id])) $un->execute([$now, $app, mb_substr($na[$id], 0, 16), $id]);
             else $um->execute([$now, $app, $id]);
         }
@@ -992,7 +1209,7 @@ function hostov_note(array $rows, array $hits, $app) {
 
 // exp — срок вышел; inv — значение не годится для этого хоста (не применяется); wait — после изменения ещё не уходила;
 // ok — ушла; part — ушла, но в последней выдаче (другое приложение или формат) хоста не было;
-// na — последняя выдача в формате без масок Xray (mihomo, sing-box, ss://): фрагментация и шум там не действуют;
+// na — в последней выдаче параметра нет: формат без масок Xray (mihomo, sing-box, ss://), ссылки для уровня логов, не то ядро у клиента;
 // bad — хоста не было, а уходила давно или ни разу.
 function hostov_state(array $r, $now = null) {
     $now = $now ?? time();
@@ -1011,18 +1228,19 @@ function hostov_state(array $r, $now = null) {
 
 function hostov_view(array $r) {
     $p = (string) $r['param'];
-    $m = $p === 'fp' ? null : hostov_mask_of($r);
+    $plain = $p === 'fp' || $p === 'log';
+    $m = $plain ? null : hostov_mask_of($r);
     $pm = json_decode((string) ($r['host_pm'] ?? ''), true);
     return [
         'id' => (int) $r['id'], 'su' => (string) $r['short_uuid'], 'un' => (string) $r['username'], 'h' => (string) $r['host_uuid'],
         'n' => (string) $r['host_name'], 'sec' => (string) $r['host_sec'], 'tr' => hostov_tr_label($r['host_tr']), 'trk' => strtolower((string) $r['host_tr']),
         'proto' => (string) ($r['host_proto'] ?? ''), 'pm' => is_array($pm) ? $pm : null, 'p' => $p,
-        'pv' => (string) $r['pv'], 'v' => (string) $r['val'], 'vn' => $p === 'fp' ? (string) $r['val'] : hostov_preset_label($p, (string) $r['val']),
+        'pv' => (string) $r['pv'], 'v' => (string) $r['val'], 'vn' => $plain ? (string) $r['val'] : hostov_preset_label($p, (string) $r['val']),
         'm' => $m, 'mt' => $m ? hostov_mask_txt($p, $m) : '', 'till' => $r['till'] !== null ? (int) $r['till'] : null,
         'at' => (int) $r['vat'], 'lh' => $r['last_hit'] !== null ? (int) $r['last_hit'] : null, 'la' => (string) $r['last_app'],
         'lm' => $r['last_miss'] !== null ? (int) $r['last_miss'] : null, 'ma' => (string) ($r['miss_app'] ?? ''),
         'nt' => ($r['na_at'] ?? null) !== null ? (int) $r['na_at'] : null, 'nap' => (string) ($r['na_app'] ?? ''), 'naf' => (string) ($r['na_fmt'] ?? ''),
-        'st' => hostov_state($r),
+        'st' => hostov_state($r), 'ak' => (string) ($r['app_k'] ?? ''), 'al' => (string) ($r['app_lbl'] ?? ''), 'cr' => (int) ($r['created_at'] ?? 0),
     ];
 }
 
@@ -1041,57 +1259,145 @@ function hostov_till($v) {
 }
 
 function hostov_param_name($p) {
-    return ['fp' => 'Отпечаток TLS', 'frag' => 'Фрагментация', 'noise' => 'Шум'][$p] ?? $p;
+    return ['fp' => 'Отпечаток TLS', 'frag' => 'Фрагментация', 'noise' => 'Шум', 'log' => 'Уровень логов'][$p] ?? $p;
+}
+
+// Клиенты из админки: [ключ => подпись] или null, если ключ не похож на имя клиента.
+function hostov_keys_norm(array $apps) {
+    $o = [];
+    foreach ($apps as $a) {
+        $k = is_array($a) ? (string) ($a['k'] ?? '') : (string) $a;
+        if (!preg_match('~^[a-z0-9._/-]{1,32}$~', $k)) return null;
+        $o[$k] = mb_substr(trim(is_array($a) ? (string) ($a['l'] ?? '') : ''), 0, 64);
+    }
+    return $o;
+}
+
+// Параметр, который ядру клиента не отправить, на его устройства не ставится: пусто — можно, иначе причина.
+function hostov_keys_unfit($param, array $keys) {
+    foreach ($keys as $k => $l) {
+        $w = hostov_fits((string) $param, hostov_core((string) $k));
+        if ($w !== '') return ((string) $l !== '' ? $l : $k) . ' — ' . $w;
+    }
+    return '';
 }
 
 // $h — хост из hostov_hosts (что пришло из админки); возможности хоста считаются здесь заново, а не берутся на веру.
-function hostov_save($short, array $h, $param, $val, $till, $uid, $username, &$err, $mask = null, &$warn = null) {
+// У уровня логов хоста нет. $apps пуст — общая подмена, иначе по строке на клиент.
+function hostov_save($short, array $h, $param, $val, $till, $uid, $username, &$err, $mask = null, &$warn = null, array $apps = []) {
     $err = ''; $warn = '';
     $short = trim((string) $short);
-    $huuid = trim((string) ($h['uuid'] ?? ''));
     $param = (string) $param;
-    if ($short === '' || $huuid === '') { $err = 'Не указан пользователь или хост'; return false; }
-    if (!in_array($param, ['fp', 'frag', 'noise'], true) || (int) ($h['port'] ?? 0) <= 0) { $err = 'Неизвестный параметр'; return false; }
-    $proto = hostov_proto($h['proto'] ?? '');
-    $trk = strtolower((string) ($h['trk'] ?? ''));
-    $caps = hostov_caps((string) ($h['sec'] ?? ''), $trk, $proto);
-    if ($param === 'fp' && (!in_array((string) ($h['sec'] ?? ''), ['tls', 'reality'], true) || ($proto !== '' && empty($caps['fp'])))) { $err = 'У хоста нет отпечатка TLS'; return false; }
-    if ($param !== 'fp' && empty($caps[$param])) { $err = $param === 'frag' ? 'Фрагментация — только для хостов по TCP' : 'Шум — только для хостов по UDP: mKCP, Hysteria2, XHTTP/3, Shadowsocks'; return false; }
+    $sub = $param === 'log';
+    $huuid = $sub ? '' : trim((string) ($h['uuid'] ?? ''));
+    if ($short === '' || (!$sub && $huuid === '')) { $err = 'Не указан пользователь или хост'; return false; }
+    $keys = hostov_keys_norm($apps);
+    if ($keys === null) { $err = 'Устройство не распознано'; return false; }
+    if (($w = hostov_keys_unfit($param, $keys)) !== '') { $err = $w; return false; }
+    $cut = static fn($s, $n) => mb_substr((string) $s, 0, $n);
     $mv = null;
-    if ($param === 'fp') {
-        if (!in_array((string) $val, hostov_fp_values((string) $h['sec']), true)) { $err = (string) $h['sec'] === 'reality' ? 'С REALITY работают только chrome, firefox, safari и randomized' : 'Недопустимое значение'; return false; }
+    $f = ['user_id' => (int) $uid > 0 ? (int) $uid : null, 'username' => $cut($username, 64)];
+    if ($sub) {
+        if (!in_array((string) $val, hostov_log_values(), true)) { $err = 'Недопустимое значение'; return false; }
     } else {
-        $mv = hostov_mask_build($param, (string) $val, $mask, $caps, $err, $new);
-        if ($mv === null) return false;
-        $warn = hostov_mask_warn($new);
+        if (!in_array($param, ['fp', 'frag', 'noise'], true) || (int) ($h['port'] ?? 0) <= 0) { $err = 'Неизвестный параметр'; return false; }
+        $proto = hostov_proto($h['proto'] ?? '');
+        $trk = strtolower((string) ($h['trk'] ?? ''));
+        $caps = hostov_caps((string) ($h['sec'] ?? ''), $trk, $proto);
+        if ($param === 'fp' && (!in_array((string) ($h['sec'] ?? ''), ['tls', 'reality'], true) || ($proto !== '' && empty($caps['fp'])))) { $err = 'У хоста нет отпечатка TLS'; return false; }
+        if ($param !== 'fp' && empty($caps[$param])) { $err = $param === 'frag' ? 'Фрагментация — только для хостов по TCP' : 'Шум — только для хостов по UDP: mKCP, Hysteria2, XHTTP/3, Shadowsocks'; return false; }
+        if ($param === 'fp') {
+            if (!in_array((string) $val, hostov_fp_values((string) $h['sec']), true)) { $err = (string) $h['sec'] === 'reality' ? 'С REALITY работают только chrome, firefox, safari и randomized' : 'Недопустимое значение'; return false; }
+        } else {
+            $mv = hostov_mask_build($param, (string) $val, $mask, $caps, $err, $new);
+            if ($mv === null) return false;
+            $warn = hostov_mask_warn($new);
+        }
+        $pm = is_array($h['pm'] ?? null) ? json_encode(['tcp' => array_values(array_map('strval', (array) ($h['pm']['tcp'] ?? []))), 'udp' => array_values(array_map('strval', (array) ($h['pm']['udp'] ?? [])))], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : '';
+        $pv = $param === 'fp' ? (string) ($h['fp'] ?? '') : ($param === 'frag' ? (string) ($h['pfrag'] ?? '') : (string) ($h['pnoise'] ?? ''));
+        $f += [
+            'host_name' => $cut($h['name'] ?? '', 255), 'host_rmk' => $cut($h['rmk'] ?? '', 255), 'host_addr' => $cut($h['addr'] ?? '', 255),
+            'host_apat' => $cut($h['apat'] ?? '', 255), 'host_port' => (int) ($h['port'] ?? 0), 'host_sec' => $cut($h['sec'] ?? '', 16),
+            'host_tr' => $cut($trk, 16), 'host_sni' => $cut($h['sni'] ?? '', 255), 'host_snipat' => $cut($h['snipat'] ?? '', 255),
+            'host_proto' => $cut($proto, 16), 'host_pm' => strlen($pm) <= 255 ? $pm : '', 'pv' => $cut($pv, 64),
+        ];
     }
     if (!hostov_ensure()) { $err = 'Нет таблицы подмен'; return false; }
     $now = time();
-    $cut = static fn($s, $n) => mb_substr((string) $s, 0, $n);
-    $pm = is_array($h['pm'] ?? null) ? json_encode(['tcp' => array_values(array_map('strval', (array) ($h['pm']['tcp'] ?? []))), 'udp' => array_values(array_map('strval', (array) ($h['pm']['udp'] ?? [])))], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : '';
-    $pv = $param === 'fp' ? (string) ($h['fp'] ?? '') : ($param === 'frag' ? (string) ($h['pfrag'] ?? '') : (string) ($h['pnoise'] ?? ''));
-    $f = [
-        'user_id' => (int) $uid > 0 ? (int) $uid : null, 'username' => $cut($username, 64),
-        'host_name' => $cut($h['name'] ?? '', 255), 'host_rmk' => $cut($h['rmk'] ?? '', 255), 'host_addr' => $cut($h['addr'] ?? '', 255),
-        'host_apat' => $cut($h['apat'] ?? '', 255), 'host_port' => (int) ($h['port'] ?? 0), 'host_sec' => $cut($h['sec'] ?? '', 16),
-        'host_tr' => $cut($trk, 16), 'host_sni' => $cut($h['sni'] ?? '', 255), 'host_snipat' => $cut($h['snipat'] ?? '', 255),
-        'host_proto' => $cut($proto, 16), 'host_pm' => strlen($pm) <= 255 ? $pm : '', 'pv' => $cut($pv, 64),
-    ];
-    $cols = array_keys($f);
+    $p = db();
     try {
-        $p = db();
-        $st = $p->prepare('SELECT id, val, mval, vat FROM host_ovr WHERE short_uuid = ? AND host_uuid = ? AND param = ?');
-        $st->execute([$short, $huuid, $param]);
-        $ex = $st->fetch(PDO::FETCH_ASSOC);
-        if ($ex) {
-            $same = (string) $ex['val'] === (string) $val && (string) ($ex['mval'] ?? '') === (string) $mv;
-            $p->prepare('UPDATE host_ovr SET ' . implode(' = ?, ', $cols) . ' = ?, val = ?, mval = ?, till = ?, vat = ? WHERE id = ?')
-              ->execute(array_merge(array_values($f), [(string) $val, $mv, hostov_till($till), $same ? (int) ($ex['vat'] ?? $now) : $now, (int) $ex['id']]));
-        } else {
-            $p->prepare('INSERT INTO host_ovr (short_uuid, host_uuid, param, ' . implode(', ', $cols) . ', val, mval, till, created_at, vat) VALUES (' . implode(', ', array_fill(0, count($cols) + 8, '?')) . ')')
-              ->execute(array_merge([$short, $huuid, $param], array_values($f), [(string) $val, $mv, hostov_till($till), $now, $now]));
+        $p->beginTransaction();
+        $st = $p->prepare('SELECT id, val, mval, vat FROM host_ovr WHERE short_uuid = ? AND app_k = ? AND host_uuid = ? AND param = ?');
+        foreach ($keys ?: ['' => ''] as $k => $l) {
+            $k = (string) $k;
+            $g = $f + ['app_lbl' => $l];
+            $cols = array_keys($g);
+            $st->execute([$short, $k, $huuid, $param]);
+            $ex = $st->fetch(PDO::FETCH_ASSOC);
+            $st->closeCursor();
+            if ($ex) {
+                $same = (string) $ex['val'] === (string) $val && (string) ($ex['mval'] ?? '') === (string) $mv;
+                $p->prepare('UPDATE host_ovr SET ' . implode(' = ?, ', $cols) . ' = ?, val = ?, mval = ?, till = ?, vat = ? WHERE id = ?')
+                  ->execute(array_merge(array_values($g), [(string) $val, $mv, hostov_till($till), $same ? (int) ($ex['vat'] ?? $now) : $now, (int) $ex['id']]));
+            } else {
+                $p->prepare('INSERT INTO host_ovr (short_uuid, app_k, host_uuid, param, ' . implode(', ', $cols) . ', val, mval, till, created_at, vat) VALUES (' . implode(', ', array_fill(0, count($cols) + 9, '?')) . ')')
+                  ->execute(array_merge([$short, $k, $huuid, $param], array_values($g), [(string) $val, $mv, hostov_till($till), $now, $now]));
+            }
         }
-    } catch (Throwable $e) { $err = 'База не приняла запись'; error_log('submw host_ovr save: ' . $e->getMessage()); return false; }
+        $p->commit();
+    } catch (Throwable $e) {
+        try { if ($p->inTransaction()) $p->rollBack(); } catch (Throwable $e2) {}
+        $err = 'База не приняла запись'; error_log('submw host_ovr save: ' . $e->getMessage()); return false;
+    }
+    hostov_recount();
+    return true;
+}
+
+// Смена «кому» у подмены: $ids — её строки (общая или по одной на клиент), $apps — новый список, пусто — общая.
+// Значение, срок и время создания остаются; у новых строк отметки «ушла» начинаются заново.
+function hostov_rescope(array $ids, array $apps, &$err) {
+    $err = '';
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    $keys = hostov_keys_norm($apps);
+    if (!$ids) { $err = 'Подмены уже нет'; return false; }
+    if ($keys === null) { $err = 'Устройство не распознано'; return false; }
+    if (!hostov_ensure()) { $err = 'Нет таблицы подмен'; return false; }
+    $p = db();
+    try {
+        $rows = $p->query('SELECT * FROM host_ovr WHERE id IN (' . implode(',', $ids) . ') ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows) { $err = 'Подмены уже нет'; return false; }
+        $b = $rows[0];
+        $have = [];
+        foreach ($rows as $r) {
+            foreach (['short_uuid', 'host_uuid', 'param', 'val', 'mval'] as $c) if ((string) ($r[$c] ?? '') !== (string) ($b[$c] ?? '')) { $err = 'Это разные подмены'; return false; }
+            $have[(string) ($r['app_k'] ?? '')] = (int) $r['id'];
+        }
+        $want = $keys ?: ['' => ''];
+        if (($w = hostov_keys_unfit((string) $b['param'], array_diff_key($keys, $have))) !== '') { $err = $w; return false; }
+        $q = $p->prepare('SELECT id FROM host_ovr WHERE short_uuid = ? AND app_k = ? AND host_uuid = ? AND param = ?');
+        foreach ($want as $k => $l) {
+            $k = (string) $k;
+            if (isset($have[$k])) continue;
+            $q->execute([(string) $b['short_uuid'], $k, (string) $b['host_uuid'], (string) $b['param']]);
+            $dup = $q->fetchColumn();
+            $q->closeCursor();
+            if ($dup !== false) { $err = $k === '' ? 'Общая подмена этого параметра уже есть' : 'У клиента «' . ($l !== '' ? $l : $k) . '» уже есть своя подмена этого параметра'; return false; }
+        }
+        $copy = array_diff_key($b, array_flip(['id', 'app_k', 'app_lbl', 'vat', 'last_hit', 'last_app', 'last_miss', 'miss_app', 'na_at', 'na_app', 'na_fmt']));
+        $now = time();
+        $p->beginTransaction();
+        $del = $p->prepare('DELETE FROM host_ovr WHERE id = ?');
+        foreach ($have as $k => $id) if (!isset($want[$k])) $del->execute([$id]);
+        foreach ($want as $k => $l) {
+            if (isset($have[(string) $k])) continue;
+            $g = $copy + ['app_k' => (string) $k, 'app_lbl' => $l, 'vat' => $now];
+            $p->prepare('INSERT INTO host_ovr (' . implode(', ', array_keys($g)) . ') VALUES (' . implode(', ', array_fill(0, count($g), '?')) . ')')->execute(array_values($g));
+        }
+        $p->commit();
+    } catch (Throwable $e) {
+        try { if ($p->inTransaction()) $p->rollBack(); } catch (Throwable $e2) {}
+        $err = 'База не приняла запись'; error_log('submw host_ovr scope: ' . $e->getMessage()); return false;
+    }
     hostov_recount();
     return true;
 }
@@ -1108,7 +1414,9 @@ function hostov_set($id, $val, $till, $setTill, &$err, $mask = null, &$warn = nu
             if (!$r) { $err = 'Подмены уже нет'; return false; }
             $sec = (string) $r['host_sec'];
             $mv = null;
-            if ((string) $r['param'] === 'fp') {
+            if ((string) $r['param'] === 'log') {
+                if (!in_array((string) $val, hostov_log_values(), true)) { $err = 'Недопустимое значение'; return false; }
+            } elseif ((string) $r['param'] === 'fp') {
                 if (!in_array((string) $val, hostov_fp_values($sec), true)) { $err = $sec === 'reality' ? 'С REALITY работают только chrome, firefox, safari и randomized' : 'Недопустимое значение'; return false; }
             } else {
                 $mv = hostov_mask_build((string) $r['param'], (string) $val, $mask, hostov_caps($sec, (string) $r['host_tr'], (string) ($r['host_proto'] ?? '')), $err, $new);
