@@ -41,6 +41,19 @@ function csrf_token() {
 }
 function csrf_ok() { return isset($_POST['csrf'], $_SESSION['csrf']) && is_string($_POST['csrf']) && hash_equals((string) $_SESSION['csrf'], $_POST['csrf']); }
 function csrf_ok_get() { return isset($_GET['csrf'], $_SESSION['csrf']) && is_string($_GET['csrf']) && hash_equals((string) $_SESSION['csrf'], $_GET['csrf']); }
+// Самый лёгкий файл из docs/: по нему браузер админки проверяет, открыта ли папка снаружи.
+function docs_note_file() {
+    if (submw_in_docker() || setting('docs_note', '') === 'ok') return null;
+    $dir = dirname(__DIR__) . '/docs';
+    if (!is_dir($dir)) return null;
+    $best = null;
+    foreach (@scandir($dir) ?: [] as $n) {
+        if (!preg_match('~^[A-Za-z0-9][A-Za-z0-9._-]*$~', $n) || !is_file($dir . '/' . $n)) continue;
+        $size = (int) @filesize($dir . '/' . $n);
+        if ($size > 0 && ($best === null || $size < $best[1])) $best = [$n, $size];
+    }
+    return $best;
+}
 function is_auth() {
     if (empty($_SESSION['auth'])) return false;
     // Восстановление бэкапа с другим входом поднимает эпоху — сессии, открытые раньше, закрываются.
@@ -369,6 +382,15 @@ if (isset($_GET['ajax']) && is_auth()) {
     if ($a === 'go_rotate' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && function_exists('go_secret_rotate')) {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         echo json_encode(['ok' => true, 'secret' => go_secret_rotate()], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($a === 'docs_note' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
+        $dn_st = (string) ($_POST['st'] ?? '');
+        // «ok» окончательно: дальше не проверяем.
+        if ($dn_st === 'ok' || ($dn_st === 'open' && setting('docs_note', '') !== 'ok')) set_setting('docs_note', $dn_st);
+        echo json_encode(['ok' => true]);
         exit();
     }
 
@@ -2534,6 +2556,20 @@ navHidSync();
 <?php $inst_pend = json_decode((string) setting('install_pending', ''), true); if (is_array($inst_pend) && $inst_pend): ?>
 <div class="warn" style="display:flex;gap:.8rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap"><div><b>Установка завершена с предупреждениями:</b> <?= h(implode('; ', array_map(fn($k, $v) => (['subpage' => 'страница подписки', 'origin' => 'origin', 'webhook' => 'вебхук'][$k] ?? $k) . ' — ' . $v, array_keys($inst_pend), $inst_pend))) ?>. Проверки повторяются на вкладке <a href="?tab=connection">«Подключение»</a>.</div><a class="btn ghost" href="?tab=<?= h($tab) ?>&amp;inst_pending_ack=1&amp;csrf=<?= h(csrf_token()) ?>">Закрыть</a></div>
 <?php endif; ?>
+<?php $dn_file = docs_note_file(); if ($dn_file !== null): ?>
+<div id="docsNote" data-f="<?= h($dn_file[0]) ?>" data-s="<?= (int) $dn_file[1] ?>" data-csrf="<?= h(csrf_token()) ?>"<?= setting('docs_note', '') === 'open' ? '' : ' hidden' ?>>
+<div class="warn" style="display:flex;gap:.8rem;align-items:center;justify-content:space-between;flex-wrap:wrap"><div><b>Папка docs открыта снаружи:</b> по адресу <code>/docs/</code> её видит любой. Закройте этот путь в веб-сервере.</div><div style="display:flex;gap:.5rem;flex-wrap:wrap"><button type="button" class="btn" onclick="help('docs_close')">Как закрыть</button><button type="button" class="btn ghost" id="docsNoteX">Закрыть</button></div></div>
+</div>
+<script>(function(){var w=document.getElementById('docsNote'),off=false;
+function save(st){var f=new FormData();f.append('csrf',w.dataset.csrf);f.append('st',st);fetch('?ajax=docs_note',{method:'POST',body:f,credentials:'same-origin'}).catch(function(){});}
+document.getElementById('docsNoteX').addEventListener('click',function(){off=true;w.hidden=true;save('ok');});
+// Без cookie — как посторонний. Открыто, только если пришёл сам файл; сбой сервера или сети ничего не решает.
+fetch('../docs/'+encodeURIComponent(w.dataset.f)+'?_='+Date.now(),{cache:'no-store',credentials:'omit'}).then(function(r){
+if(r.status===200)return r.arrayBuffer().then(function(b){return b.byteLength===+w.dataset.s;});
+return r.status>=400&&r.status<500&&r.status!==408&&r.status!==429?false:null;
+}).then(function(open){if(off||open===null)return;if(!open){w.hidden=true;save('ok');}else if(w.hidden){w.hidden=false;save('open');}}).catch(function(){});
+})();</script>
+<?php endif; ?>
 
 <?php if ($tab === 'users'): ?>
     <?php include __DIR__ . ($ux_view === 'map' ? '/inc/tab_users_map.php' : '/inc/tab_users.php'); ?>
@@ -2687,6 +2723,7 @@ var HELP={
 'forward':{t:'Раздвоение вебхука (тройник)',h:'<p>Сама панель умеет слать хук на <b>несколько</b> адресов — через запятую в <code>WEBHOOK_URL</code>. Но подписывает их всех <b>одним</b> секретом.</p><h4>Когда нужен тройник</h4><p>В двух случаях:</p><ul><li>адресатам нужны <b>разные</b> секреты — прослойка подпишет каждую копию его ключом, и для адресата хук будет неотличим от настоящего;</li><li>переслать нужно <b>после</b> того, как прослойка обработала событие (грейс, блокировки и т.п.).</li></ul><h4>Когда не нужен</h4><p>Если всем хватает одного секрета — проще перечислить адреса через запятую прямо в панели.</p>'},
 'firstconn':{t:'Срок с первого подключения',h:'<p>Пользователь создаётся сразу активным, а срок подписки начинает идти с его первого подключения. Дали 3 дня, человек подключился на второй день — 3 дня считаются от подключения.</p><h4>Сколько ждём подключения</h4><p>Столько же, сколько длится подписка, но не дольше 30 дней. До подключения в панели стоит дата конца ожидания: не подключится — подписка истечёт как обычно. Подключился позже — срок не пересчитывается.</p><h4>Нужен вебхук панели</h4><p>О подключении прослойка узнаёт только из вебхука панели <code>user.first_connected</code>: панель шлёт его, когда через ноду прошёл первый трафик пользователя. Чтобы всё сработало:</p><ul><li>в <code>.env</code> панели вебхук включён и <code>WEBHOOK_URL</code> ведёт на прослойку (<code>/webhook.php</code>);</li><li>секрет совпадает с полем «Секрет вебхука» во вкладке «Подключение»;</li><li>событие «первое подключение» не выключено в настройках уведомлений панели.</li></ul><p>Нет вебхука — срок так и останется до конца ожидания. Проверить можно в «Логе вебхуков»: у события будет действие <code>first_conn</code>.</p><h4>Даты</h4><p>Даты показываются в часовом поясе вашего браузера, а срок хранится длительностью — в днях и часах, поэтому разница поясов на него не влияет.</p>'},
 'junk':{t:'Мусор',h:'<p>Запросы сканеров и ботов на адреса, которых у подписки нет: <code>backup.sql</code>, <code>wp-admin</code>, <code>phpmyadmin</code>. Ссылки подписки сюда не попадают.</p><h4>Куда уходят</h4><p>Без правил — в панель, как обычный запрос. «Резать» — прослойка отвечает сама, панель запрос не видит.</p><h4>Чего здесь нет</h4><p>Адресов на <code>.php</code> и скрытых файлов (<code>.env</code>, <code>.git</code>): в Docker и при установке через <code>install.sh</code> их сразу отсекает nginx прослойки, в панель они тоже не идут.</p>'},
+'docs_close':{t:'Как закрыть папку docs',h:'<p>В папке <code>docs</code> лежат описание и картинки прослойки. Пока она открыта, по адресу <code>/docs/</code> любой может понять, что здесь стоит прослойка.</p><h4>nginx</h4><p>Добавьте строку в блок <code>server</code> сайта, рядом с остальными <code>deny all</code>:</p><div class="codeblk"><button type="button" class="copybtn" onclick="var b=this;navigator.clipboard&&navigator.clipboard.writeText(b.nextElementSibling.textContent).then(function(){b.textContent=\'Скопировано\';setTimeout(function(){b.textContent=\'Копировать\';},1500);});">Копировать</button><pre>location ^~ /docs/ { deny all; }</pre></div><h4>Caddy</h4><p>Добавьте две строки в блок сайта в <code>Caddyfile</code>:</p><div class="codeblk"><button type="button" class="copybtn" onclick="var b=this;navigator.clipboard&&navigator.clipboard.writeText(b.nextElementSibling.textContent).then(function(){b.textContent=\'Скопировано\';setTimeout(function(){b.textContent=\'Копировать\';},1500);});">Копировать</button><pre>@docs path /docs/*\nrespond @docs 403</pre></div><h4>После правки</h4><p>Перезагрузите веб-сервер и обновите эту страницу. Уведомление исчезнет само.</p>'},
 'userflags':{t:'Вкладка «Пользователи»',h:'<p>Список берётся из панели Remnawave. Плитки сверху — быстрые фильтры, клик по строке открывает карточку.</p><h4>Карточка</h4><ul><li><b>Обзор</b> — данные панели и что делает прослойка: что отдаётся, доп-подписка, WG/AWG, лог.</li><li><b>Изменить</b> — те же поля, что в панели. В панель уходят только изменённые поля.</li><li><b>Устройства</b> и <b>История</b> — HWID, запросы, вебхуки и записи прослойки.</li><li><b>Сессии</b> — кто сейчас онлайн по данным нод (живой запрос в панель) и история подключений: IP, провайдер, регион, нода, когда. Историю собирает планировщик — включается внизу вкладки.</li></ul><h4>Аномалии</h4><p>Условия задаёт схема в блоке «Аномалии» внизу вкладки; планировщик проверяет её после каждого опроса и ведёт журнал. Значок «!» у имени: яркий — аномалия идёт сейчас, бледный — была за выбранный период; цвет — уровень группы (красный или жёлтый). Кнопка «Аномалии» над таблицей открывает срез: сейчас, за 24 часа, за 7 дней или весь журнал — и оставляет в списке только таких. Подробности по каждому событию — в карточке, вкладка «Аномалии».</p><h4>Грейс</h4><p>Пока пользователь в грейсе, прослойка помнит его прежний тариф. Поставьте новую дату с галочкой «Вернуть прежний тариф» — сквады, трафик и лимиты вернутся сами.</p><h4>Права токена</h4><p>Кнопки, на которые у API-токена нет прав, выключены. Проверить права — «Подключение» → «Права API-токена».</p>'}
 };
 function help(k){var d=HELP[k];if(!d)return;document.getElementById('helpTitle').textContent=d.t;document.getElementById('helpBody').innerHTML=d.h;document.getElementById('helpOv').classList.add('open');}
