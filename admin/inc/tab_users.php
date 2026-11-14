@@ -1007,6 +1007,7 @@ button.ux-lk.hv-go:hover{background:var(--hover);color:var(--accent-text)}
 .hv-scb.dv:hover{border-color:var(--c-violet-fg)}
 .hv-dc{display:inline-flex;align-items:center;font-size:.74rem;font-weight:600;color:var(--text);padding:.02rem .4rem;border:1px solid var(--line);border-radius:6px;background:var(--bg2);white-space:nowrap;vertical-align:middle;margin-right:.35rem}
 .hv-pr .hv-st+.hv-st{margin-top:.2rem}
+@media(min-width:701px){.hv-pr .hv-till .rl{display:none}}
 .hv-more{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:.5rem;width:100%;padding:.55rem .8rem;border-top:1px solid var(--line);font-size:.8rem;color:var(--accent-text);background:var(--bg2)}
 .hv-more,.hv-more:hover,.hv-more:active{filter:none;transform:none}
 .hv-more:hover{background:var(--hover)}
@@ -1814,7 +1815,7 @@ function hvPrRow(G){
  var st=na?G.rows.map(function(x){return hvStLine(hvSt(x),'<span class="hv-dc">'+esc(x.al||x.ak)+'</span>');}).join(''):hvStLine(hvSt(o));
  return '<div class="hv-pr'+(off?' off':'')+(ed?' ed':'')+'"><div class="l1"><span class="hv-pk2">'+ico(HVPI[o.p],15)+'<span class="nm">'+HVPN[o.p]+(o.p==='frag'||o.p==='noise'?'<span class="hv-xo" data-tip="Действует только в клиентах на ядре Xray">только Xray</span>':'')+sc+'</span></span>'+
   '<div class="hv-v"><span class="ln">'+val+'</span>'+sm+'</div>'+
-  '<div class="hv-tw"><button type="button" class="hv-till'+(o.till?'':' none')+'" data-hv="till" data-id="'+o.id+'" data-ids="'+ids+'" data-tip="Срок подмены">'+ico('cal',14)+(o.till?(ex?'истёк ':'до ')+hvDm(o.till*1000)+(ex?'':' · '+rel(o.till*1000)):'без срока')+'</button></div>'+
+  '<div class="hv-tw"><button type="button" class="hv-till'+(o.till?'':' none')+'" data-hv="till" data-id="'+o.id+'" data-ids="'+ids+'" data-tip="Срок подмены'+(o.till&&!ex?' · '+rel(o.till*1000):'')+'">'+ico('cal',14)+(o.till?(ex?'истёк ':'до ')+hvDm(o.till*1000)+(ex?'':'<span class="rl"> · '+rel(o.till*1000)+'</span>'):'без срока')+'</button></div>'+
   '<div class="hv-x"><button type="button" class="ux-ib bad" data-hv="del" data-id="'+o.id+'" data-ids="'+ids+'" aria-label="Снять подмену" data-tip="Снять подмену">'+ico('trash')+'</button></div></div>'+
   st+'</div>';
 }
