@@ -297,7 +297,7 @@ function hostov_cols_add() {
     ];
 }
 
-// Ключ таблицы: на хост и параметр — одна общая подмена (app_k пуст) и по одной на клиент.
+// Ключ таблицы: на хост и параметр — одна общая подмена (app_k пуст) и по одной на устройство.
 function hostov_key_ok($p, $drv) {
     try {
         if ($drv === 'mysql') {
@@ -413,13 +413,20 @@ function hostov_rows_for($short, $fresh = false) {
 
 // ---- кому: все устройства пользователя или выбранные ----
 
-// Устройство в запросе узнаётся по клиенту из User-Agent — имени без версии и ОС. Пусто — клиент не распознан: ему только общие подмены.
-// Ключ сравнивается целиком: длинное имя не обрезается до общего с другим клиентом начала, а сворачивается с хешем.
-function hostov_client_key($ua) {
-    $c = function_exists('reqlog_client') ? reqlog_client((string) $ua) : [];
-    $k = strtolower(trim((string) ($c['key'] ?? '')));
-    if (!preg_match('~^[a-z0-9._/-]+$~', $k)) return '';
-    return strlen($k) <= 32 ? $k : substr($k, 0, 24) . '-' . substr(md5($k), 0, 7);
+// Устройство — запись из списка устройств пользователя в панели; в запросе оно узнаётся по своему HWID.
+// В таблице — его хеш: HWID бывает длиннее ключа. Пусто — запрос без HWID: ему только общие подмены.
+function hostov_dev_key($hwid) {
+    $h = strtolower(trim((string) $hwid));
+    return $h === '' ? '' : md5($h);
+}
+
+// HWID запроса — тот же, что уходит в панель: заголовок, а без него — из User-Agent, если разбор включён.
+function hostov_req_hwid() {
+    $h = trim((string) ($_SERVER['HTTP_X_HWID'] ?? ''));
+    if ($h === '' && function_exists('ua_hwid_parse') && ua_hwid_parse() && in_array('x-hwid', ua_hwid_keys(), true)) {
+        $h = ua_hwid_extract((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 'x-hwid');
+    }
+    return $h;
 }
 
 // Можно ли отправить параметр клиенту с таким ядром: пусто — да, иначе причина. Маски Xray не понимают mihomo и sing-box.
@@ -434,25 +441,24 @@ function hostov_core($ua) {
     return function_exists('squadconf_ua_core') ? (string) squadconf_ua_core((string) $ua) : '';
 }
 
-// Устройство пользователя из панели для выбора «кому»: k — ключ клиента, l — клиент без версии, a — с версией,
-// no — параметры, которые его ядру не отправить.
-function hostov_dev_info($ua) {
-    $ua = trim((string) $ua);
+// Устройство пользователя из панели для выбора «кому»: k — ключ устройства, l — как его подписать, a — клиент с версией,
+// no — параметры, которые ядру клиента не отправить (ядро — по User-Agent устройства).
+function hostov_dev_info(array $d) {
+    $ua = trim((string) ($d['userAgent'] ?? ''));
     $c = function_exists('reqlog_client') ? reqlog_client($ua) : [];
-    $a = (string) ($c['app'] ?? ''); $v = (string) ($c['ver'] ?? '');
-    $l = $v !== '' && substr($a, -strlen($v) - 1) === ' ' . $v ? substr($a, 0, -strlen($v) - 1) : $a;
-    $k = hostov_client_key($ua);
     $no = [];
     foreach (['frag', 'noise'] as $p) if (($w = hostov_fits($p, hostov_core($ua))) !== '') $no[$p] = $w;
-    return ['k' => $k, 'l' => $k !== '' ? mb_substr($l, 0, 64) : '', 'a' => $k !== '' ? mb_substr($a, 0, 64) : '', 'no' => (object) $no];
+    $l = trim((string) ($d['deviceModel'] ?? ''));
+    if ($l === '') $l = trim((string) ($d['platform'] ?? ''));
+    return ['k' => hostov_dev_key($d['hwid'] ?? ''), 'l' => mb_substr($l !== '' ? $l : 'Устройство', 0, 64), 'a' => mb_substr((string) ($c['app'] ?? ''), 0, 64), 'no' => (object) $no];
 }
 
-// Подмены для этого запроса: общие и своего клиента; на один хост и параметр подмена клиента важнее общей.
-function hostov_pick(array $rows, $ua) {
+// Подмены для этого запроса: общие и своего устройства; на один хост и параметр подмена устройства важнее общей.
+function hostov_pick(array $rows, $hwid) {
     $any = false;
     foreach ($rows as $r) if ((string) ($r['app_k'] ?? '') !== '') { $any = true; break; }
     if (!$any) return $rows;
-    $k = hostov_client_key($ua);
+    $k = hostov_dev_key($hwid);
     $own = [];
     if ($k !== '') foreach ($rows as $r) if ((string) $r['app_k'] === $k) $own[$r['host_uuid'] . "\0" . $r['param']] = true;
     $out = [];
@@ -615,7 +621,7 @@ function hostov_apply($body, $format, array $rows, $ua = '') {
     $rows = array_values(array_filter($rows, static fn($r) => (string) ($r['param'] ?? '') !== 'log' && hostov_row_ok($r)));
     if (!$rows || !is_string($body) || $body === '') return [$body, []];
     try {
-        // Подмена, поставленная на устройство, не уходит клиенту, чьё ядро этот параметр не понимает, — в каком бы формате он ни получил подписку.
+        // Подмена, поставленная на устройство, не уходит, если ядро его клиента этот параметр не понимает, — в каком бы формате ни шла подписка.
         $skip = [];
         $core = hostov_core($ua);
         foreach ($rows as $i => $r) {
@@ -1262,7 +1268,7 @@ function hostov_param_name($p) {
     return ['fp' => 'Отпечаток TLS', 'frag' => 'Фрагментация', 'noise' => 'Шум', 'log' => 'Уровень логов'][$p] ?? $p;
 }
 
-// Клиенты из админки: [ключ => подпись] или null, если ключ не похож на имя клиента.
+// Устройства из админки: [ключ => подпись] или null, если ключ не похож на ключ устройства.
 function hostov_keys_norm(array $apps) {
     $o = [];
     foreach ($apps as $a) {
@@ -1273,17 +1279,8 @@ function hostov_keys_norm(array $apps) {
     return $o;
 }
 
-// Параметр, который ядру клиента не отправить, на его устройства не ставится: пусто — можно, иначе причина.
-function hostov_keys_unfit($param, array $keys) {
-    foreach ($keys as $k => $l) {
-        $w = hostov_fits((string) $param, hostov_core((string) $k));
-        if ($w !== '') return ((string) $l !== '' ? $l : $k) . ' — ' . $w;
-    }
-    return '';
-}
-
 // $h — хост из hostov_hosts (что пришло из админки); возможности хоста считаются здесь заново, а не берутся на веру.
-// У уровня логов хоста нет. $apps пуст — общая подмена, иначе по строке на клиент.
+// У уровня логов хоста нет. $apps пуст — общая подмена, иначе по строке на устройство.
 function hostov_save($short, array $h, $param, $val, $till, $uid, $username, &$err, $mask = null, &$warn = null, array $apps = []) {
     $err = ''; $warn = '';
     $short = trim((string) $short);
@@ -1293,7 +1290,6 @@ function hostov_save($short, array $h, $param, $val, $till, $uid, $username, &$e
     if ($short === '' || (!$sub && $huuid === '')) { $err = 'Не указан пользователь или хост'; return false; }
     $keys = hostov_keys_norm($apps);
     if ($keys === null) { $err = 'Устройство не распознано'; return false; }
-    if (($w = hostov_keys_unfit($param, $keys)) !== '') { $err = $w; return false; }
     $cut = static fn($s, $n) => mb_substr((string) $s, 0, $n);
     $mv = null;
     $f = ['user_id' => (int) $uid > 0 ? (int) $uid : null, 'username' => $cut($username, 64)];
@@ -1353,7 +1349,7 @@ function hostov_save($short, array $h, $param, $val, $till, $uid, $username, &$e
     return true;
 }
 
-// Смена «кому» у подмены: $ids — её строки (общая или по одной на клиент), $apps — новый список, пусто — общая.
+// Смена «кому» у подмены: $ids — её строки (общая или по одной на устройство), $apps — новый список, пусто — общая.
 // Значение, срок и время создания остаются; у новых строк отметки «ушла» начинаются заново.
 function hostov_rescope(array $ids, array $apps, &$err) {
     $err = '';
@@ -1373,7 +1369,6 @@ function hostov_rescope(array $ids, array $apps, &$err) {
             $have[(string) ($r['app_k'] ?? '')] = (int) $r['id'];
         }
         $want = $keys ?: ['' => ''];
-        if (($w = hostov_keys_unfit((string) $b['param'], array_diff_key($keys, $have))) !== '') { $err = $w; return false; }
         $q = $p->prepare('SELECT id FROM host_ovr WHERE short_uuid = ? AND app_k = ? AND host_uuid = ? AND param = ?');
         foreach ($want as $k => $l) {
             $k = (string) $k;
@@ -1381,7 +1376,7 @@ function hostov_rescope(array $ids, array $apps, &$err) {
             $q->execute([(string) $b['short_uuid'], $k, (string) $b['host_uuid'], (string) $b['param']]);
             $dup = $q->fetchColumn();
             $q->closeCursor();
-            if ($dup !== false) { $err = $k === '' ? 'Общая подмена этого параметра уже есть' : 'У клиента «' . ($l !== '' ? $l : $k) . '» уже есть своя подмена этого параметра'; return false; }
+            if ($dup !== false) { $err = $k === '' ? 'Общая подмена этого параметра уже есть' : 'У устройства «' . ($l !== '' ? $l : $k) . '» уже есть своя подмена этого параметра'; return false; }
         }
         $copy = array_diff_key($b, array_flip(['id', 'app_k', 'app_lbl', 'vat', 'last_hit', 'last_app', 'last_miss', 'miss_app', 'na_at', 'na_app', 'na_fmt']));
         $now = time();

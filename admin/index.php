@@ -269,8 +269,8 @@ if (isset($_GET['ajax']) && is_auth()) {
         $uuid = $_GET['uuid'] ?? '';
         $err = '';
         $devices = $uuid !== '' ? remnawave_user_hwids($uuid, $err) : [];
-        // для выбора «кому» в подмене параметров: клиент устройства и что его ядру не отправить
-        if (function_exists('hostov_dev_info')) foreach ($devices as $i => $d) if (is_array($d)) $devices[$i]['hv'] = hostov_dev_info($d['userAgent'] ?? '');
+        // для выбора «кому» в подмене параметров: ключ устройства, его клиент и что ядру клиента не отправить
+        if (function_exists('hostov_dev_info')) foreach ($devices as $i => $d) if (is_array($d)) $devices[$i]['hv'] = hostov_dev_info($d);
         echo json_encode(['ok' => $err === '', 'error' => $err, 'devices' => $devices], JSON_UNESCAPED_UNICODE);
         exit();
     }

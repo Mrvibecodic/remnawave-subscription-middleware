@@ -1764,7 +1764,7 @@ function hvPsOf(h){return h===HVSUB?['log']:HVPS;}
 function hvLvN(v){return v==='off'?'выключены':v;}
 // Занято — в той же области: общая подмена не мешает подмене на выбранные устройства, и наоборот.
 function hvUsed(h,p){var K=CARD.hvpk,a=K&&K.sc==='sel'?K.aps:null;return hvL().some(function(o){return hvHid(o)===h&&o.p===p&&(a?a.indexOf(o.ak)>-1:!o.ak);});}
-// Подмена в карточке — одна строка: общая или несколько строк таблицы (по одной на клиент) с одним значением и сроком.
+// Подмена в карточке — одна строка: общая или несколько строк таблицы (по одной на устройство) с одним значением и сроком.
 function hvGroups(L){
  var m={},g=[];
  (L||hvL()).forEach(function(o){var k=hvHid(o)+'|'+o.p+'|'+o.v+'|'+(o.m?JSON.stringify(o.m):'')+'|'+(o.till||0)+'|'+(o.ak?'a':'');
@@ -1778,7 +1778,7 @@ function hvNa(G){return G.rows.filter(function(o){return o.ak;}).length;}
 function hvLast(g){var b=null;g.forEach(function(x){if(!b||x.cr>b.cr||(x.cr===b.cr&&x.id>b.id))b=x;});return b;}
 function hvGOff(G){return G.rows.every(function(o){var s=hvSt(o)[0];return s===''||s==='bad';});}
 function hvGWait(G){return !hvGOff(G)&&G.rows.some(function(o){return o.st==='wait';});}
-// Устройства пользователя — те же, что на вкладке «Устройства»; клиент устройства и что его ядру не отправить — в d.hv.
+// Устройства пользователя — те же, что на вкладке «Устройства»; ключ устройства, его клиент и что ядру клиента не отправить — в d.hv.
 function hvDev(k){var r=null;(Array.isArray(CARD.devs)?CARD.devs:[]).forEach(function(d){if(!r&&d.hv&&d.hv.k===k)r=d;});return r;}
 function hvDevN(k,l){var d=hvDev(k);return (d&&d.hv.l)||l||k;}
 // Почему параметр не отправить выбранным устройствам (пусто — можно всем)
@@ -1810,7 +1810,7 @@ function hvPrRow(G){
    '<button type="button" class="hv-vb" data-hv="ed" data-id="'+o.id+'" data-ids="'+ids+'" data-tip="Изменить"><b>'+esc(o.vn)+'</b>'+ico('pencil',13)+'</button>';
   sm='<span class="hv-sm">'+esc(o.mt)+'</span>';
  }
- var sc='<button type="button" class="hv-scb'+(na?' dv':'')+'" data-hv="sc" data-id="'+o.id+'" data-tip="'+(na?'Только для выбранных устройств — важнее общей подмены. Нажмите, чтобы изменить':'Общая подмена — для всех устройств пользователя. Нажмите, чтобы выбрать устройства')+'">'+ico('dev',11)+(na?(na===1?esc(o.al||o.ak):na+' '+plural(na,'клиент','клиента','клиентов')):'все устройства')+'</button>';
+ var sc='<button type="button" class="hv-scb'+(na?' dv':'')+'" data-hv="sc" data-id="'+o.id+'" data-tip="'+(na?'Только для выбранных устройств — важнее общей подмены. Нажмите, чтобы изменить':'Общая подмена — для всех устройств пользователя. Нажмите, чтобы выбрать устройства')+'">'+ico('dev',11)+(na?(na===1?esc(o.al||o.ak):na+' '+plural(na,'устройство','устройства','устройств')):'все устройства')+'</button>';
  var st=na?G.rows.map(function(x){return hvStLine(hvSt(x),'<span class="hv-dc">'+esc(x.al||x.ak)+'</span>');}).join(''):hvStLine(hvSt(o));
  return '<div class="hv-pr'+(off?' off':'')+(ed?' ed':'')+'"><div class="l1"><span class="hv-pk2">'+ico(HVPI[o.p],15)+'<span class="nm">'+HVPN[o.p]+(o.p==='frag'||o.p==='noise'?'<span class="hv-xo" data-tip="Действует только в клиентах на ядре Xray">только Xray</span>':'')+sc+'</span></span>'+
   '<div class="hv-v"><span class="ln">'+val+'</span>'+sm+'</div>'+
@@ -2068,10 +2068,10 @@ function hvSetup(hs){
  if(K.p)f+=hvForm(hs)+hvTerm();
  return f+'<div class="hv-pa"><span class="s" id="hvPaS">'+hvPaTxt()+'</span><button type="button" class="wb sm" data-hv="cancel">Отмена</button><button type="button" class="wb sm pri" id="hvAdd" data-hv="add"'+(hvCanSave()?'':' disabled')+'>'+ico('plus',15)+'Добавить</button></div>';
 }
-// Строка выбора «кому»: устройство пользователя из панели — модель, ОС, клиент. Запрос устройства узнаётся по клиенту,
-// поэтому устройства с одним клиентом отмечаются вместе. fixed — параметр уже задан (смена «кому»): где его не отправить, строка выключена.
+// Строка выбора «кому»: устройство пользователя из панели — модель, ОС, клиент. Каждое отмечается отдельно.
+// fixed — параметр уже задан (смена «кому»): где его не отправить, строка выключена.
 function hvDevRow(d,K,fixed){
- var hv=d.hv||{},k=hv.k||'',on=!!k&&K.aps.indexOf(k)>-1,nf=d.gone?'':(!k?'клиент не распознан':(fixed&&hv.no?hv.no[fixed]||'':'')),os=[d.platform,d.osVersion].filter(Boolean).join(' ');
+ var hv=d.hv||{},k=hv.k||'',on=!!k&&K.aps.indexOf(k)>-1,nf=d.gone?'':(!k?'у устройства нет HWID':(fixed&&hv.no?hv.no[fixed]||'':'')),os=[d.platform,d.osVersion].filter(Boolean).join(' ');
  return '<div class="hv-hi dv'+(on?' on':'')+(nf?' dis':'')+'" '+(nf?'aria-disabled="true"':'data-hv="app" data-k="'+esc(k)+'" tabindex="0"')+' role="checkbox" aria-checked="'+(on?'true':'false')+'"><span class="ck">'+ico('check',12)+'</span>'+
   '<div class="hv-h"><div class="n">'+esc(d.deviceModel||d.platform||'Устройство')+(os?'<span class="os">'+esc(os)+'</span>':'')+'</div>'+(hv.a?'<div class="m"><span class="hv-mt">'+esc(hv.a)+'</span></div>':'')+'</div>'+
   '<span class="why">'+esc(d.gone?'устройства уже нет в панели':nf)+'</span></div>';
@@ -2081,12 +2081,11 @@ function hvScope(fixed){
  var h='<div class="hv-pf"><div class="lb">Кому</div><div class="ux-pre" style="margin-top:0">'+[['all','Все устройства'],['sel','Выбранные устройства']].map(function(x){return '<button type="button" data-hv="scm" data-v="'+x[0]+'" class="'+(K.sc===x[0]?'on':'')+'">'+x[1]+'</button>';}).join('')+'</div>';
  if(sel&&!Array.isArray(D))h+='<div class="hv-dl"><div class="hv-sk"></div><div class="hv-sk"></div></div>';
  else if(sel){
-  // клиент подмены, устройства с которым в панели уже нет, остаётся в списке — иначе с него не снять галочку
+  // устройство подмены, которого в панели уже нет, остаётся в списке — иначе с него не снять галочку
   var L=D.concat(K.aps.filter(function(k){return !hvDev(k);}).map(function(k){return {deviceModel:(K.apl||{})[k]||k,gone:1,hv:{k:k}};}));
   if(L.length)h+='<div class="hv-dl" role="group" aria-label="Устройства пользователя">'+L.map(function(d){return hvDevRow(d,K,fixed);}).join('')+'</div>';
   else h+='<div class="hv-empty" style="margin-top:.6rem"><span class="ic">'+ico('dev',17)+'</span><div>'+(CARD.devErr?'<b>Устройства не загрузились</b>Панель не ответила — попробуйте позже.':'<b>Устройств нет</b>В панели у пользователя нет устройств.')+'</div></div>';
   if(L.length&&CARD.devErr)nt='Устройства не загрузились — панель не ответила.';
-  else if(L.length>1)nt='Устройства с одним клиентом отмечаются вместе.';
  }
  return h+(nt?'<div class="fm-nts"><div class="fm-nt i">'+ico('info',14)+'<span>'+nt+'</span></div></div>':'')+'</div>';
 }
@@ -2178,7 +2177,7 @@ function hvOvRow(mw){
  var gs=hvGroups(L),act=gs.filter(function(G){return !hvGOff(G);}),wait=gs.filter(hvGWait).length,bad=gs.length-act.length,g={},ord=[],PO=['log','fp','frag','noise'];
  act.forEach(function(G){if(!g[G.h]){g[G.h]=[];ord.push(G.h);}g[G.h].push(G);});
  ord.sort(function(a,b){return (b===HVSUB?1:0)-(a===HVSUB?1:0);});
- var one=function(G){var o=G.o,na=hvNa(G);return (o.p==='fp'?esc(o.v):(o.p==='log'?'логи '+esc(hvLvN(o.v)):HVSH[o.p]))+(na?' ('+(na===1?esc(o.al||o.ak):na+' '+plural(na,'клиент','клиента','клиентов'))+')':'');};
+ var one=function(G){var o=G.o,na=hvNa(G);return (o.p==='fp'?esc(o.v):(o.p==='log'?'логи '+esc(hvLvN(o.v)):HVSH[o.p]))+(na?' ('+(na===1?esc(o.al||o.ak):na+' '+plural(na,'устройство','устройства','устройств'))+')':'');};
  var v=gs.length?(act.length?act.length+' '+plural(act.length,'параметр','параметра','параметров')+' · '+ord.map(function(k){return (k===HVSUB?'Подписка':esc(g[k][0].o.n))+': '+g[k].sort(function(a,b){return PO.indexOf(a.o.p)-PO.indexOf(b.o.p);}).map(one).join(', ');}).join(' · '):'<span class="m">не действуют</span>'):'<span class="m">нет</span>';
  var sub=[];
  if(wait)sub.push('<span style="color:var(--c-warn-fg)">'+wait+' ещё не '+plural(wait,'уходил','уходили','уходили')+' в приложение</span>');
