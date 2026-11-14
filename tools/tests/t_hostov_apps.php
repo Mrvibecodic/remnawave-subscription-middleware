@@ -9,32 +9,37 @@ $UA_H = 'Happ/3.6.2/ios CFNetwork/1568 Darwin/24.0';
 $UA_H2 = 'Happ/3.7.0/android';
 $UA_F = 'FlClash/0.8.85 clash-verge Platform/android';
 $link = 'vless://u@de1:443?security=reality&type=tcp&fp=chrome#DE';
+// устройства: два телефона с одним клиентом — разные устройства
+$HW = ['happ' => 'hw-1', 'happ2' => 'hw-2', 'v2rayng' => 'hw-3', 'flclash' => 'hw-4', 'sfa' => 'hw-6', 'streisand' => 'hw-7'];
+$KK = static fn(string $n) => hostov_dev_key($HW[$n]);
+$NM = array_flip(array_map('hostov_dev_key', $HW));
 $rows = static fn() => hostov_rows_for($SU, true);
-$fp = static function (string $ua) use ($rows, $link): string {
-    [$b] = hostov_apply($link, 'base64', hostov_split(hostov_pick($rows(), $ua))[0]);
+$fp = static function (string $hw) use ($rows, $link): string {
+    [$b] = hostov_apply($link, 'base64', hostov_split(hostov_pick($rows(), $hw))[0]);
     return preg_match('~fp=(\w+)~', $b, $m) ? $m[1] : '';
 };
 
-// Клиент запроса — имя из User-Agent
-t_eq('клиент: версия и ОС в ключ не входят', [hostov_client_key($UA_H), hostov_client_key($UA_H2), hostov_client_key($UA_F), hostov_client_key('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36'), hostov_client_key('')], ['happ', 'happ', 'flclash', '', '']);
-t_eq('устройство: клиент с версией и без, что ядру не отправить', [hostov_dev_info($UA_H)['l'], hostov_dev_info($UA_H)['a'], (array) hostov_dev_info($UA_H)['no'], array_keys((array) hostov_dev_info($UA_F)['no']), hostov_dev_info('')['k'], hostov_dev_info('Mozilla/5.0 (X11) Chrome/130.0 Safari/537.36')['a']], ['Happ', 'Happ 3.6.2', [], ['frag', 'noise'], '', '']);
-t_ok('клиент: длинные имена с общим началом — разные ключи', strlen(hostov_client_key(str_repeat('a', 50) . '/1.0')) === 32 && hostov_client_key(str_repeat('a', 50) . '/1.0') !== hostov_client_key(str_repeat('a', 51) . '/1.0') && hostov_client_key(str_repeat('a', 32) . '/1.0') === str_repeat('a', 32));
+// Устройство запроса узнаётся по HWID
+t_eq('ключ устройства: регистр и пробелы HWID не важны, без HWID ключа нет', [hostov_dev_key('HW-1') === hostov_dev_key(' hw-1 '), strlen(hostov_dev_key('hw-1')), hostov_dev_key(''), hostov_dev_key('hw-1') !== hostov_dev_key('hw-2')], [true, 32, '', true]);
+$di = hostov_dev_info(['hwid' => 'hw-1', 'deviceModel' => 'iPhone 15 Pro', 'platform' => 'iOS', 'userAgent' => $UA_H]);
+$df = hostov_dev_info(['hwid' => 'hw-4', 'platform' => 'Android', 'userAgent' => $UA_F]);
+t_eq('устройство: ключ, подпись, клиент и что ядру не отправить', [$di['k'], $di['l'], $di['a'], (array) $di['no'], $df['l'], array_keys((array) $df['no']), hostov_dev_info(['hwid' => 'x'])['a'], hostov_dev_info([])['k']],
+    [hostov_dev_key('hw-1'), 'iPhone 15 Pro', 'Happ 3.6.2', [], 'Android', ['frag', 'noise'], '', '']);
 
 // Общая подмена и подмена на устройство живут рядом
 t_ok('общая подмена', hostov_save($SU, $H, 'fp', 'firefox', 0, 1, 'u', $e), (string) $e);
-t_ok('подмена на приложение', hostov_save($SU, $H, 'fp', 'safari', 0, 1, 'u', $e, null, $w, [['k' => 'happ', 'l' => 'Happ']]), (string) $e);
+t_ok('подмена на устройство', hostov_save($SU, $H, 'fp', 'safari', 0, 1, 'u', $e, null, $w, [['k' => $KK('happ'), 'l' => 'Happ']]), (string) $e);
 t_eq('две строки на один хост и параметр', count($rows()), 2);
-t_eq('своему приложению — своя, остальным — общая', [$fp($UA_H), $fp($UA_H2), $fp($UA_F), $fp('')], ['safari', 'safari', 'firefox', 'firefox']);
-t_ok('повторное сохранение правит ту же строку', hostov_save($SU, $H, 'fp', 'randomized', 0, 1, 'u', $e, null, $w, [['k' => 'happ', 'l' => 'Happ']]) && count($rows()) === 2 && $fp($UA_H) === 'randomized');
-t_ok('ключ не похож на имя приложения', !hostov_save($SU, $H, 'fp', 'safari', 0, 1, 'u', $e, null, $w, [['k' => 'Bad Key!']]) && $e !== '');
-t_ok('несколько приложений — одним сохранением', hostov_save($SU, $H, 'frag', 'std', 0, 1, 'u', $e, null, $w, [['k' => 'happ', 'l' => 'Happ'], ['k' => 'v2rayng', 'l' => 'v2rayNG']]) && count($rows()) === 4, (string) $e);
+t_eq('своему устройству — своя; другому устройству с тем же клиентом и остальным — общая', [$fp('hw-1'), $fp('HW-1'), $fp('hw-2'), $fp('hw-4'), $fp('')], ['safari', 'safari', 'firefox', 'firefox', 'firefox']);
+t_ok('повторное сохранение правит ту же строку', hostov_save($SU, $H, 'fp', 'randomized', 0, 1, 'u', $e, null, $w, [['k' => $KK('happ'), 'l' => 'Happ']]) && count($rows()) === 2 && $fp('hw-1') === 'randomized');
+t_ok('ключ не похож на ключ устройства', !hostov_save($SU, $H, 'fp', 'safari', 0, 1, 'u', $e, null, $w, [['k' => 'Bad Key!']]) && $e !== '');
+t_ok('несколько устройств — одним сохранением', hostov_save($SU, $H, 'frag', 'std', 0, 1, 'u', $e, null, $w, [['k' => $KK('happ'), 'l' => 'Happ'], ['k' => $KK('v2rayng'), 'l' => 'v2rayNG']]) && count($rows()) === 4, (string) $e);
 $v = array_values(array_filter(hostov_list($SU), static fn($x) => $x['p'] === 'frag'));
-t_eq('в списке видно приложение и время создания', [array_column($v, 'ak'), array_column($v, 'al'), $v[0]['cr'] > 0], [['happ', 'v2rayng'], ['Happ', 'v2rayNG'], true]);
+t_eq('в списке видно устройство и время создания', [array_map(static fn($k) => $NM[$k] ?? $k, array_column($v, 'ak')), array_column($v, 'al'), $v[0]['cr'] > 0], [['happ', 'v2rayng'], ['Happ', 'v2rayNG'], true]);
 
-t_ok('фрагментация на устройство с mihomo не сохраняется', !hostov_save($SU, $H, 'frag', 'std', 0, 1, 'u', $e, null, $w, [['k' => 'happ', 'l' => 'Happ'], ['k' => 'flclash', 'l' => 'FlClash']]) && strpos($e, 'FlClash') !== false && count($rows()) === 4, (string) $e);
 
 // Подмена на устройство не уходит клиенту, чьё ядро параметр не понимает, — даже в ссылках; общая ведёт себя как раньше
-$fr = array_values(array_filter($rows(), static fn($r) => $r['param'] === 'frag' && $r['app_k'] === 'happ'))[0];
+$fr = array_values(array_filter($rows(), static fn($r) => $r['param'] === 'frag' && $r['app_k'] === $KK('happ')))[0];
 [$b, $h] = hostov_apply($link, 'base64', [$fr], 'SFA/1.11.0 (sing-box 1.11.0)');
 t_eq('на устройство + клиент sing-box: ссылка как была, отметка «не применима»', [$b, count($h), $h[0][5], $h[0][7]], [$link, 1, 1, 'sing-box']);
 [$b, $h] = hostov_apply($link, 'base64', [$fr], $UA_H);
@@ -47,7 +52,7 @@ t_eq('старый вызов без клиента даёт то же тело'
 // Уровень логов — параметр всей подписки
 t_ok('уровень логов сохраняется без хоста', hostov_save($SU, [], 'log', 'debug', 0, 1, 'u', $e), (string) $e);
 t_ok('чужое значение уровня', !hostov_save($SU, [], 'log', 'trace', 0, 1, 'u', $e));
-[$hr, $lr] = hostov_split(hostov_pick($rows(), $UA_F));
+[$hr, $lr] = hostov_split(hostov_pick($rows(), 'hw-4'));
 t_eq('строка подписки отделена от подмен хостов', [count($hr), count($lr), $lr[0]['param'] ?? ''], [1, 1, 'log']);
 [, $h] = hostov_apply($link, 'base64', $rows());
 t_ok('в сопоставление хостов уровень логов не идёт', !array_filter($h, static fn($x) => $x[4] === 'log'));
@@ -107,8 +112,8 @@ db()->exec('UPDATE host_ovr SET vat = vat - 5, last_hit = last_hit - 5');
 hostov_note($lr, $h, 'v2rayNG 1.10.5 · Android');
 $l = array_values(array_filter(hostov_list($SU), static fn($x) => $x['p'] === 'log'));
 t_eq('уровень логов: в ссылках не применима', [$l[0]['st'], $l[0]['naf']], ['na', 'ссылки']);
-$picked = hostov_split(hostov_pick($rows(), $UA_F))[0];
-t_ok('чужому приложению отметка «не было» не ставится', !array_filter($picked, static fn($r) => (string) $r['app_k'] !== ''));
+$picked = hostov_split(hostov_pick($rows(), 'hw-4'))[0];
+t_ok('чужому устройству отметка «не было» не ставится', !array_filter($picked, static fn($r) => (string) $r['app_k'] !== ''));
 
 // Лог запросов: последняя созданная подмена — первой, подмена на приложение помечена
 $m = hostov_log_meta([['A', 'chrome', 'firefox', 'fp', 0, '', '', 0, 10], ['B', 'chrome', 'safari', 'fp', 0, '', '', 1, 30], ['', 'info', 'debug', 'log', 0, '', '', 0, 20]]);
@@ -120,15 +125,14 @@ t_eq('лог: записи прежнего формата читаются', [$
 t_eq('применимость по ядру', [hostov_fits('fp', 'mihomo'), hostov_fits('log', 'sing-box'), hostov_fits('frag', 'xray'), hostov_fits('noise', ''), hostov_fits('frag', 'mihomo') !== '', hostov_fits('noise', 'sing-box') !== ''], ['', '', '', '', true, true]);
 
 // Смена «кому»
-$id = static fn(string $p, string $ak) => (int) (array_values(array_filter(hostov_list($SU), static fn($x) => $x['p'] === $p && $x['ak'] === $ak))[0]['id'] ?? 0);
+$id = static fn(string $p, string $n) => (int) (array_values(array_filter(hostov_list($SU), static fn($x) => $x['p'] === $p && $x['ak'] === ($n === '' ? '' : $KK($n))))[0]['id'] ?? 0);
 $cr = (int) db()->query('SELECT created_at FROM host_ovr WHERE id = ' . $id('fp', ''))->fetchColumn();
 db()->exec('UPDATE host_ovr SET created_at = created_at - 50 WHERE id = ' . $id('fp', ''));
-t_ok('общая → на приложение', hostov_rescope([$id('fp', '')], [['k' => 'flclash', 'l' => 'FlClash']], $e), (string) $e);
-t_eq('значение и время создания остались, общей больше нет', [$fp($UA_F), $fp(''), (int) db()->query("SELECT created_at FROM host_ovr WHERE id = " . $id('fp', 'flclash'))->fetchColumn()], ['firefox', 'chrome', $cr - 50]);
-t_ok('на приложение, у которого своя подмена, нельзя', !hostov_rescope([$id('fp', 'flclash')], [['k' => 'happ', 'l' => 'Happ']], $e) && strpos($e, 'Happ') !== false, (string) $e);
-t_ok('смена «кому»: фрагментацию на mihomo не перевести', !hostov_rescope([$id('frag', 'happ'), $id('frag', 'v2rayng')], [['k' => 'happ', 'l' => 'Happ'], ['k' => 'flclash', 'l' => 'FlClash']], $e) && strpos($e, 'FlClash') !== false && $id('frag', 'v2rayng') > 0, (string) $e);
-t_ok('приложения → общая', hostov_rescope([$id('frag', 'happ'), $id('frag', 'v2rayng')], [], $e) && $id('frag', '') > 0 && $id('frag', 'happ') === 0 && $id('frag', 'v2rayng') === 0, (string) $e);
-t_ok('общая → два приложения, прежние отметки у оставшегося не сбрасываются', hostov_rescope([$id('fp', 'flclash')], [['k' => 'flclash', 'l' => 'FlClash'], ['k' => 'streisand', 'l' => 'Streisand']], $e) && $id('fp', 'streisand') > 0, (string) $e);
+t_ok('общая → на устройство', hostov_rescope([$id('fp', '')], [['k' => $KK('flclash'), 'l' => 'FlClash']], $e), (string) $e);
+t_eq('значение и время создания остались, общей больше нет', [$fp('hw-4'), $fp(''), (int) db()->query("SELECT created_at FROM host_ovr WHERE id = " . $id('fp', 'flclash'))->fetchColumn()], ['firefox', 'chrome', $cr - 50]);
+t_ok('на устройство, у которого своя подмена, нельзя', !hostov_rescope([$id('fp', 'flclash')], [['k' => $KK('happ'), 'l' => 'Happ']], $e) && strpos($e, 'Happ') !== false, (string) $e);
+t_ok('устройства → общая', hostov_rescope([$id('frag', 'happ'), $id('frag', 'v2rayng')], [], $e) && $id('frag', '') > 0 && $id('frag', 'happ') === 0 && $id('frag', 'v2rayng') === 0, (string) $e);
+t_ok('общая → два устройства, прежние отметки у оставшегося не сбрасываются', hostov_rescope([$id('fp', 'flclash')], [['k' => $KK('flclash'), 'l' => 'FlClash'], ['k' => $KK('streisand'), 'l' => 'Streisand']], $e) && $id('fp', 'streisand') > 0, (string) $e);
 t_ok('общая уже есть — вторую не сделать', hostov_save($SU, $H, 'fp', 'safari', 0, 1, 'u', $e) && !hostov_rescope([$id('fp', 'streisand')], [], $e) && $e !== '', (string) $e);
 t_ok('чужие строки вместе не меняются', !hostov_rescope([$id('fp', ''), $id('log', '')], [], $e));
 t_ok('счётчик действующих подмен', (int) setting('hostov_n', '0') === count(hostov_list($SU)));
@@ -160,10 +164,13 @@ $panel = t_serve($tt_root . '/tools', $tt_root . '/tools/mock_panel.php', ['MOCK
 t_settings(['sub_source' => 'panel', 'remnawave_url' => $panel, 'remnawave_api_key' => 'test-token', 'geoip_auto' => '0']);
 set_setting('update_state', json_encode(['checked_at' => time()]));
 $mw = t_serve($tt_root, $tt_root . '/tools/tests/_router.php', [], ['opcache.enable' => '0']);
-$sub = static function (string $ua, string $su = '') use ($mw, $SU): string { [, , $b] = t_http('GET', $mw . '/' . ($su ?: $SU), ['User-Agent' => $ua]); return $b; };
+$HWU = [];
+$sub = static function (string $ua, string $su = '') use ($mw, $SU, &$HWU): string { [, , $b] = t_http('GET', $mw . '/' . ($su ?: $SU), ['User-Agent' => $ua] + (isset($HWU[$ua]) ? ['x-hwid' => $HWU[$ua]] : [])); return $b; };
 $UA_C = 'FlClash/0.8.85 Platform/android';
 $UA_S = 'SFA/1.11.0 (sing-box 1.11.0)';
 $UA_V = 'v2rayNG/1.10.5';
+// у каждого клиента теста своё устройство; у SFA устройства в панели нет
+$HWU = [$UA_H => 'hw-1', $UA_C => 'hw-4', $UA_S => 'hw-6', $UA_V => 'hw-3'];
 
 $base = [$sub($UA_H), $sub($UA_C), $sub($UA_S), $sub($UA_V)];
 t_eq('без подмен: тела панели байт в байт', $base, [$xj, $yaml, $sbj, base64_encode($link)]);
@@ -180,16 +187,16 @@ $post = static function (string $a, array $f) use ($mw, $jar, $csrf) {
 // выбор «кому» — те же устройства, что на вкладке «Устройства», с клиентом и тем, что его ядру не отправить
 [, , $j] = t_http('GET', $mw . '/admin/index.php?ajax=hwids&uuid=' . $uuid, [], null, $jar);
 $j = json_decode($j, true) ?: [];
-t_eq('устройства: клиент и ключ у каждого', array_map(static fn($d) => [$d['deviceModel'], $d['hv']['a'] ?? null, $d['hv']['k'] ?? null, array_keys((array) ($d['hv']['no'] ?? []))], $j['devices'] ?? []),
-    [['iPhone 15 Pro', 'Happ 3.6.2', 'happ', []], ['Pixel 9', 'Happ 3.7.0', 'happ', []], ['SM-S921B', 'v2rayNG 1.10.5', 'v2rayng', []], ['Pixel 8', 'FlClash 0.8.85', 'flclash', ['frag', 'noise']], ['PC', '', '', []]]);
+t_eq('устройства: у каждого свой ключ, подпись и клиент', array_map(static fn($d) => [$d['hv']['l'] ?? null, $d['hv']['a'] ?? null, $d['hv']['k'] ?? null, array_keys((array) ($d['hv']['no'] ?? []))], $j['devices'] ?? []),
+    [['iPhone 15 Pro', 'Happ 3.6.2', hostov_dev_key('hw-1'), []], ['Pixel 9', 'Happ 3.7.0', hostov_dev_key('hw-2'), []], ['SM-S921B', 'v2rayNG 1.10.5', hostov_dev_key('hw-3'), []], ['Pixel 8', 'FlClash 0.8.85', hostov_dev_key('hw-4'), ['frag', 'noise']], ['PC', '', hostov_dev_key('hw-5'), []]]);
 t_ok('устройства: прежние поля панели на месте', ($j['ok'] ?? false) && ($j['devices'][0]['hwid'] ?? '') === 'hw-1' && ($j['devices'][0]['userAgent'] ?? '') === $UA_H);
 
 [, , $hj] = t_http('GET', $mw . '/admin/index.php?ajax=hv_hosts&uid=1', [], null, $jar);
 $host = json_decode($hj, true)['hosts'][0] ?? [];
 $r1 = $post('hv_save', ['su' => $SU, 'uid' => 1, 'un' => 'user0', 'host' => json_encode($host), 'p' => 'fp', 'v' => 'firefox', 'till' => 0]);
-$r2 = $post('hv_save', ['su' => $SU, 'uid' => 1, 'un' => 'user0', 'host' => json_encode($host), 'p' => 'fp', 'v' => 'safari', 'till' => 0, 'apps' => json_encode([['k' => 'happ', 'l' => 'Happ'], ['k' => 'flclash', 'l' => 'FlClash']])]);
+$r2 = $post('hv_save', ['su' => $SU, 'uid' => 1, 'un' => 'user0', 'host' => json_encode($host), 'p' => 'fp', 'v' => 'safari', 'till' => 0, 'apps' => json_encode([['k' => $KK('happ'), 'l' => 'Happ'], ['k' => $KK('flclash'), 'l' => 'FlClash']])]);
 $r3 = $post('hv_save', ['su' => $SU, 'uid' => 1, 'un' => 'user0', 'p' => 'log', 'v' => 'debug', 'till' => 0]);
-$r4 = $post('hv_save', ['su' => $SU, 'uid' => 1, 'un' => 'user0', 'p' => 'log', 'v' => 'off', 'till' => 0, 'apps' => json_encode([['k' => 'sfa', 'l' => 'SFA']])]);
+$r4 = $post('hv_save', ['su' => $SU, 'uid' => 1, 'un' => 'user0', 'p' => 'log', 'v' => 'off', 'till' => 0, 'apps' => json_encode([['k' => $KK('sfa'), 'l' => 'SFA']])]);
 t_ok('ajax: общая, на два приложения, уровень логов общий и на приложение', ($r1['ok'] ?? false) && ($r2['ok'] ?? false) && ($r3['ok'] ?? false) && ($r4['ok'] ?? false) && count($r4['hv'] ?? []) === 5, json_encode([$r1, $r2, $r3, $r4], JSON_UNESCAPED_UNICODE));
 t_ok('ajax: кривой список приложений не сохраняется', !($post('hv_save', ['su' => $SU, 'uid' => 1, 'un' => 'user0', 'p' => 'log', 'v' => 'info', 'till' => 0, 'apps' => '[{"k":"../x y"}]'])['ok'] ?? false) && count(hostov_list($SU)) === 5);
 
@@ -216,14 +223,14 @@ for ($i = 0; $i < 30 && !$ok; $i++) {
     if (!$ok) usleep(100000);
 }
 $stt = [];
-foreach ($l as $o) $stt[$o['p'] . ':' . $o['ak']] = [$o['st'], $o['pv']];
+foreach ($l as $o) $stt[$o['p'] . ':' . ($NM[$o['ak']] ?? $o['ak'])] = [$o['st'], $o['pv']];
 t_eq('отметки: у каждой строки свои, «было» уровня логов — из выдачи своего приложения', [$stt['log:'] ?? null, $stt['log:sfa'] ?? null, $stt['fp:happ'][0] ?? '', $stt['fp:flclash'][0] ?? '', $stt['fp:'][0] ?? ''], [['na', 'info'], ['ok', 'off'], 'ok', 'ok', 'ok']);
 
 // смена «кому», срок и снятие — одним запросом на все строки подмены
 $ids = static fn(string $p, bool $app) => implode(',', array_column(array_filter(hostov_list($SU), static fn($o) => $o['p'] === $p && ($o['ak'] !== '') === $app), 'id'));
 $r = $post('hv_set', ['id' => $ids('fp', true), 'till' => time() + 3600]);
 t_ok('срок — обеим строкам подмены', ($r['ok'] ?? false) && count(array_filter($r['hv'], static fn($o) => $o['p'] === 'fp' && $o['ak'] !== '' && $o['till'] > time())) === 2, json_encode($r, JSON_UNESCAPED_UNICODE));
-$r = $post('hv_scope', ['id' => $ids('fp', true), 'apps' => json_encode([['k' => 'happ', 'l' => 'Happ']])]);
+$r = $post('hv_scope', ['id' => $ids('fp', true), 'apps' => json_encode([['k' => $KK('happ'), 'l' => 'Happ']])]);
 t_ok('смена «кому»: FlClash убран', ($r['ok'] ?? false) && strpos($sub($UA_C), 'client-fingerprint: firefox') !== false && json_decode($sub($UA_H), true)[0]['outbounds'][0]['streamSettings']['realitySettings']['fingerprint'] === 'safari', json_encode($r, JSON_UNESCAPED_UNICODE));
 $r = $post('hv_scope', ['id' => $ids('fp', true), 'apps' => '[]']);
 t_ok('смена «кому»: общая уже есть — отказ с причиной', !($r['ok'] ?? false) && ($r['error'] ?? '') !== '', json_encode($r, JSON_UNESCAPED_UNICODE));
@@ -239,10 +246,15 @@ db()->exec('DELETE FROM host_ovr');
 hostov_recount();
 t_eq('подмены сняты — тела снова как в панели', [$sub($UA_H), $sub($UA_C), $sub($UA_S), $sub($UA_V)], $base);
 // подмена только на одно устройство: остальным устройствам условный запрос отвечает 304, как без подмен
-hostov_save($SU, $host, 'fp', 'safari', 0, 1, 'user0', $e, null, $w, [['k' => 'happ', 'l' => 'Happ']]);
-[, $hh] = t_http('GET', $mw . '/' . $SU, ['User-Agent' => $UA_V]);
-[$c1] = t_http('GET', $mw . '/' . $SU, ['User-Agent' => $UA_V, 'If-None-Match' => $hh['etag'] ?? '']);
-[$c2, , $b2] = t_http('GET', $mw . '/' . $SU, ['User-Agent' => $UA_H, 'If-None-Match' => '"' . md5($xj) . '"']);
+hostov_save($SU, $host, 'fp', 'safari', 0, 1, 'user0', $e, null, $w, [['k' => $KK('happ'), 'l' => 'Happ']]);
+[, $hh] = t_http('GET', $mw . '/' . $SU, ['User-Agent' => $UA_V, 'x-hwid' => 'hw-3']);
+[$c1] = t_http('GET', $mw . '/' . $SU, ['User-Agent' => $UA_V, 'x-hwid' => 'hw-3', 'If-None-Match' => $hh['etag'] ?? '']);
+[$c2, , $b2] = t_http('GET', $mw . '/' . $SU, ['User-Agent' => $UA_H, 'x-hwid' => 'hw-1', 'If-None-Match' => '"' . md5($xj) . '"']);
+// второй телефон с тем же клиентом — другое устройство: ему тело панели и 304
+[$c3, , $b3] = t_http('GET', $mw . '/' . $SU, ['User-Agent' => $UA_H2, 'x-hwid' => 'hw-2']);
+[$c4] = t_http('GET', $mw . '/' . $SU, ['User-Agent' => $UA_H2, 'x-hwid' => 'hw-2', 'If-None-Match' => '"' . md5($xj) . '"']);
+[$c5, , $b5] = t_http('GET', $mw . '/' . $SU, ['User-Agent' => $UA_H]);
+t_eq('то же приложение на другом устройстве и запрос без HWID — тело панели', [$c3, $b3 === $xj, $c4, $c5, $b5 === $xj], [200, true, 304, 200, true]);
 t_eq('подмена на одно устройство: чужому — 304 и etag панели, своему — тело с подменой', [isset($hh['etag']), $c1, $c2, strpos($b2, '"fingerprint":"safari"') !== false], [true, 304, 200, true]);
 db()->exec('DELETE FROM host_ovr');
 hostov_recount();
