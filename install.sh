@@ -318,6 +318,7 @@ server {
     location ^~ /lib/  { deny all; }
     location ^~ /backups/ { deny all; }
     location ^~ /docker/ { deny all; }
+    location ^~ /docs/ { deny all; }
     location ^~ /go/ { deny all; }
     location ^~ /tools/ { deny all; }
     location ^~ /admin/inc/ { deny all; }
