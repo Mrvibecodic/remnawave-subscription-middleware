@@ -357,7 +357,9 @@ function hostov_ensure($again = false) {
         }
         foreach (hostov_cols_add() as $col => $t) {
             try { $p->query('SELECT ' . $col . ' FROM host_ovr LIMIT 1'); continue; } catch (Throwable $e) {}
-            $p->exec('ALTER TABLE host_ovr ADD COLUMN ' . $col . ' ' . $t[$drv === 'mysql' ? 0 : 1]);
+            // Колонку мог успеть добавить соседний запрос: ошибка «уже есть» — не сбой.
+            try { $p->exec('ALTER TABLE host_ovr ADD COLUMN ' . $col . ' ' . $t[$drv === 'mysql' ? 0 : 1]); }
+            catch (Throwable $e) { $p->query('SELECT ' . $col . ' FROM host_ovr LIMIT 1'); }
         }
         hostov_key_fix($p, $drv);
         $p->query('SELECT id, ' . implode(', ', array_keys(hostov_cols_add())) . ' FROM host_ovr LIMIT 1');
