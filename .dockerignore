@@ -5,3 +5,12 @@ data
 config.php
 *.sqlite
 go
+docs
+README.md
+INSTALL.md
+install.sh
+Dockerfile
+.dockerignore
+docker/*
+!docker/nginx.conf
+!docker/entrypoint.sh
