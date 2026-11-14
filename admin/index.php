@@ -2564,11 +2564,13 @@ $dn_file = docs_note_file(); $dn_app = app_tunnel(); if ($dn_file !== null && (!
 <script>(function(){var w=document.getElementById('docsNote'),off=false;
 function save(st){var f=new FormData();f.append('csrf',w.dataset.csrf);f.append('st',st);fetch('?ajax=docs_note',{method:'POST',body:f,credentials:'same-origin'}).catch(function(){});}
 document.getElementById('docsNoteX').addEventListener('click',function(){off=true;w.hidden=true;save('ok');});
-// Без cookie — как посторонний. Открыто, только если пришёл сам файл; сбой сервера или сети ничего не решает.
-if(w.dataset.f)fetch('../docs/'+encodeURIComponent(w.dataset.f)+'?_='+Date.now(),{cache:'no-store',credentials:'omit'}).then(function(r){
+// Открыто, только если пришёл сам файл; сбой сервера или сети ничего не решает.
+function ask(cred){return fetch('../docs/'+encodeURIComponent(w.dataset.f)+'?_='+Date.now(),{cache:'no-store',credentials:cred}).then(function(r){
 if(r.status===200)return r.arrayBuffer().then(function(b){return b.byteLength===+w.dataset.s;});
 return r.status>=400&&r.status<500&&r.status!==408&&r.status!==429?false:null;
-}).then(function(open){if(off||open===null)return;if(!open){w.hidden=true;save('ok');}else if(w.hidden){w.hidden=false;save('open');}}).catch(function(){});
+});}
+// Сначала без cookie, как посторонний. Отказ перепроверяем с cookie: защита перед сайтом может отсекать только запросы без них.
+if(w.dataset.f)ask('omit').then(function(open){return open===false?ask('same-origin'):open;}).then(function(open){if(off||open===null)return;if(!open){w.hidden=true;save('ok');}else if(w.hidden){w.hidden=false;save('open');}}).catch(function(){});
 })();</script>
 <?php endif; ?>
 
