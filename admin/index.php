@@ -2554,12 +2554,12 @@ navHidSync();
 <?php if (!$db_ok): ?><div class="warn">Нет связи с БД. Проверьте config.php.</div><?php endif; ?>
 <?php if ($flash): ?><div id="flashMsg" data-msg="<?= h($flash) ?>" style="display:none"></div><?php endif; ?>
 <?php $inst_pend = json_decode((string) setting('install_pending', ''), true); if (is_array($inst_pend) && $inst_pend): ?>
-<div class="warn" style="display:flex;gap:.8rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap"><div><b>Установка завершена с предупреждениями:</b> <?= h(implode('; ', array_map(fn($k, $v) => (['subpage' => 'страница подписки', 'origin' => 'origin', 'webhook' => 'вебхук'][$k] ?? $k) . ' — ' . $v, array_keys($inst_pend), $inst_pend))) ?>. Проверки повторяются на вкладке <a href="?tab=connection">«Подключение»</a>.</div><a class="btn ghost" href="?tab=<?= h($tab) ?>&amp;inst_pending_ack=1&amp;csrf=<?= h(csrf_token()) ?>">Закрыть</a></div>
+<div class="warn warn-bar"><div><b>Установка завершена с предупреждениями:</b> <?= h(implode('; ', array_map(fn($k, $v) => (['subpage' => 'страница подписки', 'origin' => 'origin', 'webhook' => 'вебхук'][$k] ?? $k) . ' — ' . $v, array_keys($inst_pend), $inst_pend))) ?>. Проверки повторяются на вкладке <a href="?tab=connection">«Подключение»</a>.</div><a class="btn ghost" href="?tab=<?= h($tab) ?>&amp;inst_pending_ack=1&amp;csrf=<?= h(csrf_token()) ?>">Закрыть</a></div>
 <?php endif; ?>
 <?php // В приложении всё вне /admin/ отвечает 404: проверка пути оттуда ничего не значит, показываем только уже найденное.
 $dn_file = docs_note_file(); $dn_app = app_tunnel(); if ($dn_file !== null && (!$dn_app || setting('docs_note', '') === 'open')): ?>
 <div id="docsNote" data-f="<?= $dn_app ? '' : h($dn_file[0]) ?>" data-s="<?= (int) $dn_file[1] ?>" data-csrf="<?= h(csrf_token()) ?>"<?= setting('docs_note', '') === 'open' ? '' : ' hidden' ?>>
-<div class="warn" style="display:flex;gap:.8rem;align-items:center;justify-content:space-between;flex-wrap:wrap"><div><b>Папка docs открыта снаружи:</b> по адресу <code>/docs/</code> её видит любой. Закройте этот путь в веб-сервере.</div><div style="display:flex;gap:.5rem;flex-wrap:wrap"><button type="button" class="btn" onclick="help('docs_close')">Как закрыть</button><button type="button" class="btn ghost" id="docsNoteX">Закрыть</button></div></div>
+<div class="warn warn-bar mid"><div><b>Папка docs открыта снаружи:</b> по адресу <code>/docs/</code> её видит любой. Закройте этот путь в веб-сервере.</div><div class="warn-bar-act"><button type="button" class="btn" onclick="help('docs_close')">Как закрыть</button><button type="button" class="btn ghost" id="docsNoteX">Закрыть</button></div></div>
 </div>
 <script>(function(){var w=document.getElementById('docsNote'),off=false;
 function save(st){var f=new FormData();f.append('csrf',w.dataset.csrf);f.append('st',st);fetch('?ajax=docs_note',{method:'POST',body:f,credentials:'same-origin'}).catch(function(){});}
