@@ -36,9 +36,10 @@ function uapps_view(&$error = '') {
                         $hw = whlog_device_info($d);
                         $ua = (string) ($hw['ua'] ?? '');
                         $cl = $seen[$ua] ??= reqlog_client($ua);
-                        $ver = mb_substr((string) $cl['ver'], 0, 24);
+                        $ver = (string) $cl['ver'];
                         $name = $cl['key'] === '' ? '' : (string) $cl['app'];
                         if ($ver !== '' && substr($name, -strlen(' ' . $ver)) === ' ' . $ver) $name = substr($name, 0, -strlen(' ' . $ver));
+                        $ver = mb_substr($ver, 0, 24);
                         $ak = (string) $cl['key'];
                         if (!isset($Ai[$ak])) { $Ai[$ak] = count($A); $A[] = [$ak, mb_substr($name, 0, 48)]; }
                         if (!isset($Ui[$uid])) { $Ui[$uid] = count($U); $nm = $names[(string) $uid] ?? ['', '']; $U[] = [$nm[0], $nm[1], $uid]; }
