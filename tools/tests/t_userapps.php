@@ -14,7 +14,7 @@ $base = [
     'hwdev' => [
         $uu(0) => [$dev('h1', 'Happ/3.4.1', 'Android', '15', 'Pixel 8'), $dev('h2', 'Happ/3.2.0', 'iOS', '18.1', 'iPhone 15')],
         $uu(1) => [$dev('h3', 'v2rayNG/1.10.7', 'Android', '14', 'SM-S921B'), $dev('h4', 'FlClashX/v0.4.2 Platform/windows', '', '', ''), $dev('h5', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36', 'Windows', '11', '')],
-        $uu(2) => [$dev('h6', 'Happ/3.4.1', 'tvOS', '18', 'Apple TV'), $dev('h7', '', 'macOS', '15.5', 'MacBook Air'), $dev('h8', "Streisand/1.6.64\x07", 'iOS', '17.7', str_repeat('я', 80))],
+        $uu(2) => [$dev('h6', 'Happ/3.4.1', 'tvOS', '18', 'Apple TV'), $dev('h10', 'Throne/1.0.13-beta.build.20261115.abcdef0123', 'Linux', '', ''), $dev('h7', '', 'macOS', '15.5', 'MacBook Air'), $dev('h8', "Streisand/1.6.64\x07", 'iOS', '17.7', str_repeat('я', 80))],
     ],
 ];
 $put = static function (array $more = []) use ($state, $base) { file_put_contents($state, json_encode($more + $base)); };
@@ -46,6 +46,7 @@ t_eq('приложение, платформа, статус версии, ве�
     'Happ|ios|2|3.2.0|anna',
     'Happ|tv|2|3.4.1|vera',
     'Streisand|ios|3|1.6.64|vera',
+    'Throne|linux|3|1.0.13-beta.build.202611|vera',
     'v2rayNG|android|1|1.10.7|boris',
     '|macos|3||vera',
     '|windows|3||boris',
@@ -76,7 +77,7 @@ $more['hwdev'][$uu(3)] = [$dev('h9', 'v2rayNG/1.10.8', 'Android', '15', 'Redmi N
 file_put_contents($state, json_encode($more));
 $u0 = $calls('/api/users');
 $v4 = uapps_view($e);
-t_eq('снимок старше срока — новый обход', [$calls(), count($v4['D'])], [2, 9]);
+t_eq('снимок старше срока — новый обход', [$calls(), count($v4['D'])], [2, 10]);
 t_eq('владелец новее свежего снимка пользователей — без имени, панель лишний раз не опрашивается', [in_array(['', '', 4], $v4['U'], true), $calls('/api/users') - $u0], [true, 0]);
 $age(UAPPS_TTL + 5);
 $pu = admin_cache_get('pref_users', PHP_INT_MAX); $pu['ts'] -= CMAP_TTL + 5; admin_cache_put('pref_users', $pu); unset($GLOBALS['submw_pusers_memo']);
@@ -92,7 +93,7 @@ $age(UAPPS_TTL + 5);
 file_put_contents($state, json_encode(['hwdev_fail' => true] + $more));
 $n0 = $calls();
 $v5 = uapps_view($e);
-t_ok('панель не ответила — прошлый список и ошибка', count($v5['D']) === 9 && $e !== '' && $calls() - $n0 === 1, $e);
+t_ok('панель не ответила — прошлый список и ошибка', count($v5['D']) === 10 && $e !== '' && $calls() - $n0 === 1, $e);
 uapps_view($e);
 t_eq('неудача запомнена — второй раз в панель не идём', [$calls() - $n0, $e !== ''], [1, true]);
 $age(PANEL_REF_RETRY + 5);
@@ -138,7 +139,7 @@ t_ok('сегмент «Список / Карта / Приложения»', strp
 t_eq('сама страница панель не опрашивает', [$calls() - $n2, $calls('/api/users') - $u2], [0, 0]);
 [$code, , $j] = t_http('GET', $mw . '/admin/index.php?ajax=uapps', [], null, $jar);
 $j = json_decode($j, true);
-t_eq('ajax: список при открытии', [$code, $j['ok'] ?? null, count($j['D'] ?? []), $j['ttl'] ?? null, $calls() - $n2], [200, true, 8, UAPPS_TTL, 1]);
+t_eq('ajax: список при открытии', [$code, $j['ok'] ?? null, count($j['D'] ?? []), $j['ttl'] ?? null, $calls() - $n2], [200, true, 9, UAPPS_TTL, 1]);
 [, $hd, $z] = t_http('GET', $mw . '/admin/index.php?ajax=uapps', ['accept-encoding' => 'gzip'], null, $jar);
 t_eq('ajax: повтор — из снимка', [json_decode($z, true)['ts'] ?? (json_decode((string) @gzdecode($z), true)['ts'] ?? 0), $calls() - $n2], [$j['ts'], 1]);
 [, , $x] = t_http('GET', $mw . '/admin/index.php?ajax=uapps');

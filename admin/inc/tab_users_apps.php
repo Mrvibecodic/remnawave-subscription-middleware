@@ -190,7 +190,7 @@
             var sc = scope(), all = agg(sc, function () { return 0; })[0], o = all ? oldOf(all) : 0, kn = all ? known(all) : 0;
             var h = '';
             if (ERR) h += '<div class="warn">Панель не ответила: ' + esc(ERR) + '. Показан прошлый список.</div>';
-            h += '<p class="ua-fr muted">Обновлено <b>' + tFmt(TS) + '</b>, следующее — не раньше <b>' + tFmt(TS + TTL, 't') + '</b>. Список — устройства из лимита HWID в панели, обновляется при открытии вкладки.'
+            h += '<p class="ua-fr muted">Обновлено <b>' + tFmt(TS) + '</b>' + (Date.now() / 1000 < TS + TTL ? ', следующее — не раньше <b>' + tFmt(TS + TTL, 't') + '</b>' : '') + '. Список — устройства из лимита HWID в панели, обновляется при открытии вкладки.'
                 + (D.length >= 50000 ? ' Показаны первые 50 000 устройств.' : '')
                 + (CV ? '' : ' Сравнение версий выключено — включается в <a href="?tab=reqlog&amp;view=clients">«Лог запросов → Клиенты»</a>.') + '</p>';
             h += '<div class="ua-k"><div><b>' + sc.length + '</b><span>устройств</span></div><div><b>' + ucount(sc) + '</b><span>пользователей</span></div><div><b>' + agg(sc, function (d) { return d.c; }).length + '</b><span>приложений</span></div>'
@@ -290,7 +290,7 @@
                 out.push([uname(u), u[1], d.m, d.o, PL[d.p], aname(d.c), d.v, STT[d.s], d.t ? tFmt(d.t) : ''].map(cell).join(';'));
             });
             var a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob(['﻿' + out.join('\r\n')], {type: 'text/csv;charset=utf-8'}));
+            a.href = URL.createObjectURL(new Blob(['\uFEFF' + out.join('\r\n')], {type: 'text/csv;charset=utf-8'}));
             a.download = 'apps.csv';
             document.body.appendChild(a);
             a.click();
@@ -302,8 +302,14 @@
             var b = e.target.closest('[data-act]');
             if (!b || !root.contains(b)) return;
             var a = b.getAttribute('data-act'), d = b.dataset;
+            // Блок перерисовывается целиком — после нажатия с клавиатуры фокус возвращается на ту же кнопку, иначе обход начинается заново.
+            var refocus = function () {
+                if (e.detail !== 0) return;
+                var f = [].filter.call(root.querySelectorAll('[data-act="' + a + '"]'), function (x) { return ['c', 'p', 'v', 's', 'k', 'd'].every(function (n) { return x.dataset[n] === d[n]; }); })[0];
+                if (f) f.focus({preventScroll: true});
+            };
             if (a === 'csv') { csv(); return; }
-            if (a === 'pg') { PG += +d.d; drawUsers(); return; }
+            if (a === 'pg') { PG += +d.d; drawUsers(); refocus(); return; }
             if (a === 'pf') {
                 PF = d.p;
                 if (PF && S.p && S.p !== PF) S = {c: S.c, p: '', v: null};
@@ -318,6 +324,7 @@
             else return;
             PG = 1;
             draw();
+            refocus();
         });
         root.addEventListener('input', function (e) { if (e.target.id === 'uaQ') { Q = e.target.value.trim(); PG = 1; drawUsers(); } });
         root.addEventListener('change', function (e) { if (e.target.id === 'uaOld') { OLD = e.target.checked; PG = 1; drawUsers(); } });
