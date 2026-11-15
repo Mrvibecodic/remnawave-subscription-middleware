@@ -458,7 +458,7 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-cfn span{color:var(--text);opacity:.85}
 .ux-cff{display:flex;align-items:center;gap:.6rem;padding:.8rem 1.15rem;border-top:1px solid var(--line);background:var(--bg2)}
 .ux-cff .sp{flex:1}
-.ux-cff .h{font-size:.76rem;color:var(--muted);display:flex;gap:.35rem;align-items:center}
+.ux-cff .h{font-size:.76rem;color:var(--muted);display:flex;gap:.35rem;align-items:center;min-width:0;overflow-wrap:anywhere}
 .ux-cff .h svg{width:14px;height:14px;flex:none}
 .ux-cff .btn{white-space:nowrap}
 @media(max-width:560px){.ux-cfr{grid-template-columns:30px minmax(0,1fr)}.ux-cfr .v{grid-column:2;justify-content:flex-start;text-align:left}.ux-cff{flex-wrap:wrap}.ux-cff .h{flex:1 1 100%}}
