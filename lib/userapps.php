@@ -39,6 +39,7 @@ function uapps_view(&$error = '') {
                         $ver = (string) $cl['ver'];
                         $name = $cl['key'] === '' ? '' : (string) $cl['app'];
                         if ($ver !== '' && substr($name, -strlen(' ' . $ver)) === ' ' . $ver) $name = substr($name, 0, -strlen(' ' . $ver));
+                        if ($ver === '' && $name !== '' && preg_match('~\(build (\d{1,9})[;)]~i', $ua, $bm)) $ver = 'сборка ' . $bm[1];
                         $ver = mb_substr($ver, 0, 24);
                         $ak = (string) $cl['key'];
                         if (!isset($Ai[$ak])) { $Ai[$ak] = count($A); $A[] = [$ak, mb_substr($name, 0, 48)]; }
