@@ -126,6 +126,27 @@ t_eq('устройств нет — пустой список без ошибк�
 panel_snapshots_drop();
 t_eq('сменили панель — снимок устройств убран', cmap_cache_get('pref_hwdev'), null);
 
+// RabbitHole: платформа после косой черты и версия в скобках; старый вид — только номер сборки
+$tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'pref_hwdev'");
+clientver_save_catalog([['k' => 'clash-meta/rabbithole', 'os' => '', 'src' => 'man', 'man' => '1.7.1', 'on' => 1]]);
+file_put_contents($state, json_encode(['hwdev' => [$uu(0) => [
+    $dev('r1', 'Rabbit-Hole/iOS (1.7.1-245; language ru_RU)', 'iOS', '27.2.1', 'iPhone 16'),
+    $dev('r2', 'Rabbit-Hole/iOS (1.6.0-201; language ru_RU)', 'iOS', '26.6.1', 'iPhone 11 Pro Max'),
+    $dev('r3', 'Clash-Meta/RabbitHole (Build 224; language ru_RU)', 'macOS', '27.0.1', 'MacBook Air'),
+    $dev('r4', 'SomeApp/Android (14; Pixel 7)', 'Android', '14', 'Pixel 7'),
+]]] + $base));
+$v9 = uapps_view($e);
+t_eq('RabbitHole — одно приложение, версия из скобок, сборка вместо версии', [$rows($v9), array_column($v9['A'], 0)], [[
+    'RabbitHole|ios|0|1.7.1-245|anna',
+    'RabbitHole|ios|2|1.6.0-201|anna',
+    'RabbitHole|macos|3|сборка 224|anna',
+    'SomeApp|android|3||anna',
+], ['clash-meta/rabbithole', 'someapp']]);
+$rc = reqlog_client('Rabbit-Hole/iOS (1.7.1-245; language ru_RU)', ['av' => '9.9.9']);
+t_eq('лог запросов: версия из User-Agent важнее заголовка, в устройстве её нет', [$rc['app'], $rc['key'], $rc['os'], $rc['dev']], ['RabbitHole 1.7.1-245', 'clash-meta/rabbithole', 'ios', '']);
+$rc = reqlog_client('Clash-Meta/RabbitHole (Build 224; language ru_RU)', ['av' => '1.7.0']);
+t_eq('лог запросов: старый вид RabbitHole — как раньше, версия из заголовка', [$rc['app'], $rc['key'], $rc['ver']], ['RabbitHole 1.7.0', 'clash-meta/rabbithole', '1.7.0']);
+
 // Админка
 $put();
 $tt_pdo->exec("DELETE FROM admin_cache WHERE k = 'pref_hwdev'");

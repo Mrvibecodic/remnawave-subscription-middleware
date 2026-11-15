@@ -226,11 +226,18 @@ function reqlog_client($ua, $dv = null) {
     } elseif (preg_match('~^([A-Za-z0-9._-]+)/v?([0-9][0-9A-Za-z._-]*)/([A-Za-z][A-Za-z0-9]{1,14})~', $ua, $m)) {
         $name = $m[1]; $key = strtolower($m[1]); $ver = $m[2]; $os = reqlog_os_norm($m[3]);
     } elseif (preg_match('~^([A-Za-z0-9._-]+)/([A-Za-z][A-Za-z0-9._-]{1,29})\s*\(~', $ua, $m)) {
-        $name = $m[2]; $key = strtolower($m[1]) . '/' . strtolower($m[2]);
+        // «Rabbit-Hole/iOS (1.7.1-245; …)»: после косой черты платформа, а не название
+        if (preg_match('~^(ios|ipados|tvos|android|windows|macos|linux)$~i', $m[2])) { $name = $m[1]; $key = strtolower($m[1]); $os = reqlog_os_norm($m[2]); }
+        else { $name = $m[2]; $key = strtolower($m[1]) . '/' . strtolower($m[2]); }
     } elseif (preg_match('~^([A-Za-z0-9._-]+)/v?([0-9][0-9A-Za-z._-]*)~', $ua, $m)) {
         $name = $m[1]; $key = strtolower($m[1]); $ver = $m[2];
     } elseif (preg_match('~^([A-Za-z0-9._-]+)~', $ua, $m)) {
         $name = $m[1]; $key = strtolower($m[1]);
+    }
+    $pv = '';
+    if ($key === 'rabbit-hole') {
+        $key = 'clash-meta/rabbithole';
+        if ($ver === '' && preg_match('~\(\s*v?([0-9]+\.[0-9][0-9A-Za-z._-]*)~', $ua, $m)) $ver = $pv = $m[1];
     }
     if ($ver === '' && $name !== '' && is_array($dv)) $ver = reqlog_appver($dv['av'] ?? '');
     if ($os === '' && preg_match('~\bplatform/([A-Za-z]{2,15})~i', $ua, $m)) $os = reqlog_os_norm($m[1]);
@@ -238,7 +245,7 @@ function reqlog_client($ua, $dv = null) {
     if (preg_match('~\(([^)]{2,160})\)~', $ua, $m)) {
         foreach (explode(';', $m[1]) as $p) {
             $p = trim($p);
-            if ($p === '' || preg_match('~^\d+$~', $p)) continue;
+            if ($p === '' || $p === $pv || preg_match('~^\d+$~', $p)) continue;
             if (preg_match('~^(build|language|locale|scale|sing-box|mihomo|clash|prefer|com\.)~i', $p)) continue;
             if (preg_match('~^[a-z-]+_[A-Z]{2}$~', $p)) continue;
             $parts[] = mb_substr($p, 0, 40);
