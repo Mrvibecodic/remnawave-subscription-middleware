@@ -1019,10 +1019,16 @@ button.ux-lk.hv-go:hover{background:var(--hover);color:var(--accent-text)}
 .hv-more .q.b{color:var(--c-bad-fg)}
 @media(max-width:700px){.hv-hi.dv{grid-template-columns:18px minmax(0,1fr)}}
     </style>
-<?php if (function_exists('cmap_view') && function_exists('sess_ensure')): ?>
+<?php $ux_map = function_exists('cmap_view') && function_exists('sess_ensure'); $ux_apps = function_exists('uapps_view') && function_exists('cmap_send'); ?>
+<?php if ($ux_map || $ux_apps): ?>
 <div class="seg">
     <a class="on" href="?tab=users">Список</a>
+<?php if ($ux_map): ?>
     <a href="?tab=users&amp;view=map">Карта подключений</a>
+<?php endif; ?>
+<?php if ($ux_apps): ?>
+    <a href="?tab=users&amp;view=apps">Приложения</a>
+<?php endif; ?>
 </div>
 <?php endif; ?>
 <div class="ux" id="ux">
@@ -2804,7 +2810,7 @@ document.addEventListener('mouseout',function(e){var r=e.target.closest&&e.targe
 document.addEventListener('scroll',function(e){if(e.target&&e.target.closest&&e.target.closest('#uxMenu'))return;closeMenu();},true);
 document.addEventListener('click',function(e){if(!$('uxMenu').classList.contains('open')||!matchMedia('(max-width:600px)').matches||(e.target.closest&&e.target.closest('#uxMenu')))return;e.preventDefault();e.stopPropagation();closeMenu();},true);
 fillSelects();render();
-(function(){var m=/[?&]card=([^&#]+)/.exec(location.search);if(!m)return;var su=decodeURIComponent(m[1]),ct=/[?&]ct=edit(&|$)/.test(location.search)&&canW('users:update')?'edit':'sess';try{history.replaceState(null,'',location.pathname+'?tab=users'+location.hash);}catch(e){}for(var i=0;i<U.length;i++)if(U[i].su===su){openCard(U[i],ct);if(ct==='edit')setTimeout(function(){var s=$('hvSec');if(s)s.scrollIntoView({block:'start'});},400);break;}})();
+(function(){var m=/[?&]card=([^&#]+)/.exec(location.search);if(!m)return;var su=decodeURIComponent(m[1]),ct=/[?&]ct=edit(&|$)/.test(location.search)&&canW('users:update')?'edit':(/[?&]ct=dev(&|$)/.test(location.search)?'dev':'sess');try{history.replaceState(null,'',location.pathname+'?tab=users'+location.hash);}catch(e){}for(var i=0;i<U.length;i++)if(U[i].su===su){openCard(U[i],ct);if(ct==='edit')setTimeout(function(){var s=$('hvSec');if(s)s.scrollIntoView({block:'start'});},400);break;}})();
 (function(){
 var G=C.go||null;if(!G)return;
 var pl=$('uxPlog');if(!pl)return;

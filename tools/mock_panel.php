@@ -408,6 +408,20 @@ if (preg_match('~^/api/subscriptions/connection-keys/(\d+)$~', $path, $m)) {
     exit;
 }
 
+// Все устройства списком — из того же hwdev, владелец по id. hwdev_fail: true — 502; hwdev_fail_at: <start> — 502 на странице с этим start.
+if ($path === '/api/hwid/devices' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+    $size  = max(1, (int) ($_GET['size'] ?? 25));
+    $start = max(0, (int) ($_GET['start'] ?? 0));
+    if (!empty($state['hwdev_fail']) || (isset($state['hwdev_fail_at']) && (int) $state['hwdev_fail_at'] === $start)) { mp_json(502, ['message' => 'Bad Gateway']); exit; }
+    $all = [];
+    foreach ((array) ($state['hwdev'] ?? []) as $uuid => $list) {
+        if (!is_array($list)) continue;
+        foreach ($list as $d) $all[] = ['userId' => (int) substr((string) $uuid, -12) + 1] + (array) $d;
+    }
+    mp_json(200, ['response' => ['devices' => array_slice($all, $start, $size), 'total' => count($all)]]);
+    exit;
+}
+
 // hwdev: {"<uuid пользователя>": [{"hwid", "platform", "osVersion", "deviceModel", "userAgent", "createdAt", "updatedAt"}] | "403"} — устройства HWID.
 if (preg_match('~^/api/hwid/devices/([^/]+)$~', $path, $m) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     $hd = $state['hwdev'][rawurldecode($m[1])] ?? [];

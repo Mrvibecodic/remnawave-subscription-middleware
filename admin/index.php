@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 require __DIR__ . '/../lib.php';
 if (is_file(dirname(__DIR__) . '/lib/connmap.php')) require_once dirname(__DIR__) . '/lib/connmap.php';
+if (is_file(dirname(__DIR__) . '/lib/userapps.php')) require_once dirname(__DIR__) . '/lib/userapps.php';
 
 header('X-Robots-Tag: noindex, nofollow');
 if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) ($_GET['tab'] ?? 'users')));
@@ -360,6 +361,13 @@ if (isset($_GET['ajax']) && is_auth()) {
             $out = $d === null ? ['ok' => false, 'error' => 'Нет связи с БД'] : ['ok' => true] + $d;
         }
         cmap_send(json_encode($out, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+        exit();
+    }
+
+    if ($a === 'uapps' && function_exists('uapps_view') && function_exists('cmap_send')) {
+        $e = '';
+        $d = uapps_view($e);
+        cmap_send(json_encode($d === null ? ['ok' => false, 'error' => $e !== '' ? $e : 'список устройств не получен'] : ['ok' => true, 'error' => $e] + $d, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
         exit();
     }
 
@@ -1981,6 +1989,7 @@ if ($tab === 'headers') $tab = 'rules';
 if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) $tab));
 if (function_exists('cron_note_web_user')) cron_note_web_user();
 $ux_view = ($tab === 'users' && ($_GET['view'] ?? '') === 'map' && function_exists('cmap_view') && function_exists('sess_ensure')) ? 'map' : '';
+if ($tab === 'users' && ($_GET['view'] ?? '') === 'apps' && function_exists('uapps_view') && function_exists('cmap_send')) $ux_view = 'apps';
 $rl_view = ($tab === 'reqlog' && in_array($_GET['view'] ?? '', ['clients', 'junk'], true)) ? (string) $_GET['view'] : '';
 rules_migrate_legacy();
 squadconf_migrate_v3();
@@ -2575,7 +2584,7 @@ if(w.dataset.f)ask('omit').then(function(open){return open===false?ask('same-ori
 <?php endif; ?>
 
 <?php if ($tab === 'users'): ?>
-    <?php include __DIR__ . ($ux_view === 'map' ? '/inc/tab_users_map.php' : '/inc/tab_users.php'); ?>
+    <?php include __DIR__ . ($ux_view === 'map' ? '/inc/tab_users_map.php' : ($ux_view === 'apps' ? '/inc/tab_users_apps.php' : '/inc/tab_users.php')); ?>
 <?php elseif ($tab === 'branding'): ?>
     <?php include __DIR__ . '/inc/tab_branding.php'; ?>
 <?php elseif ($tab === 'connection'): ?>

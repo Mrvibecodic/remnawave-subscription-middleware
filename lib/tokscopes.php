@@ -38,7 +38,7 @@ function tokscope_catalog() {
         ['s' => 'users:disable', 'm' => 'POST', 'p' => '/api/users/submw-probe/actions/disable', 'b' => '[]', 'w' => 'Кнопка «Выключить» у пользователя и выключение истёкшего или лимитного из формы (запись)', 'need' => false],
         ['s' => 'users:revoke-subscription', 'm' => 'POST', 'p' => '/api/users/submw-probe/actions/revoke', 'b' => '[]', 'w' => 'Новые ключи пользователю (запись)', 'need' => false],
         ['s' => 'users:delete', 'm' => 'DELETE', 'p' => '/api/users/submw-probe', 'w' => 'Удаление пользователя (запись)', 'need' => false],
-        ['s' => 'hwid-user-devices:list', 'm' => 'GET', 'p' => '/api/hwid/devices?size=1&start=0', 'w' => 'Подсчёт устройств для пула WG / AWG', 'need' => $pool],
+        ['s' => 'hwid-user-devices:list', 'm' => 'GET', 'p' => '/api/hwid/devices?size=1&start=0', 'w' => 'Подсчёт устройств для пула WG / AWG; «Приложения» во вкладке «Пользователи»', 'need' => $pool],
         ['s' => 'hwid-user-devices:list-by-user', 'm' => 'GET', 'p' => '/api/hwid/devices/submw-probe', 'w' => 'Устройства пользователя во вкладке «Пользователи»', 'need' => true],
         ['s' => 'hwid-user-devices:delete', 'm' => 'POST', 'p' => '/api/hwid/devices/delete', 'b' => '[]', 'w' => 'Удаление устройства пользователя (запись)', 'need' => false],
         ['s' => 'internal-squads:list', 'm' => 'GET', 'p' => '/api/internal-squads', 'w' => 'Списки сквадов в настройках и в карточке пользователя', 'need' => true],
