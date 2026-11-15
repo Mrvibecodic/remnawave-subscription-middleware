@@ -190,7 +190,7 @@
             var sc = scope(), all = agg(sc, function () { return 0; })[0], o = all ? oldOf(all) : 0, kn = all ? known(all) : 0;
             var h = '';
             if (ERR) h += '<div class="warn">Панель не ответила: ' + esc(ERR) + '. Показан прошлый список.</div>';
-            h += '<p class="ua-fr muted">Обновлено <b>' + tFmt(TS) + '</b>' + (Date.now() / 1000 < TS + TTL ? ', следующее — не раньше <b>' + tFmt(TS + TTL, 't') + '</b>' : '') + '. Список — устройства из лимита HWID в панели, обновляется при открытии вкладки.'
+            h += '<p class="ua-fr muted">Обновлено <b>' + tFmt(TS) + '</b>' + (Date.now() / 1000 < TS + TTL ? ', следующее — не раньше <b>' + tFmt(TS + TTL, 't') + '</b>' : '') + '. Список — устройства пользователей из панели (HWID), обновляется при открытии вкладки.'
                 + (D.length >= 50000 ? ' Показаны первые 50 000 устройств.' : '')
                 + (CV ? '' : ' Сравнение версий выключено — включается в <a href="?tab=reqlog&amp;view=clients">«Лог запросов → Клиенты»</a>.') + '</p>';
             h += '<div class="ua-k"><div><b>' + sc.length + '</b><span>устройств</span></div><div><b>' + ucount(sc) + '</b><span>пользователей</span></div><div><b>' + agg(sc, function (d) { return d.c; }).length + '</b><span>приложений</span></div>'
@@ -269,7 +269,7 @@
 
         var draw = function () {
             if (!D.length) {
-                root.innerHTML = (ERR ? '<div class="warn">Панель не ответила: ' + esc(ERR) + '.</div>' : '') + '<div class="card"><p class="muted" style="margin:0">В панели нет устройств. Они появляются, когда в панели включён лимит устройств (HWID) и приложение запрашивает подписку.</p></div>';
+                root.innerHTML = (ERR ? '<div class="warn">Панель не ответила: ' + esc(ERR) + '.</div>' : '') + '<div class="card"><p class="muted" style="margin:0">В панели нет устройств. Устройство появляется, когда приложение запрашивает подписку и присылает свой HWID.</p></div>';
                 return;
             }
             root.innerHTML = head() + '<div class="ua-g">' + apps()
