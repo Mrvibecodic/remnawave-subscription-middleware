@@ -232,6 +232,9 @@ if ($cm_cfg['d'] !== null && strlen((string) json_encode($cm_cfg['d'], $cm_js)) 
     <div class="seg">
         <a href="?tab=users">Список</a>
         <a class="on" href="?tab=users&amp;view=map">Карта подключений</a>
+<?php if (function_exists('uapps_view') && function_exists('cmap_send')): ?>
+        <a href="?tab=users&amp;view=apps">Приложения</a>
+<?php endif; ?>
     </div>
 
 <?php if (!$cm_on && !$cm_has): ?>
