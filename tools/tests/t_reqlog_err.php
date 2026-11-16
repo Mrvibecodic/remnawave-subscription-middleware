@@ -105,6 +105,28 @@ $put($users);
 t_eq('KPI «обновили подписку»: только успешные', (int) reqlog_today_stats()['today_users'], 1);
 t_ok('сводка: число ошибок за сутки', (int) reqlog_overview()['errors'] >= 4);
 
+// Отказ панели по HWID: клиенту ответ панели как есть, в логе — своё решение, сбоем не считается.
+$ne = (int) reqlog_overview()['errors'];
+$nu = (int) reqlog_today_stats()['today_users'];
+$put(['QrStUvWxYz012345' => ['status' => 'ACTIVE', 'mode' => 'hwidlimit']] + $users);
+[$c, $hh] = t_http('GET', $mw . '/QrStUvWxYz012345', ['User-Agent' => $ua, 'x-hwid' => 'hw-9']);
+[$d, $m] = $last('QrStUvWxYz012345');
+t_ok('лимит устройств: клиенту 200 и заголовок панели', $c === 200 && ($hh['x-hwid-max-devices-reached'] ?? null) === 'true');
+t_ok('лимит устройств: решение hwid_limit, причины сбоя в meta нет', $d === 'hwid_limit' && !isset($m['er']), $d . ' ' . json_encode($m));
+$put(['QrStUvWxYz012345' => ['status' => 'ACTIVE', 'mode' => 'nohwid']] + $users);
+[$c] = t_http('GET', $mw . '/QrStUvWxYz012345', ['User-Agent' => $ua]);
+t_ok('HWID не прислан: решение hwid_none', $c === 200 && $last('QrStUvWxYz012345')[0] === 'hwid_none');
+t_eq('отказы по HWID: счётчик сбоев не вырос', (int) reqlog_overview()['errors'], $ne);
+t_eq('отказы по HWID: «обновили подписку» считает как раньше', (int) reqlog_today_stats()['today_users'], $nu + 1);
+if ($sodium) db()->exec("DELETE FROM chan_kid WHERE short_uuid = 'QrStUvWxYz012345'");
+t_ok('отказы по HWID: подписка известна по одним отказам', reqlog_known_token('QrStUvWxYz012345') === true);
+if ($sodium) chan_index_rebuild(true);
+t_ok('отказы по HWID: решение в истории карточки пользователя', array_values(array_unique(array_column(array_filter(ua_history('QrStUvWxYz012345'), static fn($e) => ($e['k'] ?? '') === 'rq'), 'dec'))) === ['hwid_none', 'hwid_limit', 'error']);
+$put(['QrStUvWxYz012345' => ['status' => 'EXPIRED', 'mode' => 'nohwid']] + $users);
+[$c] = t_http('GET', $mw . '/QrStUvWxYz012345', ['User-Agent' => $ua]);
+t_ok('истёкший без HWID: решение expired, как раньше', $c === 200 && $last('QrStUvWxYz012345')[0] === 'expired');
+$put($users);
+
 if (!$sodium) {
     echo "  пропуск: канал c1 — в этой сборке PHP нет sodium\n";
     t_done();
@@ -157,6 +179,13 @@ t_ok('лог: кнопка «Только ошибки» со счётчиком
 t_ok('лог, только ошибки: кнопка включена и снимает фильтр', strpos($page, 'class="btn ghost rl-err on has" href="?tab=reqlog&amp;rl_hours=0"') !== false);
 t_ok('лог, только ошибки: метки причин в строках', substr_count($page, '<span class="tag-x">502</span>') >= 2 && strpos($page, '<span class="tag-x">сеть</span>') !== false && strpos($page, '<span class="tag-x">канал</span>') !== false);
 t_ok('лог, только ошибки: расшифровка и канал в раскрытой строке', strpos($page, 'защищённый канал: повтор запроса') !== false && strpos($page, '<span class="l">Канал</span><span class="v">защищённый (c1)</span>') !== false);
+t_ok('лог, только ошибки: отказы по HWID жёлтой меткой с причиной', strpos($page, '<span class="tag expired" data-tip="панель не выдала подписку: превышен лимит устройств">лимит HWID</span>') !== false && strpos($page, '<span class="tag expired" data-tip="панель не выдала подписку: приложение не прислало HWID">нет HWID</span>') !== false);
+t_ok('лог, только ошибки: отказы в полоске «Последние» подписаны', strpos($page, '<i class="e" data-tip="лимит HWID"></i>') !== false && strpos($page, '<i class="e" data-tip="нет HWID"></i>') !== false && strpos($page, 'data-tip="hwid_') === false);
+t_ok('лог, только ошибки: expired не показан', strpos($page, '<span class="tag expired">expired</span>') === false);
+[, , $pn] = t_http('GET', $mw . '/admin/index.php?tab=reqlog&rl_dec=normal&rl_hours=0', [], null, $jar);
+t_ok('лог, решение normal: отказов по HWID нет', strpos($pn, 'лимит HWID</span>') === false && strpos($pn, 'нет HWID</span>') === false && strpos($pn, '<span class="tag normal">normal</span>') !== false);
+[, , $px] = t_http('GET', $mw . '/admin/index.php?tab=reqlog&rl_dec=expired&rl_hours=0', [], null, $jar);
+t_ok('лог, решение expired: истёкший без HWID на месте', strpos($px, '<span class="tag expired">expired</span>') !== false && strpos($px, 'нет HWID</span>') === false);
 t_ok('лог, только ошибки: normal не показан', strpos($page, '<span class="tag normal">normal</span>') === false);
 [$c, , $b] = t_http('GET', $mw . '/admin/index.php?tab=reqlog&ajax=reqlog', [], null, $jar);
 $j = json_decode($b, true);

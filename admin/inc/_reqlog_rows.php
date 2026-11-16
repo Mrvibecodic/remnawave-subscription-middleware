@@ -84,6 +84,7 @@ function rl_dec_tag($dec, $short = false, $meta = []) {
         ? '<span class="tag grace" data-tip="выдан грейс-сквад">грейс</span>'
         : '<span class="tag normal">normal <span style="opacity:.6">(грейс)</span></span>';
     if ($dec === 'expired') return '<span class="tag expired">expired</span>';
+    if ($dec === 'hwid_limit' || $dec === 'hwid_none') return '<span class="tag expired"' . ($short ? ' data-tip="' . h(rl_dec_why($dec, $meta)) . '"' : '') . '>' . ($dec === 'hwid_none' ? 'нет HWID' : 'лимит HWID') . '</span>';
     if ($dec === 'error') {
         [$lbl] = rl_err_info($meta);
         return '<span class="tag error">error' . ($lbl !== '' ? ' <span class="tag-x">' . h($lbl) . '</span>' : '') . '</span>';
@@ -95,6 +96,8 @@ function rl_dec_why($dec, $meta) {
     if ($dec === 'blocked') return 'устройство не в списке разрешённых';
     if ($dec === 'grace')   return 'грейс-сквад активен';
     if ($dec === 'expired') return 'срок подписки вышел';
+    if ($dec === 'hwid_limit') return 'панель не выдала подписку: превышен лимит устройств';
+    if ($dec === 'hwid_none')  return 'панель не выдала подписку: приложение не прислало HWID';
     if ($dec === 'error')   return rl_err_info($meta)[1];
     if (!empty($meta['wg']))   return 'подписка активна, добавлены конфиги пула';
     return 'подписка активна';
@@ -135,8 +138,8 @@ function rl_hist_bar($list) {
     if (!$list) return '<span class="dim">—</span>';
     $out = '';
     foreach ($list as $d) {
-        $c = $d === 'blocked' ? 'b' : ($d === 'grace' ? 'g' : ($d === 'expired' || $d === 'error' ? 'e' : ''));
-        $out .= '<i' . ($c !== '' ? ' class="' . $c . '"' : '') . ' data-tip="' . h($d) . '"></i>';
+        $c = $d === 'blocked' ? 'b' : ($d === 'grace' ? 'g' : ($d === 'expired' || $d === 'error' || $d === 'hwid_limit' || $d === 'hwid_none' ? 'e' : ''));
+        $out .= '<i' . ($c !== '' ? ' class="' . $c . '"' : '') . ' data-tip="' . h($d === 'hwid_limit' ? 'лимит HWID' : ($d === 'hwid_none' ? 'нет HWID' : $d)) . '"></i>';
     }
     return '<span class="hist">' . $out . '</span>';
 }

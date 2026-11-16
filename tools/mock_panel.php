@@ -56,9 +56,11 @@ if (preg_match('~^/api/sub/([A-Za-z0-9_-]+)~', $path, $m)) {
     header('profile-title: base64:' . base64_encode('Тест'));
     header('profile-update-interval: 12');
     header('content-disposition: attachment; filename="' . $short . '"');
-    if (($u['mode'] ?? '') === 'hwidlimit') {
+    if (in_array($u['mode'] ?? '', ['hwidlimit', 'nohwid'], true)) {
+        header('content-type: text/plain; charset=utf-8');
         header('x-hwid-limit: true');
-        header('announce: base64:' . base64_encode('Лимит устройств'));
+        header(($u['mode'] === 'nohwid' ? 'x-hwid-not-supported' : 'x-hwid-max-devices-reached') . ': true');
+        if ($u['mode'] === 'hwidlimit') header('announce: base64:' . base64_encode('Лимит устройств'));
         echo base64_encode('vless://00000000-0000-0000-0000-000000000000@0.0.0.0:1?type=tcp#limit');
         exit;
     }

@@ -1730,7 +1730,7 @@ function ovHtml(u){
  var lo='<span class="m">загрузка…</span>';
  var blk=mw?(mw.ov||[]).some(function(o){return o.r==='blocked';}):!!C.ovb[u.su];
  var sv=blk?['Заглушка — блок в оверрайдах','bad','ban']:(g&&u.st==='ACTIVE'?['Конфиги грейс-сквада','vio','hour']:(u.st==='ACTIVE'?['Конфиг панели','ok','layers']:['Ответ панели — подписка не активна','warn','alert']));
- var lr=mw&&mw.last,decL={blocked:['блок','st-bad'],expired:['истёк','st-bad'],grace:['грейс','st-vio'],error:['ошибка','st-warn']},dc=lr&&decL[lr.dec];
+ var lr=mw&&mw.last,decL={blocked:['блок','st-bad'],expired:['истёк','st-bad'],grace:['грейс','st-vio'],error:['ошибка','st-warn'],hwid_limit:['лимит HWID','st-warn'],hwid_none:['нет HWID','st-warn']},dc=lr&&decL[lr.dec];
  var as=mw?mw.addsub:(C.as[u.su]||''),nl=mw?mw.nolog:!!C.nl[u.su],nov=mw?(mw.ov||[]).length:0;
  var wg=mw?(mw.wg.m?'Ручная привязка'+(mw.wg.a?' и из пула: '+mw.wg.a:''):(mw.wg.a?'Из пула: '+mw.wg.a:'<span class="m">не выдаётся</span>')):lo;
  var row=function(ic,tn,k,v,sub,act){return '<div class="r"><span class="i'+(tn?' tn-'+tn:'')+'">'+ico(ic)+'</span><div class="t"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div><div class="a">'+act+'</div></div>';};
@@ -2543,7 +2543,7 @@ function histHtml(u){
  var dv=function(x){return typeof x==='number'?fdt(x*1000):esc(x);};
  return '<div class="ux-tl">'+ev.map(function(e){
   var ic,tn,t,s;
-  if(e.k==='rq'){ic='sendh';tn='st-info';t='Запрос подписки';s=esc([e.app||'клиент не распознан',e.dev||e.os].filter(Boolean).join(' · '))+(e.dec&&e.dec!=='normal'?' <span class="ux-pill '+(e.dec==='blocked'||e.dec==='error'?'st-bad':(e.dec==='grace'?'st-vio':'st-warn'))+'" style="font-size:.66rem">'+esc(({blocked:'блок',expired:'истёк',grace:'грейс',error:'ошибка'})[e.dec]||e.dec)+'</span>':'');}
+  if(e.k==='rq'){ic='sendh';tn='st-info';t='Запрос подписки';s=esc([e.app||'клиент не распознан',e.dev||e.os].filter(Boolean).join(' · '))+(e.dec&&e.dec!=='normal'?' <span class="ux-pill '+(e.dec==='blocked'||e.dec==='error'?'st-bad':(e.dec==='grace'?'st-vio':'st-warn'))+'" style="font-size:.66rem">'+esc(({blocked:'блок',expired:'истёк',grace:'грейс',error:'ошибка',hwid_limit:'лимит HWID',hwid_none:'нет HWID'})[e.dec]||e.dec)+'</span>':'');}
   else if(e.k==='wh'){ic='pencil';tn='st-mut';t=EVN[e.ev]||e.ev;s=(e.dev?[esc(e.dev)]:[]).concat((e.d||[]).map(function(x){return esc(x.l)+': '+dv(x.a)+' → '+dv(x.b);})).join('<br>')+(e.mw===1?' <span class="ux-pill st-ok" style="font-size:.66rem">прослойка</span>':(e.mw===0?' <span class="ux-pill st-mut" style="font-size:.66rem">извне</span>':''));}
   else{ic='layers';tn=e.ok?'st-ok':'st-bad';t='Прослойка: '+(OPN[e.op]||e.op).toLowerCase();s=esc(srcL(e.src))+(e.f&&e.f.length?' · '+esc(e.f.join(', ')):'')+(e.ok?'':' · <span style="color:var(--c-bad-fg)">'+esc(e.err||'ошибка')+'</span>');}
   return '<div><span class="tm">'+fdt(e.t*1000).replace(' в ',' ')+'</span><span class="ic '+tn+'">'+ico(ic,13)+'</span><span class="tx"><b>'+esc(t)+'</b><span class="s">'+s+'</span></span></div>';
