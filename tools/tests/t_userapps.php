@@ -177,4 +177,11 @@ $f = json_decode($f, true);
 t_ok('ajax: панель недоступна и снимка нет — отказ с причиной', $code === 200 && ($f['ok'] ?? null) === false && ($f['error'] ?? '') !== '');
 t_eq('в «Запросах к панели» запрос подписан', apistat_src_label('ajax:uapps'), 'Админка, фоновый запрос: приложения пользователей');
 
+// Подсчёт для пула WG / AWG берёт тот же список устройств целиком — с HWID
+$put();
+$se = ''; $sw = ''; $st = null;
+wglease_sizing($se, $sw, $st);
+$hw_n = array_sum(array_map('count', $base['hwdev']));
+t_eq('подсчёт для пула видит HWID каждого устройства', [$se, $sw, $st], ['', '', ['records' => $hw_n, 'unique' => $hw_n]]);
+
 t_done();
