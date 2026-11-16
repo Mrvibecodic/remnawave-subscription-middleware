@@ -19,7 +19,8 @@ function uapps_view(&$error = '') {
             if ($due($c) && !$paused($c)) {
                 $t0 = time();
                 $e = '';
-                $devs = remnawave_hwid_all_devices($e);
+                $keep = ['userId' => 1, 'deviceModel' => 1, 'platform' => 1, 'osVersion' => 1, 'userAgent' => 1, 'updatedAt' => 1, 'createdAt' => 1];
+                $devs = remnawave_hwid_all_devices($e, static fn($d) => is_array($d) ? array_intersect_key($d, $keep) : $d);
                 $A = []; $Ai = []; $U = []; $Ui = []; $D = []; $seen = [];
                 if ($e === '') {
                     $names = cmap_names(false);

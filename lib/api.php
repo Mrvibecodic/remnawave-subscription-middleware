@@ -194,7 +194,7 @@ function remnawave_delete_hwid($ref, $hwid) {
     ]);
 }
 
-function remnawave_hwid_all_devices(&$error = '') {
+function remnawave_hwid_all_devices(&$error = '', $pick = null) {
     $error = '';
     $all = [];
     $start = 0; $size = 250; $guard = 0;
@@ -205,7 +205,7 @@ function remnawave_hwid_all_devices(&$error = '') {
         $rows = $resp['devices'] ?? (is_array($resp) ? $resp : []);
         $total = (int) ($resp['total'] ?? count($rows));
         if (!is_array($rows)) $rows = [];
-        foreach ($rows as $r) $all[] = $r;
+        foreach ($rows as $r) $all[] = $pick ? $pick($r) : $r;
         $start += $size;
         $guard++;
     } while (count($all) < $total && $guard < 200 && count($rows) > 0);
