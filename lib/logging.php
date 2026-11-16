@@ -345,7 +345,8 @@ function reqlog_filters($src = null) {
 function reqlog_where(array $f, array $name2short = []) {
     $conds = ["decision <> 'browser'"];
     $args  = [];
-    if ($f['dec'] !== '')  { $conds[] = 'decision = ?'; $args[] = $f['dec']; }
+    if ($f['dec'] === 'error')  { $conds[] = "decision IN ('error', 'hwid_limit', 'hwid_none')"; }
+    elseif ($f['dec'] !== '')   { $conds[] = 'decision = ?'; $args[] = $f['dec']; }
     if ($f['hours'] > 0)   { $conds[] = sql_epoch('ts') . ' >= ?'; $args[] = time() - $f['hours'] * 3600; }
     if ($f['q'] !== '') {
         $like = '%' . strtr($f['q'], ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';

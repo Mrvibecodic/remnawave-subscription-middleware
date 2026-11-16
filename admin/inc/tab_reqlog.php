@@ -195,7 +195,7 @@
             if ($rl_f['hours'] !== 24) $rl_err_q['rl_hours'] = $rl_f['hours'];
             if (!$rl_err_on)          $rl_err_q['rl_dec'] = 'error';
             ?>
-            <a class="btn ghost rl-err<?= $rl_err_on ? ' on' : '' ?><?= $rl_over['errors'] ? ' has' : '' ?>" href="?<?= h(http_build_query($rl_err_q)) ?>" data-tip="<?= $rl_err_on ? 'Показать все решения' : 'Только запросы, на которые панель не ответила или вернула ошибку. Число — за последние 24 часа' ?>">
+            <a class="btn ghost rl-err<?= $rl_err_on ? ' on' : '' ?><?= $rl_over['errors'] ? ' has' : '' ?>" href="?<?= h(http_build_query($rl_err_q)) ?>" data-tip="<?= $rl_err_on ? 'Показать все решения' : 'Сбои панели и отказы по HWID. Число — только сбои за последние 24 часа' ?>">
                 <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
                 Только ошибки <b class="n" id="rlErrN"><?= (int) $rl_over['errors'] ?></b>
             </a>

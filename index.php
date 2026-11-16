@@ -582,6 +582,8 @@ if (!$skip_log) {
         }
     } elseif (!$is_page && reqlog_is_real($grabbed_headers, $log_decision, $short_ov)) {
         $GLOBALS['submw_real_sub'] = true;
+        // Панель ответила 200, но подписку не выдала: в логе это отказ, а не выдача.
+        if ($panel_hwid_block && $decision === 'normal') $log_decision = isset($grabbed_headers['x-hwid-not-supported']) ? 'hwid_none' : 'hwid_limit';
         log_request($ip, $short_uuid, $path, $ua, $log_decision, $expire_ts, $current_hwid, $log_meta);
     } elseif ($is_page && $short_uuid !== '' && !$junk_path && reqlog_pages_enabled()) {
         log_request($ip, $short_uuid, $path, $ua, $log_decision, $expire_ts, $current_hwid, $log_meta);
