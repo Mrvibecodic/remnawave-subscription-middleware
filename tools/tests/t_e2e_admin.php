@@ -15,6 +15,7 @@ $mw  = t_serve($tt_root, $tt_root . '/tools/tests/_router.php', [], ['opcache.en
 $jar = t_admin_login($mw);
 [$c, , $b] = t_http('GET', $mw . '/admin/index.php', [], null, $jar);
 t_eq('админка: главная после входа', $c, 200);
+t_ok('шапка: ссылка на документацию', strpos($b, 'class="hbtn hbtn-doc" href="' . DOC_URL . '"') !== false);
 preg_match_all('~[?&]tab=([a-z_]+)~', $b, $m);
 $tabs = array_values(array_unique($m[1]));
 t_ok('админка: в меню есть вкладки', count($tabs) >= 10, implode(',', $tabs));

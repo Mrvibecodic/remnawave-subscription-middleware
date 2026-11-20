@@ -4,7 +4,8 @@
 
 const GO_BRIDGE = 1;
 const GO_FORGET = 7 * 86400;
-const GO_DOC_URL = 'https://mrvibecodic.github.io/subm/ru/docs/go-service/';
+const DOC_URL = 'https://mrvibecodic.github.io/subm/ru/docs/';
+const GO_DOC_URL = DOC_URL . 'go-service/';
 
 function go_off() { return setting('go_off', '0') === '1'; }
 
