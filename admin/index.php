@@ -32,6 +32,7 @@ if (!app_tunnel() && !admin_gate_pass()) {
     exit();
 }
 header('X-Frame-Options: DENY');
+header('Referrer-Policy: same-origin');
 
 admin_session_boot();
 session_start();
