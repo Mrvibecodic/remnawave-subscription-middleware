@@ -458,16 +458,10 @@ function addsub_merge($a, $b, $format, $short = '', $swap = true) {
     } catch (Throwable $e) { error_log('submw addsub merge: ' . $e->getMessage()); return $a; }
 }
 
-// Вторая подписка может прийти как base64 (стандарт) или как plain-text —
-// по одной ссылке scheme:// на строку. Возвращает текст со ссылками или ''.
 function addsub_decode_uri_list($b) {
-    $t = trim($b);
-    if ($t === '') return '';
+    $t = trim(preg_replace('~^\xEF\xBB\xBF~', '', ltrim((string) $b)));
     $d = base64_decode($t, true);
-    if ($d === false) $d = base64_decode(strtr($t, '-_', '+/'), true); // base64url
-    if ($d !== false && strpos($d, '://') !== false) return $d;
-    if (strpos($t, '://') !== false) return $t;                          // plain-text
-    return '';
+    return ($d !== false && strpos($d, '://') !== false) ? preg_replace('~^\xEF\xBB\xBF~', '', $d) : $t;
 }
 
 function addsub_merge_base64($a, $b) {
@@ -481,7 +475,7 @@ function addsub_merge_base64($a, $b) {
     $add = [];
     foreach (preg_split('/\r\n|\r|\n/', $db) as $ln) {
         $ln = trim($ln);
-        if ($ln === '' || strpos($ln, '://') === false) continue;
+        if (!preg_match('~^[a-z][a-z0-9+.-]*://\S~i', $ln)) continue;
         $ln2 = addsub_label_uri($ln, $label);
         if (isset($existing[$ln]) || isset($existing[$ln2])) continue;
         $existing[$ln2] = true;
