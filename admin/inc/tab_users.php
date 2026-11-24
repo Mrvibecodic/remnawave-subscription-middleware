@@ -650,6 +650,31 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 .ux-ut .tv{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-strong);font-weight:600;white-space:nowrap}
 .ux-ut .d2{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap;font-size:.8rem}
 .ux-ut .d2 i{font-style:normal;display:none}
+/* Трафик: группа «Сегодня» — текущие сутки панели */
+.ux-sect .ux-tdr{font-size:.74rem;text-transform:none;letter-spacing:0;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+.ux-td{display:grid;grid-template-columns:minmax(13rem,.85fr) minmax(0,1.4fr);gap:.6rem}
+.ux-td>div{border:1px solid var(--line);background:var(--bg2);border-radius:12px;padding:.75rem .9rem;min-width:0}
+.ux-td .k{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ux-td .big{font-size:1.6rem;font-weight:700;color:var(--text-strong);font-variant-numeric:tabular-nums;line-height:1.15;margin-top:.15rem;white-space:nowrap}
+.ux-td .cmp{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;font-size:.8rem;color:var(--muted);margin-top:.35rem}
+.ux-td .cmp .ux-pill{font-size:.7rem}
+.ux-td .tm{margin-top:.7rem;font-size:.74rem;color:var(--muted);display:flex;justify-content:space-between;gap:.5rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ux-td .tm+.ux-bar{height:5px}
+.ux-td .lim{margin-top:.55rem;font-size:.78rem;color:var(--muted)}
+.ux-td .lim b{color:var(--text-strong);font-weight:600}
+.ux-td .ux-cs{margin:.55rem 0 .5rem}
+.ux-tdl>div{display:grid;grid-template-columns:10px minmax(0,1fr) auto 2.6rem;gap:.55rem;align-items:center;font-size:.82rem;padding:.22rem 0}
+.ux-tdl .sw{width:10px;height:10px;border-radius:3px}
+.ux-tdl .nd{display:flex;gap:.35rem;align-items:center;min-width:0;color:var(--text-strong);font-weight:600}
+.ux-tdl .nd>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ux-tdl .tv{font-variant-numeric:tabular-nums;color:var(--text-strong);font-weight:600;text-align:right;white-space:nowrap}
+.ux-tdl .pc{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.76rem;text-align:right}
+.ux-tdl>div[data-n]{cursor:pointer;border-radius:6px;margin:0 -.35rem;padding:.22rem .35rem}
+.ux-tdl>div[data-n]:hover,.ux-tdl>div.on{background:var(--hover)}
+.ux-tdl>div.on .nd{color:var(--accent-text)}
+.ux-tdl .oth .nd{color:var(--muted);font-weight:500}
+.ux-td .nil{display:flex;align-items:center;justify-content:center;height:100%;min-height:5rem;color:var(--muted);font-size:.84rem;text-align:center}
+@media(max-width:600px){.ux-td{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:600px){.ux-ut>div{grid-template-columns:12px minmax(0,1fr) auto;gap:.2rem .6rem;padding:.5rem .6rem;min-height:0}.ux-ut>div.hd{display:none}.ux-ut .sw{grid-column:1;grid-row:1}.ux-ut .nd{grid-column:2;grid-row:1}.ux-ut .tv{grid-column:3;grid-row:1}.ux-ut .sh{grid-column:2;grid-row:2}.ux-ut .d2{grid-column:3;grid-row:2;font-size:.74rem}.ux-ut .d2 i{display:inline;margin-right:.25rem}.ux-ut>div.ft .sh{display:none}}
 .ux-tbl thead th:first-child{border-top-left-radius:12px}
 .ux-tbl thead th:last-child{border-top-right-radius:12px}
@@ -2498,13 +2523,39 @@ function uhlApply(){
  var n=CARD.uh!=null?CARD.uh:(CARD.uht!=null?CARD.uht:null);
  dr.querySelectorAll('.ux-ch,.ux-cs').forEach(function(el){el.classList.toggle('hl',n!==null);});
  dr.querySelectorAll('.ux-ch b,.ux-cs b').forEach(function(b){var k=+b.dataset.n;b.classList.toggle('on',n!==null&&(n==='o'?k>=UMAX:k===n));});
- dr.querySelectorAll('.ux-ut>div[data-n]').forEach(function(r){r.classList.toggle('on',CARD.uh!=null&&uhN(r)===CARD.uh);});
+ dr.querySelectorAll('.ux-ut>div[data-n],.ux-tdl>div[data-n]').forEach(function(r){r.classList.toggle('on',CARD.uh!=null&&uhN(r)===CARD.uh);});
+}
+// «Сегодня»: последние сутки из того же ответа панели (сутки по UTC, как и весь график).
+function todayHtml(u,D){
+ var n=D.days.length,S=D.series,td=new Date((D.ts||0)*1000||now()).toISOString().slice(0,10),old=new Date(now()).toISOString().slice(0,10)!==td,i=-1,k;
+ for(k=n-1;k>=0;k--)if(String(D.days[k]).slice(0,10)===td){i=k;break;}
+ var v=i>=0?(D.tot[i]||0):0,parts=[],ps=0,pa=0;
+ if(i>=0)S.forEach(function(s,j){var x=s.data[i]||0;if(x>0)parts.push([x,j]);});
+ parts.sort(function(a,b){return b[0]-a[0];});
+ D.tot.forEach(function(x,j){if(j!==i&&x>0){ps+=x;pa++;}});
+ var avg=pa?ps/pa:0,r=avg?v/avg:0,t=new Date(now()),el=old?1440:t.getUTCHours()*60+t.getUTCMinutes();
+ var d0=Date.UTC(t.getUTCFullYear(),t.getUTCMonth(),t.getUTCDate()),loc=function(ms){var d=new Date(ms);return p2(d.getHours())+':'+p2(d.getMinutes());};
+ var off=-t.getTimezoneOffset(),rng=off?'00:00–23:59 UTC · у вас '+loc(d0)+'–'+loc(d0+DAY-60000):'00:00–23:59';
+ // День ещё не закончился: показываем, какую долю обычного дня уже набрали, а не «больше/меньше».
+ var cmp=!v?'':(!avg?'<span>первый день с трафиком за период</span>':(r>1.05?'<span class="ux-pill st-warn">'+ico('up',12)+'в '+r.toFixed(1).replace('.',',')+' раза больше обычного</span>':'<span class="ux-pill st-mut">пока '+Math.round(r*100)+'% от обычного</span>')+'<span>обычно '+fb(avg)+' в день</span>');
+ var left=u.tl?Math.max(0,u.tl-u.used):0;
+ var h='<div class="ux-sect ux-wr">Сегодня, '+esc(dayLbl(td))+'<span class="sp"></span><span class="ux-tdr" data-tip="Панель считает трафик по суткам UTC">'+esc(rng)+'</span></div>'+(old?'<div class="ux-warn">Сутки по UTC сменились после загрузки — это данные за '+esc(dayLbl(td))+'. Нажмите «Обновить».</div>':'')+'<div class="ux-td">';
+ h+='<div><div class="k">За сутки</div><div class="big">'+fb(v)+'</div><div class="cmp">'+(cmp||'<span>подключений пока не было</span>')+'</div>'+
+  '<div class="tm"><span>прошло '+Math.floor(el/60)+' ч '+p2(el%60)+' мин</span><span>ещё '+Math.floor((1440-el)/60)+' ч '+p2((1440-el)%60)+' мин</span></div><div class="ux-bar lv-i"><i style="width:'+(el/1440*100).toFixed(1)+'%"></i></div>'+
+  (u.tl?'<div class="lim">До лимита осталось <b>'+fb(left)+'</b> из '+fb(u.tl)+'</div>':'')+'</div>';
+ if(!v)return h+'<div><div class="nil">Сегодня трафика не было</div></div></div>';
+ var top=parts.slice(0,4),rest=parts.slice(4),rt=rest.reduce(function(a,p){return a+p[0];},0),pct=function(x){var q=x/v*100;return (q>0&&q<1?'&lt;1':Math.round(q))+'%';};
+ h+='<div><div class="k">По серверам · '+parts.length+'</div><div class="ux-cs">'+parts.map(function(p){var s=S[p[1]];return '<b data-n="'+p[1]+'" style="flex:'+p[0]+' 0 0;background:'+uCol(s,p[1])+'" data-tip="'+esc(uNode(s)+' · '+fb(p[0]))+'"></b>';}).join('')+'</div><div class="ux-tdl">'+
+  top.map(function(p){var s=S[p[1]],lbl=uNode(s);return '<div data-a="uhl" data-n="'+p[1]+'"><span class="sw" style="background:'+uCol(s,p[1])+'"></span><span class="nd">'+(s.cc&&!hasFlag(lbl)?flag(s.cc):'')+'<span>'+esc(lbl)+'</span></span><span class="tv">'+fb(p[0])+'</span><span class="pc">'+pct(p[0])+'</span></div>';}).join('')+
+  (rest.length?'<div class="oth"><span class="sw" style="background:var(--ch8);opacity:.6"></span><span class="nd"><span>Прочие · '+rest.length+'</span></span><span class="tv">'+fb(rt)+'</span><span class="pc">'+pct(rt)+'</span></div>':'')+'</div></div></div>';
+ return h;
 }
 function usageHtml(u){
  var D=CARD.usage,ld=D===null||D===false;
  var h='<div class="ux-sect ux-wr">Трафик по дням<span class="sp"></span><span class="ux-ctl"><span class="ux-seg">'+USG.opts.map(function(d){return '<button type="button" data-a="ud" data-d="'+d+'" class="'+(CARD.ud===d?'on':'')+'"'+(ld?' disabled':'')+'>'+d+' дн</button>';}).join('')+'</span><button type="button" class="wb sm" data-a="urefresh"'+(ld?' disabled':'')+'>'+ico('refresh')+'Обновить</button></span></div>';
  if(ld)return h+'<div class="ux-load">Спрашиваем панель…</div>';
  if(D.err)return h+'<div class="ux-warn">'+esc(D.err)+'</div>';
+ h=todayHtml(u,D)+h;
  var n=D.days.length,sum=D.sum||0,mx=0,mi=-1,act=0,S=D.series;
  D.tot.forEach(function(v,i){if(v>0)act++;if(v>mx){mx=v;mi=i;}});
  var top=S[0]||null,lim=u.tl?(u.ts==='NO_RESET'?Math.round(sum/u.tl*100)+'% от лимита':'лимит '+fb(u.tl)+(STRAT_S[u.ts]?' · сброс: '+STRAT_S[u.ts]:'')):'лимита нет';
@@ -2805,8 +2856,8 @@ document.addEventListener('change',function(e){var t=e.target;if(t.matches&&t.ma
 document.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.ux-dk>.go')){e.preventDefault();e.target.closest('.ux-dk>.go').click();return;}});
 document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;if(HVPOP){hvPopClose();return;}var dlg=document.getElementById('uiDlg');if(dlg&&dlg.classList.contains('open'))return;if($('uxQkOv').classList.contains('open')){qkEdClose();return;}if($('uxCfOv').classList.contains('open')){cfClose();return;}if($('uxMenu').classList.contains('open')){closeMenu();return;}if($('uxCols').classList.contains('open')){closeCols();return;}if(anmOpen()){closeAnM();return;}if($('uxPickOv').classList.contains('open')){closePick();return;}if($('uxQrOv').classList.contains('open')){$('uxQrOv').classList.remove('open');return;}if(CARD)closeCard();});
 window.addEventListener('resize',closeMenu);
-document.addEventListener('mouseover',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD)return;CARD.uht=uhN(r);uhlApply();});
-document.addEventListener('mouseout',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD||CARD.uht==null)return;if(e.relatedTarget&&r.contains(e.relatedTarget))return;CARD.uht=null;uhlApply();});
+document.addEventListener('mouseover',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-tdl>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD)return;CARD.uht=uhN(r);uhlApply();});
+document.addEventListener('mouseout',function(e){var r=e.target.closest&&e.target.closest('#uxDr .ux-ut>div[data-n],#uxDr .ux-tdl>div[data-n],#uxDr .ux-cs b[data-n]');if(!r||!CARD||CARD.uht==null)return;if(e.relatedTarget&&r.contains(e.relatedTarget))return;CARD.uht=null;uhlApply();});
 document.addEventListener('scroll',function(e){if(e.target&&e.target.closest&&e.target.closest('#uxMenu'))return;closeMenu();},true);
 document.addEventListener('click',function(e){if(!$('uxMenu').classList.contains('open')||!matchMedia('(max-width:600px)').matches||(e.target.closest&&e.target.closest('#uxMenu')))return;e.preventDefault();e.stopPropagation();closeMenu();},true);
 fillSelects();render();
