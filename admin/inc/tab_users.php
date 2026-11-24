@@ -12,6 +12,7 @@ $ux_hwb = [];
 foreach ($overrides as $__o) if (($__o['match_type'] ?? '') === 'hwid' && ($__o['reason'] ?? '') === 'blocked') $ux_hwb[] = mb_strtolower((string) $__o['match_value']);
 $ux_cfg = [
     'csrf'  => $token,
+    't0'    => (int) ($users_t0 ?? time()),
     'gsq'   => grace_squad_uuid(),
     'reset' => grace_reset_traffic_on_exit(),
     'gr'    => (object) ua_grace_map(),
@@ -384,7 +385,8 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-qr .box svg{width:240px;height:240px;display:block}
 .ux-qr code{font-size:.78rem;overflow-wrap:anywhere;text-align:center}
 @media(max-width:1600px){.ux-tbl .c-sq{display:none}}
-@media(max-width:1280px){.ux-kpis{grid-template-columns:repeat(12,minmax(0,1fr))}.ux .ux-kpi{grid-column:span 3}.ux .ux-kpi:nth-child(n+5){grid-column:span 4}.ux-tbl .c-on{display:none}}
+@media(max-width:1760px){.ux-kpis{grid-template-columns:repeat(12,minmax(0,1fr))}.ux .ux-kpi{grid-column:span 3}.ux .ux-kpi:nth-child(n+5){grid-column:span 4}}
+@media(max-width:1280px){.ux-tbl .c-on{display:none}}
 @media(min-width:1101px) and (max-width:1180px){.ux-tr{min-width:6.5rem}.ux-tr .t{flex-direction:column;gap:0}.u-sub{max-width:11rem}}
 @media(max-width:900px){.ux-dk{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1100px){
@@ -1289,6 +1291,7 @@ tag:'<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0
 };
 function ico(n,w){return '<svg viewBox="0 0 24 24" width="'+(w||16)+'" height="'+(w||16)+'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(P[n]||'')+'</svg>';}
 function now(){return Date.now();}
+var T0=C.t0?C.t0*1000:now(),L0=now();
 function p2(n){return(n<10?'0':'')+n;}
 function fdt(ts){var d=new Date(ts);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' в '+p2(d.getHours())+':'+p2(d.getMinutes());}
 document.querySelectorAll('.ct-time[data-ts]').forEach(function(el){var d=new Date(parseInt(el.getAttribute('data-ts'),10)*1000);if(!isNaN(d.getTime()))el.textContent=d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes());});
@@ -1315,7 +1318,7 @@ var HT_MANY=' · через какой хост шло подключение, �
 function hostTip(nm,h){return h&&h.length?'Нода: '+nm+(h.length>1?HT_MANY:''):'';}
 function uSq(u){var s=(u.sq||[]).slice(),g=gInfo(u);(g&&g.sq||[]).forEach(function(x){if(s.indexOf(x)<0)s.push(x);});return s.sort();}
 function nodeCell(u){if(!u.on||!u.node)return '';var n=ND[u.node]||{},hk=u.node+'|'+uSq(u).join(','),h=Array.isArray(u.nh)?u.nh:Object.prototype.hasOwnProperty.call(NH,hk)?NH[hk]:(n.h||[]),nm=nodeName(u.node)||'нода '+u.node.slice(0,8),lbl=h.length?h.join(', '):nm,tip=h.length?(h.length>1?lbl+' · ':'')+hostTip(nm,h):'';return '<span class="ux-nd"'+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+esc(lbl)+'</span>';}
-function isLive(u){return !!u.on&&now()-u.on*1000<5*60000;}
+function isLive(u){return !!u.on&&T0-u.on*1000<5*60000;}
 function soon(u){var e=expMs(u);return u.st==='ACTIVE'&&!isGr(u)&&e>now()&&e-now()<=7*DAY;}
 function stInfo(u){if(isGr(u)&&u.st==='ACTIVE')return{c:'st-vio',t:'Грейс'};return({ACTIVE:{c:'st-ok',t:'Активен'},EXPIRED:{c:'st-bad',t:'Истёк'},DISABLED:{c:'st-mut',t:'Выключен'},LIMITED:{c:'st-warn',t:'Лимит'}})[u.st]||{c:'st-mut',t:u.st||'—'};}
 function pill(u){var s=stInfo(u);return '<span class="ux-pill '+s.c+'"'+(u.st==='LIMITED'?' data-tip="Трафик закончился"':'')+'><i></i>'+s.t+'</span>';}
@@ -1357,7 +1360,7 @@ function renderKpis(){
  Object.keys(FLT).forEach(function(k){n[k]=U.filter(FLT[k].fn).length;});
  U.forEach(function(u){if(u.on&&now()-u.on*1000<DAY)on24++;});
  var dis=U.filter(function(u){return u.st==='DISABLED';}).length,lim=U.filter(function(u){return u.st==='LIMITED';}).length;
- var d={all:'онлайн за сутки — '+on24,active:'подписка работает',online:'за последние 5 мин',soon:'пора продлить',grace:'тариф запомнен',expired:'без грейса',off:dis+' выключ. · '+lim+' лимит'};
+ var d={all:'онлайн за сутки — '+on24,active:'подписка работает',online:now()-L0<60000?'за последние 5 мин':'за 5 мин до '+p2(new Date(L0).getHours())+':'+p2(new Date(L0).getMinutes()),soon:'пора продлить',grace:'тариф запомнен',expired:'без грейса',off:dis+' выключ. · '+lim+' лимит'};
  $('uxKpis').innerHTML=Object.keys(FLT).map(function(k){var f=FLT[k];return '<button type="button" class="ux-kpi'+(S.f===k?' on':'')+'" data-f="'+k+'"><span class="k">'+(f.dot?'<i style="background:'+f.dot+'"></i>':'')+f.k+'</span><span class="v">'+n[k]+'</span><span class="d">'+d[k]+'</span></button>';}).join('');
 }
 function fillSelects(){
