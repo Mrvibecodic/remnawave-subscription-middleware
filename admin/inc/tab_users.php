@@ -89,7 +89,7 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-ib,.ux-ib:hover,.ux-ib:active{filter:none;transform:none}
 .ux-ib:hover{background:var(--hover);color:var(--text-strong);border-color:var(--line)}
 .ux-ib svg{width:16px;height:16px}
-.ux-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.7rem}
+.ux-kpis{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.7rem}
 .ux .ux-kpi{border:1px solid var(--line);background:var(--bg2);border-radius:12px;padding:.75rem .9rem;display:flex;flex-direction:column;gap:.15rem;text-align:left;cursor:pointer;color:var(--text);font-weight:400;min-height:0;transition:border-color .12s}
 .ux .ux-kpi:hover{border-color:var(--accent);background:var(--bg2);filter:none}
 .ux .ux-kpi:active{transform:none}
@@ -384,7 +384,7 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-qr .box svg{width:240px;height:240px;display:block}
 .ux-qr code{font-size:.78rem;overflow-wrap:anywhere;text-align:center}
 @media(max-width:1600px){.ux-tbl .c-sq{display:none}}
-@media(max-width:1280px){.ux-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.ux-tbl .c-on{display:none}}
+@media(max-width:1280px){.ux-kpis{grid-template-columns:repeat(12,minmax(0,1fr))}.ux .ux-kpi{grid-column:span 3}.ux .ux-kpi:nth-child(n+5){grid-column:span 4}.ux-tbl .c-on{display:none}}
 @media(min-width:1101px) and (max-width:1180px){.ux-tr{min-width:6.5rem}.ux-tr .t{flex-direction:column;gap:0}.u-sub{max-width:11rem}}
 @media(max-width:900px){.ux-dk{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1100px){
@@ -407,7 +407,6 @@ $__jf = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HE
 .ux-tr{min-width:0;width:60%}
 }
 @media(max-width:820px){
-.ux-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
 .ux-flt input#uxQ{flex:1 1 100%;width:100%}
 .ux-g2{grid-template-columns:minmax(0,1fr)}
 .ux-rt{grid-template-columns:auto minmax(0,1fr)}
@@ -693,10 +692,13 @@ html[data-theme=dark] .ux-dr input[type=datetime-local],html[data-theme=black] .
 @media(max-width:600px){
 .ux-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem}
 .ux .ux-kpi{padding:.5rem .6rem;border-radius:10px}
+.ux .ux-kpi:nth-child(n){grid-column:auto}
+.ux .ux-kpi:first-child{grid-column:1/-1}
 .ux-kpi .k{font-size:.62rem;letter-spacing:.02em;line-height:1.25;align-items:flex-start}
 .ux-kpi .k i{margin-top:.25em}
 .ux-kpi .v{font-size:1.2rem;margin-top:auto}
 .ux-kpi .d{display:none}
+.ux-kpi:first-child .d{display:block}
 .ux-tbl tbody tr{grid-template-columns:minmax(0,1fr) auto;gap:.3rem .6rem;padding:.65rem .75rem}
 .ux-tbl td[data-l]::before{content:none}
 .ux-tbl td.c-st{grid-row:2;grid-column:1;justify-content:flex-start}
@@ -1313,6 +1315,7 @@ var HT_MANY=' · через какой хост шло подключение, �
 function hostTip(nm,h){return h&&h.length?'Нода: '+nm+(h.length>1?HT_MANY:''):'';}
 function uSq(u){var s=(u.sq||[]).slice(),g=gInfo(u);(g&&g.sq||[]).forEach(function(x){if(s.indexOf(x)<0)s.push(x);});return s.sort();}
 function nodeCell(u){if(!u.on||!u.node)return '';var n=ND[u.node]||{},hk=u.node+'|'+uSq(u).join(','),h=Array.isArray(u.nh)?u.nh:Object.prototype.hasOwnProperty.call(NH,hk)?NH[hk]:(n.h||[]),nm=nodeName(u.node)||'нода '+u.node.slice(0,8),lbl=h.length?h.join(', '):nm,tip=h.length?(h.length>1?lbl+' · ':'')+hostTip(nm,h):'';return '<span class="ux-nd"'+(tip?' data-tip="'+esc(tip)+'"':'')+'>'+esc(lbl)+'</span>';}
+function isLive(u){return !!u.on&&now()-u.on*1000<5*60000;}
 function soon(u){var e=expMs(u);return u.st==='ACTIVE'&&!isGr(u)&&e>now()&&e-now()<=7*DAY;}
 function stInfo(u){if(isGr(u)&&u.st==='ACTIVE')return{c:'st-vio',t:'Грейс'};return({ACTIVE:{c:'st-ok',t:'Активен'},EXPIRED:{c:'st-bad',t:'Истёк'},DISABLED:{c:'st-mut',t:'Выключен'},LIMITED:{c:'st-warn',t:'Лимит'}})[u.st]||{c:'st-mut',t:u.st||'—'};}
 function pill(u){var s=stInfo(u);return '<span class="ux-pill '+s.c+'"'+(u.st==='LIMITED'?' data-tip="Трафик закончился"':'')+'><i></i>'+s.t+'</span>';}
@@ -1343,6 +1346,7 @@ function putUser(nu,mw,oldSu){var i=-1;for(var k=0;k<U.length;k++)if(U[k].su===(
 var FLT={
  all:{k:'Всего',dot:'',fn:function(){return true;}},
  active:{k:'Активны',dot:'var(--c-ok-fg)',fn:function(u){return u.st==='ACTIVE'&&!isGr(u);}},
+ online:{k:'Онлайн сейчас',dot:'var(--c-ok-fg)',fn:isLive},
  soon:{k:'Истекают ≤ 7 дн.',dot:'var(--c-warn-fg)',fn:soon},
  grace:{k:'В грейсе',dot:'var(--c-violet-fg)',fn:isGr},
  expired:{k:'Истекли',dot:'var(--c-bad-fg)',fn:function(u){return u.st==='EXPIRED';}},
@@ -1353,7 +1357,7 @@ function renderKpis(){
  Object.keys(FLT).forEach(function(k){n[k]=U.filter(FLT[k].fn).length;});
  U.forEach(function(u){if(u.on&&now()-u.on*1000<DAY)on24++;});
  var dis=U.filter(function(u){return u.st==='DISABLED';}).length,lim=U.filter(function(u){return u.st==='LIMITED';}).length;
- var d={all:'онлайн за сутки — '+on24,active:'подписка работает',soon:'пора продлить',grace:'тариф запомнен',expired:'без грейса',off:dis+' выключ. · '+lim+' лимит'};
+ var d={all:'онлайн за сутки — '+on24,active:'подписка работает',online:'за последние 5 мин',soon:'пора продлить',grace:'тариф запомнен',expired:'без грейса',off:dis+' выключ. · '+lim+' лимит'};
  $('uxKpis').innerHTML=Object.keys(FLT).map(function(k){var f=FLT[k];return '<button type="button" class="ux-kpi'+(S.f===k?' on':'')+'" data-f="'+k+'"><span class="k">'+(f.dot?'<i style="background:'+f.dot+'"></i>':'')+f.k+'</span><span class="v">'+n[k]+'</span><span class="d">'+d[k]+'</span></button>';}).join('');
 }
 function fillSelects(){
@@ -1406,7 +1410,7 @@ function rowHtml(u){
  var bc=u.tl?(pc>=100?'lv-b':(pc>=80?'lv-w':'')):'lv-i';
  var rc=e<now()?'lv-b':(e-now()<=7*DAY?'lv-w':'');
  var sh=u.sq.slice(0,1).map(function(id){return '<span class="ux-sq'+(id===GSQ?' gr':'')+'">'+esc(sqName(id))+'</span>';}).join('')+(u.sq.length>1?'<span class="ux-sq" data-tip="'+esc(u.sq.slice(1).map(sqName).join(', '))+'">+'+(u.sq.length-1)+'</span>':'');
- var ot=u.on*1000,live=u.on&&now()-ot<5*60000;
+ var ot=u.on*1000,live=isLive(u);
  var sub=u.desc?esc(u.desc):'<span style="font-family:ui-monospace,monospace">'+esc(u.su)+'</span>';
  return '<tr data-su="'+esc(u.su)+'">'+
   '<td class="c-nm"><div class="u-nm"><span>'+esc(u.un)+'</span>'+sesBadge(u)+(u.tag?'<span class="ux-tag">'+esc(u.tag)+'</span>':'')+(C.ovb[u.su]?'<span class="ux-pill st-bad" data-tip="Заблокирован в оверрайдах" style="font-size:.66rem">блок</span>':'')+(fcPend(u.su)?'<span class="ux-pill st-info" data-tip="'+esc('Срок '+durTxt(fcPend(u.su).dur)+' пойдёт с первого подключения')+'" style="font-size:.66rem">ждёт подключения</span>':'')+'</div><span class="u-sub">'+sub+'</span></td>'+
