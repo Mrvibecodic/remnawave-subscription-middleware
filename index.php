@@ -382,7 +382,6 @@ if (!chan_active() && $decision === 'normal' && $short_uuid !== '' && !$junk_pat
     foreach ($passthrough as $h) {
         if (isset($grabbed_headers[$h])) header($h . ': ' . $grabbed_headers[$h]);
     }
-    emit_response_headers();
     $chan_stub = chan_stub_body($format);
     echo $chan_stub;
     if (!$skip_log && !$is_page) {
@@ -410,7 +409,6 @@ if ($do_substitute) {
         if (isset($grabbed_headers[$h])) header($h . ': ' . $grabbed_headers[$h]);
     }
 
-    emit_response_headers();
     $sub_body = build_override_body($decision, $format);
     echo $sub_body;
     if (!$skip_log && !$is_page && reqlog_is_real($grabbed_headers, $decision, $short_ov)) {
@@ -552,7 +550,6 @@ foreach ($grabbed_headers as $name => $value) {
     if ($body_modified && ($name === 'etag' || $name === 'last-modified')) continue;
     header($name . ': ' . $value);
 }
-emit_response_headers();
 $is_grace = ($short_uuid !== '' && grace_is_active($short_uuid));
 if ($is_grace && !grace_external_active() && ($ga = grace_announce()) !== '') {
     header('announce: ' . rules_encode_value('announce', $ga));

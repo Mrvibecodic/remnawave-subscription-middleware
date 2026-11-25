@@ -1,43 +1,5 @@
 <?php
 
-function app_headers_all() {
-    $arr = json_decode((string) setting('app_headers', '[]'), true);
-    if (!is_array($arr)) return [];
-    $out = [];
-    foreach ($arr as $t) {
-        if (!is_array($t)) continue;
-        $name = trim((string) ($t['name'] ?? ''));
-        if ($name === '') continue;
-        $out[] = [
-            'name'    => $name,
-            'value'   => (string) ($t['value'] ?? ''),
-            'enabled' => !empty($t['enabled']),
-            'note'    => trim((string) ($t['note'] ?? '')),
-        ];
-    }
-    return $out;
-}
-
-function app_headers_send() {
-    $blocked = ['content-length', 'content-encoding', 'transfer-encoding', 'connection', 'host', 'content-type'];
-    $out = [];
-    foreach (app_headers_all() as $t) {
-        if (!$t['enabled']) continue;
-        if (!preg_match('/^[A-Za-z0-9-]+$/', $t['name'])) continue;
-        if (in_array(strtolower($t['name']), $blocked, true)) continue;
-        $value = str_replace(["\r", "\n"], '', $t['value']);
-        if ($value === '') continue;
-        $out[$t['name']] = $value;
-    }
-    return $out;
-}
-
-function emit_app_headers() {
-    foreach (app_headers_send() as $name => $value) {
-        header($name . ': ' . $value);
-    }
-}
-
 function brand_dir() { return dirname(__DIR__) . '/admin/assets'; }
 
 function brand_logo_missing($cache) {

@@ -847,23 +847,6 @@ if (isset($_GET['ajax']) && is_auth()) {
         exit();
     }
 
-    if ($a === 'save_rules' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
-        rules_save_from_json($_POST['response_rules_json'] ?? '[]');
-        echo json_encode(['ok' => true]);
-        exit();
-    }
-
-    if ($a === 'test_rule' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-        if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
-        $ov = ['user-agent' => (string) ($_POST['ua'] ?? '')];
-        $os = strtolower(trim((string) ($_POST['os'] ?? '')));
-        if ($os !== '') $ov['x-device-os'] = $os;
-        $res = rules_test($ov);
-        echo json_encode(['ok' => true, 'matched' => $res['matched'], 'headers' => $res['headers']], JSON_UNESCAPED_UNICODE);
-        exit();
-    }
-
     if ($a === 'chat_check' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_ok()) { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'CSRF']); exit(); }
         $tok = trim($_POST['token'] ?? '');
@@ -1352,12 +1335,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
     if ($action === 'clear_fwdlog') {
         if ($pdo = db()) { try { $pdo->exec('DELETE FROM forward_log'); } catch (Throwable $e) {} flash('Лог пересылки очищен'); }
         header('Location: index.php?tab=fwdlog'); exit();
-    }
-
-    if ($action === 'save_response_rules') {
-        rules_save_from_json($_POST['response_rules_json'] ?? '[]');
-        flash('Правила ответа сохранены');
-        header('Location: index.php?tab=rules'); exit();
     }
 
     if ($action === 'update_switch_branch') {
@@ -1986,13 +1963,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && is_auth()) {
 
 $tab   = $_GET['tab'] ?? 'users';
 if ($tab === 'settings') $tab = 'connection';
-if ($tab === 'headers') $tab = 'rules';
+if ($tab === 'headers' || $tab === 'rules') $tab = 'panel_rules';
 if (function_exists('apistat_src')) apistat_src('admin:' . preg_replace('~[^a-z0-9_]~i', '', (string) $tab));
 if (function_exists('cron_note_web_user')) cron_note_web_user();
 $ux_view = ($tab === 'users' && ($_GET['view'] ?? '') === 'map' && function_exists('cmap_view') && function_exists('sess_ensure')) ? 'map' : '';
 if ($tab === 'users' && ($_GET['view'] ?? '') === 'apps' && function_exists('uapps_view') && function_exists('cmap_send')) $ux_view = 'apps';
 $rl_view = ($tab === 'reqlog' && in_array($_GET['view'] ?? '', ['clients', 'junk'], true)) ? (string) $_GET['view'] : '';
-rules_migrate_legacy();
+rules_settings_cleanup();
 squadconf_migrate_v3();
 update_autocheck();
 $token = csrf_token();
@@ -2241,7 +2218,7 @@ if ($tab === 'pagekeys') {
 $mirror        = mirror_domain();
 $wh_url        = ($mirror !== '' ? ('https://' . $mirror . '/webhook.php') : '/webhook.php');
 
-$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'rules' => 'Правила ответа по приложению', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'hostov' => 'Подмена параметров', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'backup' => 'Бэкап и восстановление', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Геобазы'];
+$tab_titles = ['users' => 'Пользователи', 'branding' => 'Брендинг', 'connection' => 'Подключение', 'webhooks' => 'Вебхуки', 'subst' => 'Грейс-сквад для истёкших', 'panel_rules' => 'Правила ответа панели', 'hwid' => 'HWID — заблокированные', 'overrides' => 'Оверрайды', 'hostov' => 'Подмена параметров', 'reqlog' => 'Лог запросов', 'whlog' => 'Лог вебхуков', 'whlog_other' => 'Лог вебхуков', 'fwdlog' => 'Лог пересылки', 'grace_users' => 'Грейс-юзеры', 'sysinfo' => 'О системе', 'update' => 'Обновление', 'migrate' => 'База данных', 'backup' => 'Бэкап и восстановление', 'chat' => 'Чат поддержки', 'squad_configs' => 'Доп. конфиги (простые)', 'wg_pool' => 'WG / AWG конфиги', 'addsub' => 'Слияние подписок', 'pagekeys' => 'Ключи на странице подписки', 'clod' => 'Clod Clash · Защищённый канал', 'reports' => 'Clod Clash · Статистика', 'app' => 'Приложение для Android', 'geoip' => 'Геобазы'];
 $tab_title  = $tab_titles[$tab] ?? 'Админка';
 // function_exists: прежний апдейтер пишет admin/index.php раньше lib/branding.php.
 if ($db_ok && function_exists('brand_refresh_if_stale')) brand_refresh_if_stale();
@@ -2384,7 +2361,6 @@ $nav = [
     'connection'=> ['Подключение', '<path d="m19 5 3-3" /> <path d="m2 22 3-3" /> <path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z" /> <path d="M7.5 13.5 10 11" /> <path d="M10.5 16.5 13 14" /> <path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z" />'],
     'webhooks'  => ['Настройки', '<g transform="scale(.09375)" fill="currentColor" stroke="none"><path d="M40,88H73a32,32,0,0,0,62,0h81a8,8,0,0,0,0-16H135a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16Zm64-24A16,16,0,1,1,88,80,16,16,0,0,1,104,64ZM216,168H199a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16h97a32,32,0,0,0,62,0h17a8,8,0,0,0,0-16Zm-48,24a16,16,0,1,1,16-16A16,16,0,0,1,168,192Z"/></g>'],
     'subst'     => ['Грейс-сквад', '<path d="M5 22h14" /> <path d="M5 2h14" /> <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" /> <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />'],
-    'rules'     => ['Правила ответа', '<circle cx="6" cy="19" r="3" /> <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" /> <circle cx="18" cy="5" r="3" />'],
     'panel_rules' => ['Правила панели', '<path d="m3 16 4 4 4-4" /> <path d="M7 20V4" /> <path d="M11 4h10" /> <path d="M11 8h7" /> <path d="M11 12h4" />'],
     'hwid'      => ['HWID', '<path d="M18.9 7a8 8 0 0 1 1.1 5v1a6 6 0 0 0 .8 3" /> <path d="M8 11a4 4 0 0 1 8 0v1a10 10 0 0 0 2 6" /> <path d="M12 11v2a14 14 0 0 0 2.5 8" /> <path d="M8 15a18 18 0 0 0 1.8 6" /> <path d="M4.9 19a22 22 0 0 1 -.9 -7v-1a8 8 0 0 1 12 -6.95" />'],
     'overrides' => ['Оверрайды', '<path d="M3 4a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M15 16a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /> <path d="M21 11v-3a2 2 0 0 0 -2 -2h-6l3 3m0 -6l-3 3" /> <path d="M3 13v3a2 2 0 0 0 2 2h6l-3 -3m0 6l3 -3" />'],
@@ -2419,7 +2395,7 @@ $nav_sections = [
     ['l' => 'Clod Clash',       'coll' => true,  'k' => 'clod',   'items' => ['clod', 'reports']],
     ['l' => 'Вебхуки',          'coll' => true,  'k' => 'wh',     'items' => forward_enabled() ? ['webhooks', 'fwdlog', 'whlog'] : ['webhooks', 'whlog']],
     ['l' => 'Грейс',            'coll' => true,  'k' => 'grace',  'items' => ['subst', 'grace_users']],
-    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['rules', 'panel_rules', 'hwid', 'overrides', 'hostov', 'squad_configs', 'wg_pool', 'addsub', 'pagekeys']],
+    ['l' => 'Доступ / подмена', 'coll' => true,  'k' => 'access', 'items' => ['panel_rules', 'hwid', 'overrides', 'hostov', 'squad_configs', 'wg_pool', 'addsub', 'pagekeys']],
     ['l' => 'Обслуживание',     'coll' => false, 'k' => 'maint',  'items' => array_merge(['sysinfo', 'update', 'migrate'], function_exists('backup_create') ? ['backup'] : [])],
 ];
 function submw_ui_cookie() {
@@ -2453,7 +2429,6 @@ function nav_link($key, $it, $active, $badge = '', $grp = '', $off = false) {
     $dot = $badge !== '' ? '<span class="nav-dot" role="img" aria-label="' . h($badge) . '" data-tip="' . h($badge) . '"></span>' : '';
     $beta = '';
     if ($key === 'panel_rules') $beta = '<span class="nav-beta nav-ico" role="img" aria-label="Бета" data-tip="Бета: раздел работает, но может меняться"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg></span>';
-    elseif ($key === 'rules') $beta = '<span class="nav-beta nav-ico nav-dep" role="img" aria-label="Устарело" data-tip="Устарело: раздел планируется удалить в дальнейшем"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>';
     return '<a href="?tab=' . $key . '" class="' . ($active ? 'active' : '') . '" data-nk="' . h($key) . '" data-ng="' . h($grp) . '"' . ($off ? ' hidden' : '') . '>' . $svg . '<span>' . h($it[0]) . '</span>' . $beta . $dot . '</a>';
 }
 $nav_hid = nav_hidden_get();
@@ -2601,9 +2576,6 @@ if(w.dataset.f)ask('omit').then(function(open){return open===false?ask('same-ori
 
 <?php elseif ($tab === 'subst'): ?>
     <?php include __DIR__ . '/inc/tab_subst.php'; ?>
-
-<?php elseif ($tab === 'rules'): ?>
-    <?php include __DIR__ . '/inc/tab_rules.php'; ?>
 
 <?php elseif ($tab === 'panel_rules'): ?>
     <?php include __DIR__ . '/inc/tab_panel_rules.php'; ?>

@@ -1,14 +1,6 @@
 <?php
 
-function rules_protected_headers() {
-    return ['content-length', 'content-encoding', 'transfer-encoding', 'connection',
-            'host', 'content-type', 'subscription-userinfo', 'content-disposition'];
-}
-
-function rules_header_ok($name) {
-    if (!preg_match('/^[A-Za-z0-9-]+$/', (string) $name)) return false;
-    return !in_array(strtolower($name), rules_protected_headers(), true);
-}
+// Общие помощники по заголовкам ответа: base64 для кириллицы (анонс грейса, «Правила ответа панели») и справочник заголовков клиентов.
 
 function rules_b64_headers() {
     return ['profile-title', 'announce'];
@@ -19,16 +11,6 @@ function rules_encode_value($name, $value) {
     if (!preg_match('/[^\x20-\x7E]/', $value)) return $value;
     if (!in_array(strtolower($name), rules_b64_headers(), true)) return $value;
     return 'base64:' . base64_encode($value);
-}
-
-function rules_client_catalog() {
-    $pop = []; $oth = [];
-    foreach (client_catalog() as $c) {
-        if (empty($c['rk'])) continue;
-        $e = ['key' => $c['rk'], 'label' => $c['label'], 'ua' => $c['ua'], 'group' => $c['rg'] ?? 'other'];
-        if (($c['rg'] ?? '') === 'popular') $pop[] = $e; else $oth[] = $e;
-    }
-    return array_merge($pop, $oth);
 }
 
 function app_headers_catalog() {
@@ -80,205 +62,17 @@ function app_headers_catalog() {
     ];
 }
 
-function rules_sanitize_input($arr) {
-    $cat = [];
-    foreach (rules_client_catalog() as $c) $cat[$c['key']] = $c['ua'];
-    $clean = [];
-    if (!is_array($arr)) return $clean;
-    foreach ($arr as $r) {
-        if (!is_array($r)) continue;
-        $client    = trim((string) ($r['client'] ?? ''));
-        $os        = strtolower(trim((string) ($r['os'] ?? '')));
-        $osmap     = ['android' => 'android', 'ios' => 'ios', 'windows' => 'windows', 'macos' => 'mac', 'linux' => 'linux'];
-        if (!isset($osmap[$os])) $os = '';
-        $ua_custom = trim((string) ($r['ua_custom'] ?? ''));
-
-        if ($client === 'all')         { $ua = ''; $os = ''; }
-        elseif ($client === 'custom')  { $ua = $ua_custom; }
-        else                           { $ua = (string) ($cat[$client] ?? ''); }
-
-        $conds = [];
-        if ($ua !== '') $conds[] = ['header' => 'user-agent',  'op' => 'CONTAINS', 'value' => $ua, 'ci' => true];
-        if ($os !== '') $conds[] = ['header' => 'x-device-os', 'op' => 'CONTAINS', 'value' => $osmap[$os], 'ci' => true];
-
-        $hdrs = [];
-        foreach ((array) ($r['headers'] ?? []) as $h) {
-            if (!is_array($h)) continue;
-            $k = trim((string) ($h['key'] ?? ''));
-            if ($k === '') continue;
-            $hdrs[] = ['key' => $k, 'value' => (string) ($h['value'] ?? '')];
-        }
-
-        $name = trim((string) ($r['name'] ?? ''));
-        if ($name === '') {
-            $name = $client === 'all' ? 'Все клиенты'
-                  : ($client === 'custom' ? ($ua_custom !== '' ? $ua_custom : 'Своё') : $client);
-        }
-
-        $clean[] = [
-            'name'       => $name,
-            'enabled'    => !empty($r['enabled']),
-            'client'     => $client,
-            'os'         => $os,
-            'ua_custom'  => $ua_custom,
-            'operator'   => 'AND',
-            'conditions' => $conds,
-            'headers'    => $hdrs,
-        ];
+// Вкладка «Правила ответа по приложению» удалена — её настройки и скрытый пункт меню из прежних версий убираем один раз; проверка бесплатна, settings уже в памяти.
+function rules_settings_cleanup() {
+    $nh = json_decode((string) setting('nav_hidden', ''), true);
+    if (is_array($nh) && is_array($nh['t'] ?? null) && in_array('rules', $nh['t'], true)) {
+        $nh['t'] = array_values(array_diff($nh['t'], ['rules']));
+        set_setting('nav_hidden', json_encode($nh));
     }
-    return $clean;
-}
-
-function rules_save_from_json($json) {
-    $clean = rules_sanitize_input(json_decode((string) $json, true));
-    set_setting('response_rules', json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    return $clean;
-}
-
-function rules_migrate_legacy() {
-    if (setting('rules_migrated', '0') === '1') return;
-    $old  = app_headers_all();
-    $hdrs = [];
-    foreach ($old as $t) {
-        if (empty($t['enabled']) || $t['name'] === '' || $t['value'] === '') continue;
-        $hdrs[] = ['key' => $t['name'], 'value' => $t['value']];
-    }
-    if ($hdrs) {
-        $rules = json_decode((string) setting('response_rules', '[]'), true);
-        if (!is_array($rules)) $rules = [];
-        array_unshift($rules, [
-            'name' => 'Все клиенты', 'enabled' => true, 'client' => 'all',
-            'os' => '', 'ua_custom' => '', 'operator' => 'AND', 'conditions' => [], 'headers' => $hdrs,
-        ]);
-        set_setting('response_rules', json_encode($rules, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        set_setting('app_headers', '[]');
-    }
-    set_setting('rules_migrated', '1');
-}
-
-function response_rules_all() {
-    $arr = json_decode((string) setting('response_rules', '[]'), true);
-    if (!is_array($arr)) return [];
-    $out = [];
-    foreach ($arr as $r) {
-        if (!is_array($r)) continue;
-        $op = strtoupper((string) ($r['operator'] ?? 'AND'));
-        if ($op !== 'OR') $op = 'AND';
-
-        $conds = [];
-        foreach ((array) ($r['conditions'] ?? []) as $c) {
-            if (!is_array($c)) continue;
-            $h = trim((string) ($c['header'] ?? ''));
-            if ($h === '') continue;
-            $conds[] = [
-                'header' => $h,
-                'op'     => strtoupper((string) ($c['op'] ?? 'CONTAINS')),
-                'value'  => (string) ($c['value'] ?? ''),
-                'ci'     => array_key_exists('ci', $c) ? !empty($c['ci']) : true,
-            ];
-        }
-
-        $hdrs = [];
-        foreach ((array) ($r['headers'] ?? []) as $h) {
-            if (!is_array($h)) continue;
-            $k = trim((string) ($h['key'] ?? ''));
-            if ($k === '') continue;
-            $hdrs[] = ['key' => $k, 'value' => (string) ($h['value'] ?? '')];
-        }
-
-        $out[] = [
-            'name'       => trim((string) ($r['name'] ?? '')),
-            'enabled'    => !empty($r['enabled']),
-            'client'     => trim((string) ($r['client'] ?? '')),
-            'os'         => trim((string) ($r['os'] ?? '')),
-            'ua_custom'  => trim((string) ($r['ua_custom'] ?? '')),
-            'operator'   => $op,
-            'conditions' => $conds,
-            'headers'    => $hdrs,
-        ];
-    }
-    return $out;
-}
-
-function rules_req_header($name, $override = []) {
-    $lname = strtolower($name);
-    foreach ($override as $k => $v) {
-        if (strtolower($k) === $lname) return (string) $v;
-    }
-    if (function_exists('getallheaders')) {
-        foreach (getallheaders() as $k => $v) {
-            if (strtolower($k) === $lname) return (string) $v;
-        }
-    }
-    $sk = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
-    if (isset($_SERVER[$sk])) return (string) $_SERVER[$sk];
-    return null;
-}
-
-function rules_op_match($hay, $op, $needle, $ci) {
-    if ($hay === null) return false;
-    if ($op === 'REGEX' || $op === 'NOT_REGEX') {
-        $re = '~' . str_replace('~', '\~', (string) $needle) . '~u' . ($ci ? 'i' : '');
-        $m  = (@preg_match($re, $hay) === 1);
-        return $op === 'REGEX' ? $m : !$m;
-    }
-    if ($ci) { $hay = mb_strtolower($hay); $needle = mb_strtolower($needle); }
-    $needle = (string) $needle;
-    switch ($op) {
-        case 'EQUALS':          return $hay === $needle;
-        case 'NOT_EQUALS':      return $hay !== $needle;
-        case 'CONTAINS':        return $needle !== '' && mb_strpos($hay, $needle) !== false;
-        case 'NOT_CONTAINS':    return !($needle !== '' && mb_strpos($hay, $needle) !== false);
-        case 'STARTS_WITH':     return $needle !== '' && mb_strpos($hay, $needle) === 0;
-        case 'NOT_STARTS_WITH': return !($needle !== '' && mb_strpos($hay, $needle) === 0);
-        case 'ENDS_WITH':       return $needle !== '' && substr($hay, -strlen($needle)) === $needle;
-        case 'NOT_ENDS_WITH':   return !($needle !== '' && substr($hay, -strlen($needle)) === $needle);
-    }
-    return false;
-}
-
-function rule_matches($rule, $override = []) {
-    $conds = $rule['conditions'];
-    if (!$conds) return true;
-    $op = $rule['operator'];
-    foreach ($conds as $c) {
-        $hv = rules_req_header($c['header'], $override);
-        $m  = rules_op_match($hv, $c['op'], $c['value'], $c['ci']);
-        if ($op === 'AND' && !$m) return false;
-        if ($op === 'OR'  && $m)  return true;
-    }
-    return $op === 'AND';
-}
-
-function response_headers_final($override = []) {
-    $merged = app_headers_send();
-    foreach (response_rules_all() as $rule) {
-        if (!$rule['enabled']) continue;
-        if (!rule_matches($rule, $override)) continue;
-        foreach ($rule['headers'] as $h) {
-            $value = str_replace(["\r", "\n"], '', $h['value']);
-            if ($value === '') continue;
-            $merged[$h['key']] = $value;
-        }
-    }
-    $out = [];
-    foreach ($merged as $k => $v) {
-        if (rules_header_ok($k)) $out[$k] = rules_encode_value($k, $v);
-    }
-    return $out;
-}
-
-function rules_test($override = []) {
-    $matched = [];
-    foreach (response_rules_all() as $rule) {
-        if (!$rule['enabled']) continue;
-        if (rule_matches($rule, $override)) $matched[] = $rule['name'] !== '' ? $rule['name'] : $rule['client'];
-    }
-    return ['matched' => $matched, 'headers' => response_headers_final($override)];
-}
-
-function emit_response_headers($override = []) {
-    foreach (response_headers_final($override) as $name => $value) {
-        header($name . ': ' . $value);
-    }
+    $keys = array_values(array_intersect(['response_rules', 'rules_migrated', 'app_headers'], array_keys((array) ($GLOBALS['submw_settings_cache'] ?? []))));
+    if (!$keys || !($p = db())) return;
+    try {
+        $p->prepare('DELETE FROM settings WHERE k IN (' . implode(',', array_fill(0, count($keys), '?')) . ')')->execute($keys);
+        foreach ($keys as $k) unset($GLOBALS['submw_settings_cache'][$k]);
+    } catch (Throwable $e) {}
 }

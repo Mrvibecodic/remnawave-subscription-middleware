@@ -42,22 +42,16 @@ t_eq('без срока — по дате создания', expired_grace_passe
 t_settings(['expired_grace_days' => '0']);
 t_eq('окно 0 — никогда', expired_grace_passed($now - 99 * 86400, null, $now), false);
 
-// Правила ответа
-t_eq('правило: EQUALS', rules_op_match('Happ', 'EQUALS', 'Happ', false), true);
-t_eq('правило: EQUALS без учёта регистра', rules_op_match('happ', 'EQUALS', 'HAPP', true), true);
-t_eq('правило: CONTAINS пустой иглой — нет', rules_op_match('x', 'CONTAINS', '', false), false);
-t_eq('правило: NOT_CONTAINS', rules_op_match('Streisand', 'NOT_CONTAINS', 'Happ', false), true);
-t_eq('правило: STARTS_WITH', rules_op_match('v2rayNG/1.9', 'STARTS_WITH', 'v2rayNG', false), true);
-t_eq('правило: ENDS_WITH', rules_op_match('a.example.com', 'ENDS_WITH', '.com', false), true);
-t_eq('правило: REGEX', rules_op_match('Hiddify/2.5.7', 'REGEX', '^Hiddify/2\.', false), true);
-t_eq('правило: NOT_REGEX', rules_op_match('Hiddify/3.0', 'NOT_REGEX', '^Hiddify/2\.', false), true);
-t_eq('правило: нет заголовка — не совпало', rules_op_match(null, 'NOT_CONTAINS', 'x', false), false);
-$rule = ['operator' => 'AND', 'conditions' => [['header' => 'user-agent', 'op' => 'CONTAINS', 'value' => 'Happ', 'ci' => true], ['header' => 'x-hwid', 'op' => 'EQUALS', 'value' => '1', 'ci' => false]]];
-t_eq('правило AND: оба условия', rule_matches($rule, ['User-Agent' => 'happ/3', 'X-HWID' => '1']), true);
-t_eq('правило AND: одно не сошлось', rule_matches($rule, ['User-Agent' => 'happ/3', 'X-HWID' => '2']), false);
-$rule['operator'] = 'OR';
-t_eq('правило OR: одного хватает', rule_matches($rule, ['User-Agent' => 'other', 'X-HWID' => '1']), true);
-t_eq('правило без условий — всегда', rule_matches(['operator' => 'AND', 'conditions' => []]), true);
+// Чистка после удалённой вкладки «Правила ответа по приложению»
+t_settings(['response_rules' => '[{"name":"x"}]', 'rules_migrated' => '1', 'app_headers' => '[]', 'nav_hidden' => '{"g":["clod"],"t":["rules","hwid"]}']);
+rules_settings_cleanup();
+unset($GLOBALS['submw_settings_cache']);
+t_eq('чистка правил: настройки удалены', [setting('response_rules'), setting('rules_migrated'), setting('app_headers')], [null, null, null]);
+t_eq('чистка правил: скрытый пункт меню убран, остальные на месте', json_decode((string) setting('nav_hidden'), true), ['g' => ['clod'], 't' => ['hwid']]);
+rules_settings_cleanup();
+t_eq('чистка правил: повтор ничего не трогает', json_decode((string) setting('nav_hidden'), true), ['g' => ['clod'], 't' => ['hwid']]);
+t_eq('base64 для announce с кириллицей', rules_encode_value('announce', 'Привет'), 'base64:' . base64_encode('Привет'));
+t_eq('справочник заголовков на месте', count(pr_known_headers()) > 0, true);
 
 // Версии клиентов
 t_eq('версия: v и хвост сборки', clientver_norm('v1.10.2-beta.3'), '1.10.2');

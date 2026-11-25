@@ -16,7 +16,6 @@ INSERT INTO settings (k, v) VALUES
     ('forward_targets',       '[]'),
     ('forward_timeout',       '8'),
     ('expired_grace_days',    '7'),
-    ('app_headers',           '[]'),
     ('service_name',          ''),
     ('service_logo_url',      ''),
     ('brand_cache',           '{}'),

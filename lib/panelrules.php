@@ -782,7 +782,7 @@ function pr_app_catalog() {
     return $out;
 }
 
-// Известные заголовки для «что поменять», из каталога вкладки «Правила ответа» прослойки.
+// Известные заголовки для «что поменять», из справочника app_headers_catalog().
 function pr_known_headers() {
     if (!function_exists('app_headers_catalog')) return [];
     $out = [];
